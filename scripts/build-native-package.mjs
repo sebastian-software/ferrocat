@@ -26,7 +26,7 @@ const targets = {
     arch: "arm64",
     libc: "glibc"
   },
-  "ferrocat-win32-x64-msvc": {
+  "ferrocat-winx64-msvc": {
     platform: "win32",
     arch: "x64"
   }

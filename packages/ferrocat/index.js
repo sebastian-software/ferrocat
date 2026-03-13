@@ -33,7 +33,7 @@ function resolvePackageName() {
   }
 
   if (process.platform === "win32" && process.arch === "x64") {
-    return "ferrocat-win32-x64-msvc";
+    return "ferrocat-winx64-msvc";
   }
 
   throw new Error(

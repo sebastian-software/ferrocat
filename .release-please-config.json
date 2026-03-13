@@ -21,7 +21,7 @@
         "ferrocat-darwin-arm64",
         "ferrocat-linux-arm64-gnu",
         "ferrocat-linux-x64-gnu",
-        "ferrocat-win32-x64-msvc"
+        "ferrocat-winx64-msvc"
       ]
     }
   ],
@@ -51,10 +51,10 @@
       "package-name": "ferrocat-linux-x64-gnu",
       "component": "ferrocat-linux-x64-gnu"
     },
-    "packages/ferrocat-win32-x64-msvc": {
+    "packages/ferrocat-winx64-msvc": {
       "release-type": "node",
-      "package-name": "ferrocat-win32-x64-msvc",
-      "component": "ferrocat-win32-x64-msvc"
+      "package-name": "ferrocat-winx64-msvc",
+      "component": "ferrocat-winx64-msvc"
     }
   }
 }

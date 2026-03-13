@@ -19,9 +19,9 @@ importers:
       ferrocat-linux-x64-gnu:
         specifier: workspace:^
         version: link:../ferrocat-linux-x64-gnu
-      ferrocat-win32-x64-msvc:
+      ferrocat-winx64-msvc:
         specifier: workspace:^
-        version: link:../ferrocat-win32-x64-msvc
+        version: link:../ferrocat-winx64-msvc
 
   packages/ferrocat-darwin-arm64: {}
 
@@ -29,4 +29,4 @@ importers:
 
   packages/ferrocat-linux-x64-gnu: {}
 
-  packages/ferrocat-win32-x64-msvc: {}
+  packages/ferrocat-winx64-msvc: {}

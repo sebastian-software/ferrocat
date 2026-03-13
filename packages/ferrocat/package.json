@@ -40,6 +40,6 @@
     "ferrocat-darwin-arm64": "workspace:^",
     "ferrocat-linux-arm64-gnu": "workspace:^",
     "ferrocat-linux-x64-gnu": "workspace:^",
-    "ferrocat-win32-x64-msvc": "workspace:^"
+    "ferrocat-winx64-msvc": "workspace:^"
   }
 }

@@ -34,7 +34,7 @@
 - `packages/ferrocat-darwin-arm64`
 - `packages/ferrocat-linux-x64-gnu`
 - `packages/ferrocat-linux-arm64-gnu`
-- `packages/ferrocat-win32-x64-msvc`
+- `packages/ferrocat-winx64-msvc`
   - Publishable platform packages containing the `.node` binary
   - Built in CI on their matching runners
 

@@ -55,7 +55,7 @@ jobs:
             runner: ubuntu-24.04
           - package_name: "ferrocat-linux-arm64-gnu"
             runner: ubuntu-24.04-arm
-          - package_name: "ferrocat-win32-x64-msvc"
+          - package_name: "ferrocat-winx64-msvc"
             runner: windows-2025
     runs-on: ${{ matrix.runner }}
     permissions:
