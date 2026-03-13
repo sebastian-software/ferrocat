@@ -1,0 +1,37 @@
+{
+  "name": "ferrocat-linux-x64-gnu",
+  "version": "0.0.1",
+  "description": "Linux x64 glibc native bindings for ferrocat.",
+  "homepage": "https://github.com/sebastian-software/ferrocat",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sebastian-software/ferrocat.git",
+    "directory": "packages/ferrocat-linux-x64-gnu"
+  },
+  "bugs": "https://github.com/sebastian-software/ferrocat/issues",
+  "license": "MIT",
+  "type": "commonjs",
+  "main": "./ferrocat.node",
+  "files": [
+    "README.md",
+    "ferrocat.node"
+  ],
+  "scripts": {
+    "build": "node ../../scripts/build-native-package.mjs"
+  },
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "os": [
+    "linux"
+  ],
+  "cpu": [
+    "x64"
+  ],
+  "libc": [
+    "glibc"
+  ]
+}

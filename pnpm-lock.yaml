@@ -1,0 +1,32 @@
+lockfileVersion: '9.0'
+
+settings:
+  autoInstallPeers: true
+  excludeLinksFromLockfile: false
+
+importers:
+
+  .: {}
+
+  packages/ferrocat:
+    optionalDependencies:
+      ferrocat-darwin-arm64:
+        specifier: workspace:^
+        version: link:../ferrocat-darwin-arm64
+      ferrocat-linux-arm64-gnu:
+        specifier: workspace:^
+        version: link:../ferrocat-linux-arm64-gnu
+      ferrocat-linux-x64-gnu:
+        specifier: workspace:^
+        version: link:../ferrocat-linux-x64-gnu
+      ferrocat-win32-x64-msvc:
+        specifier: workspace:^
+        version: link:../ferrocat-win32-x64-msvc
+
+  packages/ferrocat-darwin-arm64: {}
+
+  packages/ferrocat-linux-arm64-gnu: {}
+
+  packages/ferrocat-linux-x64-gnu: {}
+
+  packages/ferrocat-win32-x64-msvc: {}

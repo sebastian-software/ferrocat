@@ -1,0 +1,44 @@
+{
+  "name": "ferrocat",
+  "version": "0.0.1",
+  "description": "Node.js bindings for the Ferrocat Rust core.",
+  "keywords": [
+    "ferrocat",
+    "gettext",
+    "po",
+    "icu",
+    "i18n"
+  ],
+  "homepage": "https://github.com/sebastian-software/ferrocat",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sebastian-software/ferrocat.git",
+    "directory": "packages/ferrocat"
+  },
+  "bugs": "https://github.com/sebastian-software/ferrocat/issues",
+  "license": "MIT",
+  "type": "commonjs",
+  "main": "./index.js",
+  "exports": {
+    ".": "./index.js"
+  },
+  "files": [
+    "README.md",
+    "index.js"
+  ],
+  "scripts": {
+    "build": "node -e \"process.exit(0)\""
+  },
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "optionalDependencies": {
+    "ferrocat-darwin-arm64": "workspace:^",
+    "ferrocat-linux-arm64-gnu": "workspace:^",
+    "ferrocat-linux-x64-gnu": "workspace:^",
+    "ferrocat-win32-x64-msvc": "workspace:^"
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "name": "ferrocat-workspace",
+  "private": true,
+  "description": "Monorepo for the Ferrocat Rust crates and Node.js packages.",
+  "homepage": "https://github.com/sebastian-software/ferrocat",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sebastian-software/ferrocat.git"
+  },
+  "bugs": "https://github.com/sebastian-software/ferrocat/issues",
+  "packageManager": "pnpm@9.15.9",
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "scripts": {
+    "build": "pnpm -r --filter \"./packages/**\" build",
+    "build:native": "pnpm -r --filter \"./packages/ferrocat-*\" build",
+    "build:rust": "cargo build --workspace",
+    "check:rust": "cargo check --workspace",
+    "fmt:rust": "cargo fmt --all",
+    "test": "cargo test --workspace",
+    "test:rust": "cargo test --workspace"
+  }
+}
