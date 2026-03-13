@@ -1,6 +1,6 @@
 {
   "name": "ferrocat",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "description": "Node.js bindings for the Ferrocat Rust core.",
   "keywords": [
     "ferrocat",
