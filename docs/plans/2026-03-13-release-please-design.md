@@ -21,7 +21,8 @@ Merging a release PR should trigger one publish workflow that:
   - The public crates and npm packages in-repo stay at `0.0.1` until the first real release PR is merged.
   - The first real Ferrocat release should be forced to `0.1.0`.
 - Keep `crates/ferrocat-node` internal and unpublished
-  - It participates in builds only, not in release-please version management.
+  - It participates in the shared version stream so all Rust crates stay aligned.
+  - It remains `publish = false` and is not published to crates.io by `publish.yml`.
 - Use manifest-driven `release-please`
   - This is the recommended mode for monorepos and required for Rust workspaces.
 - Use both `node-workspace` and `cargo-workspace` plugins with `merge: false`

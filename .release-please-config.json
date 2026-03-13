@@ -17,6 +17,7 @@
       "merge": true,
       "components": [
         "ferrocat-rust",
+        "ferrocat-node-internal",
         "ferrocat-js",
         "ferrocat-darwin-arm64",
         "ferrocat-linux-arm64-gnu",
@@ -30,6 +31,12 @@
       "release-type": "rust",
       "package-name": "ferrocat",
       "component": "ferrocat-rust"
+    },
+    "crates/ferrocat-node": {
+      "release-type": "rust",
+      "package-name": "ferrocat-node",
+      "component": "ferrocat-node-internal",
+      "skip-changelog": true
     },
     "packages/ferrocat": {
       "release-type": "node",

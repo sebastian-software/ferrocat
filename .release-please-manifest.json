@@ -1,5 +1,6 @@
 {
   "crates/ferrocat": "0.0.1",
+  "crates/ferrocat-node": "0.0.1",
   "packages/ferrocat": "0.0.1",
   "packages/ferrocat-darwin-arm64": "0.0.1",
   "packages/ferrocat-linux-arm64-gnu": "0.0.1",
