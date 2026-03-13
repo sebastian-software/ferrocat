@@ -7,6 +7,34 @@ on:
       - main
 
 jobs:
+  rust-lint:
+    name: Rust lint
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install pnpm workspace dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Check Rust formatting
+        run: pnpm fmt:rust:check
+
+      - name: Run Clippy
+        run: pnpm lint:rust
+
   validate:
     strategy:
       fail-fast: false
@@ -57,12 +85,6 @@ jobs:
 
       - name: Install pnpm workspace dependencies
         run: pnpm install --frozen-lockfile
-
-      - name: Check Rust formatting
-        run: pnpm fmt:rust:check
-
-      - name: Run Clippy
-        run: pnpm lint:rust
 
       - name: Build workspace
         run: pnpm build
