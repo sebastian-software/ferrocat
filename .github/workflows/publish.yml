@@ -87,6 +87,9 @@ jobs:
       - name: Build native package
         run: pnpm --filter "${{ matrix.package_name }}" build
 
+      - name: Verify native package artifact
+        run: node -e "const fs = require('node:fs'); const path = require('node:path'); const artifact = path.join(process.cwd(), 'packages', '${{ matrix.package_name }}', 'ferrocat.node'); if (!fs.existsSync(artifact)) { throw new Error(`Missing native artifact: ${artifact}`); }"
+
       - name: Publish native package
         run: pnpm --filter "${{ matrix.package_name }}" publish --access public --no-git-checks
 

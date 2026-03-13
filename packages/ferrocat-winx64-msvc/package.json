@@ -1,7 +1,7 @@
 {
   "name": "ferrocat-winx64-msvc",
   "version": "0.1.0",
-  "description": "Placeholder package reserved for future ferrocat Windows x64 MSVC native bindings.",
+  "description": "Windows x64 MSVC native bindings for ferrocat.",
   "homepage": "https://github.com/sebastian-software/ferrocat",
   "repository": {
     "type": "git",
@@ -10,12 +10,15 @@
   },
   "bugs": "https://github.com/sebastian-software/ferrocat/issues",
   "license": "MIT",
+  "type": "commonjs",
+  "main": "./ferrocat.node",
   "files": [
     "CHANGELOG.md",
-    "README.md"
+    "README.md",
+    "ferrocat.node"
   ],
   "scripts": {
-    "build": "node -e \"process.exit(0)\""
+    "build": "node ../../scripts/build-native-package.mjs"
   },
   "engines": {
     "node": ">=22.0.0"

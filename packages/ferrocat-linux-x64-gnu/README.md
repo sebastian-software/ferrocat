@@ -1,6 +1,6 @@
 # ferrocat-linux-x64-gnu
 
-Placeholder Linux x64 glibc package for `ferrocat`.
+Native Linux x64 glibc package for `ferrocat`.
 
-Version `0.0.1` exists only to reserve the package name and enable npm Trusted Publishing setup for
-the future native distribution.
+This package contains the prebuilt `ferrocat.node` binary for Linux x64 systems using glibc and is
+installed as an optional dependency of `ferrocat`.

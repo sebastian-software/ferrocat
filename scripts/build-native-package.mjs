@@ -1,4 +1,4 @@
-import { copyFileSync, existsSync, readFileSync } from "node:fs";
+import { copyFileSync, existsSync, readFileSync, rmSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -44,12 +44,16 @@ function detectLinuxLibc() {
 }
 
 const target = targets[packageJson.name];
+const targetPath = path.join(packageDir, "ferrocat.node");
 
 if (!target) {
   throw new Error(`Unsupported native package target: ${packageJson.name}`);
 }
 
 if (process.platform !== target.platform || process.arch !== target.arch) {
+  if (existsSync(targetPath)) {
+    rmSync(targetPath);
+  }
   console.log(
     `Skipping native build for ${packageJson.name} on ${process.platform}/${process.arch}`
   );
@@ -61,6 +65,9 @@ if (
   target.libc &&
   detectLinuxLibc() !== target.libc
 ) {
+  if (existsSync(targetPath)) {
+    rmSync(targetPath);
+  }
   console.log(`Skipping native build for ${packageJson.name} due to libc mismatch`);
   process.exit(0);
 }
@@ -92,7 +99,6 @@ execFileSync("cargo", cargoArgs, {
 const binaryName =
   process.platform === "win32" ? "ferrocat_node.dll" : `libferrocat_node.${extension}`;
 const sourcePath = path.join(repoRoot, "target", profile, binaryName);
-const targetPath = path.join(packageDir, "ferrocat.node");
 
 if (!existsSync(sourcePath)) {
   throw new Error(`Expected native binary at ${sourcePath}`);

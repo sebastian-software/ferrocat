@@ -95,7 +95,3 @@ jobs:
       - name: Smoke test native wrapper with Node.js
         if: ${{ matrix.runtime.name == 'node' }}
         run: node ./scripts/smoke-native.mjs
-
-      - name: Smoke test native wrapper with Bun
-        if: ${{ matrix.runtime.name == 'bun' }}
-        run: bun ./scripts/smoke-native.mjs

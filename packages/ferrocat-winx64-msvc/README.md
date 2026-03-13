@@ -1,6 +1,6 @@
 # ferrocat-winx64-msvc
 
-Placeholder Windows x64 MSVC package for `ferrocat`.
+Native Windows x64 MSVC package for `ferrocat`.
 
-Version `0.0.1` exists only to reserve the package name and enable npm Trusted Publishing setup for
-the future native distribution.
+This package contains the prebuilt `ferrocat.node` binary for Windows x64 MSVC systems and is
+installed as an optional dependency of `ferrocat`.
