@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.0](https://github.com/sebastian-software/ferrocat/compare/ferrocat-rust-v0.1.0...ferrocat-rust-v0.2.0) (2026-03-13)
+
+
+### Miscellaneous Chores
+
+* **ferrocat-rust:** Synchronize ferrocat versions
+
 ## [0.1.0](https://github.com/sebastian-software/ferrocat/compare/ferrocat-rust-v0.0.1...ferrocat-rust-v0.1.0) (2026-03-13)
 
 
