@@ -1,0 +1,60 @@
+{
+  "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
+  "bootstrap-sha": "9ce5b5d",
+  "separate-pull-requests": false,
+  "plugins": [
+    {
+      "type": "cargo-workspace",
+      "merge": false
+    },
+    {
+      "type": "node-workspace",
+      "merge": false
+    },
+    {
+      "type": "linked-versions",
+      "groupName": "ferrocat",
+      "merge": true,
+      "components": [
+        "ferrocat-rust",
+        "ferrocat-js",
+        "ferrocat-darwin-arm64",
+        "ferrocat-linux-arm64-gnu",
+        "ferrocat-linux-x64-gnu",
+        "ferrocat-win32-x64-msvc"
+      ]
+    }
+  ],
+  "packages": {
+    "crates/ferrocat": {
+      "release-type": "rust",
+      "package-name": "ferrocat",
+      "component": "ferrocat-rust"
+    },
+    "packages/ferrocat": {
+      "release-type": "node",
+      "package-name": "ferrocat",
+      "component": "ferrocat-js"
+    },
+    "packages/ferrocat-darwin-arm64": {
+      "release-type": "node",
+      "package-name": "ferrocat-darwin-arm64",
+      "component": "ferrocat-darwin-arm64"
+    },
+    "packages/ferrocat-linux-arm64-gnu": {
+      "release-type": "node",
+      "package-name": "ferrocat-linux-arm64-gnu",
+      "component": "ferrocat-linux-arm64-gnu"
+    },
+    "packages/ferrocat-linux-x64-gnu": {
+      "release-type": "node",
+      "package-name": "ferrocat-linux-x64-gnu",
+      "component": "ferrocat-linux-x64-gnu"
+    },
+    "packages/ferrocat-win32-x64-msvc": {
+      "release-type": "node",
+      "package-name": "ferrocat-win32-x64-msvc",
+      "component": "ferrocat-win32-x64-msvc"
+    }
+  }
+}

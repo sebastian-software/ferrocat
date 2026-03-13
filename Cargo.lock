@@ -56,11 +56,11 @@ checksum = "f678cf4a922c215c63e0de95eb1ff08a958a81d47e485cf9da1e27bf6305cfa5"
 
 [[package]]
 name = "ferrocat"
-version = "5.0.0-beta.0"
+version = "0.0.1"
 
 [[package]]
 name = "ferrocat-node"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
  "ferrocat",
  "napi",

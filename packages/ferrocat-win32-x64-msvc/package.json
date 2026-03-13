@@ -13,6 +13,7 @@
   "type": "commonjs",
   "main": "./ferrocat.node",
   "files": [
+    "CHANGELOG.md",
     "README.md",
     "ferrocat.node"
   ],
