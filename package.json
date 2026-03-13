@@ -18,6 +18,9 @@
     "build:rust": "cargo build --workspace",
     "check:rust": "cargo check --workspace",
     "fmt:rust": "cargo fmt --all",
+    "fmt:rust:check": "cargo fmt --all --check",
+    "lint:rust": "cargo clippy --all-targets --all-features -- -D warnings",
+    "smoke:native": "node ./scripts/smoke-native.mjs",
     "test": "cargo test --workspace",
     "test:rust": "cargo test --workspace"
   }
