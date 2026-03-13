@@ -1,6 +1,6 @@
 {
   "name": "ferrocat-darwin-arm64",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "description": "Placeholder package reserved for future ferrocat macOS arm64 native bindings.",
   "homepage": "https://github.com/sebastian-software/ferrocat",
   "repository": {

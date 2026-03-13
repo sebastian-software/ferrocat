@@ -1,6 +1,6 @@
 {
   "name": "ferrocat-winx64-msvc",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "description": "Placeholder package reserved for future ferrocat Windows x64 MSVC native bindings.",
   "homepage": "https://github.com/sebastian-software/ferrocat",
   "repository": {
