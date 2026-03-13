@@ -1,4 +1,4 @@
-use pofile::{parse_po, stringify_po, SerializeOptions};
+use ferrocat::{parse_po, stringify_po, SerializeOptions};
 
 fn main() {
     let input = r#"

@@ -2,29 +2,29 @@ use std::collections::BTreeMap;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
 
-use napi::bindgen_prelude::Result;
-use napi::Error;
-use napi_derive::napi;
-use pofile::{
-    create_default_headers, create_reference, format_po_date, format_reference, format_references,
-    compare_variables, extract_variable_info, extract_variables, generate_message_id, generate_message_ids,
-    get_plural_categories, get_plural_count, get_plural_forms_header, get_plural_index,
-    gettext_to_icu, has_icu_syntax, has_plural, has_select, has_select_ordinal, icu_to_gettext_source,
-    is_plural_item, items_to_catalog, merge_catalogs, normalize_file_path, normalize_item_to_icu,
-    normalize_to_icu, parse_icu, parse_plural_forms, parse_po, parse_reference, parse_references,
-    serialize_compiled_catalog, stringify_po, validate_icu, Catalog, CatalogEntry,
-    CatalogKeyStrategy, CatalogToItemsOptions, CatalogTranslation, CompileCatalogOptions,
-    CompileIcuOptions, CreateHeadersOptions, FormatReferenceOptions, GettextToIcuOptions, IcuNode,
-    IcuParseError, IcuParserOptions, IcuPluralOption, IcuPluralType, IcuSelectOption,
-    IcuValidationResult, IcuVariable, IcuVariableComparison, ItemsToCatalogOptions,
-    MessageIdInput, PoDateTime, PoFile, PoItem, SerializeOptions, SerializedCompiledCatalog,
-    SerializedCompiledEntry, SourceReference, SerializedCompiledMessage,
-    SerializedCompiledMessageKind, catalog_to_items,
-};
-use pofile::runtime::{
+use ferrocat::runtime::{
     compile_catalog as compile_catalog_runtime, compile_icu as compile_icu_runtime,
     CompiledCatalog, CompiledMessage, MessageValue, MessageValues,
 };
+use ferrocat::{
+    catalog_to_items, compare_variables, create_default_headers, create_reference,
+    extract_variable_info, extract_variables, format_po_date, format_reference, format_references,
+    generate_message_id, generate_message_ids, get_plural_categories, get_plural_count,
+    get_plural_forms_header, get_plural_index, gettext_to_icu, has_icu_syntax, has_plural,
+    has_select, has_select_ordinal, icu_to_gettext_source, is_plural_item, items_to_catalog,
+    merge_catalogs, normalize_file_path, normalize_item_to_icu, normalize_to_icu, parse_icu,
+    parse_plural_forms, parse_po, parse_reference, parse_references, serialize_compiled_catalog,
+    stringify_po, validate_icu, Catalog, CatalogEntry, CatalogKeyStrategy, CatalogToItemsOptions,
+    CatalogTranslation, CompileCatalogOptions, CompileIcuOptions, CreateHeadersOptions,
+    FormatReferenceOptions, GettextToIcuOptions, IcuNode, IcuParseError, IcuParserOptions,
+    IcuPluralOption, IcuPluralType, IcuSelectOption, IcuValidationResult, IcuVariable,
+    IcuVariableComparison, ItemsToCatalogOptions, MessageIdInput, PoDateTime, PoFile, PoItem,
+    SerializeOptions, SerializedCompiledCatalog, SerializedCompiledEntry,
+    SerializedCompiledMessage, SerializedCompiledMessageKind, SourceReference,
+};
+use napi::bindgen_prelude::Result;
+use napi::Error;
+use napi_derive::napi;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -835,7 +835,8 @@ pub fn generate_message_id_json(message: String, context: Option<String>) -> Str
 
 #[napi]
 pub fn generate_message_ids_json(inputs_json: String) -> Result<String> {
-    let inputs = serde_json::from_str::<Vec<InputMessageIdInput>>(&inputs_json).map_err(to_napi_error)?;
+    let inputs =
+        serde_json::from_str::<Vec<InputMessageIdInput>>(&inputs_json).map_err(to_napi_error)?;
     let inputs = inputs
         .into_iter()
         .map(|input| MessageIdInput {
@@ -884,13 +885,19 @@ pub fn normalize_file_path_json(path: String) -> String {
 
 #[napi]
 pub fn parse_reference_json(reference: String) -> Result<String> {
-    serde_json::to_string(&JsSourceReference::from(parse_reference(&reference).map_err(to_napi_error)?))
-        .map_err(to_napi_error)
+    serde_json::to_string(&JsSourceReference::from(
+        parse_reference(&reference).map_err(to_napi_error)?,
+    ))
+    .map_err(to_napi_error)
 }
 
 #[napi]
-pub fn format_reference_json(reference_json: String, options_json: Option<String>) -> Result<String> {
-    let reference = serde_json::from_str::<InputSourceReference>(&reference_json).map_err(to_napi_error)?;
+pub fn format_reference_json(
+    reference_json: String,
+    options_json: Option<String>,
+) -> Result<String> {
+    let reference =
+        serde_json::from_str::<InputSourceReference>(&reference_json).map_err(to_napi_error)?;
     let options = options_json
         .map(|json| serde_json::from_str::<InputFormatReferenceOptions>(&json))
         .transpose()
@@ -923,8 +930,8 @@ pub fn format_references_json(
     references_json: String,
     options_json: Option<String>,
 ) -> Result<String> {
-    let references =
-        serde_json::from_str::<Vec<InputSourceReference>>(&references_json).map_err(to_napi_error)?;
+    let references = serde_json::from_str::<Vec<InputSourceReference>>(&references_json)
+        .map_err(to_napi_error)?;
     let options = options_json
         .map(|json| serde_json::from_str::<InputFormatReferenceOptions>(&json))
         .transpose()
@@ -1019,7 +1026,10 @@ pub fn items_to_catalog_json(items_json: String, options_json: Option<String>) -
 pub fn merge_catalogs_json(base_json: String, updates_json: String) -> Result<String> {
     let base = serde_json::from_str::<InputCatalog>(&base_json).map_err(to_napi_error)?;
     let updates = serde_json::from_str::<InputCatalog>(&updates_json).map_err(to_napi_error)?;
-    let merged = merge_catalogs(&input_catalog_to_catalog(base), &input_catalog_to_catalog(updates));
+    let merged = merge_catalogs(
+        &input_catalog_to_catalog(base),
+        &input_catalog_to_catalog(updates),
+    );
 
     let merged = merged
         .into_iter()
@@ -1168,10 +1178,7 @@ pub fn normalize_to_icu_json(po_json: String, options_json: String) -> Result<St
 }
 
 #[napi]
-pub fn icu_to_gettext_source_json(
-    icu: String,
-    expand_octothorpe: Option<bool>,
-) -> Result<String> {
+pub fn icu_to_gettext_source_json(icu: String, expand_octothorpe: Option<bool>) -> Result<String> {
     let result = icu_to_gettext_source(&icu, expand_octothorpe.unwrap_or(true)).map(
         |(msgid, msgid_plural, plural_variable)| JsIcuToGettextSource {
             msgid,
@@ -1203,7 +1210,7 @@ pub fn compile_icu_json(message: String, options_json: String) -> Result<u32> {
 pub fn compile_icu_payload_json(message: String, options_json: String) -> Result<String> {
     let options =
         serde_json::from_str::<InputCompileIcuOptions>(&options_json).map_err(to_napi_error)?;
-    let compiled = pofile::compile_icu(
+    let compiled = ferrocat::compile_icu(
         &message,
         &CompileIcuOptions {
             locale: options.locale,

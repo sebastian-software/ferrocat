@@ -232,10 +232,14 @@ fn apply_optional_fields(item: &mut PoItem, entry: &CatalogEntry, options: Catal
 fn get_catalog_key(item: &PoItem, options: &ItemsToCatalogOptions) -> String {
     match options.key_strategy {
         CatalogKeyStrategy::Msgid => item.msgid.clone(),
-        CatalogKeyStrategy::ContextMsgid => item.msgctxt.as_ref().filter(|value| !value.is_empty()).map_or_else(
-            || item.msgid.clone(),
-            |context| format!("{context}{MSGCTXT_MSGID_SEPARATOR}{}", item.msgid),
-        ),
+        CatalogKeyStrategy::ContextMsgid => item
+            .msgctxt
+            .as_ref()
+            .filter(|value| !value.is_empty())
+            .map_or_else(
+                || item.msgid.clone(),
+                |context| format!("{context}{MSGCTXT_MSGID_SEPARATOR}{}", item.msgid),
+            ),
     }
 }
 

@@ -1,6 +1,6 @@
-# pofile
+# ferrocat
 
-`pofile` is the core Rust crate in the `ferrocat` workspace.
+`ferrocat` is the public Rust crate in the `ferrocat` workspace.
 
 It provides:
 
@@ -16,13 +16,13 @@ shared core for thin host bindings such as Node.js.
 ## Installation
 
 ```bash
-cargo add pofile
+cargo add ferrocat
 ```
 
 ## Parse and stringify PO files
 
 ```rust
-use pofile::{parse_po, stringify_po, SerializeOptions};
+use ferrocat::{parse_po, stringify_po, SerializeOptions};
 
 let po = parse_po(
     r#"
@@ -45,7 +45,7 @@ assert!(rendered.contains(r#"msgid "Hello""#));
 ## Compile ICU messages to a serializable payload
 
 ```rust
-use pofile::{compile_icu, CompileIcuOptions, SerializedCompiledMessageKind};
+use ferrocat::{compile_icu, CompileIcuOptions, SerializedCompiledMessageKind};
 
 let compiled = compile_icu(
     "{count, plural, one {# file} other {# files}}",
@@ -62,7 +62,7 @@ match compiled.kind {
 ## Compile catalogs to a serializable payload
 
 ```rust
-use pofile::{
+use ferrocat::{
     compile_catalog, Catalog, CatalogEntry, CatalogTranslation, CompileCatalogOptions,
     SerializedCompiledMessageKind,
 };
@@ -86,7 +86,7 @@ match &compiled.entries[0].message.kind {
 
 ## Rust runtime formatting
 
-For direct runtime formatting in Rust, use [`pofile::runtime`]. It exposes the
+For direct runtime formatting in Rust, use [`ferrocat::runtime`]. It exposes the
 runtime compiler, compiled message/catalog types, and host hooks such as
 `FormatHost`.
 

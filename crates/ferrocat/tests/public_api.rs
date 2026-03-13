@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use pofile::{
+use ferrocat::{
     compare_variables, compile_catalog, compile_icu, create_default_headers, extract_variable_info,
     extract_variables, format_po_date, generate_message_ids, get_plural_categories,
     get_plural_count, get_plural_forms_header, get_plural_index, gettext_to_icu, has_icu_syntax,
@@ -8,9 +8,9 @@ use pofile::{
     normalize_item_to_icu, normalize_to_icu, normalize_to_icu_in_place, parse_icu,
     parse_plural_forms, serialize_compiled_catalog, validate_icu, Catalog, CatalogEntry,
     CatalogKeyStrategy, CatalogTranslation, CompileCatalogOptions, CompileIcuOptions,
-    CreateHeadersOptions, GettextToIcuOptions, IcuErrorKind, IcuNode, IcuParser,
-    IcuParserOptions, IcuPluralType, ItemsToCatalogOptions, MessageIdInput, ParsedPluralForms,
-    PoDateTime, PoFile, PoItem, SerializedCompiledMessageKind,
+    CreateHeadersOptions, GettextToIcuOptions, IcuErrorKind, IcuNode, IcuParser, IcuParserOptions,
+    IcuPluralType, ItemsToCatalogOptions, MessageIdInput, ParsedPluralForms, PoDateTime, PoFile,
+    PoItem, SerializedCompiledMessageKind,
 };
 
 mod headers {
@@ -29,7 +29,7 @@ mod headers {
 
         let headers = create_default_headers(&CreateHeadersOptions {
             language: Some(String::from("pl")),
-            generator: Some(String::from("pofile-tests")),
+            generator: Some(String::from("ferrocat-tests")),
             now: Some(now),
             custom: BTreeMap::from([(String::from("X-Domain"), String::from("frontend"))]),
             ..CreateHeadersOptions::default()
@@ -81,7 +81,10 @@ mod plurals {
                 plural: Some(String::from("(n != 1)")),
             }
         );
-        assert_eq!(get_plural_categories("pl"), &["one", "few", "many", "other"]);
+        assert_eq!(
+            get_plural_categories("pl"),
+            &["one", "few", "many", "other"]
+        );
         assert_eq!(get_plural_count("pl"), 4);
         assert_eq!(get_plural_index("pl", 2.0), 1);
         assert_eq!(get_plural_forms_header("zh"), "nplurals=1; plural=0;");
@@ -121,15 +124,17 @@ mod icu {
         )
         .parse()
         .expect("parser should parse");
-        assert_eq!(parser_ast, vec![IcuNode::Argument { value: String::from("name") }]);
+        assert_eq!(
+            parser_ast,
+            vec![IcuNode::Argument {
+                value: String::from("name")
+            }]
+        );
 
         let error = parse_icu("{name", IcuParserOptions::default()).expect_err("parse should fail");
         assert_eq!(error.kind, IcuErrorKind::SyntaxError);
 
-        let validation = validate_icu(
-            "{count, plural, one {# file}}",
-            IcuParserOptions::default(),
-        );
+        let validation = validate_icu("{count, plural, one {# file}}", IcuParserOptions::default());
         assert!(!validation.valid);
         assert_eq!(validation.errors[0].kind, IcuErrorKind::SyntaxError);
     }
@@ -144,16 +149,12 @@ mod icu {
         );
 
         let variable_info = extract_variable_info(message);
-        assert!(
-            variable_info
-                .iter()
-                .any(|variable| variable.name == "count" && variable.kind == "plural")
-        );
-        assert!(
-            variable_info
-                .iter()
-                .any(|variable| variable.name == "name" && variable.kind == "argument")
-        );
+        assert!(variable_info
+            .iter()
+            .any(|variable| variable.name == "count" && variable.kind == "plural"));
+        assert!(variable_info
+            .iter()
+            .any(|variable| variable.name == "name" && variable.kind == "argument"));
 
         let comparison = compare_variables("{name} {count}", "{name}");
         assert_eq!(comparison.missing, vec![String::from("count")]);
@@ -161,7 +162,9 @@ mod icu {
 
         assert!(has_plural(message));
         assert!(has_select("{gender, select, male {He} other {They}}"));
-        assert!(has_select_ordinal("{place, selectordinal, one {#st} other {#th}}"));
+        assert!(has_select_ordinal(
+            "{place, selectordinal, one {#st} other {#th}}"
+        ));
         assert!(has_icu_syntax(message));
     }
 
@@ -240,7 +243,7 @@ mod compile {
         item.msgctxt = Some(String::from("menu.file"));
         item.msgstr = vec![String::from("Öffnen")];
 
-        let catalog = pofile::items_to_catalog(&[item], ItemsToCatalogOptions::default())
+        let catalog = ferrocat::items_to_catalog(&[item], ItemsToCatalogOptions::default())
             .expect("catalog conversion should succeed");
         let hashed = serialize_compiled_catalog(
             &catalog,
@@ -274,7 +277,7 @@ mod compile {
         item.msgctxt = Some(String::from("menu.file"));
         item.msgstr = vec![String::from("Öffnen")];
 
-        let catalog = pofile::items_to_catalog(
+        let catalog = ferrocat::items_to_catalog(
             &[item],
             ItemsToCatalogOptions {
                 key_strategy: CatalogKeyStrategy::Msgid,

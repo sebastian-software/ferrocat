@@ -103,7 +103,7 @@ pub fn create_default_headers(options: &CreateHeadersOptions) -> BTreeMap<String
             options
                 .generator
                 .clone()
-                .unwrap_or_else(|| String::from("pofile")),
+                .unwrap_or_else(|| String::from("ferrocat")),
         ),
     ]);
 
@@ -168,7 +168,7 @@ mod tests {
         );
         assert_eq!(
             headers.get("X-Generator").map(String::as_str),
-            Some("pofile")
+            Some("ferrocat")
         );
         assert_eq!(headers.get("Language").map(String::as_str), Some(""));
         assert!(!headers.contains_key("Plural-Forms"));

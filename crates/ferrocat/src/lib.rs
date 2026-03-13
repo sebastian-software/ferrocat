@@ -1,12 +1,14 @@
 //! Public Rust core for the `ferrocat` workspace.
 //!
-//! This crate will become the canonical implementation of the library's PO,
-//! ICU, and catalog functionality. The initial implementation focuses on the
-//! PO model and parser/serializer foundation.
+//! `ferrocat` exposes the canonical Rust API for PO parsing, ICU compilation,
+//! catalog compilation, and runtime formatting in the standalone workspace.
+//! Thin host bindings build on top of this crate without changing its public
+//! Rust-first surface area.
 
 #![deny(missing_docs)]
 
 pub mod catalog;
+mod compile;
 pub mod headers;
 pub mod icu;
 pub mod message_id;
@@ -14,11 +16,10 @@ pub mod plurals;
 pub mod po;
 pub mod references;
 pub mod runtime;
-mod compile;
 
 pub use catalog::{
-    catalog_to_items, items_to_catalog, merge_catalogs, Catalog, CatalogEntry,
-    CatalogKeyStrategy, CatalogToItemsOptions, CatalogTranslation, ItemsToCatalogOptions,
+    catalog_to_items, items_to_catalog, merge_catalogs, Catalog, CatalogEntry, CatalogKeyStrategy,
+    CatalogToItemsOptions, CatalogTranslation, ItemsToCatalogOptions,
 };
 pub use compile::{
     compile_catalog, compile_icu, serialize_compiled_catalog, CompileCatalogOptions,

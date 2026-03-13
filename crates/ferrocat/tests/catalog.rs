@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use pofile::{
+use ferrocat::{
     catalog_to_items, create_reference, items_to_catalog, merge_catalogs, Catalog, CatalogEntry,
     CatalogKeyStrategy, CatalogToItemsOptions, CatalogTranslation, ItemsToCatalogOptions, PoItem,
 };
@@ -81,10 +81,12 @@ fn items_to_catalog_uses_context_aware_keys_by_default() {
         ..PoItem::new(2)
     };
 
-    let catalog =
-        items_to_catalog(&[item], ItemsToCatalogOptions::default()).expect("catalog conversion should succeed");
+    let catalog = items_to_catalog(&[item], ItemsToCatalogOptions::default())
+        .expect("catalog conversion should succeed");
 
-    let entry = catalog.get("menu.file\u{0004}Open").expect("entry should exist");
+    let entry = catalog
+        .get("menu.file\u{0004}Open")
+        .expect("entry should exist");
     assert_eq!(entry.message.as_deref(), Some("Open"));
 }
 

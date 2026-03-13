@@ -1,7 +1,7 @@
-use pofile::{
+use ferrocat::runtime::{compile_catalog, MessageValue, MessageValues};
+use ferrocat::{
     generate_message_id, Catalog, CatalogEntry, CatalogTranslation, CompileCatalogOptions,
 };
-use pofile::runtime::{compile_catalog, MessageValue, MessageValues};
 
 fn main() {
     let catalog = Catalog::from([(

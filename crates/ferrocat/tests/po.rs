@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use pofile::{
+use ferrocat::{
     parse_plural_forms, parse_po, stringify_po, ParsedPluralForms, PoFile, SerializeOptions,
 };
 

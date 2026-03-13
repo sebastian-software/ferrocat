@@ -1,4 +1,4 @@
-use pofile::{
+use ferrocat::{
     create_reference, format_reference, format_references, normalize_file_path, parse_reference,
     parse_references, FormatReferenceOptions, ReferenceError, SourceReference,
 };

@@ -1,15 +1,15 @@
 [package]
-name = "pofile"
+name = "ferrocat"
 version = "5.0.0-beta.0"
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
 rust-version.workspace = true
-description = "Rust core for parsing and serializing GNU gettext PO files."
+description = "Rust-first gettext and ICU toolkit for PO parsing, compilation, and runtime formatting."
 homepage = "https://github.com/sebastian-software/ferrocat"
-documentation = "https://docs.rs/pofile"
+documentation = "https://docs.rs/ferrocat"
 readme = "README.md"
-keywords = ["gettext", "po", "icu", "i18n", "lingui"]
+keywords = ["ferrocat", "gettext", "po", "icu", "i18n"]
 categories = ["internationalization", "localization", "parser-implementations"]
 
 [package.metadata.docs.rs]

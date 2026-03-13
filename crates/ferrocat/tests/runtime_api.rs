@@ -1,11 +1,11 @@
 use std::sync::Arc;
 
-use pofile::{
+use ferrocat::runtime::{
+    compile_catalog, compile_icu, DefaultFormatHost, FormatHost, MessageValue, MessageValues,
+};
+use ferrocat::{
     generate_message_id, Catalog, CatalogEntry, CatalogTranslation, CompileCatalogOptions,
     CompileIcuOptions,
-};
-use pofile::runtime::{
-    compile_catalog, compile_icu, DefaultFormatHost, FormatHost, MessageValue, MessageValues,
 };
 
 mod runtime_compile_icu {
@@ -105,10 +105,13 @@ mod runtime_compile_catalog {
         assert!(compiled.get(&key).is_some());
         assert_eq!(compiled.keys(), vec![key.clone()]);
         assert_eq!(compiled.size(), 1);
-        assert_eq!(compiled.format(&key, &MessageValues::from([(
-            String::from("name"),
-            MessageValue::from("Sebastian"),
-        )])), "Hallo Sebastian!");
+        assert_eq!(
+            compiled.format(
+                &key,
+                &MessageValues::from([(String::from("name"), MessageValue::from("Sebastian"),)])
+            ),
+            "Hallo Sebastian!"
+        );
     }
 
     #[test]
