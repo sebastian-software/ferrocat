@@ -1,0 +1,33 @@
+# Scan Architecture Notes
+
+The parser now has an internal `scan` module that centralizes structural byte
+operations:
+
+- line iteration
+- ASCII trimming
+- byte search helpers
+- byte splitting helpers
+
+Why this matters:
+
+- current backend is `memchr`-based and simple
+- future SIMD/NEON work can target this layer without rewriting parser logic
+- parser semantics stay separate from structural scanning
+
+Current direction:
+
+1. `scan` owns structural byte traversal
+2. `text` owns quoted-string and escape handling
+3. `parse` owns PO semantics and state transitions
+
+Borrowed direction:
+
+- `BorrowedItem<'a>` is introduced as an internal stepping stone
+- this is not yet a public borrowed API
+- the goal is to let us move more work to borrow-first parsing incrementally
+
+Planned next evolution:
+
+- widen `scan` with quote/backslash structural helpers
+- add optional arch-specific scanner backends behind the same API
+- consider a public borrowed parse mode only after internal wins are proven

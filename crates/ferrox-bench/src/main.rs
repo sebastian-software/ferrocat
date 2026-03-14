@@ -1,12 +1,11 @@
+mod fixtures;
+
 use std::env;
 use std::process::ExitCode;
 use std::time::Instant;
 
 use ferrox_po::{SerializeOptions, parse_po, stringify_po};
-
-const TINY_FIXTURE: &str = include_str!("../fixtures/tiny.po");
-const REALISTIC_FIXTURE: &str = include_str!("../fixtures/realistic.po");
-const STRESS_FIXTURE: &str = include_str!("../fixtures/stress.po");
+use fixtures::{Fixture, fixture_by_name};
 
 fn main() -> ExitCode {
     match run() {
@@ -26,41 +25,50 @@ fn run() -> Result<(), String> {
         Some(value) => value
             .parse::<usize>()
             .map_err(|_| format!("invalid iteration count: {value}"))?,
-        None => 5_000,
+        None => default_iterations(&fixture_name),
     };
 
-    let fixture = fixture_by_name(&fixture_name)
-        .ok_or_else(|| format!("unknown fixture: {fixture_name} (use tiny, realistic, stress)"))?;
+    let fixture = fixture_by_name(&fixture_name).ok_or_else(|| {
+        format!(
+            "unknown fixture: {fixture_name} (use tiny, realistic, stress, mixed-1000, mixed-10000)"
+        )
+    })?;
 
     match command.as_str() {
-        "parse" => bench_parse(fixture_name.as_str(), fixture, iterations),
-        "stringify" => bench_stringify(fixture_name.as_str(), fixture, iterations),
-        other => Err(format!("unknown command: {other} (use parse or stringify)")),
+        "parse" => bench_parse(&fixture, iterations),
+        "stringify" => bench_stringify(&fixture, iterations),
+        "describe" => {
+            describe(&fixture);
+            Ok(())
+        }
+        other => Err(format!(
+            "unknown command: {other} (use parse, stringify, or describe)"
+        )),
     }
 }
 
-fn fixture_by_name(name: &str) -> Option<&'static str> {
-    match name {
-        "tiny" => Some(TINY_FIXTURE),
-        "realistic" => Some(REALISTIC_FIXTURE),
-        "stress" => Some(STRESS_FIXTURE),
-        _ => None,
+fn default_iterations(fixture_name: &str) -> usize {
+    match fixture_name {
+        "tiny" => 20_000,
+        "mixed-10000" => 100,
+        "stress" => 1_000,
+        _ => 5_000,
     }
 }
 
-fn bench_parse(name: &str, fixture: &str, iterations: usize) -> Result<(), String> {
+fn bench_parse(fixture: &Fixture, iterations: usize) -> Result<(), String> {
     let start = Instant::now();
     let mut items_per_iteration = 0usize;
     for _ in 0..iterations {
-        let file = parse_po(fixture).map_err(|error| error.to_string())?;
+        let file = parse_po(fixture.content()).map_err(|error| error.to_string())?;
         items_per_iteration = file.items.len();
         std::hint::black_box(file);
     }
     let elapsed = start.elapsed();
     report(
         "parse",
-        name,
-        fixture.len(),
+        fixture,
+        fixture.content().len(),
         iterations,
         items_per_iteration,
         elapsed,
@@ -68,8 +76,8 @@ fn bench_parse(name: &str, fixture: &str, iterations: usize) -> Result<(), Strin
     Ok(())
 }
 
-fn bench_stringify(name: &str, fixture: &str, iterations: usize) -> Result<(), String> {
-    let file = parse_po(fixture).map_err(|error| error.to_string())?;
+fn bench_stringify(fixture: &Fixture, iterations: usize) -> Result<(), String> {
+    let file = parse_po(fixture.content()).map_err(|error| error.to_string())?;
     let options = SerializeOptions::default();
 
     let start = Instant::now();
@@ -82,7 +90,7 @@ fn bench_stringify(name: &str, fixture: &str, iterations: usize) -> Result<(), S
     let elapsed = start.elapsed();
     report(
         "stringify",
-        name,
+        fixture,
         bytes / iterations.max(1),
         iterations,
         file.items.len(),
@@ -91,9 +99,28 @@ fn bench_stringify(name: &str, fixture: &str, iterations: usize) -> Result<(), S
     Ok(())
 }
 
+fn describe(fixture: &Fixture) {
+    println!("fixture: {}", fixture.name());
+    println!("kind: {}", fixture.kind());
+    println!("bytes: {}", fixture.content().len());
+    println!("items: {}", fixture.stats().entries);
+    println!("plural-items: {}", fixture.stats().plural_entries);
+    println!(
+        "translator-comments: {}",
+        fixture.stats().translator_comments
+    );
+    println!("extracted-comments: {}", fixture.stats().extracted_comments);
+    println!("references: {}", fixture.stats().references);
+    println!("contexts: {}", fixture.stats().contexts);
+    println!("metadata-comments: {}", fixture.stats().metadata_comments);
+    println!("obsolete-items: {}", fixture.stats().obsolete_entries);
+    println!("multiline-items: {}", fixture.stats().multiline_entries);
+    println!("escaped-items: {}", fixture.stats().escaped_entries);
+}
+
 fn report(
     command: &str,
-    fixture: &str,
+    fixture: &Fixture,
     bytes_per_iteration: usize,
     iterations: usize,
     items_per_iteration: usize,
@@ -112,7 +139,8 @@ fn report(
     };
 
     println!("command: {command}");
-    println!("fixture: {fixture}");
+    println!("fixture: {}", fixture.name());
+    println!("kind: {}", fixture.kind());
     println!("iterations: {iterations}");
     println!("items/iteration: {items_per_iteration}");
     println!("bytes/iteration: {bytes_per_iteration}");

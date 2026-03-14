@@ -1,4 +1,7 @@
+use std::borrow::Cow;
+
 use crate::ParseError;
+use crate::scan::{find_byte, find_last_byte, has_byte};
 
 pub fn escape_string(input: &str) -> String {
     if !input.as_bytes().iter().any(|byte| {
@@ -30,7 +33,7 @@ pub fn escape_string(input: &str) -> String {
 }
 
 pub fn unescape_string(input: &str) -> Result<String, ParseError> {
-    if !input.as_bytes().contains(&b'\\') {
+    if !has_byte(b'\\', input.as_bytes()) {
         return Ok(input.to_owned());
     }
 
@@ -39,22 +42,16 @@ pub fn unescape_string(input: &str) -> Result<String, ParseError> {
     let mut index = 0;
 
     while index < bytes.len() {
-        let byte = bytes[index];
-        if byte != b'\\' {
-            let next = next_utf8_char_boundary(bytes, index + 1);
-            match input.get(index..next) {
-                Some(segment) => out.push_str(segment),
-                None => {
-                    return Err(ParseError::new(
-                        "invalid UTF-8 boundary while unescaping string",
-                    ));
-                }
+        let next_escape = match find_byte(b'\\', &bytes[index..]) {
+            Some(relative) => index + relative,
+            None => {
+                out.push_str(&input[index..]);
+                break;
             }
-            index = next;
-            continue;
-        }
+        };
 
-        index += 1;
+        out.push_str(&input[index..next_escape]);
+        index = next_escape + 1;
         if index >= bytes.len() {
             return Err(ParseError::new("unterminated escape sequence"));
         }
@@ -111,19 +108,27 @@ pub fn unescape_string(input: &str) -> Result<String, ParseError> {
     Ok(out)
 }
 
-pub fn extract_quoted(line: &str) -> Result<String, ParseError> {
-    let first_quote = match line.find('"') {
+pub fn extract_quoted_cow<'a>(line: &'a str) -> Result<Cow<'a, str>, ParseError> {
+    let bytes = line.as_bytes();
+    let first_quote = match find_byte(b'"', bytes) {
         Some(index) => index,
-        None => return Ok(String::new()),
+        None => return Ok(Cow::Borrowed("")),
     };
-    let last_quote = match line.rfind('"') {
+    let last_quote = match find_last_byte(b'"', bytes) {
         Some(index) if index > first_quote => index,
-        _ => return Ok(String::new()),
+        _ => return Ok(Cow::Borrowed("")),
     };
-    match line.get(first_quote + 1..last_quote) {
-        Some(raw) => unescape_string(raw),
-        None => Err(ParseError::new("invalid quote boundaries")),
+
+    let raw = &line[first_quote + 1..last_quote];
+    if !has_byte(b'\\', raw.as_bytes()) {
+        return Ok(Cow::Borrowed(raw));
     }
+
+    Ok(Cow::Owned(unescape_string(raw)?))
+}
+
+pub fn extract_quoted(line: &str) -> Result<String, ParseError> {
+    Ok(extract_quoted_cow(line)?.into_owned())
 }
 
 fn decode_hex(byte: u8) -> Result<u8, ParseError> {
@@ -135,16 +140,11 @@ fn decode_hex(byte: u8) -> Result<u8, ParseError> {
     }
 }
 
-fn next_utf8_char_boundary(bytes: &[u8], mut index: usize) -> usize {
-    while index < bytes.len() && (bytes[index] & 0b1100_0000) == 0b1000_0000 {
-        index += 1;
-    }
-    index
-}
-
 #[cfg(test)]
 mod tests {
-    use super::{escape_string, extract_quoted, unescape_string};
+    use std::borrow::Cow;
+
+    use super::{escape_string, extract_quoted, extract_quoted_cow, unescape_string};
 
     #[test]
     fn escapes_special_characters() {
@@ -168,6 +168,14 @@ mod tests {
             )
             .as_deref(),
             Ok("The name field must not contain characters like \" or \\")
+        );
+    }
+
+    #[test]
+    fn borrows_simple_quoted_text_without_escape() {
+        assert_eq!(
+            extract_quoted_cow("msgid \"plain text\""),
+            Ok(Cow::Borrowed("plain text"))
         );
     }
 }

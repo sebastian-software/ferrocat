@@ -1,12 +1,13 @@
 //! Performance-first PO parsing and serialization.
 
 mod parse;
+mod scan;
 mod serialize;
 mod text;
 
 pub use parse::parse_po;
 pub use serialize::stringify_po;
-pub use text::{escape_string, extract_quoted, unescape_string};
+pub use text::{escape_string, extract_quoted, extract_quoted_cow, unescape_string};
 
 use core::fmt;
 
