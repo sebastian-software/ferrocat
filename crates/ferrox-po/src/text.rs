@@ -1,15 +1,10 @@
 use std::borrow::Cow;
 
 use crate::ParseError;
-use crate::scan::{find_byte, find_last_byte, has_byte};
+use crate::scan::{find_byte, find_quoted_bounds, has_byte, has_escapable_byte};
 
 pub fn escape_string(input: &str) -> String {
-    if !input.as_bytes().iter().any(|byte| {
-        matches!(
-            byte,
-            b'\x07' | b'\x08' | b'\t' | b'\n' | b'\x0b' | b'\x0c' | b'\r' | b'"' | b'\\'
-        )
-    }) {
+    if !has_escapable_byte(input.as_bytes()) {
         return input.to_owned();
     }
 
@@ -110,16 +105,11 @@ pub fn unescape_string(input: &str) -> Result<String, ParseError> {
 
 pub fn extract_quoted_cow<'a>(line: &'a str) -> Result<Cow<'a, str>, ParseError> {
     let bytes = line.as_bytes();
-    let first_quote = match find_byte(b'"', bytes) {
-        Some(index) => index,
-        None => return Ok(Cow::Borrowed("")),
-    };
-    let last_quote = match find_last_byte(b'"', bytes) {
-        Some(index) if index > first_quote => index,
-        _ => return Ok(Cow::Borrowed("")),
+    let Some((start, end)) = find_quoted_bounds(bytes) else {
+        return Ok(Cow::Borrowed(""));
     };
 
-    let raw = &line[first_quote + 1..last_quote];
+    let raw = &line[start..end];
     if !has_byte(b'\\', raw.as_bytes()) {
         return Ok(Cow::Borrowed(raw));
     }

@@ -1,7 +1,9 @@
-use std::borrow::Cow;
 use std::str;
 
-use crate::scan::{LineScanner, find_byte, split_once_byte, trim_ascii};
+use crate::scan::{
+    CommentKind, Keyword, LineKind, LineScanner, classify_line, parse_plural_index,
+    split_once_byte, trim_ascii,
+};
 use crate::{Header, ParseError, PoFile, PoItem, extract_quoted_cow};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -44,25 +46,6 @@ struct BorrowedLine<'a> {
     trimmed: &'a [u8],
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct BorrowedItem<'a> {
-    msgid: Cow<'a, str>,
-    msgctxt: Option<Cow<'a, str>>,
-    msgid_plural: Option<Cow<'a, str>>,
-    msgstr: Vec<Cow<'a, str>>,
-}
-
-impl<'a> BorrowedItem<'a> {
-    fn new() -> Self {
-        Self {
-            msgid: Cow::Borrowed(""),
-            msgctxt: None,
-            msgid_plural: None,
-            msgstr: Vec::new(),
-        }
-    }
-}
-
 pub fn parse_po(input: &str) -> Result<PoFile, ParseError> {
     let normalized;
     let input = if input.as_bytes().contains(&b'\r') {
@@ -103,40 +86,45 @@ fn parse_line(
     file: &mut PoFile,
     current_nplurals: &mut usize,
 ) -> Result<(), ParseError> {
-    match line.trimmed.first().copied() {
-        Some(b'"') => {
+    match classify_line(line.trimmed) {
+        LineKind::Continuation => {
             append_continuation(line.trimmed, state)?;
             Ok(())
         }
-        Some(b'#') => parse_comment_line(line.trimmed, state, file, current_nplurals),
-        Some(b'm') => parse_keyword_line(line.trimmed, state, file, current_nplurals),
-        _ => Ok(()),
+        LineKind::Comment(kind) => {
+            parse_comment_line(line.trimmed, kind, state, file, current_nplurals)
+        }
+        LineKind::Keyword(keyword) => {
+            parse_keyword_line(line.trimmed, keyword, state, file, current_nplurals)
+        }
+        LineKind::Other => Ok(()),
     }
 }
 
 fn parse_comment_line(
     line_bytes: &[u8],
+    kind: CommentKind,
     state: &mut ParserState,
     file: &mut PoFile,
     current_nplurals: &mut usize,
 ) -> Result<(), ParseError> {
     finish_item(state, file, current_nplurals)?;
 
-    match line_bytes.get(1).copied() {
-        Some(b':') => state
+    match kind {
+        CommentKind::Reference => state
             .item
             .references
             .push(trimmed_string(&line_bytes[2..])?),
-        Some(b',') => {
+        CommentKind::Flags => {
             for flag in trimmed_str(&line_bytes[2..])?.split(',') {
                 state.item.flags.push(flag.trim().to_owned());
             }
         }
-        Some(b'.') => state
+        CommentKind::Extracted => state
             .item
             .extracted_comments
             .push(trimmed_string(&line_bytes[2..])?),
-        Some(b'@') => {
+        CommentKind::Metadata => {
             let trimmed = trim_ascii(&line_bytes[2..]);
             if let Some((key_bytes, value_bytes)) = split_once_byte(trimmed, b':') {
                 let key = trimmed_str(key_bytes)?;
@@ -146,8 +134,8 @@ fn parse_comment_line(
                 }
             }
         }
-        Some(b' ') | None => state.item.comments.push(trimmed_string(&line_bytes[1..])?),
-        _ => {}
+        CommentKind::Translator => state.item.comments.push(trimmed_string(&line_bytes[1..])?),
+        CommentKind::Other => {}
     }
 
     Ok(())
@@ -155,86 +143,48 @@ fn parse_comment_line(
 
 fn parse_keyword_line(
     line_bytes: &[u8],
+    keyword: Keyword,
     state: &mut ParserState,
     file: &mut PoFile,
     current_nplurals: &mut usize,
 ) -> Result<(), ParseError> {
     let line = bytes_to_str(line_bytes)?;
-    let mut borrowed = BorrowedItem::new();
 
-    if line_bytes.starts_with(b"msgid_plural") {
-        borrowed.msgid_plural = Some(extract_quoted_cow(line)?);
-        assign_borrowed_keyword(state, borrowed, Context::MsgIdPlural);
-        return Ok(());
-    }
-
-    if line_bytes.starts_with(b"msgid") {
-        finish_item(state, file, current_nplurals)?;
-        borrowed.msgid = extract_quoted_cow(line)?;
-        assign_borrowed_keyword(state, borrowed, Context::MsgId);
-        return Ok(());
-    }
-
-    if line_bytes.starts_with(b"msgstr") {
-        let plural_index = parse_plural_index(line_bytes);
-        borrowed.msgstr.push(extract_quoted_cow(line)?);
-        assign_borrowed_plural(state, borrowed, plural_index);
-        return Ok(());
-    }
-
-    if line_bytes.starts_with(b"msgctxt") {
-        finish_item(state, file, current_nplurals)?;
-        borrowed.msgctxt = Some(extract_quoted_cow(line)?);
-        assign_borrowed_keyword(state, borrowed, Context::MsgCtxt);
+    match keyword {
+        Keyword::MsgIdPlural => {
+            state.item.msgid_plural = Some(extract_quoted_cow(line)?.into_owned());
+            state.context = Some(Context::MsgIdPlural);
+            state.content_line_count += 1;
+            state.has_keyword = true;
+        }
+        Keyword::MsgId => {
+            finish_item(state, file, current_nplurals)?;
+            state.item.msgid = extract_quoted_cow(line)?.into_owned();
+            state.context = Some(Context::MsgId);
+            state.content_line_count += 1;
+            state.has_keyword = true;
+        }
+        Keyword::MsgStr => {
+            let plural_index = parse_plural_index(line_bytes).unwrap_or(0);
+            state.plural_index = plural_index;
+            if state.item.msgstr.len() <= plural_index {
+                state.item.msgstr.resize(plural_index + 1, String::new());
+            }
+            state.item.msgstr[plural_index] = extract_quoted_cow(line)?.into_owned();
+            state.context = Some(Context::MsgStr);
+            state.content_line_count += 1;
+            state.has_keyword = true;
+        }
+        Keyword::MsgCtxt => {
+            finish_item(state, file, current_nplurals)?;
+            state.item.msgctxt = Some(extract_quoted_cow(line)?.into_owned());
+            state.context = Some(Context::MsgCtxt);
+            state.content_line_count += 1;
+            state.has_keyword = true;
+        }
     }
 
     Ok(())
-}
-
-fn assign_borrowed_keyword(state: &mut ParserState, borrowed: BorrowedItem<'_>, context: Context) {
-    match context {
-        Context::MsgId => state.item.msgid = borrowed.msgid.into_owned(),
-        Context::MsgIdPlural => {
-            state.item.msgid_plural = borrowed.msgid_plural.map(Cow::into_owned)
-        }
-        Context::MsgCtxt => state.item.msgctxt = borrowed.msgctxt.map(Cow::into_owned),
-        Context::MsgStr => {}
-    }
-    state.context = Some(context);
-    state.content_line_count += 1;
-    state.has_keyword = true;
-}
-
-fn assign_borrowed_plural(
-    state: &mut ParserState,
-    borrowed: BorrowedItem<'_>,
-    plural_index: usize,
-) {
-    state.plural_index = plural_index;
-    if state.item.msgstr.len() <= plural_index {
-        state.item.msgstr.resize(plural_index + 1, String::new());
-    }
-    if let Some(value) = borrowed.msgstr.into_iter().next() {
-        state.item.msgstr[plural_index] = value.into_owned();
-    }
-    state.context = Some(Context::MsgStr);
-    state.content_line_count += 1;
-    state.has_keyword = true;
-}
-
-fn parse_plural_index(line_bytes: &[u8]) -> usize {
-    if line_bytes.get(6) != Some(&b'[') {
-        return 0;
-    }
-    let close = match find_byte(b']', &line_bytes[7..]) {
-        Some(offset) => 7 + offset,
-        None => return 0,
-    };
-
-    match str::from_utf8(&line_bytes[7..close]) {
-        Ok(index) => index.parse::<usize>().unwrap_or(0),
-        Err(_) => 0,
-    }
 }
 
 fn append_continuation(line_bytes: &[u8], state: &mut ParserState) -> Result<(), ParseError> {

@@ -7,6 +7,7 @@ operations:
 - ASCII trimming
 - byte search helpers
 - byte splitting helpers
+- structural helper composition for quoted/escape-oriented scans
 
 Why this matters:
 
@@ -31,3 +32,9 @@ Planned next evolution:
 - widen `scan` with quote/backslash structural helpers
 - add optional arch-specific scanner backends behind the same API
 - consider a public borrowed parse mode only after internal wins are proven
+
+Backend note:
+
+- `scan` now has an internal backend layer
+- current implementation stays `memchr`-based
+- future NEON/SSE/AVX work should swap or augment this backend, not parser semantics
