@@ -14,10 +14,10 @@ pub fn stringify_po(file: &PoFile, options: &SerializeOptions) -> String {
     out.push_str("msgstr \"\"\n");
     for header in &file.headers {
         out.push('"');
-        out.push_str(&escape_string(&format!(
-            "{}: {}\n",
-            header.key, header.value
-        )));
+        append_escaped(&mut out, &header.key);
+        out.push_str(": ");
+        append_escaped(&mut out, &header.value);
+        out.push_str("\\n");
         out.push_str("\"\n");
     }
     out.push('\n');
@@ -158,133 +158,207 @@ fn write_keyword(
     index: Option<usize>,
     options: &SerializeOptions,
 ) {
-    let lines = format_keyword(keyword, value, index, options);
-    for line in lines {
-        out.push_str(obsolete_prefix);
-        out.push_str(&line);
-        out.push('\n');
+    if try_write_simple_keyword(out, obsolete_prefix, keyword, value, index, options) {
+        return;
+    }
+
+    write_complex_keyword(out, obsolete_prefix, keyword, value, index, options);
+}
+
+fn try_write_simple_keyword(
+    out: &mut String,
+    obsolete_prefix: &str,
+    keyword: &str,
+    value: &str,
+    index: Option<usize>,
+    options: &SerializeOptions,
+) -> bool {
+    if value.contains('\n') {
+        return false;
+    }
+
+    let escaped = escape_string(value);
+    let line_len = obsolete_prefix.len() + keyword_prefix_len(keyword, index) + escaped.len() + 2;
+    if options.fold_length > 0 && line_len > options.fold_length {
+        return false;
+    }
+
+    out.push_str(obsolete_prefix);
+    push_keyword_prefix(out, keyword, index);
+    out.push('"');
+    out.push_str(&escaped);
+    out.push_str("\"\n");
+    true
+}
+
+fn keyword_prefix_len(keyword: &str, index: Option<usize>) -> usize {
+    match index {
+        Some(value) => keyword.len() + digits(value) + 3,
+        None => keyword.len() + 1,
     }
 }
 
-fn format_keyword(
+fn push_keyword_prefix(out: &mut String, keyword: &str, index: Option<usize>) {
+    out.push_str(keyword);
+    if let Some(value) = index {
+        out.push('[');
+        push_usize(out, value);
+        out.push(']');
+    }
+    out.push(' ');
+}
+
+fn push_usize(out: &mut String, mut value: usize) {
+    if value == 0 {
+        out.push('0');
+        return;
+    }
+
+    let mut buf = [0u8; 20];
+    let mut len = 0usize;
+    while value > 0 {
+        buf[len] = b'0' + (value % 10) as u8;
+        len += 1;
+        value /= 10;
+    }
+    for index in (0..len).rev() {
+        out.push(char::from(buf[index]));
+    }
+}
+
+fn digits(mut value: usize) -> usize {
+    let mut count = 1usize;
+    while value >= 10 {
+        value /= 10;
+        count += 1;
+    }
+    count
+}
+
+fn append_escaped(out: &mut String, input: &str) {
+    let escaped = escape_string(input);
+    out.push_str(&escaped);
+}
+
+fn write_complex_keyword(
+    out: &mut String,
+    obsolete_prefix: &str,
     keyword: &str,
     text: &str,
     index: Option<usize>,
     options: &SerializeOptions,
-) -> Vec<String> {
-    let keyword_prefix = match index {
-        Some(value) => format!("{keyword}[{value}] "),
-        None => format!("{keyword} "),
-    };
-
-    if !text.contains('\n') {
-        let escaped = escape_string(text);
-        let full = format!("{keyword_prefix}\"{escaped}\"");
-        if options.fold_length == 0 || full.len() <= options.fold_length {
-            return vec![full];
-        }
-    }
-
-    let parts: Vec<&str> = text.split('\n').collect();
-    let escaped_parts = escape_parts(&parts);
-    let folded = apply_folding(
-        &escaped_parts,
-        &keyword_prefix,
-        options.fold_length,
-        parts.len() > 1,
-    );
-    if folded.len() == 1 && parts.len() == 1 {
-        return vec![format!("{keyword_prefix}\"{}\"", folded[0])];
-    }
-
-    let mut out = Vec::with_capacity(folded.len() + 1);
-    let use_compact = options.compact_multiline && parts.first().copied().unwrap_or_default() != "";
-    if use_compact {
-        out.push(format!(
-            "{keyword_prefix}\"{}\"",
-            folded.first().cloned().unwrap_or_default()
-        ));
-        for segment in folded.into_iter().skip(1) {
-            out.push(format!("\"{segment}\""));
-        }
+) {
+    let prefix_len = keyword_prefix_len(keyword, index);
+    let has_multiple_lines = text.contains('\n');
+    let use_compact = options.compact_multiline && text.split('\n').next().unwrap_or_default() != "";
+    let first_line_max = if options.fold_length == 0 {
+        usize::MAX
     } else {
-        out.push(format!("{keyword_prefix}\"\""));
-        for segment in folded {
-            out.push(format!("\"{segment}\""));
+        options.fold_length.saturating_sub(prefix_len + 2).max(1)
+    };
+    let other_line_max = if options.fold_length == 0 {
+        usize::MAX
+    } else {
+        options.fold_length.saturating_sub(2).max(1)
+    };
+    let mut wrote_first_value_line = false;
+
+    if !use_compact {
+        out.push_str(obsolete_prefix);
+        push_keyword_prefix(out, keyword, index);
+        out.push_str("\"\"\n");
+        wrote_first_value_line = true;
+    }
+
+    for (part, has_next) in parts_with_has_next(text) {
+        let mut escaped = escape_string(part);
+        if has_next {
+            escaped.push_str("\\n");
         }
-    }
 
-    out
-}
-
-fn escape_parts(parts: &[&str]) -> Vec<String> {
-    let mut escaped = Vec::with_capacity(parts.len());
-    for (index, part) in parts.iter().enumerate() {
-        let mut value = escape_string(part);
-        if index + 1 < parts.len() {
-            value.push_str("\\n");
-        }
-        escaped.push(value);
-    }
-    escaped
-}
-
-fn apply_folding(
-    parts: &[String],
-    keyword_prefix: &str,
-    fold_length: usize,
-    has_multiple_lines: bool,
-) -> Vec<String> {
-    if fold_length == 0 {
-        return parts.to_owned();
-    }
-
-    let first_line_max = fold_length.saturating_sub(keyword_prefix.len() + 2);
-    let other_line_max = fold_length.saturating_sub(2);
-    let mut out = Vec::new();
-
-    for (index, part) in parts.iter().enumerate() {
-        let limit = if index == 0 && !has_multiple_lines {
-            first_line_max
-        } else {
+        let limit = if wrote_first_value_line || has_multiple_lines {
             other_line_max
+        } else {
+            first_line_max
         };
-        fold_line(part, limit.max(1), &mut out);
-    }
 
-    out
+        write_folded_segments(
+            out,
+            obsolete_prefix,
+            keyword,
+            index,
+            &escaped,
+            limit,
+            &mut wrote_first_value_line,
+        );
+    }
 }
 
-fn fold_line(input: &str, max_len: usize, out: &mut Vec<String>) {
-    if input.len() <= max_len {
-        out.push(input.to_owned());
-        return;
-    }
+fn parts_with_has_next(input: &str) -> impl Iterator<Item = (&str, bool)> {
+    let mut parts = input.split('\n').peekable();
+    std::iter::from_fn(move || {
+        let part = parts.next()?;
+        Some((part, parts.peek().is_some()))
+    })
+}
 
+fn write_folded_segments(
+    out: &mut String,
+    obsolete_prefix: &str,
+    keyword: &str,
+    index: Option<usize>,
+    input: &str,
+    max_len: usize,
+    wrote_first_value_line: &mut bool,
+) {
     let mut start = 0;
-    while start < input.len() {
-        let remaining = input.len() - start;
-        if remaining <= max_len {
-            out.push(input[start..].to_owned());
+    loop {
+        let end = folded_split_point(input, start, max_len);
+        write_quoted_segment(out, obsolete_prefix, keyword, index, &input[start..end], wrote_first_value_line);
+        if end == input.len() {
             break;
         }
+        start = end;
+    }
+}
 
-        let end = start + max_len;
-        let mut break_at = None;
-        for (offset, byte) in input.as_bytes()[start..end].iter().enumerate().rev() {
-            if *byte == b' ' {
-                break_at = Some(start + offset + 1);
-                break;
-            }
+fn write_quoted_segment(
+    out: &mut String,
+    obsolete_prefix: &str,
+    keyword: &str,
+    index: Option<usize>,
+    segment: &str,
+    wrote_first_value_line: &mut bool,
+) {
+    out.push_str(obsolete_prefix);
+    if !*wrote_first_value_line {
+        push_keyword_prefix(out, keyword, index);
+        *wrote_first_value_line = true;
+    }
+    out.push('"');
+    out.push_str(segment);
+    out.push_str("\"\n");
+}
+
+fn folded_split_point(input: &str, start: usize, max_len: usize) -> usize {
+    let remaining = input.len() - start;
+    if remaining <= max_len {
+        return input.len();
+    }
+
+    let end = start + max_len;
+    let mut break_at = None;
+    for (offset, byte) in input.as_bytes()[start..end].iter().enumerate().rev() {
+        if *byte == b' ' {
+            break_at = Some(start + offset + 1);
+            break;
         }
+    }
 
-        let split = match break_at {
-            Some(index) => index,
-            None if input.as_bytes()[end - 1] == b'\\' => end - 1,
-            None => end,
-        };
-        out.push(input[start..split].to_owned());
-        start = split;
+    match break_at {
+        Some(index) => index,
+        None if input.as_bytes()[end - 1] == b'\\' => end - 1,
+        None => end,
     }
 }
 
@@ -342,5 +416,55 @@ mod tests {
         assert!(output.contains("msgstr[0] \"\"\n"));
         assert!(output.contains("msgstr[1] \"\"\n"));
         assert!(output.contains("msgstr[2] \"\"\n"));
+    }
+
+    #[test]
+    fn serializes_non_compact_multiline_values() {
+        let file = PoFile {
+            headers: vec![],
+            comments: vec![],
+            extracted_comments: vec![],
+            items: vec![PoItem {
+                msgid: "\nIndented".to_owned(),
+                msgstr: vec!["\nUebersetzt".to_owned()],
+                ..PoItem::new(2)
+            }],
+        };
+
+        let output = stringify_po(
+            &file,
+            &SerializeOptions {
+                compact_multiline: false,
+                ..SerializeOptions::default()
+            },
+        );
+
+        assert!(output.contains("msgid \"\"\n\"\\n\"\n\"Indented\"\n"));
+        assert!(output.contains("msgstr \"\"\n\"\\n\"\n\"Uebersetzt\"\n"));
+    }
+
+    #[test]
+    fn does_not_fold_when_fold_length_is_zero() {
+        let file = PoFile {
+            headers: vec![],
+            comments: vec![],
+            extracted_comments: vec![],
+            items: vec![PoItem {
+                msgid: "Alpha beta gamma delta".to_owned(),
+                msgstr: vec!["Uno dos tres cuatro".to_owned()],
+                ..PoItem::new(2)
+            }],
+        };
+
+        let output = stringify_po(
+            &file,
+            &SerializeOptions {
+                fold_length: 0,
+                compact_multiline: true,
+            },
+        );
+
+        assert!(output.contains("msgid \"Alpha beta gamma delta\"\n"));
+        assert!(output.contains("msgstr \"Uno dos tres cuatro\"\n"));
     }
 }

@@ -17,3 +17,6 @@ Rules:
 | 2026-03-14 | parse | release | `cargo run --release -p ferrox-bench -- parse mixed-1000 200` | generated `mixed-1000` | 200 | 2957.0 | 343.56 | Added borrow-or-own fast path for quoted strings |
 | 2026-03-14 | parse | release | `cargo run --release -p ferrox-bench -- parse mixed-1000 200` | generated `mixed-1000` | 200 | 3041.8 | 353.41 | Centralized scanner classification/helpers without borrowed-item overhead |
 | 2026-03-14 | parse | release | `cargo run --release -p ferrox-bench -- parse mixed-1000 200` | generated `mixed-1000` | 200 | 3393.1 | 394.23 | Scanner backend helpers added; repeated runs showed noticeable single-run variance |
+| 2026-03-14 | stringify | release | `cargo run --release -p ferrox-bench -- stringify mixed-1000 200` | generated `mixed-1000` | 200 | 1268.0 | 148.29 | Baseline before simple-keyword direct-write fast path |
+| 2026-03-14 | stringify | release | `cargo run --release -p ferrox-bench -- stringify mixed-1000 200` | generated `mixed-1000` | 200 | 3213.3 | 375.80 | Direct fast path for common single-line keyword writes |
+| 2026-03-14 | stringify | release | `cargo run --release -p ferrox-bench -- stringify mixed-1000 200` | generated `mixed-1000` | 200 | 4532.1 | 530.03 | Replaced multiline/folding `Vec<String>` pipeline with direct segmented writes; repeated runs ranged from 4246.4 to 4532.1 iter/s |
