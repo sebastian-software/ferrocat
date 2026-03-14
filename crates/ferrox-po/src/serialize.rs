@@ -1,4 +1,5 @@
-use crate::{PoFile, PoItem, SerializeOptions, escape_string};
+use crate::text::escape_string_into;
+use crate::{PoFile, PoItem, SerializeOptions};
 
 pub fn stringify_po(file: &PoFile, options: &SerializeOptions) -> String {
     let mut out = String::with_capacity(estimate_capacity(file));
@@ -177,17 +178,25 @@ fn try_write_simple_keyword(
         return false;
     }
 
-    let escaped = escape_string(value);
-    let line_len = obsolete_prefix.len() + keyword_prefix_len(keyword, index) + escaped.len() + 2;
-    if options.fold_length > 0 && line_len > options.fold_length {
+    let prefix_len = keyword_prefix_len(keyword, index);
+    if options.fold_length > 0
+        && value.len() > options.fold_length.saturating_sub(obsolete_prefix.len() + prefix_len + 2)
+    {
         return false;
     }
 
+    let start_len = out.len();
     out.push_str(obsolete_prefix);
     push_keyword_prefix(out, keyword, index);
     out.push('"');
-    out.push_str(&escaped);
+    escape_string_into(out, value);
     out.push_str("\"\n");
+
+    if options.fold_length > 0 && out.len() - start_len - 1 > options.fold_length {
+        out.truncate(start_len);
+        return false;
+    }
+
     true
 }
 
@@ -236,8 +245,7 @@ fn digits(mut value: usize) -> usize {
 }
 
 fn append_escaped(out: &mut String, input: &str) {
-    let escaped = escape_string(input);
-    out.push_str(&escaped);
+    escape_string_into(out, input);
 }
 
 fn write_complex_keyword(
@@ -270,10 +278,12 @@ fn write_complex_keyword(
         wrote_first_value_line = true;
     }
 
+    let mut escaped_part = String::new();
     for (part, has_next) in parts_with_has_next(text) {
-        let mut escaped = escape_string(part);
+        escaped_part.clear();
+        escape_string_into(&mut escaped_part, part);
         if has_next {
-            escaped.push_str("\\n");
+            escaped_part.push_str("\\n");
         }
 
         let limit = if wrote_first_value_line || has_multiple_lines {
@@ -287,7 +297,7 @@ fn write_complex_keyword(
             obsolete_prefix,
             keyword,
             index,
-            &escaped,
+            &escaped_part,
             limit,
             &mut wrote_first_value_line,
         );

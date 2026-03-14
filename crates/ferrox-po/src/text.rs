@@ -1,30 +1,30 @@
 use std::borrow::Cow;
 
 use crate::ParseError;
-use crate::scan::{find_byte, find_quoted_bounds, has_byte, has_escapable_byte};
+use crate::scan::{find_byte, find_escapable_byte, find_quoted_bounds, has_byte};
 
 pub fn escape_string(input: &str) -> String {
-    if !has_escapable_byte(input.as_bytes()) {
+    let bytes = input.as_bytes();
+    let Some(first_escape) = find_escapable_byte(bytes) else {
         return input.to_owned();
-    }
+    };
 
     let mut out = String::with_capacity(input.len() + 8);
-    for ch in input.chars() {
-        match ch {
-            '\u{0007}' => out.push_str("\\a"),
-            '\u{0008}' => out.push_str("\\b"),
-            '\t' => out.push_str("\\t"),
-            '\n' => out.push_str("\\n"),
-            '\u{000b}' => out.push_str("\\v"),
-            '\u{000c}' => out.push_str("\\f"),
-            '\r' => out.push_str("\\r"),
-            '"' => out.push_str("\\\""),
-            '\\' => out.push_str("\\\\"),
-            _ => out.push(ch),
-        }
-    }
+    out.push_str(&input[..first_escape]);
+    escape_string_from(&mut out, input, bytes, first_escape);
 
     out
+}
+
+pub(crate) fn escape_string_into(out: &mut String, input: &str) {
+    let bytes = input.as_bytes();
+    let Some(first_escape) = find_escapable_byte(bytes) else {
+        out.push_str(input);
+        return;
+    };
+
+    out.push_str(&input[..first_escape]);
+    escape_string_from(out, input, bytes, first_escape);
 }
 
 pub fn unescape_string(input: &str) -> Result<String, ParseError> {
@@ -121,6 +121,39 @@ pub fn extract_quoted(line: &str) -> Result<String, ParseError> {
     Ok(extract_quoted_cow(line)?.into_owned())
 }
 
+fn escape_string_from(out: &mut String, input: &str, bytes: &[u8], first_escape: usize) {
+    let mut start = first_escape;
+
+    loop {
+        push_escape(out, bytes[start]);
+        let next_index = start + 1;
+        let Some(relative) = find_escapable_byte(&bytes[next_index..]) else {
+            out.push_str(&input[next_index..]);
+            break;
+        };
+
+        let absolute = next_index + relative;
+        out.push_str(&input[next_index..absolute]);
+        start = absolute;
+    }
+}
+
+fn push_escape(out: &mut String, byte: u8) {
+    out.push('\\');
+    out.push(match byte {
+        b'\x07' => 'a',
+        b'\x08' => 'b',
+        b'\t' => 't',
+        b'\n' => 'n',
+        b'\x0b' => 'v',
+        b'\x0c' => 'f',
+        b'\r' => 'r',
+        b'"' => '"',
+        b'\\' => '\\',
+        _ => unreachable!("unexpected escape byte"),
+    });
+}
+
 fn decode_hex(byte: u8) -> Result<u8, ParseError> {
     match byte {
         b'0'..=b'9' => Ok(byte - b'0'),
@@ -134,7 +167,9 @@ fn decode_hex(byte: u8) -> Result<u8, ParseError> {
 mod tests {
     use std::borrow::Cow;
 
-    use super::{escape_string, extract_quoted, extract_quoted_cow, unescape_string};
+    use super::{
+        escape_string, escape_string_into, extract_quoted, extract_quoted_cow, unescape_string,
+    };
 
     #[test]
     fn escapes_special_characters() {
@@ -167,5 +202,12 @@ mod tests {
             extract_quoted_cow("msgid \"plain text\""),
             Ok(Cow::Borrowed("plain text"))
         );
+    }
+
+    #[test]
+    fn appends_escaped_text_into_existing_buffer() {
+        let mut out = String::from("prefix:");
+        escape_string_into(&mut out, "Say \"Hi\"\n");
+        assert_eq!(out, "prefix:Say \\\"Hi\\\"\\n");
     }
 }

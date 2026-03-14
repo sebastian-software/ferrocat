@@ -163,10 +163,6 @@ pub fn find_escapable_byte(haystack: &[u8]) -> Option<usize> {
     None
 }
 
-pub fn has_escapable_byte(haystack: &[u8]) -> bool {
-    find_escapable_byte(haystack).is_some()
-}
-
 pub fn split_once_byte(haystack: &[u8], needle: u8) -> Option<(&[u8], &[u8])> {
     let index = find_byte(needle, haystack)?;
     Some((&haystack[..index], &haystack[index + 1..]))
@@ -224,8 +220,8 @@ pub fn parse_plural_index(line: &[u8]) -> Option<usize> {
 mod tests {
     use super::{
         CommentKind, Keyword, LineKind, LineScanner, classify_line, find_byte, find_escapable_byte,
-        find_last_byte, find_quote_or_backslash, find_quoted_bounds, has_escapable_byte,
-        parse_plural_index, split_once_byte, trim_ascii,
+        find_last_byte, find_quote_or_backslash, find_quoted_bounds, parse_plural_index,
+        split_once_byte, trim_ascii,
     };
 
     #[test]
@@ -253,8 +249,8 @@ mod tests {
         assert_eq!(split_once_byte(b"a:b", b':'), Some((&b"a"[..], &b"b"[..])));
         assert_eq!(find_quoted_bounds(br#"msgid "abc""#), Some((7, 10)));
         assert_eq!(find_escapable_byte(b"plain\ttext"), Some(5));
-        assert!(has_escapable_byte(b"plain\\text"));
-        assert!(!has_escapable_byte(b"plain text"));
+        assert_eq!(find_escapable_byte(b"plain\\text"), Some(5));
+        assert_eq!(find_escapable_byte(b"plain text"), None);
         assert_eq!(parse_plural_index(b"msgstr[12] \"x\""), Some(12));
         assert_eq!(parse_plural_index(b"msgstr \"x\""), Some(0));
         assert_eq!(
