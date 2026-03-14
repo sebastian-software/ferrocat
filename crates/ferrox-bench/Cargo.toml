@@ -1,0 +1,16 @@
+[package]
+name = "ferrox-bench"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[[bin]]
+name = "ferrox-bench"
+path = "src/main.rs"
+
+[dependencies]
+ferrox-po = { path = "../ferrox-po" }
+
+[lints]
+workspace = true

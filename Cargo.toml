@@ -1,0 +1,22 @@
+[workspace]
+members = [
+    "crates/ferrox-po",
+    "crates/ferrox-icu",
+    "crates/ferrox-bench",
+]
+resolver = "2"
+
+[workspace.package]
+edition = "2024"
+license = "MIT"
+version = "0.1.0"
+rust-version = "1.85"
+
+[workspace.lints.rust]
+unsafe_op_in_unsafe_fn = "deny"
+
+[workspace.lints.clippy]
+dbg_macro = "deny"
+todo = "deny"
+unwrap_used = "deny"
+

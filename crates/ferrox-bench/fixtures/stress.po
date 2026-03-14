@@ -1,0 +1,46 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: Test\n"
+"Plural-Forms: nplurals=3; plural=(n != 1);\n"
+
+msgid "The name field must not contain characters like \" or \\"
+msgstr ""
+
+#~ msgid "Add order"
+#~ msgstr "Order toevoegen"
+
+#~ # commented obsolete item
+#~ #, fuzzy
+#~ msgid "Commented item"
+#~ msgstr "not sure"
+
+msgid ""
+"%1$s\n"
+"%2$s %3$s\n"
+"%4$s\n"
+"%5$s"
+msgstr ""
+
+msgid ""
+"define('some/test/module', function () {\n"
+"\t'use strict';\n"
+"\treturn {};\n"
+"});\n"
+""
+msgstr ""
+
+msgid ""
+"Test.\n"
+" multiline."
+msgid_plural ""
+"Test\n"
+" multiline plural."
+msgstr[0] ""
+"Test.\n"
+" mehrzeilig."
+msgstr[1] ""
+"Test.\n"
+" mehrzeilig Plural."
+msgstr[2] ""
+"Test.\n"
+" mehrzeilig Extra."
