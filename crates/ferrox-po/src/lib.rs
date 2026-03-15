@@ -47,6 +47,20 @@ impl PoItem {
             ..Self::default()
         }
     }
+
+    pub(crate) fn clear_for_reuse(&mut self, nplurals: usize) {
+        self.msgid.clear();
+        self.msgctxt = None;
+        self.references.clear();
+        self.msgid_plural = None;
+        self.msgstr = MsgStr::None;
+        self.comments.clear();
+        self.extracted_comments.clear();
+        self.flags.clear();
+        self.metadata.clear();
+        self.obsolete = false;
+        self.nplurals = nplurals;
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]

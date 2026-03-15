@@ -40,7 +40,18 @@ impl ParserState {
     }
 
     fn reset(&mut self, nplurals: usize) {
-        *self = Self::new(nplurals);
+        self.item.clear_for_reuse(nplurals);
+        self.reset_after_take(nplurals);
+    }
+
+    fn reset_after_take(&mut self, nplurals: usize) {
+        self.item.nplurals = nplurals;
+        self.msgstr = MsgStr::None;
+        self.context = None;
+        self.plural_index = 0;
+        self.obsolete_line_count = 0;
+        self.content_line_count = 0;
+        self.has_keyword = false;
     }
 
     fn set_msgstr(&mut self, plural_index: usize, value: String) {
@@ -314,7 +325,7 @@ fn finish_item(
 
     state.item.nplurals = *current_nplurals;
     file.items.push(core::mem::take(&mut state.item));
-    state.reset(*current_nplurals);
+    state.reset_after_take(*current_nplurals);
     Ok(())
 }
 
