@@ -356,7 +356,7 @@ fn folded_split_point(input: &str, start: usize, max_len: usize) -> usize {
         return input.len();
     }
 
-    let end = start + max_len;
+    let end = clamp_char_boundary(input, start, start + max_len);
     let mut break_at = None;
     for (offset, byte) in input.as_bytes()[start..end].iter().enumerate().rev() {
         if *byte == b' ' {
@@ -372,9 +372,25 @@ fn folded_split_point(input: &str, start: usize, max_len: usize) -> usize {
     }
 }
 
+fn clamp_char_boundary(input: &str, start: usize, requested_end: usize) -> usize {
+    let mut end = requested_end.min(input.len());
+    while end > start && !input.is_char_boundary(end) {
+        end -= 1;
+    }
+    if end > start {
+        return end;
+    }
+
+    let mut end = requested_end.min(input.len());
+    while end < input.len() && !input.is_char_boundary(end) {
+        end += 1;
+    }
+    end
+}
+
 #[cfg(test)]
 mod tests {
-    use crate::{Header, PoFile, PoItem, SerializeOptions};
+    use crate::{Header, PoFile, PoItem, SerializeOptions, parse_po};
 
     use super::stringify_po;
 
@@ -476,5 +492,31 @@ mod tests {
 
         assert!(output.contains("msgid \"Alpha beta gamma delta\"\n"));
         assert!(output.contains("msgstr \"Uno dos tres cuatro\"\n"));
+    }
+
+    #[test]
+    fn folds_utf8_without_splitting_codepoints() {
+        let file = PoFile {
+            headers: vec![],
+            comments: vec![],
+            extracted_comments: vec![],
+            items: vec![PoItem {
+                msgid: "Grüße aus Köln".to_owned(),
+                msgstr: vec!["Übermäßig höflich".to_owned()],
+                ..PoItem::new(2)
+            }],
+        };
+
+        let output = stringify_po(
+            &file,
+            &SerializeOptions {
+                fold_length: 12,
+                compact_multiline: true,
+            },
+        );
+
+        let reparsed = parse_po(&output).expect("reparse folded utf8 output");
+        assert_eq!(reparsed.items[0].msgid, "Grüße aus Köln");
+        assert_eq!(reparsed.items[0].msgstr[0], "Übermäßig höflich");
     }
 }
