@@ -28,24 +28,24 @@ pub(crate) fn escape_string_into(out: &mut String, input: &str) {
 }
 
 pub fn unescape_string(input: &str) -> Result<String, ParseError> {
-    if !has_byte(b'\\', input.as_bytes()) {
+    let bytes = input.as_bytes();
+    if !has_byte(b'\\', bytes) {
         return Ok(input.to_owned());
     }
 
-    let bytes = input.as_bytes();
-    let mut out = String::with_capacity(input.len());
+    let mut out = Vec::with_capacity(input.len());
     let mut index = 0;
 
     while index < bytes.len() {
         let next_escape = match find_byte(b'\\', &bytes[index..]) {
             Some(relative) => index + relative,
             None => {
-                out.push_str(&input[index..]);
+                out.extend_from_slice(&bytes[index..]);
                 break;
             }
         };
 
-        out.push_str(&input[index..next_escape]);
+        out.extend_from_slice(&bytes[index..next_escape]);
         index = next_escape + 1;
         if index >= bytes.len() {
             return Err(ParseError::new("unterminated escape sequence"));
@@ -53,17 +53,17 @@ pub fn unescape_string(input: &str) -> Result<String, ParseError> {
 
         let escaped = bytes[index];
         match escaped {
-            b'a' => out.push('\u{0007}'),
-            b'b' => out.push('\u{0008}'),
-            b't' => out.push('\t'),
-            b'n' => out.push('\n'),
-            b'v' => out.push('\u{000b}'),
-            b'f' => out.push('\u{000c}'),
-            b'r' => out.push('\r'),
-            b'\'' => out.push('\''),
-            b'"' => out.push('"'),
-            b'\\' => out.push('\\'),
-            b'?' => out.push('?'),
+            b'a' => out.push(b'\x07'),
+            b'b' => out.push(b'\x08'),
+            b't' => out.push(b'\t'),
+            b'n' => out.push(b'\n'),
+            b'v' => out.push(b'\x0b'),
+            b'f' => out.push(b'\x0c'),
+            b'r' => out.push(b'\r'),
+            b'\'' => out.push(b'\''),
+            b'"' => out.push(b'"'),
+            b'\\' => out.push(b'\\'),
+            b'?' => out.push(b'?'),
             b'0'..=b'7' => {
                 let mut value = u32::from(escaped - b'0');
                 let mut consumed = 1;
@@ -76,7 +76,7 @@ pub fn unescape_string(input: &str) -> Result<String, ParseError> {
                     consumed += 1;
                 }
                 match char::from_u32(value) {
-                    Some(ch) => out.push(ch),
+                    Some(ch) => push_char_bytes(&mut out, ch),
                     None => return Err(ParseError::new("invalid octal escape value")),
                 }
                 index += consumed - 1;
@@ -89,18 +89,18 @@ pub fn unescape_string(input: &str) -> Result<String, ParseError> {
                 let lo = decode_hex(bytes[index + 2])?;
                 let value = u32::from((hi << 4) | lo);
                 match char::from_u32(value) {
-                    Some(ch) => out.push(ch),
+                    Some(ch) => push_char_bytes(&mut out, ch),
                     None => return Err(ParseError::new("invalid hex escape value")),
                 }
                 index += 2;
             }
-            other => out.push(char::from(other)),
+            other => out.push(other),
         }
 
         index += 1;
     }
 
-    Ok(out)
+    Ok(unsafe { String::from_utf8_unchecked(out) })
 }
 
 pub fn extract_quoted_cow<'a>(line: &'a str) -> Result<Cow<'a, str>, ParseError> {
@@ -164,6 +164,16 @@ fn decode_hex(byte: u8) -> Result<u8, ParseError> {
         b'A'..=b'F' => Ok(byte - b'A' + 10),
         _ => Err(ParseError::new("invalid hex escape")),
     }
+}
+
+fn push_char_bytes(out: &mut Vec<u8>, ch: char) {
+    if ch.is_ascii() {
+        out.push(ch as u8);
+        return;
+    }
+
+    let mut buf = [0u8; 4];
+    out.extend_from_slice(ch.encode_utf8(&mut buf).as_bytes());
 }
 
 fn bytes_to_str(bytes: &[u8]) -> Result<&str, ParseError> {
