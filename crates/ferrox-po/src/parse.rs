@@ -18,27 +18,98 @@ enum Context {
 #[derive(Debug)]
 struct ParserState {
     item: PoItem,
+    msgstr0: String,
+    plural_msgstr: Option<Vec<String>>,
     context: Option<Context>,
     plural_index: usize,
     obsolete_line_count: usize,
     content_line_count: usize,
     has_keyword: bool,
+    has_msgstr: bool,
 }
 
 impl ParserState {
     fn new(nplurals: usize) -> Self {
         Self {
             item: PoItem::new(nplurals),
+            msgstr0: String::new(),
+            plural_msgstr: None,
             context: None,
             plural_index: 0,
             obsolete_line_count: 0,
             content_line_count: 0,
             has_keyword: false,
+            has_msgstr: false,
         }
     }
 
     fn reset(&mut self, nplurals: usize) {
         *self = Self::new(nplurals);
+    }
+
+    fn set_msgstr(&mut self, plural_index: usize, value: String) {
+        self.has_msgstr = true;
+        if plural_index == 0 {
+            if let Some(msgstr) = self.plural_msgstr.as_mut() {
+                if msgstr.is_empty() {
+                    msgstr.push(String::new());
+                }
+                msgstr[0] = value;
+            } else {
+                self.msgstr0 = value;
+            }
+            return;
+        }
+
+        let msgstr = self.promote_plural_msgstr(plural_index);
+        msgstr[plural_index] = value;
+    }
+
+    fn append_msgstr(&mut self, plural_index: usize, value: &str) {
+        if plural_index == 0 {
+            if let Some(msgstr) = self.plural_msgstr.as_mut() {
+                if msgstr.is_empty() {
+                    msgstr.push(String::new());
+                }
+                msgstr[0].push_str(value);
+            } else {
+                self.msgstr0.push_str(value);
+            }
+            return;
+        }
+
+        let msgstr = self.promote_plural_msgstr(plural_index);
+        msgstr[plural_index].push_str(value);
+    }
+
+    fn header_msgstr(&self) -> &str {
+        if let Some(msgstr) = self.plural_msgstr.as_ref() {
+            msgstr.first().map(String::as_str).unwrap_or_default()
+        } else {
+            self.msgstr0.as_str()
+        }
+    }
+
+    fn materialize_msgstr(&mut self) {
+        debug_assert!(self.item.msgstr.is_empty());
+
+        if let Some(msgstr) = self.plural_msgstr.take() {
+            self.item.msgstr = msgstr;
+        } else if self.has_msgstr {
+            self.item.msgstr.push(core::mem::take(&mut self.msgstr0));
+        }
+    }
+
+    fn promote_plural_msgstr(&mut self, plural_index: usize) -> &mut Vec<String> {
+        let msgstr = self.plural_msgstr.get_or_insert_with(|| {
+            let mut msgstr = Vec::with_capacity(2);
+            msgstr.push(core::mem::take(&mut self.msgstr0));
+            msgstr
+        });
+        if msgstr.len() <= plural_index {
+            msgstr.resize(plural_index + 1, String::new());
+        }
+        msgstr
     }
 }
 
@@ -166,10 +237,10 @@ fn parse_keyword_line(
         Keyword::MsgStr => {
             let plural_index = parse_plural_index(line_bytes).unwrap_or(0);
             state.plural_index = plural_index;
-            if state.item.msgstr.len() <= plural_index {
-                state.item.msgstr.resize(plural_index + 1, String::new());
-            }
-            state.item.msgstr[plural_index] = extract_quoted_bytes_cow(line_bytes)?.into_owned();
+            state.set_msgstr(
+                plural_index,
+                extract_quoted_bytes_cow(line_bytes)?.into_owned(),
+            );
             state.context = Some(Context::MsgStr);
             state.content_line_count += 1;
             state.has_keyword = true;
@@ -192,13 +263,7 @@ fn append_continuation(line_bytes: &[u8], state: &mut ParserState) -> Result<(),
 
     match state.context {
         Some(Context::MsgStr) => {
-            if state.item.msgstr.len() <= state.plural_index {
-                state
-                    .item
-                    .msgstr
-                    .resize(state.plural_index + 1, String::new());
-            }
-            state.item.msgstr[state.plural_index].push_str(value.as_ref());
+            state.append_msgstr(state.plural_index, value.as_ref());
         }
         Some(Context::MsgId) => state.item.msgid.push_str(value.as_ref()),
         Some(Context::MsgIdPlural) => {
@@ -224,7 +289,7 @@ fn finish_item(
         return Ok(());
     }
 
-    if state.item.msgid.is_empty() && !is_header_item(&state.item) {
+    if state.item.msgid.is_empty() && !is_header_state(state) {
         return Ok(());
     }
 
@@ -232,22 +297,16 @@ fn finish_item(
         state.item.obsolete = true;
     }
 
-    if is_header_item(&state.item) && file.headers.is_empty() && file.items.is_empty() {
+    if is_header_state(state) && file.headers.is_empty() && file.items.is_empty() {
         file.comments = core::mem::take(&mut state.item.comments);
         file.extracted_comments = core::mem::take(&mut state.item.extracted_comments);
-        parse_headers(
-            state
-                .item
-                .msgstr
-                .first()
-                .map(String::as_str)
-                .unwrap_or_default(),
-            &mut file.headers,
-        )?;
+        parse_headers(state.header_msgstr(), &mut file.headers)?;
         *current_nplurals = parse_nplurals(&file.headers).unwrap_or(2);
         state.reset(*current_nplurals);
         return Ok(());
     }
+
+    state.materialize_msgstr();
 
     if state.item.msgstr.is_empty() {
         state.item.msgstr.push(String::new());
@@ -265,11 +324,11 @@ fn finish_item(
     Ok(())
 }
 
-fn is_header_item(item: &PoItem) -> bool {
-    item.msgid.is_empty()
-        && item.msgctxt.is_none()
-        && item.msgid_plural.is_none()
-        && !item.msgstr.is_empty()
+fn is_header_state(state: &ParserState) -> bool {
+    state.item.msgid.is_empty()
+        && state.item.msgctxt.is_none()
+        && state.item.msgid_plural.is_none()
+        && state.has_msgstr
 }
 
 fn parse_headers(raw: &str, out: &mut Vec<Header>) -> Result<(), ParseError> {
@@ -289,22 +348,27 @@ fn parse_headers(raw: &str, out: &mut Vec<Header>) -> Result<(), ParseError> {
 }
 
 fn parse_nplurals(headers: &[Header]) -> Option<usize> {
-    let plural_forms = headers.iter().find_map(|header| {
-        if header.key == "Plural-Forms" {
-            Some(header.value.as_str())
-        } else {
-            None
-        }
-    })?;
+    let plural_forms = headers
+        .iter()
+        .find(|header| header.key == "Plural-Forms")?
+        .value
+        .as_bytes();
+    let mut rest = plural_forms;
 
-    for part in plural_forms.split(';') {
-        let trimmed = part.trim();
-        if let Some((key, value)) = trimmed.split_once('=')
-            && key.trim() == "nplurals"
-            && let Ok(parsed) = value.trim().parse::<usize>()
+    while !rest.is_empty() {
+        let (part, next) = match split_once_byte(rest, b';') {
+            Some((part, tail)) => (part, tail),
+            None => (rest, &b""[..]),
+        };
+        let trimmed = trim_ascii(part);
+        if let Some((key, value)) = split_once_byte(trimmed, b'=')
+            && trim_ascii(key) == b"nplurals"
+            && let Ok(value) = bytes_to_str(trim_ascii(value))
+            && let Ok(parsed) = value.parse::<usize>()
         {
             return Some(parsed);
         }
+        rest = next;
     }
 
     None

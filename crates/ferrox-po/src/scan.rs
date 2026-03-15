@@ -1,3 +1,5 @@
+use memchr::Memchr;
+
 mod backend {
     use memchr::{memchr, memchr3, memrchr};
 
@@ -136,39 +138,53 @@ pub enum LineKind {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Line<'a> {
-    pub raw: &'a [u8],
     pub trimmed: &'a [u8],
     pub obsolete: bool,
 }
 
 pub struct LineScanner<'a> {
     bytes: &'a [u8],
+    newlines: Memchr<'a>,
     offset: usize,
+    finished: bool,
 }
 
 impl<'a> LineScanner<'a> {
     pub fn new(bytes: &'a [u8]) -> Self {
-        Self { bytes, offset: 0 }
+        Self {
+            bytes,
+            newlines: Memchr::new(b'\n', bytes),
+            offset: 0,
+            finished: false,
+        }
     }
 }
 
 impl<'a> Iterator for LineScanner<'a> {
     type Item = Line<'a>;
 
+    #[inline]
     fn next(&mut self) -> Option<Self::Item> {
-        while self.offset <= self.bytes.len() {
-            let next_newline = find_byte(b'\n', &self.bytes[self.offset..])
-                .map(|relative| self.offset + relative)
-                .unwrap_or(self.bytes.len());
+        while !self.finished {
+            let next_newline = match self.newlines.next() {
+                Some(index) => index,
+                None => {
+                    self.finished = true;
+                    self.bytes.len()
+                }
+            };
+            if self.finished && self.offset == self.bytes.len() {
+                return None;
+            }
             let raw = &self.bytes[self.offset..next_newline];
 
-            if next_newline == self.bytes.len() {
-                self.offset = self.bytes.len() + 1;
-            } else {
+            if next_newline < self.bytes.len() {
                 self.offset = next_newline + 1;
+            } else {
+                self.offset = self.bytes.len();
             }
 
-            let mut trimmed = trim_ascii(raw);
+            let mut trimmed = trim_ascii_start(raw);
             if trimmed.is_empty() {
                 if next_newline == self.bytes.len() {
                     return None;
@@ -178,7 +194,7 @@ impl<'a> Iterator for LineScanner<'a> {
 
             let mut obsolete = false;
             if trimmed.starts_with(b"#~") {
-                trimmed = trim_ascii(&trimmed[2..]);
+                trimmed = trim_ascii_start(&trimmed[2..]);
                 obsolete = true;
                 if trimmed.is_empty() {
                     if next_newline == self.bytes.len() {
@@ -189,7 +205,6 @@ impl<'a> Iterator for LineScanner<'a> {
             }
 
             return Some(Line {
-                raw,
                 trimmed,
                 obsolete,
             });
@@ -199,24 +214,34 @@ impl<'a> Iterator for LineScanner<'a> {
     }
 }
 
+#[inline]
 pub fn trim_ascii(bytes: &[u8]) -> &[u8] {
-    let mut start = 0;
-    let mut end = bytes.len();
+    let trimmed = trim_ascii_start(bytes);
+    let mut end = trimmed.len();
 
-    while start < end && bytes[start].is_ascii_whitespace() {
-        start += 1;
-    }
-    while end > start && bytes[end - 1].is_ascii_whitespace() {
+    while end > 0 && trimmed[end - 1].is_ascii_whitespace() {
         end -= 1;
     }
 
-    &bytes[start..end]
+    &trimmed[..end]
 }
 
+#[inline]
+pub fn trim_ascii_start(bytes: &[u8]) -> &[u8] {
+    let mut start = 0;
+    while start < bytes.len() && bytes[start].is_ascii_whitespace() {
+        start += 1;
+    }
+
+    &bytes[start..]
+}
+
+#[inline]
 pub fn find_byte(byte: u8, haystack: &[u8]) -> Option<usize> {
     backend::find_byte(byte, haystack)
 }
 
+#[inline]
 pub fn find_last_byte(byte: u8, haystack: &[u8]) -> Option<usize> {
     backend::find_last_byte(byte, haystack)
 }
@@ -226,6 +251,7 @@ pub fn find_either(first: u8, second: u8, haystack: &[u8]) -> Option<usize> {
     backend::find_either(first, second, haystack)
 }
 
+#[inline]
 pub fn has_byte(byte: u8, haystack: &[u8]) -> bool {
     find_byte(byte, haystack).is_some()
 }
@@ -235,15 +261,18 @@ pub fn find_quote_or_backslash(haystack: &[u8]) -> Option<usize> {
     find_either(b'"', b'\\', haystack)
 }
 
+#[inline]
 pub fn find_escapable_byte(haystack: &[u8]) -> Option<usize> {
     backend::find_escapable_byte(haystack)
 }
 
+#[inline]
 pub fn split_once_byte(haystack: &[u8], needle: u8) -> Option<(&[u8], &[u8])> {
     let index = find_byte(needle, haystack)?;
     Some((&haystack[..index], &haystack[index + 1..]))
 }
 
+#[inline]
 pub fn classify_line(line: &[u8]) -> LineKind {
     match line.first().copied() {
         Some(b'"') => LineKind::Continuation,
@@ -255,23 +284,53 @@ pub fn classify_line(line: &[u8]) -> LineKind {
             Some(b' ') | None => LineKind::Comment(CommentKind::Translator),
             _ => LineKind::Comment(CommentKind::Other),
         },
-        Some(b'm') => {
-            if line.starts_with(b"msgid_plural") {
+        Some(b'm')
+            if line.len() >= 5
+                && line[1] == b's'
+                && line[2] == b'g'
+                && line[3] == b'i'
+                && line[4] == b'd' =>
+        {
+            if line.len() >= 12
+                && line[5] == b'_'
+                && line[6] == b'p'
+                && line[7] == b'l'
+                && line[8] == b'u'
+                && line[9] == b'r'
+                && line[10] == b'a'
+                && line[11] == b'l'
+            {
                 LineKind::Keyword(Keyword::MsgIdPlural)
-            } else if line.starts_with(b"msgid") {
-                LineKind::Keyword(Keyword::MsgId)
-            } else if line.starts_with(b"msgstr") {
-                LineKind::Keyword(Keyword::MsgStr)
-            } else if line.starts_with(b"msgctxt") {
-                LineKind::Keyword(Keyword::MsgCtxt)
             } else {
-                LineKind::Other
+                LineKind::Keyword(Keyword::MsgId)
             }
+        }
+        Some(b'm')
+            if line.len() >= 6
+                && line[1] == b's'
+                && line[2] == b'g'
+                && line[3] == b's'
+                && line[4] == b't'
+                && line[5] == b'r' =>
+        {
+            LineKind::Keyword(Keyword::MsgStr)
+        }
+        Some(b'm')
+            if line.len() >= 7
+                && line[1] == b's'
+                && line[2] == b'g'
+                && line[3] == b'c'
+                && line[4] == b't'
+                && line[5] == b'x'
+                && line[6] == b't' =>
+        {
+            LineKind::Keyword(Keyword::MsgCtxt)
         }
         _ => LineKind::Other,
     }
 }
 
+#[inline]
 pub fn find_quoted_bounds(bytes: &[u8]) -> Option<(usize, usize)> {
     let first_quote = find_byte(b'"', bytes)?;
     let last_quote = find_last_byte(b'"', bytes)?;
@@ -282,6 +341,7 @@ pub fn find_quoted_bounds(bytes: &[u8]) -> Option<(usize, usize)> {
     }
 }
 
+#[inline]
 pub fn parse_plural_index(line: &[u8]) -> Option<usize> {
     if line.get(6) != Some(&b'[') {
         return Some(0);
@@ -297,7 +357,7 @@ mod tests {
     use super::{
         CommentKind, Keyword, LineKind, LineScanner, classify_line, find_byte, find_escapable_byte,
         find_last_byte, find_quote_or_backslash, find_quoted_bounds, parse_plural_index,
-        split_once_byte, trim_ascii,
+        split_once_byte, trim_ascii, trim_ascii_start,
     };
 
     #[test]
@@ -306,7 +366,7 @@ mod tests {
         let mut scanner = LineScanner::new(input);
 
         let first = scanner.next().expect("first line");
-        assert_eq!(first.trimmed, b"msgid \"x\"");
+        assert_eq!(first.trimmed, b"msgid \"x\"  ");
         assert!(!first.obsolete);
 
         let second = scanner.next().expect("second line");
@@ -319,6 +379,7 @@ mod tests {
     #[test]
     fn byte_helpers_work() {
         assert_eq!(trim_ascii(b"  abc \t"), b"abc");
+        assert_eq!(trim_ascii_start(b"  abc \t"), b"abc \t");
         assert_eq!(find_byte(b':', b"a:b"), Some(1));
         assert_eq!(find_last_byte(b'"', br#""a" "b""#), Some(6));
         assert_eq!(find_quote_or_backslash(br#"abc\""#), Some(3));
