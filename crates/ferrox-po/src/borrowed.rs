@@ -2,8 +2,8 @@ use std::borrow::Cow;
 use std::str;
 
 use crate::scan::{
-    CommentKind, Keyword, LineKind, LineScanner, classify_line, parse_plural_index,
-    split_once_byte, trim_ascii,
+    CommentKind, Keyword, LineKind, LineScanner, classify_line, find_quoted_bounds, has_byte,
+    parse_plural_index, split_once_byte, trim_ascii,
 };
 use crate::text::extract_quoted_bytes_cow;
 use crate::{Header, MsgStr, ParseError, PoFile, PoItem};
@@ -115,14 +115,6 @@ impl<'a> BorrowedMsgStr<'a> {
         }
     }
 
-    fn first_str(&self) -> Option<&str> {
-        match self {
-            Self::None => None,
-            Self::Singular(value) => Some(value.as_ref()),
-            Self::Plural(values) => values.first().map(Cow::as_ref),
-        }
-    }
-
     pub fn into_owned(self) -> MsgStr {
         match self {
             Self::None => MsgStr::None,
@@ -145,6 +137,7 @@ enum Context {
 #[derive(Debug)]
 struct ParserState<'a> {
     item: BorrowedPoItem<'a>,
+    header_entries: Vec<BorrowedHeader<'a>>,
     msgstr: BorrowedMsgStr<'a>,
     context: Option<Context>,
     plural_index: usize,
@@ -157,6 +150,7 @@ impl<'a> ParserState<'a> {
     fn new(nplurals: usize) -> Self {
         Self {
             item: BorrowedPoItem::new(nplurals),
+            header_entries: Vec::new(),
             msgstr: BorrowedMsgStr::None,
             context: None,
             plural_index: 0,
@@ -201,14 +195,6 @@ impl<'a> ParserState<'a> {
                 let msgstr = self.promote_plural_msgstr(plural_index);
                 msgstr[plural_index].to_mut().push_str(value.as_ref());
             }
-        }
-    }
-
-    fn header_msgstr(&self) -> Option<&BorrowedMsgStr<'a>> {
-        if self.msgstr.is_empty() {
-            None
-        } else {
-            Some(&self.msgstr)
         }
     }
 
@@ -359,6 +345,11 @@ fn parse_keyword_line<'a>(
             let plural_index = parse_plural_index(line_bytes).unwrap_or(0);
             state.plural_index = plural_index;
             state.set_msgstr(plural_index, extract_quoted_bytes_cow(line_bytes)?);
+            if is_header_candidate(state) {
+                state
+                    .header_entries
+                    .extend(parse_header_fragment(line_bytes)?);
+            }
             state.context = Some(Context::MsgStr);
             state.content_line_count += 1;
             state.has_keyword = true;
@@ -383,7 +374,14 @@ fn append_continuation<'a>(
     let value = extract_quoted_bytes_cow(line_bytes)?;
 
     match state.context {
-        Some(Context::MsgStr) => state.append_msgstr(state.plural_index, value),
+        Some(Context::MsgStr) => {
+            state.append_msgstr(state.plural_index, value);
+            if is_header_candidate(state) {
+                state
+                    .header_entries
+                    .extend(parse_header_fragment(line_bytes)?);
+            }
+        }
         Some(Context::MsgId) => state.item.msgid.to_mut().push_str(value.as_ref()),
         Some(Context::MsgIdPlural) => {
             let target = state.item.msgid_plural.get_or_insert_with(|| Cow::Borrowed(""));
@@ -419,9 +417,7 @@ fn finish_item<'a>(
     if is_header_state(state) && file.headers.is_empty() && file.items.is_empty() {
         file.comments = std::mem::take(&mut state.item.comments);
         file.extracted_comments = std::mem::take(&mut state.item.extracted_comments);
-        if let Some(raw) = state.header_msgstr().cloned() {
-            parse_headers(raw, &mut file.headers)?;
-        }
+        file.headers = std::mem::take(&mut state.header_entries);
         *current_nplurals = parse_nplurals(&file.headers).unwrap_or(2);
         state.reset(*current_nplurals);
         return Ok(());
@@ -455,22 +451,95 @@ fn is_header_state(state: &ParserState<'_>) -> bool {
         && !state.msgstr.is_empty()
 }
 
-fn parse_headers<'a>(
-    raw: BorrowedMsgStr<'a>,
+fn is_header_candidate(state: &ParserState<'_>) -> bool {
+    state.item.msgid.is_empty()
+        && state.item.msgctxt.is_none()
+        && state.item.msgid_plural.is_none()
+        && state.plural_index == 0
+}
+
+fn parse_header_fragment<'a>(line_bytes: &'a [u8]) -> Result<Vec<BorrowedHeader<'a>>, ParseError> {
+    let Some((start, end)) = find_quoted_bounds(line_bytes) else {
+        return Ok(Vec::new());
+    };
+    let raw = &line_bytes[start..end];
+
+    if header_fragment_is_borrowable(raw) {
+        return parse_header_fragment_borrowed(raw);
+    }
+
+    parse_header_fragment_owned(line_bytes)
+}
+
+fn parse_header_fragment_borrowed<'a>(
+    raw: &'a [u8],
+) -> Result<Vec<BorrowedHeader<'a>>, ParseError> {
+    let mut headers = Vec::new();
+    let mut start = 0usize;
+    let mut index = 0usize;
+
+    while index < raw.len() {
+        if raw[index] == b'\\' && raw.get(index + 1) == Some(&b'n') {
+            push_borrowed_header_segment(&raw[start..index], &mut headers)?;
+            index += 2;
+            start = index;
+            continue;
+        }
+        index += 1;
+    }
+
+    push_borrowed_header_segment(&raw[start..], &mut headers)?;
+    Ok(headers)
+}
+
+fn push_borrowed_header_segment<'a>(
+    segment: &'a [u8],
     out: &mut Vec<BorrowedHeader<'a>>,
 ) -> Result<(), ParseError> {
-    let text = raw.first_str().unwrap_or_default();
-    out.reserve(text.as_bytes().iter().filter(|byte| **byte == b'\n').count() + 1);
-    for line in LineScanner::new(text.as_bytes()) {
-        if let Some((key_bytes, value_bytes)) = split_once_byte(line.trimmed, b':') {
-            out.push(BorrowedHeader {
-                key: Cow::Owned(trimmed_str(key_bytes)?.to_owned()),
-                value: Cow::Owned(trimmed_str(value_bytes)?.to_owned()),
+    if segment.is_empty() {
+        return Ok(());
+    }
+    if let Some((key_bytes, value_bytes)) = split_once_byte(segment, b':') {
+        out.push(BorrowedHeader {
+            key: trimmed_cow(key_bytes)?,
+            value: trimmed_cow(value_bytes)?,
+        });
+    }
+    Ok(())
+}
+
+fn parse_header_fragment_owned<'a>(
+    line_bytes: &'a [u8],
+) -> Result<Vec<BorrowedHeader<'a>>, ParseError> {
+    let decoded = extract_quoted_bytes_cow(line_bytes)?;
+    let mut headers = Vec::new();
+    for segment in decoded.split('\n') {
+        if segment.is_empty() {
+            continue;
+        }
+        if let Some((key, value)) = segment.split_once(':') {
+            headers.push(BorrowedHeader {
+                key: Cow::Owned(key.trim().to_owned()),
+                value: Cow::Owned(value.trim().to_owned()),
             });
         }
     }
+    Ok(headers)
+}
 
-    Ok(())
+fn header_fragment_is_borrowable(raw: &[u8]) -> bool {
+    let mut index = 0usize;
+    while index < raw.len() {
+        if raw[index] == b'\\' {
+            if raw.get(index + 1) != Some(&b'n') {
+                return false;
+            }
+            index += 2;
+            continue;
+        }
+        index += 1;
+    }
+    !has_byte(b'"', raw)
 }
 
 fn parse_nplurals(headers: &[BorrowedHeader<'_>]) -> Option<usize> {
@@ -549,5 +618,18 @@ msgstr "world"
         let owned = parse_po_borrowed(input).expect("borrowed parse").into_owned();
         assert_eq!(owned.items[0].msgid, "hello");
         assert_eq!(owned.items[0].msgstr[0], "world");
+    }
+
+    #[test]
+    fn borrows_header_key_values_without_escapes() {
+        let input = concat!(
+            "msgid \"\"\n",
+            "msgstr \"\"\n",
+            "\"Language: de\\n\"\n",
+            "\"Plural-Forms: nplurals=2; plural=(n != 1);\\n\"\n",
+        );
+        let file = parse_po_borrowed(input).expect("borrowed parse with headers");
+        assert_eq!(file.headers[0].key, Cow::Borrowed("Language"));
+        assert_eq!(file.headers[0].value, Cow::Borrowed("de"));
     }
 }
