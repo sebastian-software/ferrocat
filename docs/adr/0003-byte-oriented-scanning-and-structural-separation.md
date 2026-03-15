@@ -1,0 +1,39 @@
+# ADR 0003: Use Byte-Oriented Scanning and Separate Structure From Semantics
+
+- Status: Accepted
+- Date: 2026-03-15
+
+## Context
+
+Initial profiling showed major costs in:
+
+- line splitting and trimming through string pattern APIs
+- prefix checks on `&str`
+- early UTF-8 and string materialization
+
+PO syntax is structurally ASCII even when message content is not. That makes byte-oriented structural scanning a natural fit.
+
+## Decision
+
+Implement the hot parsing path around byte scanning and keep structural helpers in dedicated scanner code.
+
+This includes:
+
+- line scanning on `&[u8]`
+- keyword and comment classification on bytes
+- `memchr`-style structural searches
+- delaying string materialization as long as possible
+
+## Consequences
+
+Positive:
+
+- materially better parser throughput
+- clearer future seam for SIMD/NEON backends
+- reduced dependence on general-purpose string search machinery
+
+Negative:
+
+- more explicit UTF-8 invariants must be documented and upheld
+- code is lower-level than a straightforward string parser
+- some debugging tasks become more byte-centric
