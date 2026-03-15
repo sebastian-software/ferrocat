@@ -1,9 +1,9 @@
 use std::borrow::Cow;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 
 use crate::{
-    BorrowedHeader, BorrowedPoItem, MsgStr, ParseError, PoFile, PoItem, SerializeOptions,
-    parse_po_borrowed, stringify_po,
+    BorrowedHeader, BorrowedMsgStr, BorrowedPoItem, MsgStr, ParseError, PoFile, PoItem,
+    SerializeOptions, parse_po_borrowed, stringify_po,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -50,34 +50,40 @@ pub fn merge_catalog<'a>(
         items: Vec::with_capacity(existing.items.len().max(extracted_messages.len())),
     };
 
-    let mut existing_index = HashMap::with_capacity(existing.items.len());
+    let mut existing_index: HashMap<&str, Vec<(Option<&str>, usize)>> =
+        HashMap::with_capacity(existing.items.len());
     for (index, item) in existing.items.iter().enumerate() {
-        existing_index.insert(
-            OwnedMessageKey::new(item.msgctxt.as_deref(), item.msgid.as_ref()),
-            index,
-        );
+        existing_index
+            .entry(item.msgid.as_ref())
+            .or_default()
+            .push((item.msgctxt.as_deref(), index));
     }
 
-    let mut matched = HashSet::with_capacity(extracted_messages.len());
+    let mut matched = vec![false; existing.items.len()];
 
     for extracted in extracted_messages {
-        let key = OwnedMessageKey::new(extracted.msgctxt.as_deref(), extracted.msgid.as_ref());
-        matched.insert(key.clone());
+        let existing_index = find_existing_index(
+            &existing_index,
+            extracted.msgctxt.as_deref(),
+            extracted.msgid.as_ref(),
+        );
 
-        let item = match existing_index.get(&key) {
-            Some(index) => merge_existing_item(&existing.items[*index], extracted, nplurals),
+        let item = match existing_index {
+            Some(index) => {
+                matched[index] = true;
+                merge_existing_item(&existing.items[index], extracted, nplurals)
+            }
             None => new_item_from_extracted(extracted, nplurals),
         };
         file.items.push(item);
     }
 
-    for item in &existing.items {
-        let key = OwnedMessageKey::new(item.msgctxt.as_deref(), item.msgid.as_ref());
-        if matched.contains(&key) {
+    for (index, item) in existing.items.iter().enumerate() {
+        if matched[index] {
             continue;
         }
 
-        let mut obsolete = item.clone().into_owned();
+        let mut obsolete = borrowed_item_to_owned(item);
         obsolete.obsolete = true;
         file.items.push(obsolete);
     }
@@ -85,19 +91,15 @@ pub fn merge_catalog<'a>(
     Ok(stringify_po(&file, &SerializeOptions::default()))
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-struct OwnedMessageKey {
-    msgctxt: Option<String>,
-    msgid: String,
-}
-
-impl OwnedMessageKey {
-    fn new(msgctxt: Option<&str>, msgid: &str) -> Self {
-        Self {
-            msgctxt: msgctxt.map(str::to_owned),
-            msgid: msgid.to_owned(),
-        }
-    }
+fn find_existing_index(
+    existing_index: &HashMap<&str, Vec<(Option<&str>, usize)>>,
+    msgctxt: Option<&str>,
+    msgid: &str,
+) -> Option<usize> {
+    let candidates = existing_index.get(msgid)?;
+    candidates
+        .iter()
+        .find_map(|(candidate_ctxt, index)| (*candidate_ctxt == msgctxt).then_some(*index))
 }
 
 fn merge_existing_item(
@@ -105,32 +107,28 @@ fn merge_existing_item(
     extracted: &ExtractedMessage<'_>,
     nplurals: usize,
 ) -> PoItem {
-    let mut item = existing.clone().into_owned();
-    let was_plural = item.msgid_plural.is_some();
+    let was_plural = existing.msgid_plural.is_some();
     let is_plural = extracted.msgid_plural.is_some();
 
-    item.msgctxt = extracted
-        .msgctxt
-        .as_ref()
-        .map(|value| value.as_ref().to_owned());
-    item.msgid = extracted.msgid.as_ref().to_owned();
-    item.msgid_plural = extracted
-        .msgid_plural
-        .as_ref()
-        .map(|value| value.as_ref().to_owned());
-    item.references = extracted
-        .references
-        .iter()
-        .map(|value| value.as_ref().to_owned())
-        .collect();
-    item.extracted_comments = extracted
-        .extracted_comments
-        .iter()
-        .map(|value| value.as_ref().to_owned())
-        .collect();
-    item.flags = merge_flags(&item.flags, &extracted.flags);
-    item.obsolete = false;
-    item.nplurals = nplurals;
+    let mut item = PoItem {
+        msgid: extracted.msgid.as_ref().to_owned(),
+        msgctxt: extracted
+            .msgctxt
+            .as_ref()
+            .map(|value| value.as_ref().to_owned()),
+        references: owned_strings_from_cow(&extracted.references),
+        msgid_plural: extracted
+            .msgid_plural
+            .as_ref()
+            .map(|value| value.as_ref().to_owned()),
+        msgstr: borrowed_msgstr_to_owned(&existing.msgstr),
+        comments: owned_strings_from_cow(&existing.comments),
+        extracted_comments: owned_strings_from_cow(&extracted.extracted_comments),
+        flags: merge_flags(&existing.flags, &extracted.flags),
+        metadata: owned_metadata_from_borrowed(&existing.metadata),
+        obsolete: false,
+        nplurals,
+    };
 
     normalize_msgstr(&mut item.msgstr, was_plural, is_plural, nplurals);
     item
@@ -166,8 +164,9 @@ fn new_item_from_extracted(extracted: &ExtractedMessage<'_>, nplurals: usize) ->
     item
 }
 
-fn merge_flags(existing: &[String], extracted: &[Cow<'_, str>]) -> Vec<String> {
-    let mut merged = existing.to_vec();
+fn merge_flags(existing: &[Cow<'_, str>], extracted: &[Cow<'_, str>]) -> Vec<String> {
+    let mut merged = Vec::with_capacity(existing.len() + extracted.len());
+    merged.extend(existing.iter().map(|value| value.as_ref().to_owned()));
     for flag in extracted {
         if merged.iter().any(|existing| existing == flag.as_ref()) {
             continue;
@@ -175,6 +174,52 @@ fn merge_flags(existing: &[String], extracted: &[Cow<'_, str>]) -> Vec<String> {
         merged.push(flag.as_ref().to_owned());
     }
     merged
+}
+
+fn borrowed_item_to_owned(item: &BorrowedPoItem<'_>) -> PoItem {
+    PoItem {
+        msgid: item.msgid.as_ref().to_owned(),
+        msgctxt: item.msgctxt.as_ref().map(|value| value.as_ref().to_owned()),
+        references: owned_strings_from_cow(&item.references),
+        msgid_plural: item
+            .msgid_plural
+            .as_ref()
+            .map(|value| value.as_ref().to_owned()),
+        msgstr: borrowed_msgstr_to_owned(&item.msgstr),
+        comments: owned_strings_from_cow(&item.comments),
+        extracted_comments: owned_strings_from_cow(&item.extracted_comments),
+        flags: owned_strings_from_cow(&item.flags),
+        metadata: owned_metadata_from_borrowed(&item.metadata),
+        obsolete: item.obsolete,
+        nplurals: item.nplurals,
+    }
+}
+
+fn borrowed_msgstr_to_owned(msgstr: &BorrowedMsgStr<'_>) -> MsgStr {
+    match msgstr {
+        BorrowedMsgStr::None => MsgStr::None,
+        BorrowedMsgStr::Singular(value) => MsgStr::Singular(value.as_ref().to_owned()),
+        BorrowedMsgStr::Plural(values) => MsgStr::Plural(
+            values
+                .iter()
+                .map(|value| value.as_ref().to_owned())
+                .collect(),
+        ),
+    }
+}
+
+fn owned_strings_from_cow(values: &[Cow<'_, str>]) -> Vec<String> {
+    values
+        .iter()
+        .map(|value| value.as_ref().to_owned())
+        .collect()
+}
+
+fn owned_metadata_from_borrowed(values: &[(Cow<'_, str>, Cow<'_, str>)]) -> Vec<(String, String)> {
+    values
+        .iter()
+        .map(|(key, value)| (key.as_ref().to_owned(), value.as_ref().to_owned()))
+        .collect()
 }
 
 fn normalize_msgstr(msgstr: &mut MsgStr, was_plural: bool, is_plural: bool, nplurals: usize) {
