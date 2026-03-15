@@ -1,9 +1,11 @@
 use std::borrow::Cow;
 use std::collections::HashMap;
 
+use crate::serialize::{write_keyword, write_prefixed_line};
+use crate::text::escape_string_into;
 use crate::{
-    BorrowedHeader, BorrowedMsgStr, BorrowedPoItem, MsgStr, ParseError, PoFile, PoItem,
-    SerializeOptions, parse_po_borrowed, stringify_po,
+    BorrowedHeader, BorrowedMsgStr, BorrowedPoFile, BorrowedPoItem, ParseError, SerializeOptions,
+    parse_po_borrowed,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -30,25 +32,11 @@ pub fn merge_catalog<'a>(
 
     let existing = parse_po_borrowed(input)?;
     let nplurals = parse_nplurals(&existing.headers).unwrap_or(2);
-    let mut file = PoFile {
-        comments: existing
-            .comments
-            .iter()
-            .map(|value| value.as_ref().to_owned())
-            .collect(),
-        extracted_comments: existing
-            .extracted_comments
-            .iter()
-            .map(|value| value.as_ref().to_owned())
-            .collect(),
-        headers: existing
-            .headers
-            .iter()
-            .cloned()
-            .map(BorrowedHeader::into_owned)
-            .collect(),
-        items: Vec::with_capacity(existing.items.len().max(extracted_messages.len())),
-    };
+    let options = SerializeOptions::default();
+    let mut out = String::with_capacity(estimate_merge_capacity(input, extracted_messages));
+    let mut scratch = String::new();
+
+    write_file_preamble(&mut out, &existing);
 
     let mut existing_index: HashMap<&str, Vec<(Option<&str>, usize)>> =
         HashMap::with_capacity(existing.items.len());
@@ -60,22 +48,34 @@ pub fn merge_catalog<'a>(
     }
 
     let mut matched = vec![false; existing.items.len()];
+    let mut wrote_item = false;
 
     for extracted in extracted_messages {
+        if wrote_item {
+            out.push('\n');
+        }
         let existing_index = find_existing_index(
             &existing_index,
             extracted.msgctxt.as_deref(),
             extracted.msgid.as_ref(),
         );
 
-        let item = match existing_index {
+        match existing_index {
             Some(index) => {
                 matched[index] = true;
-                merge_existing_item(&existing.items[index], extracted, nplurals)
+                write_merged_existing_item(
+                    &mut out,
+                    &mut scratch,
+                    &existing.items[index],
+                    extracted,
+                    nplurals,
+                    &options,
+                );
             }
-            None => new_item_from_extracted(extracted, nplurals),
-        };
-        file.items.push(item);
+            None => write_new_item(&mut out, &mut scratch, extracted, nplurals, &options),
+        }
+        out.push('\n');
+        wrote_item = true;
     }
 
     for (index, item) in existing.items.iter().enumerate() {
@@ -83,12 +83,59 @@ pub fn merge_catalog<'a>(
             continue;
         }
 
-        let mut obsolete = borrowed_item_to_owned(item);
-        obsolete.obsolete = true;
-        file.items.push(obsolete);
+        if wrote_item {
+            out.push('\n');
+        }
+        write_borrowed_item(&mut out, &mut scratch, item, true, &options);
+        out.push('\n');
+        wrote_item = true;
     }
 
-    Ok(stringify_po(&file, &SerializeOptions::default()))
+    Ok(out)
+}
+
+fn estimate_merge_capacity(input: &str, extracted_messages: &[ExtractedMessage<'_>]) -> usize {
+    let extracted_bytes: usize = extracted_messages
+        .iter()
+        .map(|message| {
+            message.msgid.len()
+                + message.msgctxt.as_ref().map_or(0, |value| value.len())
+                + message.msgid_plural.as_ref().map_or(0, |value| value.len())
+                + message
+                    .references
+                    .iter()
+                    .map(|value| value.len())
+                    .sum::<usize>()
+                + message
+                    .extracted_comments
+                    .iter()
+                    .map(|value| value.len())
+                    .sum::<usize>()
+                + message.flags.iter().map(|value| value.len()).sum::<usize>()
+        })
+        .sum();
+
+    input.len() + extracted_bytes + 256
+}
+
+fn write_file_preamble(out: &mut String, file: &BorrowedPoFile<'_>) {
+    for comment in &file.comments {
+        write_prefixed_line(out, "", "#", comment.as_ref());
+    }
+    for comment in &file.extracted_comments {
+        write_prefixed_line(out, "", "#.", comment.as_ref());
+    }
+
+    out.push_str("msgid \"\"\n");
+    out.push_str("msgstr \"\"\n");
+    for header in &file.headers {
+        out.push('"');
+        escape_string_into(out, header.key.as_ref());
+        out.push_str(": ");
+        escape_string_into(out, header.value.as_ref());
+        out.push_str("\\n\"\n");
+    }
+    out.push('\n');
 }
 
 fn find_existing_index(
@@ -102,154 +149,350 @@ fn find_existing_index(
         .find_map(|(candidate_ctxt, index)| (*candidate_ctxt == msgctxt).then_some(*index))
 }
 
-fn merge_existing_item(
+fn write_merged_existing_item(
+    out: &mut String,
+    scratch: &mut String,
     existing: &BorrowedPoItem<'_>,
     extracted: &ExtractedMessage<'_>,
     nplurals: usize,
-) -> PoItem {
-    let was_plural = existing.msgid_plural.is_some();
-    let is_plural = extracted.msgid_plural.is_some();
+    options: &SerializeOptions,
+) {
+    let obsolete_prefix = "";
 
-    let mut item = PoItem {
-        msgid: extracted.msgid.as_ref().to_owned(),
-        msgctxt: extracted
-            .msgctxt
-            .as_ref()
-            .map(|value| value.as_ref().to_owned()),
-        references: owned_strings_from_cow(&extracted.references),
-        msgid_plural: extracted
-            .msgid_plural
-            .as_ref()
-            .map(|value| value.as_ref().to_owned()),
-        msgstr: borrowed_msgstr_to_owned(&existing.msgstr),
-        comments: owned_strings_from_cow(&existing.comments),
-        extracted_comments: owned_strings_from_cow(&extracted.extracted_comments),
-        flags: merge_flags(&existing.flags, &extracted.flags),
-        metadata: owned_metadata_from_borrowed(&existing.metadata),
-        obsolete: false,
+    write_cow_prefixed_lines(out, obsolete_prefix, "#", &existing.comments);
+    write_cow_prefixed_lines(out, obsolete_prefix, "#.", &extracted.extracted_comments);
+    write_metadata_lines(out, obsolete_prefix, &existing.metadata);
+    write_cow_prefixed_lines(out, obsolete_prefix, "#:", &extracted.references);
+    write_merged_flags_line(out, obsolete_prefix, &existing.flags, &extracted.flags);
+
+    if let Some(context) = extracted.msgctxt.as_deref() {
+        write_keyword(
+            out,
+            scratch,
+            obsolete_prefix,
+            "msgctxt",
+            context,
+            None,
+            options,
+        );
+    }
+    write_keyword(
+        out,
+        scratch,
+        obsolete_prefix,
+        "msgid",
+        extracted.msgid.as_ref(),
+        None,
+        options,
+    );
+    if let Some(plural) = extracted.msgid_plural.as_deref() {
+        write_keyword(
+            out,
+            scratch,
+            obsolete_prefix,
+            "msgid_plural",
+            plural,
+            None,
+            options,
+        );
+    }
+
+    write_normalized_msgstr(
+        out,
+        scratch,
+        obsolete_prefix,
+        &existing.msgstr,
+        existing.msgid_plural.is_some(),
+        extracted.msgid_plural.is_some(),
         nplurals,
-    };
-
-    normalize_msgstr(&mut item.msgstr, was_plural, is_plural, nplurals);
-    item
+        options,
+    );
 }
 
-fn new_item_from_extracted(extracted: &ExtractedMessage<'_>, nplurals: usize) -> PoItem {
-    let mut item = PoItem::new(nplurals);
-    item.msgctxt = extracted
-        .msgctxt
-        .as_ref()
-        .map(|value| value.as_ref().to_owned());
-    item.msgid = extracted.msgid.as_ref().to_owned();
-    item.msgid_plural = extracted
-        .msgid_plural
-        .as_ref()
-        .map(|value| value.as_ref().to_owned());
-    item.references = extracted
-        .references
-        .iter()
-        .map(|value| value.as_ref().to_owned())
-        .collect();
-    item.extracted_comments = extracted
-        .extracted_comments
-        .iter()
-        .map(|value| value.as_ref().to_owned())
-        .collect();
-    item.flags = extracted
-        .flags
-        .iter()
-        .map(|value| value.as_ref().to_owned())
-        .collect();
-    item.msgstr = default_msgstr(item.msgid_plural.is_some(), nplurals);
-    item
+fn write_new_item(
+    out: &mut String,
+    scratch: &mut String,
+    extracted: &ExtractedMessage<'_>,
+    nplurals: usize,
+    options: &SerializeOptions,
+) {
+    let obsolete_prefix = "";
+
+    write_cow_prefixed_lines(out, obsolete_prefix, "#.", &extracted.extracted_comments);
+    write_cow_prefixed_lines(out, obsolete_prefix, "#:", &extracted.references);
+    write_flags_line(out, obsolete_prefix, &extracted.flags);
+
+    if let Some(context) = extracted.msgctxt.as_deref() {
+        write_keyword(
+            out,
+            scratch,
+            obsolete_prefix,
+            "msgctxt",
+            context,
+            None,
+            options,
+        );
+    }
+    write_keyword(
+        out,
+        scratch,
+        obsolete_prefix,
+        "msgid",
+        extracted.msgid.as_ref(),
+        None,
+        options,
+    );
+    if let Some(plural) = extracted.msgid_plural.as_deref() {
+        write_keyword(
+            out,
+            scratch,
+            obsolete_prefix,
+            "msgid_plural",
+            plural,
+            None,
+            options,
+        );
+    }
+
+    write_default_msgstr(
+        out,
+        scratch,
+        obsolete_prefix,
+        extracted.msgid_plural.is_some(),
+        nplurals,
+        options,
+    );
 }
 
-fn merge_flags(existing: &[Cow<'_, str>], extracted: &[Cow<'_, str>]) -> Vec<String> {
-    let mut merged = Vec::with_capacity(existing.len() + extracted.len());
-    merged.extend(existing.iter().map(|value| value.as_ref().to_owned()));
-    for flag in extracted {
-        if merged.iter().any(|existing| existing == flag.as_ref()) {
+fn write_borrowed_item(
+    out: &mut String,
+    scratch: &mut String,
+    item: &BorrowedPoItem<'_>,
+    obsolete: bool,
+    options: &SerializeOptions,
+) {
+    let obsolete_prefix = if obsolete { "#~ " } else { "" };
+
+    write_cow_prefixed_lines(out, obsolete_prefix, "#", &item.comments);
+    write_cow_prefixed_lines(out, obsolete_prefix, "#.", &item.extracted_comments);
+    write_metadata_lines(out, obsolete_prefix, &item.metadata);
+    write_cow_prefixed_lines(out, obsolete_prefix, "#:", &item.references);
+    write_flags_line(out, obsolete_prefix, &item.flags);
+
+    if let Some(context) = item.msgctxt.as_deref() {
+        write_keyword(
+            out,
+            scratch,
+            obsolete_prefix,
+            "msgctxt",
+            context,
+            None,
+            options,
+        );
+    }
+    write_keyword(
+        out,
+        scratch,
+        obsolete_prefix,
+        "msgid",
+        item.msgid.as_ref(),
+        None,
+        options,
+    );
+    if let Some(plural) = item.msgid_plural.as_deref() {
+        write_keyword(
+            out,
+            scratch,
+            obsolete_prefix,
+            "msgid_plural",
+            plural,
+            None,
+            options,
+        );
+    }
+
+    write_existing_msgstr(
+        out,
+        scratch,
+        obsolete_prefix,
+        &item.msgstr,
+        item.msgid_plural.is_some(),
+        item.nplurals,
+        options,
+    );
+}
+
+fn write_cow_prefixed_lines(
+    out: &mut String,
+    obsolete_prefix: &str,
+    prefix: &str,
+    values: &[Cow<'_, str>],
+) {
+    for value in values {
+        write_prefixed_line(out, obsolete_prefix, prefix, value.as_ref());
+    }
+}
+
+fn write_metadata_lines(
+    out: &mut String,
+    obsolete_prefix: &str,
+    values: &[(Cow<'_, str>, Cow<'_, str>)],
+) {
+    for (key, value) in values {
+        out.push_str(obsolete_prefix);
+        out.push_str("#@ ");
+        out.push_str(key.as_ref());
+        out.push_str(": ");
+        out.push_str(value.as_ref());
+        out.push('\n');
+    }
+}
+
+fn write_flags_line(out: &mut String, obsolete_prefix: &str, values: &[Cow<'_, str>]) {
+    if values.is_empty() {
+        return;
+    }
+
+    out.push_str(obsolete_prefix);
+    out.push_str("#, ");
+    for (index, value) in values.iter().enumerate() {
+        if index > 0 {
+            out.push(',');
+        }
+        out.push_str(value.as_ref());
+    }
+    out.push('\n');
+}
+
+fn write_merged_flags_line(
+    out: &mut String,
+    obsolete_prefix: &str,
+    existing: &[Cow<'_, str>],
+    extracted: &[Cow<'_, str>],
+) {
+    if existing.is_empty() && extracted.is_empty() {
+        return;
+    }
+
+    out.push_str(obsolete_prefix);
+    out.push_str("#, ");
+
+    let mut wrote_any = false;
+    let mut seen = Vec::with_capacity(existing.len() + extracted.len());
+    for value in existing.iter().chain(extracted.iter()) {
+        let flag = value.as_ref();
+        if seen.iter().any(|existing: &&str| *existing == flag) {
             continue;
         }
-        merged.push(flag.as_ref().to_owned());
-    }
-    merged
-}
-
-fn borrowed_item_to_owned(item: &BorrowedPoItem<'_>) -> PoItem {
-    PoItem {
-        msgid: item.msgid.as_ref().to_owned(),
-        msgctxt: item.msgctxt.as_ref().map(|value| value.as_ref().to_owned()),
-        references: owned_strings_from_cow(&item.references),
-        msgid_plural: item
-            .msgid_plural
-            .as_ref()
-            .map(|value| value.as_ref().to_owned()),
-        msgstr: borrowed_msgstr_to_owned(&item.msgstr),
-        comments: owned_strings_from_cow(&item.comments),
-        extracted_comments: owned_strings_from_cow(&item.extracted_comments),
-        flags: owned_strings_from_cow(&item.flags),
-        metadata: owned_metadata_from_borrowed(&item.metadata),
-        obsolete: item.obsolete,
-        nplurals: item.nplurals,
-    }
-}
-
-fn borrowed_msgstr_to_owned(msgstr: &BorrowedMsgStr<'_>) -> MsgStr {
-    match msgstr {
-        BorrowedMsgStr::None => MsgStr::None,
-        BorrowedMsgStr::Singular(value) => MsgStr::Singular(value.as_ref().to_owned()),
-        BorrowedMsgStr::Plural(values) => MsgStr::Plural(
-            values
-                .iter()
-                .map(|value| value.as_ref().to_owned())
-                .collect(),
-        ),
-    }
-}
-
-fn owned_strings_from_cow(values: &[Cow<'_, str>]) -> Vec<String> {
-    values
-        .iter()
-        .map(|value| value.as_ref().to_owned())
-        .collect()
-}
-
-fn owned_metadata_from_borrowed(values: &[(Cow<'_, str>, Cow<'_, str>)]) -> Vec<(String, String)> {
-    values
-        .iter()
-        .map(|(key, value)| (key.as_ref().to_owned(), value.as_ref().to_owned()))
-        .collect()
-}
-
-fn normalize_msgstr(msgstr: &mut MsgStr, was_plural: bool, is_plural: bool, nplurals: usize) {
-    if was_plural != is_plural {
-        *msgstr = default_msgstr(is_plural, nplurals);
-        return;
-    }
-
-    if is_plural {
-        let mut values = std::mem::take(msgstr).into_vec();
-        values.resize(nplurals.max(1), String::new());
-        *msgstr = MsgStr::Plural(values);
-        return;
-    }
-
-    *msgstr = match std::mem::take(msgstr) {
-        MsgStr::None => MsgStr::Singular(String::new()),
-        MsgStr::Singular(value) => MsgStr::Singular(value),
-        MsgStr::Plural(mut values) => {
-            MsgStr::Singular(values.drain(..1).next().unwrap_or_default())
+        if wrote_any {
+            out.push(',');
         }
-    };
+        out.push_str(flag);
+        wrote_any = true;
+        seen.push(flag);
+    }
+    out.push('\n');
 }
 
-fn default_msgstr(is_plural: bool, nplurals: usize) -> MsgStr {
+fn write_existing_msgstr(
+    out: &mut String,
+    scratch: &mut String,
+    obsolete_prefix: &str,
+    msgstr: &BorrowedMsgStr<'_>,
+    is_plural: bool,
+    nplurals: usize,
+    options: &SerializeOptions,
+) {
     if is_plural {
-        MsgStr::Plural(vec![String::new(); nplurals.max(1)])
-    } else {
-        MsgStr::Singular(String::new())
+        let count = nplurals.max(1);
+        for index in 0..count {
+            let value = match msgstr {
+                BorrowedMsgStr::None => "",
+                BorrowedMsgStr::Singular(value) if index == 0 => value.as_ref(),
+                BorrowedMsgStr::Singular(_) => "",
+                BorrowedMsgStr::Plural(values) => {
+                    values.get(index).map_or("", |value| value.as_ref())
+                }
+            };
+            write_keyword(
+                out,
+                scratch,
+                obsolete_prefix,
+                "msgstr",
+                value,
+                Some(index),
+                options,
+            );
+        }
+        return;
     }
+
+    let value = match msgstr {
+        BorrowedMsgStr::None => "",
+        BorrowedMsgStr::Singular(value) => value.as_ref(),
+        BorrowedMsgStr::Plural(values) => values.first().map_or("", |value| value.as_ref()),
+    };
+    write_keyword(
+        out,
+        scratch,
+        obsolete_prefix,
+        "msgstr",
+        value,
+        None,
+        options,
+    );
+}
+
+fn write_normalized_msgstr(
+    out: &mut String,
+    scratch: &mut String,
+    obsolete_prefix: &str,
+    msgstr: &BorrowedMsgStr<'_>,
+    was_plural: bool,
+    is_plural: bool,
+    nplurals: usize,
+    options: &SerializeOptions,
+) {
+    if was_plural != is_plural {
+        write_default_msgstr(out, scratch, obsolete_prefix, is_plural, nplurals, options);
+        return;
+    }
+
+    write_existing_msgstr(
+        out,
+        scratch,
+        obsolete_prefix,
+        msgstr,
+        is_plural,
+        nplurals,
+        options,
+    );
+}
+
+fn write_default_msgstr(
+    out: &mut String,
+    scratch: &mut String,
+    obsolete_prefix: &str,
+    is_plural: bool,
+    nplurals: usize,
+    options: &SerializeOptions,
+) {
+    if is_plural {
+        for index in 0..nplurals.max(1) {
+            write_keyword(
+                out,
+                scratch,
+                obsolete_prefix,
+                "msgstr",
+                "",
+                Some(index),
+                options,
+            );
+        }
+        return;
+    }
+
+    write_keyword(out, scratch, obsolete_prefix, "msgstr", "", None, options);
 }
 
 fn parse_nplurals(headers: &[BorrowedHeader<'_>]) -> Option<usize> {
@@ -277,7 +520,7 @@ mod tests {
     use std::borrow::Cow;
 
     use super::{ExtractedMessage, merge_catalog};
-    use crate::parse_po;
+    use crate::{SerializeOptions, parse_po, stringify_po};
 
     #[test]
     fn preserves_existing_translations_and_updates_references() {
@@ -310,6 +553,10 @@ mod tests {
             .expect("merged hello item");
         assert_eq!(hello.msgstr[0], "world");
         assert_eq!(hello.references, vec!["src/new.rs:10".to_owned()]);
+        assert_eq!(
+            merged,
+            stringify_po(&reparsed, &SerializeOptions::default())
+        );
     }
 
     #[test]

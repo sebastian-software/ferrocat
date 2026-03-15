@@ -175,7 +175,12 @@ fn write_item(out: &mut String, scratch: &mut String, item: &PoItem, options: &S
     }
 }
 
-fn write_prefixed_line(out: &mut String, obsolete_prefix: &str, prefix: &str, value: &str) {
+pub(crate) fn write_prefixed_line(
+    out: &mut String,
+    obsolete_prefix: &str,
+    prefix: &str,
+    value: &str,
+) {
     out.push_str(obsolete_prefix);
     out.push_str(prefix);
     if !value.is_empty() {
@@ -185,7 +190,7 @@ fn write_prefixed_line(out: &mut String, obsolete_prefix: &str, prefix: &str, va
     out.push('\n');
 }
 
-fn write_keyword(
+pub(crate) fn write_keyword(
     out: &mut String,
     scratch: &mut String,
     obsolete_prefix: &str,
