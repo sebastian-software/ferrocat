@@ -1,5 +1,7 @@
 use std::borrow::Cow;
 
+use ferrox_po::{ExtractedMessage, parse_po};
+
 const TINY_FIXTURE: &str = include_str!("../fixtures/tiny.po");
 const REALISTIC_FIXTURE: &str = include_str!("../fixtures/realistic.po");
 const STRESS_FIXTURE: &str = include_str!("../fixtures/stress.po");
@@ -23,6 +25,40 @@ pub struct Fixture {
     kind: &'static str,
     content: Cow<'static, str>,
     stats: FixtureStats,
+}
+
+pub struct MergeFixture {
+    name: Cow<'static, str>,
+    kind: &'static str,
+    existing_po: Cow<'static, str>,
+    extracted_messages: Vec<ExtractedMessage<'static>>,
+    existing_entries: usize,
+}
+
+impl MergeFixture {
+    pub fn name(&self) -> &str {
+        self.name.as_ref()
+    }
+
+    pub fn kind(&self) -> &str {
+        self.kind
+    }
+
+    pub fn existing_po(&self) -> &str {
+        self.existing_po.as_ref()
+    }
+
+    pub fn extracted_messages(&self) -> &[ExtractedMessage<'static>] {
+        &self.extracted_messages
+    }
+
+    pub fn existing_entries(&self) -> usize {
+        self.existing_entries
+    }
+
+    pub fn extracted_entries(&self) -> usize {
+        self.extracted_messages.len()
+    }
 }
 
 impl Fixture {
@@ -54,6 +90,14 @@ pub fn fixture_by_name(name: &str) -> Option<Fixture> {
     }
 }
 
+pub fn merge_fixture_by_name(name: &str) -> Option<MergeFixture> {
+    match name {
+        "mixed-1000" => Some(generated_merge_fixture(1_000)),
+        "mixed-10000" => Some(generated_merge_fixture(10_000)),
+        _ => None,
+    }
+}
+
 fn static_fixture(name: &'static str, content: &'static str) -> Fixture {
     Fixture {
         name: Cow::Borrowed(name),
@@ -71,6 +115,84 @@ fn generated_fixture(entries: usize) -> Fixture {
         kind: "generated",
         content: Cow::Owned(content),
         stats,
+    }
+}
+
+fn generated_merge_fixture(entries: usize) -> MergeFixture {
+    let existing_po = build_mixed_fixture(entries);
+    let parsed = parse_po(&existing_po).expect("generated merge fixture must parse");
+
+    let mut extracted_messages = Vec::with_capacity((entries * 9) / 10);
+    let mut active_index = 0usize;
+    for item in &parsed.items {
+        if item.obsolete {
+            continue;
+        }
+        active_index += 1;
+        if active_index % 5 == 0 {
+            continue;
+        }
+
+        extracted_messages.push(ExtractedMessage {
+            msgctxt: item.msgctxt.as_ref().map(|value| Cow::Owned(value.clone())),
+            msgid: Cow::Owned(item.msgid.clone()),
+            msgid_plural: item
+                .msgid_plural
+                .as_ref()
+                .map(|value| Cow::Owned(value.clone())),
+            references: vec![Cow::Owned(format!(
+                "src/merged_{:04}.rs:{}",
+                active_index,
+                (active_index % 200) + 1
+            ))],
+            extracted_comments: if active_index % 7 == 0 {
+                vec![Cow::Owned(format!(
+                    "Merged extractor comment {}",
+                    active_index % 13
+                ))]
+            } else {
+                Vec::new()
+            },
+            flags: if active_index % 11 == 0 {
+                vec![Cow::Borrowed("c-format")]
+            } else {
+                Vec::new()
+            },
+        });
+    }
+
+    for index in 0..(entries / 10).max(1) {
+        let message_index = entries + index;
+        extracted_messages.push(ExtractedMessage {
+            msgctxt: (message_index % 9 == 0)
+                .then(|| Cow::Owned(format!("merge-context-{}", message_index % 5))),
+            msgid: Cow::Owned(format!("Merged message {}", message_index)),
+            msgid_plural: (message_index % 8 == 0)
+                .then(|| Cow::Owned(format!("Merged messages {}", message_index))),
+            references: vec![Cow::Owned(format!(
+                "src/new_merge_{:04}.rs:{}",
+                message_index,
+                (message_index % 200) + 1
+            ))],
+            extracted_comments: if message_index % 6 == 0 {
+                vec![Cow::Borrowed("newly extracted")]
+            } else {
+                Vec::new()
+            },
+            flags: if message_index % 10 == 0 {
+                vec![Cow::Borrowed("fuzzy")]
+            } else {
+                Vec::new()
+            },
+        });
+    }
+
+    MergeFixture {
+        name: Cow::Owned(format!("merge-mixed-{entries}")),
+        kind: "generated",
+        existing_entries: parsed.items.len(),
+        existing_po: Cow::Owned(existing_po),
+        extracted_messages,
     }
 }
 

@@ -109,9 +109,25 @@ fn write_item(out: &mut String, scratch: &mut String, item: &PoItem, options: &S
     }
 
     if let Some(context) = &item.msgctxt {
-        write_keyword(out, scratch, obsolete_prefix, "msgctxt", context, None, options);
+        write_keyword(
+            out,
+            scratch,
+            obsolete_prefix,
+            "msgctxt",
+            context,
+            None,
+            options,
+        );
     }
-    write_keyword(out, scratch, obsolete_prefix, "msgid", &item.msgid, None, options);
+    write_keyword(
+        out,
+        scratch,
+        obsolete_prefix,
+        "msgid",
+        &item.msgid,
+        None,
+        options,
+    );
     if let Some(plural) = &item.msgid_plural {
         write_keyword(
             out,
@@ -127,7 +143,15 @@ fn write_item(out: &mut String, scratch: &mut String, item: &PoItem, options: &S
     if item.msgid_plural.is_some() && item.msgstr.is_empty() {
         let count = item.nplurals.max(1);
         for index in 0..count {
-            write_keyword(out, scratch, obsolete_prefix, "msgstr", "", Some(index), options);
+            write_keyword(
+                out,
+                scratch,
+                obsolete_prefix,
+                "msgstr",
+                "",
+                Some(index),
+                options,
+            );
         }
         return;
     }
@@ -174,7 +198,15 @@ fn write_keyword(
         return;
     }
 
-    write_complex_keyword(out, scratch, obsolete_prefix, keyword, value, index, options);
+    write_complex_keyword(
+        out,
+        scratch,
+        obsolete_prefix,
+        keyword,
+        value,
+        index,
+        options,
+    );
 }
 
 fn try_write_simple_keyword(
@@ -191,7 +223,10 @@ fn try_write_simple_keyword(
 
     let prefix_len = keyword_prefix_len(keyword, index);
     if options.fold_length > 0
-        && value.len() > options.fold_length.saturating_sub(obsolete_prefix.len() + prefix_len + 2)
+        && value.len()
+            > options
+                .fold_length
+                .saturating_sub(obsolete_prefix.len() + prefix_len + 2)
     {
         return false;
     }
@@ -270,7 +305,8 @@ fn write_complex_keyword(
 ) {
     let prefix_len = keyword_prefix_len(keyword, index);
     let has_multiple_lines = text.contains('\n');
-    let use_compact = options.compact_multiline && text.split('\n').next().unwrap_or_default() != "";
+    let use_compact =
+        options.compact_multiline && text.split('\n').next().unwrap_or_default() != "";
     let first_line_max = if options.fold_length == 0 {
         usize::MAX
     } else {
@@ -335,7 +371,14 @@ fn write_folded_segments(
     let mut start = 0;
     loop {
         let end = folded_split_point(input, start, max_len);
-        write_quoted_segment(out, obsolete_prefix, keyword, index, &input[start..end], wrote_first_value_line);
+        write_quoted_segment(
+            out,
+            obsolete_prefix,
+            keyword,
+            index,
+            &input[start..end],
+            wrote_first_value_line,
+        );
         if end == input.len() {
             break;
         }

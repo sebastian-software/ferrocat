@@ -122,6 +122,7 @@ impl ParserState {
 #[derive(Debug, Clone, Copy)]
 struct BorrowedLine<'a> {
     trimmed: &'a [u8],
+    obsolete: bool,
 }
 
 pub fn parse_po(input: &str) -> Result<PoFile, ParseError> {
@@ -139,13 +140,10 @@ pub fn parse_po(input: &str) -> Result<PoFile, ParseError> {
     let mut state = ParserState::new(current_nplurals);
 
     for line in LineScanner::new(input.as_bytes()) {
-        if line.obsolete {
-            state.obsolete_line_count += 1;
-        }
-
         parse_line(
             BorrowedLine {
                 trimmed: line.trimmed,
+                obsolete: line.obsolete,
             },
             &mut state,
             &mut file,
@@ -166,15 +164,20 @@ fn parse_line(
 ) -> Result<(), ParseError> {
     match classify_line(line.trimmed) {
         LineKind::Continuation => {
-            append_continuation(line.trimmed, state)?;
+            append_continuation(line.trimmed, line.obsolete, state)?;
             Ok(())
         }
         LineKind::Comment(kind) => {
             parse_comment_line(line.trimmed, kind, state, file, current_nplurals)
         }
-        LineKind::Keyword(keyword) => {
-            parse_keyword_line(line.trimmed, keyword, state, file, current_nplurals)
-        }
+        LineKind::Keyword(keyword) => parse_keyword_line(
+            line.trimmed,
+            line.obsolete,
+            keyword,
+            state,
+            file,
+            current_nplurals,
+        ),
         LineKind::Other => Ok(()),
     }
 }
@@ -221,6 +224,7 @@ fn parse_comment_line(
 
 fn parse_keyword_line(
     line_bytes: &[u8],
+    obsolete: bool,
     keyword: Keyword,
     state: &mut ParserState,
     file: &mut PoFile,
@@ -228,6 +232,7 @@ fn parse_keyword_line(
 ) -> Result<(), ParseError> {
     match keyword {
         Keyword::MsgIdPlural => {
+            state.obsolete_line_count += usize::from(obsolete);
             state.item.msgid_plural = Some(extract_quoted_bytes_cow(line_bytes)?.into_owned());
             state.context = Some(Context::MsgIdPlural);
             state.content_line_count += 1;
@@ -235,6 +240,7 @@ fn parse_keyword_line(
         }
         Keyword::MsgId => {
             finish_item(state, file, current_nplurals)?;
+            state.obsolete_line_count += usize::from(obsolete);
             state.item.msgid = extract_quoted_bytes_cow(line_bytes)?.into_owned();
             state.context = Some(Context::MsgId);
             state.content_line_count += 1;
@@ -243,6 +249,7 @@ fn parse_keyword_line(
         Keyword::MsgStr => {
             let plural_index = parse_plural_index(line_bytes).unwrap_or(0);
             state.plural_index = plural_index;
+            state.obsolete_line_count += usize::from(obsolete);
             state.set_msgstr(
                 plural_index,
                 extract_quoted_bytes_cow(line_bytes)?.into_owned(),
@@ -253,6 +260,7 @@ fn parse_keyword_line(
         }
         Keyword::MsgCtxt => {
             finish_item(state, file, current_nplurals)?;
+            state.obsolete_line_count += usize::from(obsolete);
             state.item.msgctxt = Some(extract_quoted_bytes_cow(line_bytes)?.into_owned());
             state.context = Some(Context::MsgCtxt);
             state.content_line_count += 1;
@@ -263,7 +271,12 @@ fn parse_keyword_line(
     Ok(())
 }
 
-fn append_continuation(line_bytes: &[u8], state: &mut ParserState) -> Result<(), ParseError> {
+fn append_continuation(
+    line_bytes: &[u8],
+    obsolete: bool,
+    state: &mut ParserState,
+) -> Result<(), ParseError> {
+    state.obsolete_line_count += usize::from(obsolete);
     state.content_line_count += 1;
     let value = extract_quoted_bytes_cow(line_bytes)?;
 

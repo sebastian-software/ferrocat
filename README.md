@@ -22,6 +22,7 @@ The current workspace contains:
 - owned parsing via `parse_po`
 - borrowed parsing via `parse_po_borrowed`
 - serialization via `stringify_po`
+- catalog merging via `merge_catalog`
 - C-style escape/unescape handling
 - comments, metadata, references, flags, contexts, plurals, headers, and obsolete entries
 
@@ -81,6 +82,27 @@ file.items[0].msgstr = "Welt".to_owned().into();
 let rendered = stringify_po(&file, &SerializeOptions::default());
 ```
 
+## Merge Workflow
+
+For the common "read an existing catalog, merge fresh extracted messages, write the updated PO back" workflow, use `merge_catalog`.
+
+```rust
+use std::borrow::Cow;
+
+use ferrox_po::{ExtractedMessage, merge_catalog};
+
+let updated = merge_catalog(
+    existing_po,
+    &[ExtractedMessage {
+        msgid: Cow::Borrowed("hello"),
+        references: vec![Cow::Borrowed("src/app.rs:10")],
+        ..ExtractedMessage::default()
+    }],
+)?;
+```
+
+This keeps matching translations, refreshes extractor-owned fields like references and extracted comments, adds new messages, and marks removed ones obsolete.
+
 ## Benchmarks
 
 The benchmark harness lives in `crates/ferrox-bench`.
@@ -91,6 +113,7 @@ Useful commands:
 cargo run --release -p ferrox-bench -- parse mixed-10000 200
 cargo run --release -p ferrox-bench -- parse-borrowed mixed-10000 200
 cargo run --release -p ferrox-bench -- stringify mixed-10000 200
+cargo run --release -p ferrox-bench -- merge mixed-10000 100
 cargo run -p ferrox-bench -- describe mixed-1000
 ```
 

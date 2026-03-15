@@ -4,8 +4,8 @@ use std::env;
 use std::process::ExitCode;
 use std::time::Instant;
 
-use ferrox_po::{SerializeOptions, parse_po, parse_po_borrowed, stringify_po};
-use fixtures::{Fixture, fixture_by_name};
+use ferrox_po::{SerializeOptions, merge_catalog, parse_po, parse_po_borrowed, stringify_po};
+use fixtures::{Fixture, MergeFixture, fixture_by_name, merge_fixture_by_name};
 
 fn main() -> ExitCode {
     match run() {
@@ -28,24 +28,46 @@ fn run() -> Result<(), String> {
         None => default_iterations(&fixture_name),
     };
 
-    let fixture = fixture_by_name(&fixture_name).ok_or_else(|| {
-        format!(
-            "unknown fixture: {fixture_name} (use tiny, realistic, stress, mixed-1000, mixed-10000)"
-        )
-    })?;
-
     match command.as_str() {
-        "parse" => bench_parse(&fixture, iterations),
-        "parse-borrowed" => bench_parse_borrowed(&fixture, iterations),
-        "stringify" => bench_stringify(&fixture, iterations),
+        "parse" => {
+            let fixture = load_fixture(&fixture_name)?;
+            bench_parse(&fixture, iterations)
+        }
+        "parse-borrowed" => {
+            let fixture = load_fixture(&fixture_name)?;
+            bench_parse_borrowed(&fixture, iterations)
+        }
+        "stringify" => {
+            let fixture = load_fixture(&fixture_name)?;
+            bench_stringify(&fixture, iterations)
+        }
+        "merge" => {
+            let fixture = load_merge_fixture(&fixture_name)?;
+            bench_merge(&fixture, iterations)
+        }
         "describe" => {
+            let fixture = load_fixture(&fixture_name)?;
             describe(&fixture);
             Ok(())
         }
         other => Err(format!(
-            "unknown command: {other} (use parse, parse-borrowed, stringify, or describe)"
+            "unknown command: {other} (use parse, parse-borrowed, stringify, merge, or describe)"
         )),
     }
+}
+
+fn load_fixture(fixture_name: &str) -> Result<Fixture, String> {
+    fixture_by_name(fixture_name).ok_or_else(|| {
+        format!(
+            "unknown fixture: {fixture_name} (use tiny, realistic, stress, mixed-1000, mixed-10000)"
+        )
+    })
+}
+
+fn load_merge_fixture(fixture_name: &str) -> Result<MergeFixture, String> {
+    merge_fixture_by_name(fixture_name).ok_or_else(|| {
+        format!("unknown merge fixture: {fixture_name} (use mixed-1000 or mixed-10000)")
+    })
 }
 
 fn default_iterations(fixture_name: &str) -> usize {
@@ -120,6 +142,26 @@ fn bench_stringify(fixture: &Fixture, iterations: usize) -> Result<(), String> {
     Ok(())
 }
 
+fn bench_merge(fixture: &MergeFixture, iterations: usize) -> Result<(), String> {
+    let start = Instant::now();
+    let mut bytes = 0usize;
+    for _ in 0..iterations {
+        let rendered = merge_catalog(fixture.existing_po(), fixture.extracted_messages())
+            .map_err(|error| error.to_string())?;
+        bytes += rendered.len();
+        std::hint::black_box(rendered);
+    }
+    let elapsed = start.elapsed();
+    report_merge(
+        "merge",
+        fixture,
+        bytes / iterations.max(1),
+        iterations,
+        elapsed,
+    );
+    Ok(())
+}
+
 fn describe(fixture: &Fixture) {
     println!("fixture: {}", fixture.name());
     println!("kind: {}", fixture.kind());
@@ -137,6 +179,37 @@ fn describe(fixture: &Fixture) {
     println!("obsolete-items: {}", fixture.stats().obsolete_entries);
     println!("multiline-items: {}", fixture.stats().multiline_entries);
     println!("escaped-items: {}", fixture.stats().escaped_entries);
+}
+
+fn report_merge(
+    command: &str,
+    fixture: &MergeFixture,
+    bytes_per_iteration: usize,
+    iterations: usize,
+    elapsed: std::time::Duration,
+) {
+    let seconds = elapsed.as_secs_f64();
+    let iter_per_sec = if seconds > 0.0 {
+        iterations as f64 / seconds
+    } else {
+        f64::INFINITY
+    };
+    let mib_per_sec = if seconds > 0.0 {
+        (bytes_per_iteration as f64 * iterations as f64) / (1024.0 * 1024.0 * seconds)
+    } else {
+        f64::INFINITY
+    };
+
+    println!("command: {command}");
+    println!("fixture: {}", fixture.name());
+    println!("kind: {}", fixture.kind());
+    println!("iterations: {iterations}");
+    println!("existing-items: {}", fixture.existing_entries());
+    println!("extracted-items: {}", fixture.extracted_entries());
+    println!("bytes/iteration: {bytes_per_iteration}");
+    println!("elapsed: {:.3}s", seconds);
+    println!("iter/s: {:.1}", iter_per_sec);
+    println!("MiB/s: {:.2}", mib_per_sec);
 }
 
 fn report(

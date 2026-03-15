@@ -204,10 +204,7 @@ impl<'a> Iterator for LineScanner<'a> {
                 }
             }
 
-            return Some(Line {
-                trimmed,
-                obsolete,
-            });
+            return Some(Line { trimmed, obsolete });
         }
 
         None
