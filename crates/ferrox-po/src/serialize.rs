@@ -401,7 +401,7 @@ fn clamp_char_boundary(input: &str, start: usize, requested_end: usize) -> usize
 
 #[cfg(test)]
 mod tests {
-    use crate::{Header, PoFile, PoItem, SerializeOptions, parse_po};
+    use crate::{Header, MsgStr, PoFile, PoItem, SerializeOptions, parse_po};
 
     use super::stringify_po;
 
@@ -422,7 +422,7 @@ mod tests {
             ],
             items: vec![PoItem {
                 msgid: "Line1\nLine2".to_owned(),
-                msgstr: vec!["Zeile1\nZeile2".to_owned()],
+                msgstr: MsgStr::from(vec!["Zeile1\nZeile2".to_owned()]),
                 ..PoItem::new(2)
             }],
         };
@@ -463,7 +463,7 @@ mod tests {
             extracted_comments: vec![],
             items: vec![PoItem {
                 msgid: "\nIndented".to_owned(),
-                msgstr: vec!["\nUebersetzt".to_owned()],
+                msgstr: MsgStr::from(vec!["\nUebersetzt".to_owned()]),
                 ..PoItem::new(2)
             }],
         };
@@ -488,7 +488,7 @@ mod tests {
             extracted_comments: vec![],
             items: vec![PoItem {
                 msgid: "Alpha beta gamma delta".to_owned(),
-                msgstr: vec!["Uno dos tres cuatro".to_owned()],
+                msgstr: MsgStr::from(vec!["Uno dos tres cuatro".to_owned()]),
                 ..PoItem::new(2)
             }],
         };
@@ -513,7 +513,7 @@ mod tests {
             extracted_comments: vec![],
             items: vec![PoItem {
                 msgid: "Grüße aus Köln".to_owned(),
-                msgstr: vec!["Übermäßig höflich".to_owned()],
+                msgstr: MsgStr::from(vec!["Übermäßig höflich".to_owned()]),
                 ..PoItem::new(2)
             }],
         };
