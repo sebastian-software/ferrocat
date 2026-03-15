@@ -4,7 +4,7 @@ use std::env;
 use std::process::ExitCode;
 use std::time::Instant;
 
-use ferrox_po::{SerializeOptions, parse_po, stringify_po};
+use ferrox_po::{SerializeOptions, parse_po, parse_po_borrowed, stringify_po};
 use fixtures::{Fixture, fixture_by_name};
 
 fn main() -> ExitCode {
@@ -36,13 +36,14 @@ fn run() -> Result<(), String> {
 
     match command.as_str() {
         "parse" => bench_parse(&fixture, iterations),
+        "parse-borrowed" => bench_parse_borrowed(&fixture, iterations),
         "stringify" => bench_stringify(&fixture, iterations),
         "describe" => {
             describe(&fixture);
             Ok(())
         }
         other => Err(format!(
-            "unknown command: {other} (use parse, stringify, or describe)"
+            "unknown command: {other} (use parse, parse-borrowed, stringify, or describe)"
         )),
     }
 }
@@ -67,6 +68,26 @@ fn bench_parse(fixture: &Fixture, iterations: usize) -> Result<(), String> {
     let elapsed = start.elapsed();
     report(
         "parse",
+        fixture,
+        fixture.content().len(),
+        iterations,
+        items_per_iteration,
+        elapsed,
+    );
+    Ok(())
+}
+
+fn bench_parse_borrowed(fixture: &Fixture, iterations: usize) -> Result<(), String> {
+    let start = Instant::now();
+    let mut items_per_iteration = 0usize;
+    for _ in 0..iterations {
+        let file = parse_po_borrowed(fixture.content()).map_err(|error| error.to_string())?;
+        items_per_iteration = file.items.len();
+        std::hint::black_box(file);
+    }
+    let elapsed = start.elapsed();
+    report(
+        "parse-borrowed",
         fixture,
         fixture.content().len(),
         iterations,

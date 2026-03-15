@@ -1,10 +1,14 @@
 //! Performance-first PO parsing and serialization.
 
+mod borrowed;
 mod parse;
 mod scan;
 mod serialize;
 mod text;
 
+pub use borrowed::{
+    BorrowedHeader, BorrowedMsgStr, BorrowedPoFile, BorrowedPoItem, parse_po_borrowed,
+};
 pub use parse::parse_po;
 pub use serialize::stringify_po;
 pub use text::{escape_string, extract_quoted, extract_quoted_cow, unescape_string};

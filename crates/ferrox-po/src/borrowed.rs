@@ -1,0 +1,553 @@
+use std::borrow::Cow;
+use std::str;
+
+use crate::scan::{
+    CommentKind, Keyword, LineKind, LineScanner, classify_line, parse_plural_index,
+    split_once_byte, trim_ascii,
+};
+use crate::text::extract_quoted_bytes_cow;
+use crate::{Header, MsgStr, ParseError, PoFile, PoItem};
+
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct BorrowedPoFile<'a> {
+    pub comments: Vec<Cow<'a, str>>,
+    pub extracted_comments: Vec<Cow<'a, str>>,
+    pub headers: Vec<BorrowedHeader<'a>>,
+    pub items: Vec<BorrowedPoItem<'a>>,
+}
+
+impl<'a> BorrowedPoFile<'a> {
+    pub fn into_owned(self) -> PoFile {
+        PoFile {
+            comments: self.comments.into_iter().map(Cow::into_owned).collect(),
+            extracted_comments: self
+                .extracted_comments
+                .into_iter()
+                .map(Cow::into_owned)
+                .collect(),
+            headers: self.headers.into_iter().map(BorrowedHeader::into_owned).collect(),
+            items: self.items.into_iter().map(BorrowedPoItem::into_owned).collect(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct BorrowedHeader<'a> {
+    pub key: Cow<'a, str>,
+    pub value: Cow<'a, str>,
+}
+
+impl<'a> BorrowedHeader<'a> {
+    pub fn into_owned(self) -> Header {
+        Header {
+            key: self.key.into_owned(),
+            value: self.value.into_owned(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct BorrowedPoItem<'a> {
+    pub msgid: Cow<'a, str>,
+    pub msgctxt: Option<Cow<'a, str>>,
+    pub references: Vec<Cow<'a, str>>,
+    pub msgid_plural: Option<Cow<'a, str>>,
+    pub msgstr: BorrowedMsgStr<'a>,
+    pub comments: Vec<Cow<'a, str>>,
+    pub extracted_comments: Vec<Cow<'a, str>>,
+    pub flags: Vec<Cow<'a, str>>,
+    pub metadata: Vec<(Cow<'a, str>, Cow<'a, str>)>,
+    pub obsolete: bool,
+    pub nplurals: usize,
+}
+
+impl<'a> BorrowedPoItem<'a> {
+    fn new(nplurals: usize) -> Self {
+        Self {
+            nplurals,
+            ..Self::default()
+        }
+    }
+
+    pub fn into_owned(self) -> PoItem {
+        PoItem {
+            msgid: self.msgid.into_owned(),
+            msgctxt: self.msgctxt.map(Cow::into_owned),
+            references: self.references.into_iter().map(Cow::into_owned).collect(),
+            msgid_plural: self.msgid_plural.map(Cow::into_owned),
+            msgstr: self.msgstr.into_owned(),
+            comments: self.comments.into_iter().map(Cow::into_owned).collect(),
+            extracted_comments: self
+                .extracted_comments
+                .into_iter()
+                .map(Cow::into_owned)
+                .collect(),
+            flags: self.flags.into_iter().map(Cow::into_owned).collect(),
+            metadata: self
+                .metadata
+                .into_iter()
+                .map(|(key, value)| (key.into_owned(), value.into_owned()))
+                .collect(),
+            obsolete: self.obsolete,
+            nplurals: self.nplurals,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub enum BorrowedMsgStr<'a> {
+    #[default]
+    None,
+    Singular(Cow<'a, str>),
+    Plural(Vec<Cow<'a, str>>),
+}
+
+impl<'a> BorrowedMsgStr<'a> {
+    fn is_empty(&self) -> bool {
+        matches!(self, Self::None)
+    }
+
+    fn len(&self) -> usize {
+        match self {
+            Self::None => 0,
+            Self::Singular(_) => 1,
+            Self::Plural(values) => values.len(),
+        }
+    }
+
+    fn first_str(&self) -> Option<&str> {
+        match self {
+            Self::None => None,
+            Self::Singular(value) => Some(value.as_ref()),
+            Self::Plural(values) => values.first().map(Cow::as_ref),
+        }
+    }
+
+    pub fn into_owned(self) -> MsgStr {
+        match self {
+            Self::None => MsgStr::None,
+            Self::Singular(value) => MsgStr::Singular(value.into_owned()),
+            Self::Plural(values) => {
+                MsgStr::Plural(values.into_iter().map(Cow::into_owned).collect())
+            }
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Context {
+    MsgId,
+    MsgIdPlural,
+    MsgStr,
+    MsgCtxt,
+}
+
+#[derive(Debug)]
+struct ParserState<'a> {
+    item: BorrowedPoItem<'a>,
+    msgstr: BorrowedMsgStr<'a>,
+    context: Option<Context>,
+    plural_index: usize,
+    obsolete_line_count: usize,
+    content_line_count: usize,
+    has_keyword: bool,
+}
+
+impl<'a> ParserState<'a> {
+    fn new(nplurals: usize) -> Self {
+        Self {
+            item: BorrowedPoItem::new(nplurals),
+            msgstr: BorrowedMsgStr::None,
+            context: None,
+            plural_index: 0,
+            obsolete_line_count: 0,
+            content_line_count: 0,
+            has_keyword: false,
+        }
+    }
+
+    fn reset(&mut self, nplurals: usize) {
+        *self = Self::new(nplurals);
+    }
+
+    fn set_msgstr(&mut self, plural_index: usize, value: Cow<'a, str>) {
+        match (&mut self.msgstr, plural_index) {
+            (BorrowedMsgStr::None, 0) => self.msgstr = BorrowedMsgStr::Singular(value),
+            (BorrowedMsgStr::Singular(existing), 0) => *existing = value,
+            (BorrowedMsgStr::Plural(values), 0) => {
+                if values.is_empty() {
+                    values.push(Cow::Borrowed(""));
+                }
+                values[0] = value;
+            }
+            _ => {
+                let msgstr = self.promote_plural_msgstr(plural_index);
+                msgstr[plural_index] = value;
+            }
+        }
+    }
+
+    fn append_msgstr(&mut self, plural_index: usize, value: Cow<'a, str>) {
+        match (&mut self.msgstr, plural_index) {
+            (BorrowedMsgStr::None, 0) => self.msgstr = BorrowedMsgStr::Singular(value),
+            (BorrowedMsgStr::Singular(existing), 0) => existing.to_mut().push_str(value.as_ref()),
+            (BorrowedMsgStr::Plural(values), 0) => {
+                if values.is_empty() {
+                    values.push(Cow::Borrowed(""));
+                }
+                values[0].to_mut().push_str(value.as_ref());
+            }
+            _ => {
+                let msgstr = self.promote_plural_msgstr(plural_index);
+                msgstr[plural_index].to_mut().push_str(value.as_ref());
+            }
+        }
+    }
+
+    fn header_msgstr(&self) -> Option<&BorrowedMsgStr<'a>> {
+        if self.msgstr.is_empty() {
+            None
+        } else {
+            Some(&self.msgstr)
+        }
+    }
+
+    fn materialize_msgstr(&mut self) {
+        debug_assert!(self.item.msgstr.is_empty());
+        self.item.msgstr = std::mem::take(&mut self.msgstr);
+    }
+
+    fn promote_plural_msgstr(&mut self, plural_index: usize) -> &mut Vec<Cow<'a, str>> {
+        if !matches!(self.msgstr, BorrowedMsgStr::Plural(_)) {
+            self.msgstr = match std::mem::take(&mut self.msgstr) {
+                BorrowedMsgStr::None => BorrowedMsgStr::Plural(Vec::with_capacity(2)),
+                BorrowedMsgStr::Singular(value) => {
+                    let mut values = Vec::with_capacity(2);
+                    values.push(value);
+                    BorrowedMsgStr::Plural(values)
+                }
+                BorrowedMsgStr::Plural(values) => BorrowedMsgStr::Plural(values),
+            };
+        }
+        let BorrowedMsgStr::Plural(values) = &mut self.msgstr else {
+            unreachable!("plural msgstr promotion must yield plural storage");
+        };
+        if values.len() <= plural_index {
+            values.resize(plural_index + 1, Cow::Borrowed(""));
+        }
+        values
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+struct BorrowedLine<'a> {
+    trimmed: &'a [u8],
+}
+
+pub fn parse_po_borrowed<'a>(input: &'a str) -> Result<BorrowedPoFile<'a>, ParseError> {
+    if input.as_bytes().contains(&b'\r') {
+        return Err(ParseError::new(
+            "borrowed PO parsing currently requires LF-only input",
+        ));
+    }
+
+    let mut file = BorrowedPoFile::default();
+    file.items.reserve((input.len() / 96).max(1));
+    let mut current_nplurals = 2;
+    let mut state = ParserState::new(current_nplurals);
+
+    for line in LineScanner::new(input.as_bytes()) {
+        if line.obsolete {
+            state.obsolete_line_count += 1;
+        }
+
+        parse_line(
+            BorrowedLine {
+                trimmed: line.trimmed,
+            },
+            &mut state,
+            &mut file,
+            &mut current_nplurals,
+        )?;
+    }
+
+    finish_item(&mut state, &mut file, &mut current_nplurals)?;
+
+    Ok(file)
+}
+
+fn parse_line<'a>(
+    line: BorrowedLine<'a>,
+    state: &mut ParserState<'a>,
+    file: &mut BorrowedPoFile<'a>,
+    current_nplurals: &mut usize,
+) -> Result<(), ParseError> {
+    match classify_line(line.trimmed) {
+        LineKind::Continuation => {
+            append_continuation(line.trimmed, state)?;
+            Ok(())
+        }
+        LineKind::Comment(kind) => {
+            parse_comment_line(line.trimmed, kind, state, file, current_nplurals)
+        }
+        LineKind::Keyword(keyword) => {
+            parse_keyword_line(line.trimmed, keyword, state, file, current_nplurals)
+        }
+        LineKind::Other => Ok(()),
+    }
+}
+
+fn parse_comment_line<'a>(
+    line_bytes: &'a [u8],
+    kind: CommentKind,
+    state: &mut ParserState<'a>,
+    file: &mut BorrowedPoFile<'a>,
+    current_nplurals: &mut usize,
+) -> Result<(), ParseError> {
+    finish_item(state, file, current_nplurals)?;
+
+    match kind {
+        CommentKind::Reference => state.item.references.push(trimmed_cow(&line_bytes[2..])?),
+        CommentKind::Flags => {
+            for flag in trimmed_str(&line_bytes[2..])?.split(',') {
+                state.item.flags.push(Cow::Borrowed(flag.trim()));
+            }
+        }
+        CommentKind::Extracted => state
+            .item
+            .extracted_comments
+            .push(trimmed_cow(&line_bytes[2..])?),
+        CommentKind::Metadata => {
+            let trimmed = trim_ascii(&line_bytes[2..]);
+            if let Some((key_bytes, value_bytes)) = split_once_byte(trimmed, b':') {
+                let key = trimmed_cow(key_bytes)?;
+                if !key.is_empty() {
+                    let value = trimmed_cow(value_bytes)?;
+                    state.item.metadata.push((key, value));
+                }
+            }
+        }
+        CommentKind::Translator => state.item.comments.push(trimmed_cow(&line_bytes[1..])?),
+        CommentKind::Other => {}
+    }
+
+    Ok(())
+}
+
+fn parse_keyword_line<'a>(
+    line_bytes: &'a [u8],
+    keyword: Keyword,
+    state: &mut ParserState<'a>,
+    file: &mut BorrowedPoFile<'a>,
+    current_nplurals: &mut usize,
+) -> Result<(), ParseError> {
+    match keyword {
+        Keyword::MsgIdPlural => {
+            state.item.msgid_plural = Some(extract_quoted_bytes_cow(line_bytes)?);
+            state.context = Some(Context::MsgIdPlural);
+            state.content_line_count += 1;
+            state.has_keyword = true;
+        }
+        Keyword::MsgId => {
+            finish_item(state, file, current_nplurals)?;
+            state.item.msgid = extract_quoted_bytes_cow(line_bytes)?;
+            state.context = Some(Context::MsgId);
+            state.content_line_count += 1;
+            state.has_keyword = true;
+        }
+        Keyword::MsgStr => {
+            let plural_index = parse_plural_index(line_bytes).unwrap_or(0);
+            state.plural_index = plural_index;
+            state.set_msgstr(plural_index, extract_quoted_bytes_cow(line_bytes)?);
+            state.context = Some(Context::MsgStr);
+            state.content_line_count += 1;
+            state.has_keyword = true;
+        }
+        Keyword::MsgCtxt => {
+            finish_item(state, file, current_nplurals)?;
+            state.item.msgctxt = Some(extract_quoted_bytes_cow(line_bytes)?);
+            state.context = Some(Context::MsgCtxt);
+            state.content_line_count += 1;
+            state.has_keyword = true;
+        }
+    }
+
+    Ok(())
+}
+
+fn append_continuation<'a>(
+    line_bytes: &'a [u8],
+    state: &mut ParserState<'a>,
+) -> Result<(), ParseError> {
+    state.content_line_count += 1;
+    let value = extract_quoted_bytes_cow(line_bytes)?;
+
+    match state.context {
+        Some(Context::MsgStr) => state.append_msgstr(state.plural_index, value),
+        Some(Context::MsgId) => state.item.msgid.to_mut().push_str(value.as_ref()),
+        Some(Context::MsgIdPlural) => {
+            let target = state.item.msgid_plural.get_or_insert_with(|| Cow::Borrowed(""));
+            target.to_mut().push_str(value.as_ref());
+        }
+        Some(Context::MsgCtxt) => {
+            let target = state.item.msgctxt.get_or_insert_with(|| Cow::Borrowed(""));
+            target.to_mut().push_str(value.as_ref());
+        }
+        None => {}
+    }
+
+    Ok(())
+}
+
+fn finish_item<'a>(
+    state: &mut ParserState<'a>,
+    file: &mut BorrowedPoFile<'a>,
+    current_nplurals: &mut usize,
+) -> Result<(), ParseError> {
+    if !state.has_keyword {
+        return Ok(());
+    }
+
+    if state.item.msgid.is_empty() && !is_header_state(state) {
+        return Ok(());
+    }
+
+    if state.obsolete_line_count >= state.content_line_count && state.content_line_count > 0 {
+        state.item.obsolete = true;
+    }
+
+    if is_header_state(state) && file.headers.is_empty() && file.items.is_empty() {
+        file.comments = std::mem::take(&mut state.item.comments);
+        file.extracted_comments = std::mem::take(&mut state.item.extracted_comments);
+        if let Some(raw) = state.header_msgstr().cloned() {
+            parse_headers(raw, &mut file.headers)?;
+        }
+        *current_nplurals = parse_nplurals(&file.headers).unwrap_or(2);
+        state.reset(*current_nplurals);
+        return Ok(());
+    }
+
+    state.materialize_msgstr();
+
+    if state.item.msgstr.is_empty() {
+        state.item.msgstr = BorrowedMsgStr::Singular(Cow::Borrowed(""));
+    }
+    if state.item.msgid_plural.is_some() && state.item.msgstr.len() == 1 {
+        let mut values = match std::mem::take(&mut state.item.msgstr) {
+            BorrowedMsgStr::None => Vec::new(),
+            BorrowedMsgStr::Singular(value) => vec![value],
+            BorrowedMsgStr::Plural(values) => values,
+        };
+        values.resize(state.item.nplurals.max(1), Cow::Borrowed(""));
+        state.item.msgstr = BorrowedMsgStr::Plural(values);
+    }
+
+    state.item.nplurals = *current_nplurals;
+    file.items.push(std::mem::take(&mut state.item));
+    state.reset(*current_nplurals);
+    Ok(())
+}
+
+fn is_header_state(state: &ParserState<'_>) -> bool {
+    state.item.msgid.is_empty()
+        && state.item.msgctxt.is_none()
+        && state.item.msgid_plural.is_none()
+        && !state.msgstr.is_empty()
+}
+
+fn parse_headers<'a>(
+    raw: BorrowedMsgStr<'a>,
+    out: &mut Vec<BorrowedHeader<'a>>,
+) -> Result<(), ParseError> {
+    let text = raw.first_str().unwrap_or_default();
+    out.reserve(text.as_bytes().iter().filter(|byte| **byte == b'\n').count() + 1);
+    for line in LineScanner::new(text.as_bytes()) {
+        if let Some((key_bytes, value_bytes)) = split_once_byte(line.trimmed, b':') {
+            out.push(BorrowedHeader {
+                key: Cow::Owned(trimmed_str(key_bytes)?.to_owned()),
+                value: Cow::Owned(trimmed_str(value_bytes)?.to_owned()),
+            });
+        }
+    }
+
+    Ok(())
+}
+
+fn parse_nplurals(headers: &[BorrowedHeader<'_>]) -> Option<usize> {
+    let plural_forms = headers
+        .iter()
+        .find(|header| header.key.as_ref() == "Plural-Forms")?
+        .value
+        .as_bytes();
+    let mut rest = plural_forms;
+
+    while !rest.is_empty() {
+        let (part, next) = match split_once_byte(rest, b';') {
+            Some((part, tail)) => (part, tail),
+            None => (rest, &b""[..]),
+        };
+        let trimmed = trim_ascii(part);
+        if let Some((key, value)) = split_once_byte(trimmed, b'=')
+            && trim_ascii(key) == b"nplurals"
+            && let Ok(value) = bytes_to_str(trim_ascii(value))
+            && let Ok(parsed) = value.parse::<usize>()
+        {
+            return Some(parsed);
+        }
+        rest = next;
+    }
+
+    None
+}
+
+fn bytes_to_str(bytes: &[u8]) -> Result<&str, ParseError> {
+    Ok(unsafe { str::from_utf8_unchecked(bytes) })
+}
+
+fn trimmed_str(bytes: &[u8]) -> Result<&str, ParseError> {
+    bytes_to_str(trim_ascii(bytes))
+}
+
+fn trimmed_cow<'a>(bytes: &'a [u8]) -> Result<Cow<'a, str>, ParseError> {
+    Ok(Cow::Borrowed(trimmed_str(bytes)?))
+}
+
+#[cfg(test)]
+mod tests {
+    use std::borrow::Cow;
+
+    use super::parse_po_borrowed;
+
+    #[test]
+    fn borrows_simple_fields() {
+        let input = r#"
+# translator
+msgid "hello"
+msgstr "world"
+"#;
+
+        let file = parse_po_borrowed(input).expect("borrowed parse");
+        assert_eq!(file.items[0].comments[0], Cow::Borrowed("translator"));
+        assert_eq!(file.items[0].msgid, Cow::Borrowed("hello"));
+        assert_eq!(file.items[0].msgstr, super::BorrowedMsgStr::Singular(Cow::Borrowed("world")));
+    }
+
+    #[test]
+    fn owns_unescaped_sequences_only_when_needed() {
+        let input = "msgid \"a\\n\"\nmsgstr \"b\\t\"\n";
+        let file = parse_po_borrowed(input).expect("borrowed parse with escapes");
+        assert_eq!(file.items[0].msgid, Cow::<str>::Owned("a\n".to_owned()));
+        assert_eq!(
+            file.items[0].msgstr,
+            super::BorrowedMsgStr::Singular(Cow::<str>::Owned("b\t".to_owned()))
+        );
+    }
+
+    #[test]
+    fn converts_borrowed_parse_to_owned() {
+        let input = "msgid \"hello\"\nmsgstr \"world\"\n";
+        let owned = parse_po_borrowed(input).expect("borrowed parse").into_owned();
+        assert_eq!(owned.items[0].msgid, "hello");
+        assert_eq!(owned.items[0].msgstr[0], "world");
+    }
+}
