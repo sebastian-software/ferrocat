@@ -3,6 +3,7 @@ use crate::{PoFile, PoItem, SerializeOptions};
 
 pub fn stringify_po(file: &PoFile, options: &SerializeOptions) -> String {
     let mut out = String::with_capacity(estimate_capacity(file));
+    let mut scratch = String::new();
 
     for comment in &file.comments {
         push_prefixed_comment(&mut out, "#", comment);
@@ -25,7 +26,7 @@ pub fn stringify_po(file: &PoFile, options: &SerializeOptions) -> String {
 
     let mut iter = file.items.iter().peekable();
     while let Some(item) = iter.next() {
-        write_item(&mut out, item, options);
+        write_item(&mut out, &mut scratch, item, options);
         if iter.peek().is_some() {
             out.push('\n');
         }
@@ -72,7 +73,7 @@ fn push_prefixed_comment(out: &mut String, prefix: &str, comment: &str) {
     out.push('\n');
 }
 
-fn write_item(out: &mut String, item: &PoItem, options: &SerializeOptions) {
+fn write_item(out: &mut String, scratch: &mut String, item: &PoItem, options: &SerializeOptions) {
     let obsolete_prefix = if item.obsolete { "#~ " } else { "" };
 
     for comment in &item.comments {
@@ -108,23 +109,31 @@ fn write_item(out: &mut String, item: &PoItem, options: &SerializeOptions) {
     }
 
     if let Some(context) = &item.msgctxt {
-        write_keyword(out, obsolete_prefix, "msgctxt", context, None, options);
+        write_keyword(out, scratch, obsolete_prefix, "msgctxt", context, None, options);
     }
-    write_keyword(out, obsolete_prefix, "msgid", &item.msgid, None, options);
+    write_keyword(out, scratch, obsolete_prefix, "msgid", &item.msgid, None, options);
     if let Some(plural) = &item.msgid_plural {
-        write_keyword(out, obsolete_prefix, "msgid_plural", plural, None, options);
+        write_keyword(
+            out,
+            scratch,
+            obsolete_prefix,
+            "msgid_plural",
+            plural,
+            None,
+            options,
+        );
     }
 
     if item.msgid_plural.is_some() && item.msgstr.is_empty() {
         let count = item.nplurals.max(1);
         for index in 0..count {
-            write_keyword(out, obsolete_prefix, "msgstr", "", Some(index), options);
+            write_keyword(out, scratch, obsolete_prefix, "msgstr", "", Some(index), options);
         }
         return;
     }
 
     if item.msgstr.is_empty() {
-        write_keyword(out, obsolete_prefix, "msgstr", "", None, options);
+        write_keyword(out, scratch, obsolete_prefix, "msgstr", "", None, options);
         return;
     }
 
@@ -132,6 +141,7 @@ fn write_item(out: &mut String, item: &PoItem, options: &SerializeOptions) {
     for (index, value) in item.msgstr.iter().enumerate() {
         write_keyword(
             out,
+            scratch,
             obsolete_prefix,
             "msgstr",
             value,
@@ -153,6 +163,7 @@ fn write_prefixed_line(out: &mut String, obsolete_prefix: &str, prefix: &str, va
 
 fn write_keyword(
     out: &mut String,
+    scratch: &mut String,
     obsolete_prefix: &str,
     keyword: &str,
     value: &str,
@@ -163,7 +174,7 @@ fn write_keyword(
         return;
     }
 
-    write_complex_keyword(out, obsolete_prefix, keyword, value, index, options);
+    write_complex_keyword(out, scratch, obsolete_prefix, keyword, value, index, options);
 }
 
 fn try_write_simple_keyword(
@@ -250,6 +261,7 @@ fn append_escaped(out: &mut String, input: &str) {
 
 fn write_complex_keyword(
     out: &mut String,
+    scratch: &mut String,
     obsolete_prefix: &str,
     keyword: &str,
     text: &str,
@@ -278,12 +290,11 @@ fn write_complex_keyword(
         wrote_first_value_line = true;
     }
 
-    let mut escaped_part = String::new();
     for (part, has_next) in parts_with_has_next(text) {
-        escaped_part.clear();
-        escape_string_into(&mut escaped_part, part);
+        scratch.clear();
+        escape_string_into(scratch, part);
         if has_next {
-            escaped_part.push_str("\\n");
+            scratch.push_str("\\n");
         }
 
         let limit = if wrote_first_value_line || has_multiple_lines {
@@ -297,7 +308,7 @@ fn write_complex_keyword(
             obsolete_prefix,
             keyword,
             index,
-            &escaped_part,
+            scratch,
             limit,
             &mut wrote_first_value_line,
         );
