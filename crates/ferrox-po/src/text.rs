@@ -104,21 +104,24 @@ pub fn unescape_string(input: &str) -> Result<String, ParseError> {
 }
 
 pub fn extract_quoted_cow<'a>(line: &'a str) -> Result<Cow<'a, str>, ParseError> {
-    let bytes = line.as_bytes();
-    let Some((start, end)) = find_quoted_bounds(bytes) else {
+    extract_quoted_bytes_cow(line.as_bytes())
+}
+
+pub(crate) fn extract_quoted_bytes_cow<'a>(line: &'a [u8]) -> Result<Cow<'a, str>, ParseError> {
+    let Some((start, end)) = find_quoted_bounds(line) else {
         return Ok(Cow::Borrowed(""));
     };
 
     let raw = &line[start..end];
-    if !has_byte(b'\\', raw.as_bytes()) {
-        return Ok(Cow::Borrowed(raw));
+    if !has_byte(b'\\', raw) {
+        return Ok(Cow::Borrowed(bytes_to_str(raw)?));
     }
 
-    Ok(Cow::Owned(unescape_string(raw)?))
+    Ok(Cow::Owned(unescape_string(bytes_to_str(raw)?)?))
 }
 
 pub fn extract_quoted(line: &str) -> Result<String, ParseError> {
-    Ok(extract_quoted_cow(line)?.into_owned())
+    Ok(extract_quoted_bytes_cow(line.as_bytes())?.into_owned())
 }
 
 fn escape_string_from(out: &mut String, input: &str, bytes: &[u8], first_escape: usize) {
@@ -163,12 +166,19 @@ fn decode_hex(byte: u8) -> Result<u8, ParseError> {
     }
 }
 
+fn bytes_to_str(bytes: &[u8]) -> Result<&str, ParseError> {
+    // All byte slices handled here originate from valid `&str` inputs and are
+    // only split on ASCII delimiter bytes such as quotes and backslashes.
+    Ok(unsafe { std::str::from_utf8_unchecked(bytes) })
+}
+
 #[cfg(test)]
 mod tests {
     use std::borrow::Cow;
 
     use super::{
-        escape_string, escape_string_into, extract_quoted, extract_quoted_cow, unescape_string,
+        escape_string, escape_string_into, extract_quoted, extract_quoted_bytes_cow,
+        extract_quoted_cow, unescape_string,
     };
 
     #[test]
@@ -209,5 +219,13 @@ mod tests {
         let mut out = String::from("prefix:");
         escape_string_into(&mut out, "Say \"Hi\"\n");
         assert_eq!(out, "prefix:Say \\\"Hi\\\"\\n");
+    }
+
+    #[test]
+    fn extracts_quoted_text_from_bytes() {
+        assert_eq!(
+            extract_quoted_bytes_cow(br#"msgid "byte path""#),
+            Ok(Cow::Borrowed("byte path"))
+        );
     }
 }

@@ -4,7 +4,8 @@ use crate::scan::{
     CommentKind, Keyword, LineKind, LineScanner, classify_line, parse_plural_index,
     split_once_byte, trim_ascii,
 };
-use crate::{Header, ParseError, PoFile, PoItem, extract_quoted_cow};
+use crate::text::extract_quoted_bytes_cow;
+use crate::{Header, ParseError, PoFile, PoItem};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Context {
@@ -148,18 +149,16 @@ fn parse_keyword_line(
     file: &mut PoFile,
     current_nplurals: &mut usize,
 ) -> Result<(), ParseError> {
-    let line = bytes_to_str(line_bytes)?;
-
     match keyword {
         Keyword::MsgIdPlural => {
-            state.item.msgid_plural = Some(extract_quoted_cow(line)?.into_owned());
+            state.item.msgid_plural = Some(extract_quoted_bytes_cow(line_bytes)?.into_owned());
             state.context = Some(Context::MsgIdPlural);
             state.content_line_count += 1;
             state.has_keyword = true;
         }
         Keyword::MsgId => {
             finish_item(state, file, current_nplurals)?;
-            state.item.msgid = extract_quoted_cow(line)?.into_owned();
+            state.item.msgid = extract_quoted_bytes_cow(line_bytes)?.into_owned();
             state.context = Some(Context::MsgId);
             state.content_line_count += 1;
             state.has_keyword = true;
@@ -170,14 +169,14 @@ fn parse_keyword_line(
             if state.item.msgstr.len() <= plural_index {
                 state.item.msgstr.resize(plural_index + 1, String::new());
             }
-            state.item.msgstr[plural_index] = extract_quoted_cow(line)?.into_owned();
+            state.item.msgstr[plural_index] = extract_quoted_bytes_cow(line_bytes)?.into_owned();
             state.context = Some(Context::MsgStr);
             state.content_line_count += 1;
             state.has_keyword = true;
         }
         Keyword::MsgCtxt => {
             finish_item(state, file, current_nplurals)?;
-            state.item.msgctxt = Some(extract_quoted_cow(line)?.into_owned());
+            state.item.msgctxt = Some(extract_quoted_bytes_cow(line_bytes)?.into_owned());
             state.context = Some(Context::MsgCtxt);
             state.content_line_count += 1;
             state.has_keyword = true;
@@ -189,7 +188,7 @@ fn parse_keyword_line(
 
 fn append_continuation(line_bytes: &[u8], state: &mut ParserState) -> Result<(), ParseError> {
     state.content_line_count += 1;
-    let value = extract_quoted_cow(bytes_to_str(line_bytes)?)?;
+    let value = extract_quoted_bytes_cow(line_bytes)?;
 
     match state.context {
         Some(Context::MsgStr) => {
@@ -312,7 +311,9 @@ fn parse_nplurals(headers: &[Header]) -> Option<usize> {
 }
 
 fn bytes_to_str(bytes: &[u8]) -> Result<&str, ParseError> {
-    str::from_utf8(bytes).map_err(|_| ParseError::new("invalid UTF-8 in PO input"))
+    // Parser slices are always derived from an input `&str` and cut only on
+    // ASCII boundaries such as quotes, comments, colons and newlines.
+    Ok(unsafe { str::from_utf8_unchecked(bytes) })
 }
 
 fn trimmed_str(bytes: &[u8]) -> Result<&str, ParseError> {
