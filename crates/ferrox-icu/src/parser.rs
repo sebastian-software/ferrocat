@@ -34,6 +34,7 @@ pub fn parse_icu_with_options(
 
 struct Parser<'a> {
     input: &'a str,
+    input_bytes: &'a [u8],
     pos: usize,
     options: &'a IcuParserOptions,
 }
@@ -42,6 +43,7 @@ impl<'a> Parser<'a> {
     fn new(input: &'a str, options: &'a IcuParserOptions) -> Self {
         Self {
             input,
+            input_bytes: input.as_bytes(),
             pos: 0,
             options,
         }
@@ -52,11 +54,11 @@ impl<'a> Parser<'a> {
         until_tag: Option<&str>,
         plural_depth: usize,
     ) -> Result<Vec<IcuNode>, IcuParseError> {
-        let mut nodes = Vec::new();
-        let mut literal = String::new();
+        let mut nodes = Vec::with_capacity(4);
+        let mut literal = String::with_capacity(16);
 
-        while !self.is_eof() {
-            if self.peek_char() == Some('}') {
+        while let Some(byte) = self.byte_at() {
+            if byte == b'}' {
                 break;
             }
 
@@ -71,26 +73,22 @@ impl<'a> Parser<'a> {
                 return Err(self.error("Unexpected closing tag"));
             }
 
-            match self.peek_char() {
-                Some('{') => {
+            match byte {
+                b'{' => {
                     self.flush_literal(&mut literal, &mut nodes);
                     nodes.push(self.parse_argument(plural_depth)?);
                 }
-                Some('<') if !self.options.ignore_tag && self.peek_open_tag() => {
+                b'<' if !self.options.ignore_tag && self.peek_open_tag() => {
                     self.flush_literal(&mut literal, &mut nodes);
                     nodes.push(self.parse_tag(plural_depth)?);
                 }
-                Some('#') if plural_depth > 0 => {
+                b'#' if plural_depth > 0 => {
                     self.flush_literal(&mut literal, &mut nodes);
                     self.pos += 1;
                     nodes.push(IcuNode::Pound);
                 }
-                Some('\'') => literal.push_str(&self.parse_apostrophe_literal()?),
-                Some(ch) => {
-                    literal.push(ch);
-                    self.pos += ch.len_utf8();
-                }
-                None => break,
+                b'\'' => literal.push_str(&self.parse_apostrophe_literal()?),
+                _ => literal.push(self.advance_char().expect("byte implies char")),
             }
         }
 
@@ -206,7 +204,7 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_options(&mut self, plural_depth: usize) -> Result<Vec<IcuOption>, IcuParseError> {
-        let mut options = Vec::new();
+        let mut options = Vec::with_capacity(4);
 
         loop {
             self.skip_whitespace();
@@ -250,9 +248,9 @@ impl<'a> Parser<'a> {
             return Ok("'".to_owned());
         }
 
-        let mut out = String::new();
-        while let Some(ch) = self.peek_char() {
-            if ch == '\'' {
+        let mut out = String::with_capacity(8);
+        while let Some(byte) = self.byte_at() {
+            if byte == b'\'' {
                 self.pos += 1;
                 if self.consume_char('\'') {
                     out.push('\'');
@@ -260,8 +258,7 @@ impl<'a> Parser<'a> {
                     return Ok(out);
                 }
             } else {
-                out.push(ch);
-                self.pos += ch.len_utf8();
+                out.push(self.advance_char().expect("byte implies char"));
             }
         }
 
@@ -273,16 +270,15 @@ impl<'a> Parser<'a> {
     }
 
     fn read_until_closing_brace(&mut self) -> Result<String, IcuParseError> {
-        let mut out = String::new();
-        while let Some(ch) = self.peek_char() {
-            if ch == '}' {
+        let mut out = String::with_capacity(8);
+        while let Some(byte) = self.byte_at() {
+            if byte == b'}' {
                 return Ok(out);
             }
-            if ch == '\'' {
+            if byte == b'\'' {
                 out.push_str(&self.parse_apostrophe_literal()?);
             } else {
-                out.push(ch);
-                self.pos += ch.len_utf8();
+                out.push(self.advance_char().expect("byte implies char"));
             }
         }
         Err(self.error("Unterminated ICU argument"))
@@ -295,11 +291,15 @@ impl<'a> Parser<'a> {
             return Ok(format!("={number}"));
         }
 
-        while let Some(ch) = self.peek_char() {
-            if ch.is_whitespace() || ch == '{' {
+        while let Some(byte) = self.byte_at() {
+            if byte.is_ascii_whitespace() || byte == b'{' {
                 break;
             }
-            self.pos += ch.len_utf8();
+            if byte.is_ascii() {
+                self.pos += 1;
+            } else {
+                self.advance_char();
+            }
         }
 
         if self.pos == start {
@@ -311,11 +311,15 @@ impl<'a> Parser<'a> {
 
     fn parse_identifier(&mut self) -> Result<String, IcuParseError> {
         let start = self.pos;
-        while let Some(ch) = self.peek_char() {
-            if ch.is_whitespace() || matches!(ch, '{' | '}' | ',' | '<' | '>') {
+        while let Some(byte) = self.byte_at() {
+            if byte.is_ascii_whitespace() || matches!(byte, b'{' | b'}' | b',' | b'<' | b'>') {
                 break;
             }
-            self.pos += ch.len_utf8();
+            if byte.is_ascii() {
+                self.pos += 1;
+            } else {
+                self.advance_char();
+            }
         }
 
         if self.pos == start {
@@ -327,9 +331,9 @@ impl<'a> Parser<'a> {
 
     fn parse_tag_name(&mut self) -> Result<String, IcuParseError> {
         let start = self.pos;
-        while let Some(ch) = self.peek_char() {
-            if ch.is_ascii_alphanumeric() || matches!(ch, '_' | '-' | '.') {
-                self.pos += ch.len_utf8();
+        while let Some(byte) = self.byte_at() {
+            if byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'-' | b'.') {
+                self.pos += 1;
             } else {
                 break;
             }
@@ -344,9 +348,9 @@ impl<'a> Parser<'a> {
 
     fn parse_unsigned_int(&mut self) -> Result<usize, IcuParseError> {
         let start = self.pos;
-        while let Some(ch) = self.peek_char() {
-            if ch.is_ascii_digit() {
-                self.pos += ch.len_utf8();
+        while let Some(byte) = self.byte_at() {
+            if byte.is_ascii_digit() {
+                self.pos += 1;
             } else {
                 break;
             }
@@ -362,9 +366,9 @@ impl<'a> Parser<'a> {
     }
 
     fn skip_whitespace(&mut self) {
-        while let Some(ch) = self.peek_char() {
-            if ch.is_whitespace() {
-                self.pos += ch.len_utf8();
+        while let Some(byte) = self.byte_at() {
+            if byte.is_ascii_whitespace() {
+                self.pos += 1;
             } else {
                 break;
             }
@@ -378,6 +382,14 @@ impl<'a> Parser<'a> {
     }
 
     fn expect_char(&mut self, ch: char) -> Result<(), IcuParseError> {
+        if ch.is_ascii() {
+            if self.byte_at() == Some(ch as u8) {
+                self.pos += 1;
+                return Ok(());
+            }
+            return Err(self.error(format!("Expected '{ch}'")));
+        }
+
         match self.peek_char() {
             Some(current) if current == ch => {
                 self.pos += ch.len_utf8();
@@ -397,6 +409,14 @@ impl<'a> Parser<'a> {
     }
 
     fn consume_char(&mut self, ch: char) -> bool {
+        if ch.is_ascii() {
+            if self.byte_at() == Some(ch as u8) {
+                self.pos += 1;
+                return true;
+            }
+            return false;
+        }
+
         if self.peek_char() == Some(ch) {
             self.pos += ch.len_utf8();
             true
@@ -409,30 +429,37 @@ impl<'a> Parser<'a> {
         self.input[self.pos..].chars().next()
     }
 
+    fn byte_at(&self) -> Option<u8> {
+        self.input_bytes.get(self.pos).copied()
+    }
+
+    fn advance_char(&mut self) -> Option<char> {
+        let ch = self.peek_char()?;
+        self.pos += ch.len_utf8();
+        Some(ch)
+    }
+
     fn peek_open_tag(&self) -> bool {
-        let Some(rest) = self.input.get(self.pos..) else {
+        let Some(rest) = self.input_bytes.get(self.pos..) else {
             return false;
         };
-        if !rest.starts_with('<') || rest.starts_with("</") {
+        if !rest.starts_with(b"<") || rest.starts_with(b"</") {
             return false;
         }
-        rest[1..]
-            .chars()
-            .next()
-            .is_some_and(|ch| ch.is_ascii_alphanumeric())
+        rest.get(1).is_some_and(u8::is_ascii_alphanumeric)
     }
 
     fn peek_close_tag(&self) -> bool {
-        self.input[self.pos..].starts_with("</")
+        self.input_bytes[self.pos..].starts_with(b"</")
     }
 
     fn starts_with_close_tag(&self, name: &str) -> bool {
-        let Some(rest) = self.input.get(self.pos..) else {
+        let Some(rest) = self.input_bytes.get(self.pos..) else {
             return false;
         };
-        rest.starts_with("</")
-            && rest[2..].starts_with(name)
-            && matches!(rest[2 + name.len()..].chars().next(), Some('>'))
+        rest.starts_with(b"</")
+            && rest[2..].starts_with(name.as_bytes())
+            && rest.get(2 + name.len()) == Some(&b'>')
     }
 
     fn is_eof(&self) -> bool {

@@ -1695,7 +1695,7 @@ fn render_projectable_icu_nodes(nodes: &[IcuNode]) -> Result<String, &'static st
 
 fn render_projectable_icu_node(node: &IcuNode, out: &mut String) -> Result<(), &'static str> {
     match node {
-        IcuNode::Literal(value) => out.push_str(&escape_icu_literal(value)),
+        IcuNode::Literal(value) => append_escaped_icu_literal(out, value),
         IcuNode::Argument { name } => {
             out.push('{');
             out.push_str(name);
@@ -1744,8 +1744,16 @@ fn render_formatter(kind: &str, name: &str, style: Option<&str>, out: &mut Strin
     out.push('}');
 }
 
-fn escape_icu_literal(value: &str) -> String {
-    let mut out = String::with_capacity(value.len());
+fn append_escaped_icu_literal(out: &mut String, value: &str) {
+    if !value
+        .as_bytes()
+        .iter()
+        .any(|byte| matches!(byte, b'\'' | b'{' | b'}' | b'#' | b'<' | b'>'))
+    {
+        out.push_str(value);
+        return;
+    }
+
     for ch in value.chars() {
         match ch {
             '\'' => out.push_str("''"),
@@ -1757,7 +1765,6 @@ fn escape_icu_literal(value: &str) -> String {
             _ => out.push(ch),
         }
     }
-    out
 }
 
 fn atomic_write(path: &Path, content: &str) -> Result<(), ApiError> {
