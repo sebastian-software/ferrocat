@@ -15,9 +15,9 @@ Current snapshot totals as of 2026-03-16:
 
 - `55` source-attributed conformance cases
 - `442` concrete assertions checked by the harness
-- `48` expected passes
+- `49` expected passes
 - `5` expected rejects
-- `2` documented `known_gap` cases
+- `1` documented `known_gap` case
 
 Per suite:
 
@@ -33,7 +33,7 @@ Small structured expectations now live inline in the Rust case definitions next 
 ## Snapshot Scope
 
 - `po-polib`: comment ordering, UTF-8 BOM handling, strict invalid quoting rejects, wrapping, merge semantics, and merge output parsing
-- `po-pofile`: multiline values, structured references, comments, contexts, obsolete entries, C-string escapes, fuzzy roundtrip, and `Plural-Forms`
+- `po-pofile`: multiline values, structured references, comments, contexts, obsolete entries, C-string escapes, normalized headerless roundtrip behavior, and `Plural-Forms`
 - `po-babel`: unknown locale roundtrip, irregular multiline `msgstr`, and enclosed location parsing with structured references
 - `icu-official`: simple arguments, plural/selectordinal, nested tags, apostrophe escaping, and parser-visible failure cases
 
@@ -60,6 +60,8 @@ The report prints totals per suite and capability, broken down into `pass`, `rej
 It also prints assertion totals, so we can talk about both "how many source-attributed cases" and "how many concrete checks" without inflating fixture counts.
 
 Known gaps are counted and documented, but they do not fail CI.
+
+Headerless PO files are not treated as a gap. `ferrox-po` intentionally normalizes them on write by emitting an explicit empty header entry.
 
 Not every upstream-derived behavior is treated as a desired future target. `previous_msgid` history from traditional gettext merge workflows is intentionally out of scope and therefore not counted as a `known_gap`.
 

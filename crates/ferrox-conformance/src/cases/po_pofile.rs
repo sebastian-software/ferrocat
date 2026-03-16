@@ -406,10 +406,10 @@ fn cases() -> Vec<ConformanceCase> {
                 "test/fixtures/c-strings.po + test/parse.js:handle tab escapes",
             ),
 
-            roundtrip_known_gap_case("pofile.fuzzy_roundtrip", "pofile/fuzzy.po")
-                .with_expected_fixture("pofile/fuzzy.po")
+            roundtrip_case("pofile.fuzzy_roundtrip", "pofile/fuzzy.po")
+                .with_expected_fixture("pofile/fuzzy.normalized.expected.po")
                 .with_notes(
-                    "ferrox-po currently normalizes no-header files into an explicit header entry on write.",
+                    "ferrox-po intentionally normalizes headerless files by emitting an empty header on write.",
                 )
                 .source(
                     "https://raw.githubusercontent.com/rubenv/pofile/master/test/fixtures/fuzzy.po",
@@ -513,14 +513,8 @@ fn plural_header_case(id: &str, input: &str, expected: PoPluralHeaderExpected) -
     .with_expected_artifact(ExpectedArtifact::PoPluralHeader(expected))
 }
 
-fn roundtrip_known_gap_case(id: &str, input: &str) -> ConformanceCase {
-    ConformanceCase::new(
-        id,
-        "roundtrip",
-        "po_roundtrip",
-        Expectation::KnownGap,
-        input,
-    )
+fn roundtrip_case(id: &str, input: &str) -> ConformanceCase {
+    ConformanceCase::new(id, "roundtrip", "po_roundtrip", Expectation::Pass, input)
 }
 
 fn item(msgid: &str) -> PoItemExpected {

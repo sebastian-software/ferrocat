@@ -35,7 +35,7 @@ At the high-level catalog layer, ICU is the default semantic target and gettext 
 
 `ferrox` includes a hermetic, source-attributed conformance snapshot under [`conformance`](conformance).
 
-As of 2026-03-16, the snapshot covers `55` upstream-derived conformance cases and `422` concrete assertions across:
+As of 2026-03-16, the snapshot covers `55` upstream-derived conformance cases and `442` concrete assertions across:
 
 - `izimobil/polib`
 - `rubenv/pofile`
@@ -50,6 +50,8 @@ cargo run -p ferrox-bench -- conformance-report
 ```
 
 The report breaks coverage down into `pass`, `reject`, and `known_gap` and is intended to provide publishable, source-backed compatibility numbers.
+
+`ferrox-po` intentionally normalizes headerless PO files on write by emitting an explicit empty header entry, so this behavior is not counted as a conformance gap.
 
 ## Parse Modes
 

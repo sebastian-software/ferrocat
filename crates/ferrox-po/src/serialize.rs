@@ -601,4 +601,23 @@ msgstr "Datei"
         assert!(output.contains("msgctxt \"menu\"\n"));
         assert!(output.contains("msgid \"File\"\n"));
     }
+
+    #[test]
+    fn normalizes_headerless_files_with_explicit_empty_header() {
+        let file = PoFile {
+            headers: vec![],
+            comments: vec![],
+            extracted_comments: vec![],
+            items: vec![PoItem {
+                msgid: "Save".to_owned(),
+                msgstr: MsgStr::from("Speichern".to_owned()),
+                flags: vec!["fuzzy".to_owned()],
+                ..PoItem::new(2)
+            }],
+        };
+
+        let output = stringify_po(&file, &SerializeOptions::default());
+        assert!(output.starts_with("msgid \"\"\nmsgstr \"\"\n\n"));
+        assert!(output.contains("#, fuzzy\nmsgid \"Save\"\nmsgstr \"Speichern\"\n"));
+    }
 }

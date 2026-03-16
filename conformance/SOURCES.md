@@ -24,7 +24,7 @@ This directory stores the first hermetic conformance snapshot for `ferrox`.
   - License: MIT
   - Role: secondary JS PO parser/writer cross-check
   - Snapshot here: `30` cases / `301` assertions
-  - Coverage here: multiline values, structured references, comments, contexts, obsolete entries, C-string escapes, fuzzy roundtrip, and `Plural-Forms` parsing
+  - Coverage here: multiline values, structured references, comments, contexts, obsolete entries, C-string escapes, normalized headerless roundtrip behavior, and `Plural-Forms` parsing
 
 - `python-babel/babel`
   - Upstream: <https://github.com/python-babel/babel>
