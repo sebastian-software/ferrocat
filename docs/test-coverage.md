@@ -51,7 +51,7 @@ cargo coverage-lcov
 The LCOV output is written to:
 
 ```text
-target/coverage/lcov.info
+target/lcov.info
 ```
 
 ## CI
