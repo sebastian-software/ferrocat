@@ -4,8 +4,7 @@ use std::borrow::Cow;
 
 use ferrox_conformance::{
     ConformanceCase, ConformanceManifest, Expectation, ExpectedArtifact, IcuParseExpected,
-    IcuRejectExpected, PoItemExpected, PoParseExpected, load_all_manifests, read_expected_artifact,
-    read_fixture_text,
+    IcuRejectExpected, PoItemExpected, PoParseExpected, load_all_manifests, read_fixture_text,
 };
 use ferrox_icu::{IcuNode, IcuPluralKind, parse_icu};
 use ferrox_po::{
@@ -151,8 +150,7 @@ fn evaluate_po_parse(case: &ConformanceCase) -> Result<String, String> {
 fn evaluate_po_roundtrip(case: &ConformanceCase) -> Result<String, String> {
     let input = read_fixture_text(&case.input).map_err(|error| error.to_string())?;
     let expected_path = case
-        .expected
-        .as_deref()
+        .expected_fixture_path()
         .ok_or_else(|| format!("roundtrip case {} is missing expected fixture", case.id))?;
     let expected = read_fixture_text(expected_path).map_err(|error| error.to_string())?;
     let parsed = parse_po(&input).map_err(|error| format!("parse failed unexpectedly: {error}"))?;
@@ -173,12 +171,9 @@ fn evaluate_po_roundtrip(case: &ConformanceCase) -> Result<String, String> {
 
 fn evaluate_po_reject(case: &ConformanceCase) -> Result<String, String> {
     let input = read_fixture_text(&case.input).map_err(|error| error.to_string())?;
-    let expected = match read_expected_artifact(
-        case.expected
-            .as_deref()
-            .ok_or_else(|| format!("reject case {} is missing expected artifact", case.id))?,
-    )
-    .map_err(|error| error.to_string())?
+    let expected = match case
+        .expected_artifact()
+        .map_err(|error| error.to_string())?
     {
         ExpectedArtifact::PoReject(expected) => expected,
         other => {
@@ -204,8 +199,7 @@ fn evaluate_po_merge(case: &ConformanceCase) -> Result<String, String> {
         .ok_or_else(|| format!("merge case {} is missing companion_input", case.id))?;
     let template = read_fixture_text(template_path).map_err(|error| error.to_string())?;
     let expected_path = case
-        .expected
-        .as_deref()
+        .expected_fixture_path()
         .ok_or_else(|| format!("merge case {} is missing expected output", case.id))?;
     let expected = read_fixture_text(expected_path).map_err(|error| error.to_string())?;
 
@@ -240,13 +234,9 @@ fn evaluate_po_merge(case: &ConformanceCase) -> Result<String, String> {
 
 fn evaluate_po_plural_header(case: &ConformanceCase) -> Result<String, String> {
     let input = read_fixture_text(&case.input).map_err(|error| error.to_string())?;
-    let expected = match read_expected_artifact(case.expected.as_deref().ok_or_else(|| {
-        format!(
-            "plural header case {} is missing expected artifact",
-            case.id
-        )
-    })?)
-    .map_err(|error| error.to_string())?
+    let expected = match case
+        .expected_artifact()
+        .map_err(|error| error.to_string())?
     {
         ExpectedArtifact::PoPluralHeader(expected) => expected,
         other => {
@@ -316,12 +306,9 @@ fn evaluate_po_plural_header(case: &ConformanceCase) -> Result<String, String> {
 
 fn evaluate_icu_parse(case: &ConformanceCase) -> Result<String, String> {
     let input = read_fixture_text(&case.input).map_err(|error| error.to_string())?;
-    let expected = match read_expected_artifact(
-        case.expected
-            .as_deref()
-            .ok_or_else(|| format!("icu parse case {} is missing expected artifact", case.id))?,
-    )
-    .map_err(|error| error.to_string())?
+    let expected = match case
+        .expected_artifact()
+        .map_err(|error| error.to_string())?
     {
         ExpectedArtifact::IcuParse(expected) => expected,
         other => {
@@ -339,12 +326,9 @@ fn evaluate_icu_parse(case: &ConformanceCase) -> Result<String, String> {
 
 fn evaluate_icu_reject(case: &ConformanceCase) -> Result<String, String> {
     let input = read_fixture_text(&case.input).map_err(|error| error.to_string())?;
-    let expected = match read_expected_artifact(
-        case.expected
-            .as_deref()
-            .ok_or_else(|| format!("icu reject case {} is missing expected artifact", case.id))?,
-    )
-    .map_err(|error| error.to_string())?
+    let expected = match case
+        .expected_artifact()
+        .map_err(|error| error.to_string())?
     {
         ExpectedArtifact::IcuReject(expected) => expected,
         other => {
@@ -367,12 +351,9 @@ fn evaluate_icu_reject(case: &ConformanceCase) -> Result<String, String> {
 }
 
 fn load_po_parse_expected(case: &ConformanceCase) -> Result<PoParseExpected, String> {
-    match read_expected_artifact(
-        case.expected
-            .as_deref()
-            .ok_or_else(|| format!("parse case {} is missing expected artifact", case.id))?,
-    )
-    .map_err(|error| error.to_string())?
+    match case
+        .expected_artifact()
+        .map_err(|error| error.to_string())?
     {
         ExpectedArtifact::PoParse(expected) => Ok(expected),
         other => Err(format!(

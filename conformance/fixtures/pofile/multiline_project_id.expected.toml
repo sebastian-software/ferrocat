@@ -1,4 +1,0 @@
-kind = "po_parse"
-
-[headers]
-"Project-Id-Version" = "Example"

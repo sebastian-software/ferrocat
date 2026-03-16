@@ -1,12 +1,11 @@
+mod cases;
+
 use std::collections::BTreeMap;
 use std::fmt;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use serde::Deserialize;
-
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
-#[serde(rename_all = "snake_case")]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Expectation {
     Pass,
     Reject,
@@ -23,7 +22,7 @@ impl Expectation {
     }
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct ConformanceManifest {
     pub suite: String,
     pub source: String,
@@ -31,12 +30,39 @@ pub struct ConformanceManifest {
     pub upstream_ref: String,
     pub license: String,
     pub scope: String,
-    #[serde(default)]
     pub notes: Vec<String>,
     pub cases: Vec<ConformanceCase>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+impl ConformanceManifest {
+    pub fn new(
+        suite: impl Into<String>,
+        source: impl Into<String>,
+        upstream_source: impl Into<String>,
+        upstream_ref: impl Into<String>,
+        license: impl Into<String>,
+        scope: impl Into<String>,
+        cases: Vec<ConformanceCase>,
+    ) -> Self {
+        Self {
+            suite: suite.into(),
+            source: source.into(),
+            upstream_source: upstream_source.into(),
+            upstream_ref: upstream_ref.into(),
+            license: license.into(),
+            scope: scope.into(),
+            notes: Vec::new(),
+            cases,
+        }
+    }
+
+    pub fn with_notes(mut self, notes: impl IntoIterator<Item = impl Into<String>>) -> Self {
+        self.notes = notes.into_iter().map(Into::into).collect();
+        self
+    }
+}
+
+#[derive(Debug, Clone)]
 pub struct ConformanceCase {
     pub id: String,
     pub capability: String,
@@ -44,28 +70,109 @@ pub struct ConformanceCase {
     pub expectation: Expectation,
     pub input: String,
     pub expected: Option<String>,
-    #[serde(default)]
+    pub expected_inline: Option<ExpectedArtifact>,
     pub companion_input: Option<String>,
-    #[serde(default)]
     pub upstream_source: Option<String>,
-    #[serde(default)]
     pub upstream_ref: Option<String>,
-    #[serde(default)]
     pub notes: Option<String>,
-    #[serde(default)]
     pub fold_length: Option<usize>,
-    #[serde(default)]
     pub compact_multiline: Option<bool>,
-    #[serde(default)]
     pub locale: Option<String>,
-    #[serde(default)]
     pub source_locale: Option<String>,
-    #[serde(default)]
     pub item_start_index: Option<usize>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
-#[serde(tag = "kind", rename_all = "snake_case")]
+impl ConformanceCase {
+    pub fn new(
+        id: impl Into<String>,
+        capability: impl Into<String>,
+        runner: impl Into<String>,
+        expectation: Expectation,
+        input: impl Into<String>,
+    ) -> Self {
+        Self {
+            id: id.into(),
+            capability: capability.into(),
+            runner: runner.into(),
+            expectation,
+            input: input.into(),
+            expected: None,
+            expected_inline: None,
+            companion_input: None,
+            upstream_source: None,
+            upstream_ref: None,
+            notes: None,
+            fold_length: None,
+            compact_multiline: None,
+            locale: None,
+            source_locale: None,
+            item_start_index: None,
+        }
+    }
+
+    pub fn with_expected_fixture(mut self, path: impl Into<String>) -> Self {
+        self.expected = Some(path.into());
+        self
+    }
+
+    pub fn with_expected_artifact(mut self, artifact: ExpectedArtifact) -> Self {
+        self.expected_inline = Some(artifact);
+        self
+    }
+
+    pub fn with_companion_input(mut self, path: impl Into<String>) -> Self {
+        self.companion_input = Some(path.into());
+        self
+    }
+
+    pub fn source(mut self, source: impl Into<String>, reference: impl Into<String>) -> Self {
+        self.upstream_source = Some(source.into());
+        self.upstream_ref = Some(reference.into());
+        self
+    }
+
+    pub fn with_notes(mut self, notes: impl Into<String>) -> Self {
+        self.notes = Some(notes.into());
+        self
+    }
+
+    pub fn with_fold_length(mut self, fold_length: usize) -> Self {
+        self.fold_length = Some(fold_length);
+        self
+    }
+
+    pub fn with_compact_multiline(mut self, compact_multiline: bool) -> Self {
+        self.compact_multiline = Some(compact_multiline);
+        self
+    }
+
+    pub fn with_locale(
+        mut self,
+        locale: impl Into<String>,
+        source_locale: impl Into<String>,
+    ) -> Self {
+        self.locale = Some(locale.into());
+        self.source_locale = Some(source_locale.into());
+        self
+    }
+
+    pub fn with_item_start_index(mut self, item_start_index: usize) -> Self {
+        self.item_start_index = Some(item_start_index);
+        self
+    }
+
+    pub fn expected_fixture_path(&self) -> Option<&str> {
+        self.expected.as_deref()
+    }
+
+    pub fn expected_artifact(&self) -> Result<ExpectedArtifact, ConformanceError> {
+        self.expected_inline.clone().ok_or_else(|| {
+            ConformanceError::new(format!("case {} is missing expected artifact", self.id))
+        })
+    }
+}
+
+#[derive(Debug, Clone)]
 pub enum ExpectedArtifact {
     PoParse(PoParseExpected),
     PoReject(PoRejectExpected),
@@ -74,84 +181,57 @@ pub enum ExpectedArtifact {
     IcuReject(IcuRejectExpected),
 }
 
-#[derive(Debug, Clone, Default, Deserialize)]
+#[derive(Debug, Clone, Default)]
 pub struct PoParseExpected {
-    #[serde(default)]
     pub item_count: Option<usize>,
-    #[serde(default)]
     pub header_count: Option<usize>,
-    #[serde(default)]
     pub headers: BTreeMap<String, String>,
-    #[serde(default)]
     pub items: Vec<PoItemExpected>,
 }
 
-#[derive(Debug, Clone, Default, Deserialize)]
+#[derive(Debug, Clone, Default)]
 pub struct PoItemExpected {
     pub msgid: String,
-    #[serde(default)]
     pub msgctxt: Option<String>,
-    #[serde(default)]
     pub msgid_plural: Option<String>,
-    #[serde(default)]
     pub msgstr: Vec<String>,
-    #[serde(default)]
     pub comments: Vec<String>,
-    #[serde(default)]
     pub extracted_comments: Vec<String>,
-    #[serde(default)]
     pub references: Vec<String>,
-    #[serde(default)]
     pub flags: Vec<String>,
-    #[serde(default)]
     pub obsolete: bool,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct PoRejectExpected {
     pub message_contains: String,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Default)]
 pub struct PoPluralHeaderExpected {
-    #[serde(default)]
     pub raw_value: Option<String>,
-    #[serde(default)]
     pub nplurals: Option<usize>,
-    #[serde(default)]
     pub plural_expression: Option<String>,
-    #[serde(default)]
     pub first_item_msgstr_len: Option<usize>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Default)]
 pub struct IcuParseExpected {
-    #[serde(default)]
     pub node_kinds: Vec<String>,
-    #[serde(default)]
     pub top_level_count: Option<usize>,
-    #[serde(default)]
     pub first_literal: Option<String>,
-    #[serde(default)]
     pub first_argument_name: Option<String>,
-    #[serde(default)]
     pub first_plural_kind: Option<String>,
-    #[serde(default)]
     pub first_plural_offset: Option<usize>,
-    #[serde(default)]
     pub first_plural_option_count: Option<usize>,
-    #[serde(default)]
     pub second_plural_kind: Option<String>,
-    #[serde(default)]
     pub second_plural_option_count: Option<usize>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Default)]
 pub struct IcuRejectExpected {
     pub message_contains: String,
-    #[serde(default)]
     pub line: Option<usize>,
-    #[serde(default)]
     pub min_column: Option<usize>,
 }
 
@@ -176,6 +256,17 @@ impl fmt::Display for ConformanceError {
 
 impl std::error::Error for ConformanceError {}
 
+pub fn strings<const N: usize>(values: [&str; N]) -> Vec<String> {
+    values.into_iter().map(str::to_owned).collect()
+}
+
+pub fn headers<const N: usize>(pairs: [(&str, &str); N]) -> BTreeMap<String, String> {
+    pairs
+        .into_iter()
+        .map(|(key, value)| (key.to_owned(), value.to_owned()))
+        .collect()
+}
+
 pub fn workspace_root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
         .parent()
@@ -189,49 +280,16 @@ pub fn conformance_root() -> PathBuf {
     workspace_root().join("conformance")
 }
 
-pub fn manifest_dir() -> PathBuf {
-    conformance_root().join("manifests")
-}
-
 pub fn fixture_dir() -> PathBuf {
     conformance_root().join("fixtures")
 }
 
 pub fn load_all_manifests() -> Result<Vec<ConformanceManifest>, ConformanceError> {
-    let mut paths = fs::read_dir(manifest_dir())
-        .map_err(|error| ConformanceError::new(format!("read manifest dir: {error}")))?
-        .map(|entry| entry.map(|entry| entry.path()))
-        .collect::<Result<Vec<_>, _>>()
-        .map_err(|error| ConformanceError::new(format!("iterate manifest dir: {error}")))?;
-    paths.sort();
-
-    let mut manifests = Vec::with_capacity(paths.len());
-    for path in paths {
-        if path.extension().and_then(|ext| ext.to_str()) != Some("toml") {
-            continue;
-        }
-        manifests.push(load_manifest(&path)?);
-    }
-    Ok(manifests)
-}
-
-pub fn load_manifest(path: &Path) -> Result<ConformanceManifest, ConformanceError> {
-    let raw = fs::read_to_string(path)
-        .map_err(|error| ConformanceError::new(format!("read {}: {error}", path.display())))?;
-    toml::from_str(&raw)
-        .map_err(|error| ConformanceError::new(format!("parse {}: {error}", path.display())))
+    Ok(cases::all_manifests())
 }
 
 pub fn read_fixture_text(path: &str) -> Result<String, ConformanceError> {
     let full_path = fixture_dir().join(path);
     fs::read_to_string(&full_path)
         .map_err(|error| ConformanceError::new(format!("read {}: {error}", full_path.display())))
-}
-
-pub fn read_expected_artifact(path: &str) -> Result<ExpectedArtifact, ConformanceError> {
-    let full_path = fixture_dir().join(path);
-    let raw = fs::read_to_string(&full_path)
-        .map_err(|error| ConformanceError::new(format!("read {}: {error}", full_path.display())))?;
-    toml::from_str(&raw)
-        .map_err(|error| ConformanceError::new(format!("parse {}: {error}", full_path.display())))
 }

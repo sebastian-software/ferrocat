@@ -1,5 +1,0 @@
-kind = "po_plural_header"
-raw_value = "nplurals=3; plural=(n==1 ? 0 : n==2 ? 1 : 2);"
-nplurals = 3
-plural_expression = "(n==1 ? 0 : n==2 ? 1 : 2)"
-first_item_msgstr_len = 3

@@ -1,6 +1,6 @@
 # Conformance
 
-`ferrox` now carries a hermetic conformance snapshot under [`/Users/sebastian/Workspace/ferrox/conformance`](/Users/sebastian/Workspace/ferrox/conformance).
+`ferrox` now carries a hermetic conformance snapshot under [`/Users/sebastian/Workspace/ferrox/conformance`](/Users/sebastian/Workspace/ferrox/conformance), with case definitions in [`/Users/sebastian/Workspace/ferrox/crates/ferrox-conformance/src/cases`](/Users/sebastian/Workspace/ferrox/crates/ferrox-conformance/src/cases).
 
 Phase 1 intentionally excludes GNU `gettext`. The current snapshot uses:
 
@@ -27,6 +27,8 @@ Per suite:
 - `icu-official`: `8` cases / `21` assertions
 
 The case count tracks individually addressable upstream-derived scenarios. The assertion count tracks the concrete field- and structure-level comparisons performed by the harness, which is the better number to use when communicating weight and breadth.
+
+Small structured expectations now live inline in the Rust case definitions next to each case. External files are kept mainly for realistic upstream inputs and full rendered outputs such as roundtrip or merge snapshots.
 
 ## Snapshot Scope
 

@@ -8,9 +8,7 @@ use std::process::ExitCode;
 use std::time::{Duration, Instant};
 
 use conformance_harness::{evaluate_all_cases, summarize_evaluations};
-use ferrox_conformance::{
-    ConformanceCase, Expectation, ExpectedArtifact, load_all_manifests, read_expected_artifact,
-};
+use ferrox_conformance::{ConformanceCase, Expectation, ExpectedArtifact, load_all_manifests};
 use ferrox_icu::{extract_variables, parse_icu, validate_icu};
 use ferrox_po::{
     PluralEncoding, SerializeOptions, UpdateCatalogFileOptions, UpdateCatalogOptions,
@@ -566,63 +564,51 @@ fn count_case_assertions(case: &ConformanceCase) -> Result<usize, String> {
     match case.runner.as_str() {
         "po_roundtrip" | "po_merge" => Ok(1),
         "po_reject" => Ok(1),
-        "po_parse" => match case.expected.as_deref() {
-            Some(path) => match read_expected_artifact(path).map_err(|error| error.to_string())? {
-                ExpectedArtifact::PoParse(expected) => {
-                    let mut count = 0usize;
-                    count += usize::from(expected.item_count.is_some());
-                    count += usize::from(expected.header_count.is_some());
-                    count += expected.headers.len();
-                    count += expected.items.len() * 9;
-                    Ok(count.max(1))
-                }
-                _ => Ok(1),
-            },
-            None => Ok(1),
+        "po_parse" => match case.expected_artifact() {
+            Ok(ExpectedArtifact::PoParse(expected)) => {
+                let mut count = 0usize;
+                count += usize::from(expected.item_count.is_some());
+                count += usize::from(expected.header_count.is_some());
+                count += expected.headers.len();
+                count += expected.items.len() * 9;
+                Ok(count.max(1))
+            }
+            Ok(_) | Err(_) => Ok(1),
         },
-        "po_plural_header" => match case.expected.as_deref() {
-            Some(path) => match read_expected_artifact(path).map_err(|error| error.to_string())? {
-                ExpectedArtifact::PoPluralHeader(expected) => {
-                    let count = usize::from(expected.raw_value.is_some())
-                        + usize::from(expected.nplurals.is_some())
-                        + usize::from(expected.plural_expression.is_some())
-                        + usize::from(expected.first_item_msgstr_len.is_some())
-                        + usize::from(case.locale.is_some());
-                    Ok(count.max(1))
-                }
-                _ => Ok(1),
-            },
-            None => Ok(1),
+        "po_plural_header" => match case.expected_artifact() {
+            Ok(ExpectedArtifact::PoPluralHeader(expected)) => {
+                let count = usize::from(expected.raw_value.is_some())
+                    + usize::from(expected.nplurals.is_some())
+                    + usize::from(expected.plural_expression.is_some())
+                    + usize::from(expected.first_item_msgstr_len.is_some())
+                    + usize::from(case.locale.is_some());
+                Ok(count.max(1))
+            }
+            Ok(_) | Err(_) => Ok(1),
         },
-        "icu_parse" => match case.expected.as_deref() {
-            Some(path) => match read_expected_artifact(path).map_err(|error| error.to_string())? {
-                ExpectedArtifact::IcuParse(expected) => {
-                    let count = usize::from(!expected.node_kinds.is_empty())
-                        + usize::from(expected.top_level_count.is_some())
-                        + usize::from(expected.first_literal.is_some())
-                        + usize::from(expected.first_argument_name.is_some())
-                        + usize::from(expected.first_plural_kind.is_some())
-                        + usize::from(expected.first_plural_offset.is_some())
-                        + usize::from(expected.first_plural_option_count.is_some())
-                        + usize::from(expected.second_plural_kind.is_some())
-                        + usize::from(expected.second_plural_option_count.is_some());
-                    Ok(count.max(1))
-                }
-                _ => Ok(1),
-            },
-            None => Ok(1),
+        "icu_parse" => match case.expected_artifact() {
+            Ok(ExpectedArtifact::IcuParse(expected)) => {
+                let count = usize::from(!expected.node_kinds.is_empty())
+                    + usize::from(expected.top_level_count.is_some())
+                    + usize::from(expected.first_literal.is_some())
+                    + usize::from(expected.first_argument_name.is_some())
+                    + usize::from(expected.first_plural_kind.is_some())
+                    + usize::from(expected.first_plural_offset.is_some())
+                    + usize::from(expected.first_plural_option_count.is_some())
+                    + usize::from(expected.second_plural_kind.is_some())
+                    + usize::from(expected.second_plural_option_count.is_some());
+                Ok(count.max(1))
+            }
+            Ok(_) | Err(_) => Ok(1),
         },
-        "icu_reject" => match case.expected.as_deref() {
-            Some(path) => match read_expected_artifact(path).map_err(|error| error.to_string())? {
-                ExpectedArtifact::IcuReject(expected) => {
-                    let count = 1
-                        + usize::from(expected.line.is_some())
-                        + usize::from(expected.min_column.is_some());
-                    Ok(count)
-                }
-                _ => Ok(1),
-            },
-            None => Ok(1),
+        "icu_reject" => match case.expected_artifact() {
+            Ok(ExpectedArtifact::IcuReject(expected)) => {
+                let count = 1
+                    + usize::from(expected.line.is_some())
+                    + usize::from(expected.min_column.is_some());
+                Ok(count)
+            }
+            Ok(_) | Err(_) => Ok(1),
         },
         _ => Ok(1),
     }

@@ -1,6 +1,0 @@
-kind = "po_parse"
-item_count = 3
-
-[[items]]
-msgid = "define('some/test/module', function () {\n\t'use strict';\n\treturn {};\n});\n"
-msgstr = [""]

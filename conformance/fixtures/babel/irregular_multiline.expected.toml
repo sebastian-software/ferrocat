@@ -1,6 +1,0 @@
-kind = "po_parse"
-item_count = 1
-
-[[items]]
-msgid = "foo"
-msgstr = ["multi-line\n translation"]

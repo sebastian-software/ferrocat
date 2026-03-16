@@ -2,7 +2,7 @@
 
 use ferrox_conformance::{
     ConformanceCase, ConformanceManifest, Expectation, ExpectedArtifact, IcuParseExpected,
-    IcuRejectExpected, load_all_manifests, read_expected_artifact, read_fixture_text,
+    IcuRejectExpected, load_all_manifests, read_fixture_text,
 };
 use ferrox_icu::{IcuNode, IcuPluralKind, parse_icu};
 
@@ -82,12 +82,9 @@ fn evaluate_case(
 
 fn evaluate_icu_parse(case: &ConformanceCase) -> Result<String, String> {
     let input = read_fixture_text(&case.input).map_err(|error| error.to_string())?;
-    let expected = match read_expected_artifact(
-        case.expected
-            .as_deref()
-            .ok_or_else(|| format!("icu parse case {} is missing expected artifact", case.id))?,
-    )
-    .map_err(|error| error.to_string())?
+    let expected = match case
+        .expected_artifact()
+        .map_err(|error| error.to_string())?
     {
         ExpectedArtifact::IcuParse(expected) => expected,
         other => {
@@ -105,12 +102,9 @@ fn evaluate_icu_parse(case: &ConformanceCase) -> Result<String, String> {
 
 fn evaluate_icu_reject(case: &ConformanceCase) -> Result<String, String> {
     let input = read_fixture_text(&case.input).map_err(|error| error.to_string())?;
-    let expected = match read_expected_artifact(
-        case.expected
-            .as_deref()
-            .ok_or_else(|| format!("icu reject case {} is missing expected artifact", case.id))?,
-    )
-    .map_err(|error| error.to_string())?
+    let expected = match case
+        .expected_artifact()
+        .map_err(|error| error.to_string())?
     {
         ExpectedArtifact::IcuReject(expected) => expected,
         other => {

@@ -6,6 +6,7 @@ This directory stores the first hermetic conformance snapshot for `ferrox`.
 
 - Source snapshots were selected on 2026-03-16.
 - Fixtures are compact semantic adaptations of upstream tests unless noted otherwise.
+- Small structured expectations are stored inline in the Rust case definitions; external fixtures are reserved for realistic inputs and full text outputs.
 - GNU `gettext` is intentionally excluded from phase 1.
 - Current snapshot size on 2026-03-16: `55` cases / `422` assertions.
 
