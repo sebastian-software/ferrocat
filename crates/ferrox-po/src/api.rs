@@ -4,6 +4,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::{Mutex, OnceLock};
 
+use ferrox_icu::{IcuMessage, IcuNode, IcuPluralKind, parse_icu};
 use icu_locale::Locale;
 use icu_plurals::{PluralCategory, PluralRules};
 use crate::{Header, MsgStr, ParseError, PoFile, PoItem, SerializeOptions, parse_po, stringify_po};
@@ -353,6 +354,13 @@ enum NormalizedKind {
 struct ParsedIcuPlural {
     variable: String,
     branches: BTreeMap<String, String>,
+}
+
+enum IcuPluralProjection {
+    NotPlural,
+    Projected(ParsedIcuPlural),
+    Unsupported(&'static str),
+    Malformed,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -1198,9 +1206,11 @@ fn import_message_from_po(
     } else {
         let msgstr = item.msgstr.first_str().unwrap_or_default().to_owned();
         if plural_encoding == PluralEncoding::Icu {
-            match parse_simple_icu_plural(&item.msgid) {
-                Ok(Some(source_plural)) => match parse_simple_icu_plural(&msgstr) {
-                    Ok(Some(translated_plural))
+            match project_icu_plural(&item.msgid) {
+                IcuPluralProjection::Projected(source_plural) => {
+                    let translated_projection = project_icu_plural(&msgstr);
+                    match translated_projection {
+                    IcuPluralProjection::Projected(translated_plural)
                         if translated_plural.variable == source_plural.variable =>
                     {
                         CanonicalTranslation::Plural {
@@ -1219,7 +1229,7 @@ fn import_message_from_po(
                             variable: source_plural.variable,
                         }
                     }
-                    Ok(Some(_)) => {
+                    IcuPluralProjection::Projected(_) => {
                         if strict {
                             return Err(ApiError::Unsupported(
                                 "ICU plural source and translation use different variables"
@@ -1227,39 +1237,63 @@ fn import_message_from_po(
                             ));
                         }
                         diagnostics.push(
-                                Diagnostic::new(
-                                    DiagnosticSeverity::Warning,
-                                    "plural.partial_icu_parse",
-                                    "Could not safely align ICU plural source and translation; keeping the message as singular.",
-                                )
-                                .with_identity(&item.msgid, item.msgctxt.as_deref()),
-                            );
+                            Diagnostic::new(
+                                DiagnosticSeverity::Warning,
+                                "plural.partial_icu_parse",
+                                "Could not safely align ICU plural source and translation; keeping the message as singular.",
+                            )
+                            .with_identity(&item.msgid, item.msgctxt.as_deref()),
+                        );
                         CanonicalTranslation::Singular { value: msgstr }
                     }
-                    Ok(None) | Err(_) => {
-                        if strict {
+                    IcuPluralProjection::Unsupported(_) | IcuPluralProjection::Malformed => {
+                        if strict && matches!(translated_projection, IcuPluralProjection::Malformed)
+                        {
                             return Err(ApiError::Unsupported(
                                 "ICU plural message could not be parsed in strict mode".to_owned(),
                             ));
                         }
                         diagnostics.push(
-                                Diagnostic::new(
-                                    DiagnosticSeverity::Warning,
-                                    "plural.partial_icu_parse",
-                                    "Could not fully parse ICU plural translation; keeping the message as singular.",
-                                )
-                                .with_identity(&item.msgid, item.msgctxt.as_deref()),
-                            );
+                            Diagnostic::new(
+                                DiagnosticSeverity::Warning,
+                                "plural.partial_icu_parse",
+                                "Could not fully parse ICU plural translation; keeping the message as singular.",
+                            )
+                            .with_identity(&item.msgid, item.msgctxt.as_deref()),
+                        );
                         CanonicalTranslation::Singular { value: msgstr }
                     }
-                },
-                Ok(None) => CanonicalTranslation::Singular { value: msgstr },
-                Err(_) if strict => {
+                    IcuPluralProjection::NotPlural => {
+                        diagnostics.push(
+                            Diagnostic::new(
+                                DiagnosticSeverity::Warning,
+                                "plural.partial_icu_parse",
+                                "Could not fully parse ICU plural translation; keeping the message as singular.",
+                            )
+                            .with_identity(&item.msgid, item.msgctxt.as_deref()),
+                        );
+                        CanonicalTranslation::Singular { value: msgstr }
+                    }
+                }
+                }
+                IcuPluralProjection::NotPlural => CanonicalTranslation::Singular { value: msgstr },
+                IcuPluralProjection::Malformed if strict => {
                     return Err(ApiError::Unsupported(
                         "ICU plural parsing failed in strict mode".to_owned(),
                     ));
                 }
-                Err(_) => CanonicalTranslation::Singular { value: msgstr },
+                IcuPluralProjection::Unsupported(message) => {
+                    diagnostics.push(
+                        Diagnostic::new(
+                            DiagnosticSeverity::Warning,
+                            "plural.unsupported_icu_projection",
+                            message,
+                        )
+                        .with_identity(&item.msgid, item.msgctxt.as_deref()),
+                    );
+                    CanonicalTranslation::Singular { value: msgstr }
+                }
+                IcuPluralProjection::Malformed => CanonicalTranslation::Singular { value: msgstr },
             }
         } else {
             CanonicalTranslation::Singular { value: msgstr }
@@ -1586,72 +1620,133 @@ fn synthesize_icu_plural(variable: &str, branches: &BTreeMap<String, String>) ->
     out
 }
 
-fn parse_simple_icu_plural(input: &str) -> Result<Option<ParsedIcuPlural>, ()> {
-    let trimmed = input.trim();
-    if !trimmed.starts_with('{') || !trimmed.ends_with('}') || !trimmed.contains(", plural,") {
-        return Ok(None);
+fn project_icu_plural(input: &str) -> IcuPluralProjection {
+    let message = match parse_icu(input) {
+        Ok(message) => message,
+        Err(_) => return IcuPluralProjection::Malformed,
+    };
+
+    let Some(IcuNode::Plural {
+        name,
+        kind: IcuPluralKind::Cardinal,
+        offset,
+        options,
+    }) = only_node(&message)
+    else {
+        return IcuPluralProjection::NotPlural;
+    };
+
+    if *offset != 0 {
+        return IcuPluralProjection::Unsupported(
+            "ICU plural offset syntax is not projected into the current catalog plural model.",
+        );
     }
 
-    let inner = &trimmed[1..trimmed.len() - 1];
-    let first_comma = inner.find(',').ok_or(())?;
-    let variable = inner[..first_comma].trim();
-    if variable.is_empty() {
-        return Err(());
-    }
-    let rest = inner[first_comma + 1..].trim_start();
-    let rest = rest.strip_prefix("plural,").ok_or(())?.trim_start();
     let mut branches = BTreeMap::new();
-    let mut index = 0usize;
-    let bytes = rest.as_bytes();
-
-    while index < bytes.len() {
-        while index < bytes.len() && bytes[index].is_ascii_whitespace() {
-            index += 1;
-        }
-        if index >= bytes.len() {
-            break;
+    for option in options {
+        if option.selector.starts_with('=') {
+            return IcuPluralProjection::Unsupported(
+                "ICU exact-match plural selectors are not projected into the current catalog plural model.",
+            );
         }
 
-        let selector_start = index;
-        while index < bytes.len() && !bytes[index].is_ascii_whitespace() && bytes[index] != b'{' {
-            index += 1;
+        let value = match render_projectable_icu_nodes(&option.value) {
+            Ok(value) => value,
+            Err(message) => return IcuPluralProjection::Unsupported(message),
+        };
+        branches.insert(option.selector.clone(), value);
+    }
+
+    if !branches.contains_key("other") {
+        return IcuPluralProjection::Malformed;
+    }
+
+    IcuPluralProjection::Projected(ParsedIcuPlural {
+        variable: name.clone(),
+        branches,
+    })
+}
+
+fn only_node(message: &IcuMessage) -> Option<&IcuNode> {
+    match message.nodes.as_slice() {
+        [node] => Some(node),
+        _ => None,
+    }
+}
+
+fn render_projectable_icu_nodes(nodes: &[IcuNode]) -> Result<String, &'static str> {
+    let mut out = String::new();
+    for node in nodes {
+        render_projectable_icu_node(node, &mut out)?;
+    }
+    Ok(out)
+}
+
+fn render_projectable_icu_node(node: &IcuNode, out: &mut String) -> Result<(), &'static str> {
+    match node {
+        IcuNode::Literal(value) => out.push_str(&escape_icu_literal(value)),
+        IcuNode::Argument { name } => {
+            out.push('{');
+            out.push_str(name);
+            out.push('}');
         }
-        let selector = rest[selector_start..index].trim();
-        while index < bytes.len() && bytes[index].is_ascii_whitespace() {
-            index += 1;
+        IcuNode::Number { name, style } => render_formatter("number", name, style.as_deref(), out),
+        IcuNode::Date { name, style } => render_formatter("date", name, style.as_deref(), out),
+        IcuNode::Time { name, style } => render_formatter("time", name, style.as_deref(), out),
+        IcuNode::List { name, style } => render_formatter("list", name, style.as_deref(), out),
+        IcuNode::Duration { name, style } => {
+            render_formatter("duration", name, style.as_deref(), out)
         }
-        if index >= bytes.len() || bytes[index] != b'{' {
-            return Err(());
-        }
-        index += 1;
-        let value_start = index;
-        let mut depth = 1usize;
-        while index < bytes.len() && depth > 0 {
-            match bytes[index] {
-                b'{' => depth += 1,
-                b'}' => depth -= 1,
-                _ => {}
+        IcuNode::Ago { name, style } => render_formatter("ago", name, style.as_deref(), out),
+        IcuNode::Name { name, style } => render_formatter("name", name, style.as_deref(), out),
+        IcuNode::Pound => out.push('#'),
+        IcuNode::Tag { name, children } => {
+            out.push('<');
+            out.push_str(name);
+            out.push('>');
+            for child in children {
+                render_projectable_icu_node(child, out)?;
             }
-            index += 1;
+            out.push_str("</");
+            out.push_str(name);
+            out.push('>');
         }
-        if depth != 0 {
-            return Err(());
+        IcuNode::Select { .. } | IcuNode::Plural { .. } => {
+            return Err(
+                "Nested ICU select/plural structures are not projected into the current catalog plural model.",
+            )
         }
-        let value = rest[value_start..index - 1].to_owned();
-        if selector.starts_with('=') {
-            return Err(());
-        }
-        branches.insert(selector.to_owned(), value);
     }
 
-    if branches.contains_key("other") {
-        Ok(Some(ParsedIcuPlural {
-            variable: variable.to_owned(),
-            branches,
-        }))
-    } else {
-        Err(())
+    Ok(())
+}
+
+fn render_formatter(kind: &str, name: &str, style: Option<&str>, out: &mut String) {
+    out.push('{');
+    out.push_str(name);
+    out.push_str(", ");
+    out.push_str(kind);
+    if let Some(style) = style {
+        out.push_str(", ");
+        out.push_str(style);
     }
+    out.push('}');
+}
+
+fn escape_icu_literal(value: &str) -> String {
+    let mut out = String::with_capacity(value.len());
+    for ch in value.chars() {
+        match ch {
+            '\'' => out.push_str("''"),
+            '{' | '}' | '#' | '<' | '>' => {
+                out.push('\'');
+                out.push(ch);
+                out.push('\'');
+            }
+            _ => out.push(ch),
+        }
+    }
+    out
 }
 
 fn atomic_write(path: &Path, content: &str) -> Result<(), ApiError> {
@@ -1963,6 +2058,31 @@ mod tests {
             }
             other => panic!("expected plural translation, got {other:?}"),
         }
+    }
+
+    #[test]
+    fn parse_catalog_warns_and_falls_back_for_unsupported_nested_icu_plural() {
+        let parsed = parse_catalog(ParseCatalogOptions {
+            content: concat!(
+                "msgid \"{count, plural, one {{gender, select, male {He has one item} other {They have one item}}} other {{gender, select, male {He has # items} other {They have # items}}}}\"\n",
+                "msgstr \"{count, plural, one {{gender, select, male {Er hat einen Artikel} other {Sie haben einen Artikel}}} other {{gender, select, male {Er hat # Artikel} other {Sie haben # Artikel}}}}\"\n",
+            )
+            .to_owned(),
+            locale: Some("de".to_owned()),
+            source_locale: "en".to_owned(),
+            plural_encoding: PluralEncoding::Icu,
+            strict: false,
+        })
+        .expect("parse");
+
+        assert!(parsed
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == "plural.unsupported_icu_projection"));
+        assert!(matches!(
+            parsed.messages[0].translation,
+            TranslationShape::Singular { .. }
+        ));
     }
 
     #[test]
