@@ -1,10 +1,14 @@
 mod fixtures;
 
 use std::env;
+use std::fs;
 use std::process::ExitCode;
 use std::time::{Duration, Instant};
 
-use ferrox_po::{SerializeOptions, merge_catalog, parse_po, parse_po_borrowed, stringify_po};
+use ferrox_po::{
+    PluralEncoding, SerializeOptions, UpdateCatalogFileOptions, UpdateCatalogOptions,
+    merge_catalog, parse_po, parse_po_borrowed, stringify_po, update_catalog, update_catalog_file,
+};
 use fixtures::{Fixture, MergeFixture, fixture_by_name, merge_fixture_by_name};
 
 fn main() -> ExitCode {
@@ -40,13 +44,21 @@ fn run() -> Result<(), String> {
             let fixture = load_merge_fixture(&fixture_name)?;
             bench_merge(&fixture, config)
         }
+        "update-catalog" => {
+            let fixture = load_merge_fixture(&fixture_name)?;
+            bench_update_catalog(&fixture, config)
+        }
+        "update-catalog-file" => {
+            let fixture = load_merge_fixture(&fixture_name)?;
+            bench_update_catalog_file(&fixture, config)
+        }
         "describe" => {
             let fixture = load_fixture(&fixture_name)?;
             describe(&fixture);
             Ok(())
         }
         other => Err(format!(
-            "unknown command: {other} (use parse, parse-borrowed, stringify, merge, or describe)"
+            "unknown command: {other} (use parse, parse-borrowed, stringify, merge, update-catalog, update-catalog-file, or describe)"
         )),
     }
 }
@@ -244,6 +256,87 @@ fn bench_merge(fixture: &MergeFixture, config: BenchConfig) -> Result<(), String
         ))
     })?;
     report_merge("merge", fixture, bytes_per_iteration, config, &samples);
+    Ok(())
+}
+
+fn bench_update_catalog(fixture: &MergeFixture, config: BenchConfig) -> Result<(), String> {
+    let mut bytes_per_iteration = 0usize;
+    let samples = run_bench(config, || {
+        let start = Instant::now();
+        let mut bytes = 0usize;
+        for _ in 0..config.iterations {
+            let rendered = update_catalog(UpdateCatalogOptions {
+                locale: Some("de".to_owned()),
+                source_locale: "en".to_owned(),
+                extracted: fixture.api_extracted_messages().to_vec(),
+                existing: Some(fixture.existing_po().to_owned()),
+                plural_encoding: PluralEncoding::Icu,
+                ..UpdateCatalogOptions::default()
+            })
+            .map_err(|error| error.to_string())?;
+            bytes += rendered.content.len();
+            std::hint::black_box(rendered);
+        }
+        bytes_per_iteration = bytes / config.iterations;
+        Ok(BenchSample::new(
+            start.elapsed(),
+            config.iterations,
+            bytes_per_iteration,
+        ))
+    })?;
+    report_merge(
+        "update-catalog",
+        fixture,
+        bytes_per_iteration,
+        config,
+        &samples,
+    );
+    Ok(())
+}
+
+fn bench_update_catalog_file(fixture: &MergeFixture, config: BenchConfig) -> Result<(), String> {
+    let mut bytes_per_iteration = 0usize;
+    let temp_root = std::env::temp_dir().join(format!(
+        "ferrox-bench-update-catalog-file-{}",
+        std::process::id()
+    ));
+    fs::create_dir_all(&temp_root).map_err(|error| error.to_string())?;
+    let path = temp_root.join("messages.po");
+
+    let samples = run_bench(config, || {
+        let start = Instant::now();
+        let mut bytes = 0usize;
+        for _ in 0..config.iterations {
+            fs::write(&path, fixture.existing_po()).map_err(|error| error.to_string())?;
+            let rendered = update_catalog_file(UpdateCatalogFileOptions {
+                target_path: path.clone(),
+                locale: Some("de".to_owned()),
+                source_locale: "en".to_owned(),
+                extracted: fixture.api_extracted_messages().to_vec(),
+                plural_encoding: PluralEncoding::Icu,
+                ..UpdateCatalogFileOptions::default()
+            })
+            .map_err(|error| error.to_string())?;
+            bytes += rendered.content.len();
+            std::hint::black_box(rendered);
+        }
+        bytes_per_iteration = bytes / config.iterations;
+        Ok(BenchSample::new(
+            start.elapsed(),
+            config.iterations,
+            bytes_per_iteration,
+        ))
+    })?;
+    let _ = fs::remove_file(&path);
+    let _ = fs::remove_dir(&temp_root);
+
+    report_merge(
+        "update-catalog-file",
+        fixture,
+        bytes_per_iteration,
+        config,
+        &samples,
+    );
     Ok(())
 }
 

@@ -1,6 +1,9 @@
 use std::borrow::Cow;
 
-use ferrox_po::{ExtractedMessage, parse_po};
+use ferrox_po::{
+    CatalogOrigin, ExtractedMessage, ExtractedPluralMessage, ExtractedSingularMessage,
+    MergeExtractedMessage, PluralSource, parse_po,
+};
 
 const TINY_FIXTURE: &str = include_str!("../fixtures/tiny.po");
 const REALISTIC_FIXTURE: &str = include_str!("../fixtures/realistic.po");
@@ -31,7 +34,8 @@ pub struct MergeFixture {
     name: Cow<'static, str>,
     kind: &'static str,
     existing_po: Cow<'static, str>,
-    extracted_messages: Vec<ExtractedMessage<'static>>,
+    extracted_messages: Vec<MergeExtractedMessage<'static>>,
+    api_extracted_messages: Vec<ExtractedMessage>,
     existing_entries: usize,
 }
 
@@ -48,7 +52,7 @@ impl MergeFixture {
         self.existing_po.as_ref()
     }
 
-    pub fn extracted_messages(&self) -> &[ExtractedMessage<'static>] {
+    pub fn extracted_messages(&self) -> &[MergeExtractedMessage<'static>] {
         &self.extracted_messages
     }
 
@@ -58,6 +62,10 @@ impl MergeFixture {
 
     pub fn extracted_entries(&self) -> usize {
         self.extracted_messages.len()
+    }
+
+    pub fn api_extracted_messages(&self) -> &[ExtractedMessage] {
+        &self.api_extracted_messages
     }
 }
 
@@ -123,6 +131,7 @@ fn generated_merge_fixture(entries: usize) -> MergeFixture {
     let parsed = parse_po(&existing_po).expect("generated merge fixture must parse");
 
     let mut extracted_messages = Vec::with_capacity((entries * 9) / 10);
+    let mut api_extracted_messages = Vec::with_capacity((entries * 9) / 10);
     let mut active_index = 0usize;
     for item in &parsed.items {
         if item.obsolete {
@@ -133,57 +142,108 @@ fn generated_merge_fixture(entries: usize) -> MergeFixture {
             continue;
         }
 
-        extracted_messages.push(ExtractedMessage {
-            msgctxt: item.msgctxt.as_ref().map(|value| Cow::Owned(value.clone())),
-            msgid: Cow::Owned(item.msgid.clone()),
-            msgid_plural: item
-                .msgid_plural
-                .as_ref()
-                .map(|value| Cow::Owned(value.clone())),
-            references: vec![Cow::Owned(format!(
-                "src/merged_{:04}.rs:{}",
-                active_index,
-                (active_index % 200) + 1
-            ))],
-            extracted_comments: if active_index % 7 == 0 {
-                vec![Cow::Owned(format!(
-                    "Merged extractor comment {}",
-                    active_index % 13
-                ))]
-            } else {
-                Vec::new()
-            },
+        let reference = format!(
+            "src/merged_{:04}.rs:{}",
+            active_index,
+            (active_index % 200) + 1
+        );
+        let extracted_comment = (active_index % 7 == 0)
+            .then(|| format!("Merged extractor comment {}", active_index % 13));
+        let msgctxt = item.msgctxt.clone();
+        let msgid = item.msgid.clone();
+        let msgid_plural = item.msgid_plural.clone();
+
+        extracted_messages.push(MergeExtractedMessage {
+            msgctxt: msgctxt.clone().map(Cow::Owned),
+            msgid: Cow::Owned(msgid.clone()),
+            msgid_plural: msgid_plural.clone().map(Cow::Owned),
+            references: vec![Cow::Owned(reference.clone())],
+            extracted_comments: extracted_comment
+                .clone()
+                .into_iter()
+                .map(Cow::Owned)
+                .collect(),
             flags: if active_index % 11 == 0 {
                 vec![Cow::Borrowed("c-format")]
             } else {
                 Vec::new()
             },
         });
+
+        api_extracted_messages.push(if let Some(msgid_plural) = msgid_plural {
+            ExtractedMessage::Plural(ExtractedPluralMessage {
+                msgid,
+                msgctxt,
+                source: PluralSource {
+                    one: Some(item.msgid.clone()),
+                    other: msgid_plural,
+                },
+                comments: extracted_comment.into_iter().collect(),
+                origin: vec![parse_origin(&reference)],
+                placeholders: Default::default(),
+            })
+        } else {
+            ExtractedMessage::Singular(ExtractedSingularMessage {
+                msgid,
+                msgctxt,
+                comments: extracted_comment.into_iter().collect(),
+                origin: vec![parse_origin(&reference)],
+                placeholders: Default::default(),
+            })
+        });
     }
 
     for index in 0..(entries / 10).max(1) {
         let message_index = entries + index;
-        extracted_messages.push(ExtractedMessage {
-            msgctxt: (message_index % 9 == 0)
-                .then(|| Cow::Owned(format!("merge-context-{}", message_index % 5))),
-            msgid: Cow::Owned(format!("Merged message {}", message_index)),
-            msgid_plural: (message_index % 8 == 0)
-                .then(|| Cow::Owned(format!("Merged messages {}", message_index))),
-            references: vec![Cow::Owned(format!(
-                "src/new_merge_{:04}.rs:{}",
-                message_index,
-                (message_index % 200) + 1
-            ))],
-            extracted_comments: if message_index % 6 == 0 {
-                vec![Cow::Borrowed("newly extracted")]
-            } else {
-                Vec::new()
-            },
+        let msgctxt =
+            (message_index % 9 == 0).then(|| format!("merge-context-{}", message_index % 5));
+        let msgid = format!("Merged message {}", message_index);
+        let msgid_plural =
+            (message_index % 8 == 0).then(|| format!("Merged messages {}", message_index));
+        let reference = format!(
+            "src/new_merge_{:04}.rs:{}",
+            message_index,
+            (message_index % 200) + 1
+        );
+        let extracted_comment = (message_index % 6 == 0).then(|| "newly extracted".to_owned());
+
+        extracted_messages.push(MergeExtractedMessage {
+            msgctxt: msgctxt.clone().map(Cow::Owned),
+            msgid: Cow::Owned(msgid.clone()),
+            msgid_plural: msgid_plural.clone().map(Cow::Owned),
+            references: vec![Cow::Owned(reference.clone())],
+            extracted_comments: extracted_comment
+                .clone()
+                .into_iter()
+                .map(Cow::Owned)
+                .collect(),
             flags: if message_index % 10 == 0 {
                 vec![Cow::Borrowed("fuzzy")]
             } else {
                 Vec::new()
             },
+        });
+
+        api_extracted_messages.push(if let Some(msgid_plural) = msgid_plural {
+            ExtractedMessage::Plural(ExtractedPluralMessage {
+                msgid: msgid.clone(),
+                msgctxt: msgctxt.clone(),
+                source: PluralSource {
+                    one: Some(msgid),
+                    other: msgid_plural,
+                },
+                comments: extracted_comment.into_iter().collect(),
+                origin: vec![parse_origin(&reference)],
+                placeholders: Default::default(),
+            })
+        } else {
+            ExtractedMessage::Singular(ExtractedSingularMessage {
+                msgid,
+                msgctxt,
+                comments: extracted_comment.into_iter().collect(),
+                origin: vec![parse_origin(&reference)],
+                placeholders: Default::default(),
+            })
         });
     }
 
@@ -193,6 +253,20 @@ fn generated_merge_fixture(entries: usize) -> MergeFixture {
         existing_entries: parsed.items.len(),
         existing_po: Cow::Owned(existing_po),
         extracted_messages,
+        api_extracted_messages,
+    }
+}
+
+fn parse_origin(reference: &str) -> CatalogOrigin {
+    match reference.rsplit_once(':') {
+        Some((file, line)) if line.chars().all(|ch| ch.is_ascii_digit()) => CatalogOrigin {
+            file: file.to_owned(),
+            line: line.parse::<u32>().ok(),
+        },
+        _ => CatalogOrigin {
+            file: reference.to_owned(),
+            line: None,
+        },
     }
 }
 
