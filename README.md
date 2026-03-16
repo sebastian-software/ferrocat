@@ -141,6 +141,8 @@ The manual external comparison suite, including the official gettext-only benchm
 
 The official `gettext-compat-v1` profile uses a conservative support matrix: `polib` and `pofile` are only included where the generated classic gettext corpus validates to the same normalized semantics, while broader plural-heavy scenarios are still benchmarked via `ferrocat` and GNU gettext tooling.
 
+For workflow-style benchmarking there is now also a separate `gettext-workflows-v1` profile, which compares `merge_catalog` and `update_catalog` against a conservative `msgmerge` baseline on the `gettext-ui-de-*` corpus.
+
 Current external gettext snapshot from [benchmark/results/gettext-compat-v1-first-run.json](benchmark/results/gettext-compat-v1-first-run.json):
 
 The important number is throughput, not `median-ms`. The compare runner calibrates each sample to roughly the same wall-clock duration, so `median-ms` is mainly useful inside one scenario run. For cross-tool reading, compare `items/s`.

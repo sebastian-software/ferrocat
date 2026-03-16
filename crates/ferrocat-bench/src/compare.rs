@@ -394,7 +394,11 @@ impl PreparedScenario {
                         existing_po_path.display()
                     )
                 })?;
-                let pot_path = if first.operation == "merge" {
+                let pot_path = if first.operation == "merge"
+                    || scenarios
+                        .iter()
+                        .any(|scenario| scenario.implementation == "msgmerge")
+                {
                     let pot_path = tempdir.path().join("template.pot");
                     let pot = build_merge_pot(&fixture);
                     fs::write(&pot_path, pot).map_err(|error| {
@@ -636,13 +640,15 @@ impl PreparedScenario {
         let mut last_rendered = None;
         let start = Instant::now();
         let mut bytes_processed = 0usize;
+        let locale = fixture_locale(&self.fixture);
+        let plural_encoding = fixture_plural_encoding(&self.fixture);
         for _ in 0..iterations {
             let updated = update_catalog(UpdateCatalogOptions {
-                locale: Some("de".to_owned()),
+                locale: locale.clone(),
                 source_locale: "en".to_owned(),
                 extracted: fixture.api_messages.clone(),
                 existing: Some(fixture.existing_po.clone()),
-                plural_encoding: PluralEncoding::Icu,
+                plural_encoding,
                 ..UpdateCatalogOptions::default()
             })
             .map_err(|error| format!("update_catalog failed: {error}"))?;
@@ -984,10 +990,14 @@ fn push_po_keyword(out: &mut String, keyword: &str, value: &str) {
 
     out.push_str(keyword);
     out.push_str(" \"\"\n");
-    for line in value.split('\n') {
+    let mut lines = value.split('\n').peekable();
+    while let Some(line) = lines.next() {
         out.push('"');
         out.push_str(&escape_po_text(line));
-        out.push_str("\\n\"\n");
+        if lines.peek().is_some() {
+            out.push_str("\\n");
+        }
+        out.push_str("\"\n");
     }
 }
 
@@ -1015,6 +1025,26 @@ fn load_icu_fixture(name: &str) -> Result<IcuFixture, String> {
 
 fn load_merge_fixture(name: &str) -> Result<MergeFixture, String> {
     merge_fixture_by_name(name).ok_or_else(|| format!("unknown merge fixture: {name}"))
+}
+
+fn fixture_locale(name: &str) -> Option<String> {
+    if !name.starts_with("gettext-") {
+        return Some("de".to_owned());
+    }
+
+    let mut parts = name.split('-');
+    let _prefix = parts.next()?;
+    let _family = parts.next()?;
+    let locale = parts.next()?;
+    Some(locale.to_owned())
+}
+
+fn fixture_plural_encoding(name: &str) -> PluralEncoding {
+    if name.starts_with("gettext-") {
+        PluralEncoding::Gettext
+    } else {
+        PluralEncoding::Icu
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -1052,7 +1082,10 @@ impl PoSemanticSummary {
     }
 
     fn normalized(mut self) -> Self {
-        self.headers.retain(|header| !header.value.is_empty());
+        self.headers.retain(|header| {
+            !header.value.is_empty()
+                && !matches!(header.key.as_str(), "MIME-Version" | "X-Generator")
+        });
         self.headers.sort();
         self.items.iter_mut().for_each(PoItemSummary::normalize);
         self.items.sort();
@@ -1983,6 +2016,132 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "manual compatibility probe for external adapters"]
+    fn debug_msgmerge_gettext_ui_de_merge_compatibility() {
+        let workspace = workspace_root().expect("workspace");
+        let scenarios = vec![
+            BenchmarkScenario {
+                id: "po-merge/gettext-ui-de-1000/ferrocat".to_owned(),
+                comparison_group: "po-merge/gettext-ui-de-1000".to_owned(),
+                workload: "po-merge-update".to_owned(),
+                operation: "merge".to_owned(),
+                fixture: "gettext-ui-de-1000".to_owned(),
+                implementation: "ferrocat-merge".to_owned(),
+                warmup_runs: 0,
+                measured_runs: 1,
+                minimum_sample_millis: Some(1),
+            },
+            BenchmarkScenario {
+                id: "po-merge/gettext-ui-de-1000/msgmerge".to_owned(),
+                comparison_group: "po-merge/gettext-ui-de-1000".to_owned(),
+                workload: "po-merge-update".to_owned(),
+                operation: "merge".to_owned(),
+                fixture: "gettext-ui-de-1000".to_owned(),
+                implementation: "msgmerge".to_owned(),
+                warmup_runs: 0,
+                measured_runs: 1,
+                minimum_sample_millis: Some(1),
+            },
+        ];
+
+        let prepared = PreparedScenario::prepare(&workspace, &scenarios).expect("prepared");
+        let internal = execute_scenario(&workspace, &prepared, &scenarios[0], 1, true)
+            .expect("internal merge");
+        let external =
+            execute_scenario(&workspace, &prepared, &scenarios[1], 1, true).expect("msgmerge");
+
+        let internal_rendered = match internal.artifact.expect("internal artifact") {
+            ExecutionArtifact::RenderedPo(content) => content,
+            ExecutionArtifact::RenderedPoPath(path) => {
+                std::fs::read_to_string(path).expect("read internal rendered output")
+            }
+            other => panic!("unexpected internal artifact: {other:?}"),
+        };
+        let external_rendered = match external.artifact.expect("external artifact") {
+            ExecutionArtifact::RenderedPo(content) => content,
+            ExecutionArtifact::RenderedPoPath(path) => {
+                std::fs::read_to_string(path).expect("read external rendered output")
+            }
+            other => panic!("unexpected external artifact: {other:?}"),
+        };
+
+        let internal_summary =
+            PoSemanticSummary::from_po_file(&parse_po(&internal_rendered).expect("parse internal"));
+        let external_summary =
+            PoSemanticSummary::from_po_file(&parse_po(&external_rendered).expect("parse external"));
+
+        assert_eq!(
+            internal_summary,
+            external_summary,
+            "{}",
+            first_po_summary_difference(&internal_summary, &external_summary)
+        );
+    }
+
+    #[test]
+    #[ignore = "manual compatibility probe for external adapters"]
+    fn debug_msgmerge_gettext_ui_de_update_compatibility() {
+        let workspace = workspace_root().expect("workspace");
+        let scenarios = vec![
+            BenchmarkScenario {
+                id: "po-update/gettext-ui-de-1000/ferrocat".to_owned(),
+                comparison_group: "po-update/gettext-ui-de-1000".to_owned(),
+                workload: "po-merge-update".to_owned(),
+                operation: "update-catalog".to_owned(),
+                fixture: "gettext-ui-de-1000".to_owned(),
+                implementation: "ferrocat-update-catalog".to_owned(),
+                warmup_runs: 0,
+                measured_runs: 1,
+                minimum_sample_millis: Some(1),
+            },
+            BenchmarkScenario {
+                id: "po-update/gettext-ui-de-1000/msgmerge".to_owned(),
+                comparison_group: "po-update/gettext-ui-de-1000".to_owned(),
+                workload: "po-merge-update".to_owned(),
+                operation: "update-catalog".to_owned(),
+                fixture: "gettext-ui-de-1000".to_owned(),
+                implementation: "msgmerge".to_owned(),
+                warmup_runs: 0,
+                measured_runs: 1,
+                minimum_sample_millis: Some(1),
+            },
+        ];
+
+        let prepared = PreparedScenario::prepare(&workspace, &scenarios).expect("prepared");
+        let internal = execute_scenario(&workspace, &prepared, &scenarios[0], 1, true)
+            .expect("internal update");
+        let external =
+            execute_scenario(&workspace, &prepared, &scenarios[1], 1, true).expect("msgmerge");
+
+        let internal_rendered = match internal.artifact.expect("internal artifact") {
+            ExecutionArtifact::RenderedPo(content) => content,
+            ExecutionArtifact::RenderedPoPath(path) => {
+                std::fs::read_to_string(path).expect("read internal rendered output")
+            }
+            other => panic!("unexpected internal artifact: {other:?}"),
+        };
+        let external_rendered = match external.artifact.expect("external artifact") {
+            ExecutionArtifact::RenderedPo(content) => content,
+            ExecutionArtifact::RenderedPoPath(path) => {
+                std::fs::read_to_string(path).expect("read external rendered output")
+            }
+            other => panic!("unexpected external artifact: {other:?}"),
+        };
+
+        let internal_summary =
+            PoSemanticSummary::from_po_file(&parse_po(&internal_rendered).expect("parse internal"));
+        let external_summary =
+            PoSemanticSummary::from_po_file(&parse_po(&external_rendered).expect("parse external"));
+
+        assert_eq!(
+            internal_summary,
+            external_summary,
+            "{}",
+            first_po_summary_difference(&internal_summary, &external_summary)
+        );
+    }
+
+    #[test]
     fn canonical_po_summary_ignores_item_order() {
         let first = PoSemanticSummary::from_po_file(&PoFile {
             headers: vec![ferrocat_po::Header {
@@ -2080,6 +2239,14 @@ mod tests {
         let workspace = workspace_root().expect("workspace");
         let profile = BenchmarkProfile::load(&workspace, "gettext-compat-v1").expect("profile");
         assert_eq!(profile.name, "gettext-compat-v1");
+        assert!(!profile.scenarios.is_empty());
+    }
+
+    #[test]
+    fn profile_loads_gettext_workflows_v1() {
+        let workspace = workspace_root().expect("workspace");
+        let profile = BenchmarkProfile::load(&workspace, "gettext-workflows-v1").expect("profile");
+        assert_eq!(profile.name, "gettext-workflows-v1");
         assert!(!profile.scenarios.is_empty());
     }
 

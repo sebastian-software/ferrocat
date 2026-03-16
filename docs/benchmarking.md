@@ -49,6 +49,10 @@ This checks the required executables and adapter packages and prints the detecte
   - official external benchmark suite
   - gettext-only realistic fixtures with mixed plural-rule locales
   - uses a conservative support matrix across `polib`, `pofile`, and `msgcat`
+- `gettext-workflows-v1`
+  - official external workflow suite for classic gettext merge/update paths
+  - currently compares `merge_catalog` and `update_catalog` against `msgmerge`
+  - intentionally limited to the conservative `gettext-ui-de-*` corpus where semantics match
 - `serious-v1`
   - advanced/internal benchmark suite
   - mixed and ICU-heavy workloads
@@ -70,6 +74,17 @@ The compare command:
 - records 10 measured samples per parse/stringify scenario
 - stores raw samples plus aggregated statistics in JSON
 
+For the workflow-oriented suite:
+
+```bash
+cargo run --release -p ferrocat-bench -- compare gettext-workflows-v1 --out benchmark/results/gettext-workflows-v1-$(date +%Y%m%d-%H%M%S).json
+```
+
+That profile covers:
+
+- `merge_catalog` versus `msgmerge`
+- `update_catalog` versus a `msgmerge`-style external workflow baseline
+
 ## Result Storage
 
 - Internal microbenchmark history stays in `docs/performance-history.md`
@@ -87,6 +102,7 @@ External baselines currently wired:
 
 - `polib` and `pofile` on the most conservative parse/stringify corpus: `gettext-ui-de-*`
 - `msgcat` on the broader gettext stringify corpora, including plural-heavier locales
+- `msgmerge` on the conservative gettext workflow corpus for merge/update comparisons
 - `ferrocat` internal owned vs borrowed parse baselines across the wider locale mix
 
 This is intentional. The fixture families are all classic gettext, but the official matrix only includes a tool where the pre-validation step confirms the same normalized semantics. The advanced `mixed-*` and ICU-heavy corpora remain separate from the official gettext comparison track.
