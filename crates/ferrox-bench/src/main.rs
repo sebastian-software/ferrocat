@@ -5,11 +5,14 @@ use std::fs;
 use std::process::ExitCode;
 use std::time::{Duration, Instant};
 
+use ferrox_icu::{extract_variables, parse_icu, validate_icu};
 use ferrox_po::{
     PluralEncoding, SerializeOptions, UpdateCatalogFileOptions, UpdateCatalogOptions,
     merge_catalog, parse_po, parse_po_borrowed, stringify_po, update_catalog, update_catalog_file,
 };
-use fixtures::{Fixture, MergeFixture, fixture_by_name, merge_fixture_by_name};
+use fixtures::{
+    Fixture, IcuFixture, MergeFixture, fixture_by_name, icu_fixture_by_name, merge_fixture_by_name,
+};
 
 fn main() -> ExitCode {
     match run() {
@@ -36,6 +39,18 @@ fn run() -> Result<(), String> {
             let fixture = load_fixture(&fixture_name)?;
             bench_parse_borrowed(&fixture, config)
         }
+        "parse-icu" => {
+            let fixture = load_icu_fixture(&fixture_name)?;
+            bench_parse_icu(&fixture, config)
+        }
+        "validate-icu" => {
+            let fixture = load_icu_fixture(&fixture_name)?;
+            bench_validate_icu(&fixture, config)
+        }
+        "extract-icu-variables" => {
+            let fixture = load_icu_fixture(&fixture_name)?;
+            bench_extract_icu_variables(&fixture, config)
+        }
         "stringify" => {
             let fixture = load_fixture(&fixture_name)?;
             bench_stringify(&fixture, config)
@@ -58,7 +73,7 @@ fn run() -> Result<(), String> {
             Ok(())
         }
         other => Err(format!(
-            "unknown command: {other} (use parse, parse-borrowed, stringify, merge, update-catalog, update-catalog-file, or describe)"
+            "unknown command: {other} (use parse, parse-borrowed, parse-icu, validate-icu, extract-icu-variables, stringify, merge, update-catalog, update-catalog-file, or describe)"
         )),
     }
 }
@@ -139,9 +154,19 @@ fn load_fixture(fixture_name: &str) -> Result<Fixture, String> {
     })
 }
 
+fn load_icu_fixture(fixture_name: &str) -> Result<IcuFixture, String> {
+    icu_fixture_by_name(fixture_name).ok_or_else(|| {
+        format!(
+            "unknown icu fixture: {fixture_name} (use icu-literal-1000, icu-literal-10000, icu-args-1000, icu-args-10000, icu-formatters-1000, icu-formatters-10000, icu-plural-1000, icu-plural-10000, icu-select-1000, icu-select-10000, icu-nested-1000, icu-nested-10000, icu-tags-1000, or icu-tags-10000)"
+        )
+    })
+}
+
 fn load_merge_fixture(fixture_name: &str) -> Result<MergeFixture, String> {
     merge_fixture_by_name(fixture_name).ok_or_else(|| {
-        format!("unknown merge fixture: {fixture_name} (use mixed-1000 or mixed-10000)")
+        format!(
+            "unknown merge fixture: {fixture_name} (use mixed-1000, mixed-10000, catalog-icu-light, catalog-icu-heavy, catalog-icu-projectable, or catalog-icu-unsupported)"
+        )
     })
 }
 
@@ -149,7 +174,11 @@ fn default_iterations(fixture_name: &str) -> usize {
     match fixture_name {
         "tiny" => 20_000,
         "mixed-10000" => 100,
+        "catalog-icu-heavy" => 25,
+        "catalog-icu-projectable" | "catalog-icu-unsupported" => 50,
         "stress" => 1_000,
+        name if name.starts_with("icu-") && name.ends_with("-10000") => 50,
+        name if name.starts_with("icu-") => 200,
         _ => 5_000,
     }
 }
@@ -203,6 +232,68 @@ fn bench_parse_borrowed(fixture: &Fixture, config: BenchConfig) -> Result<(), St
         config,
         &samples,
     );
+    Ok(())
+}
+
+fn bench_parse_icu(fixture: &IcuFixture, config: BenchConfig) -> Result<(), String> {
+    let samples = run_bench(config, || {
+        let start = Instant::now();
+        for _ in 0..config.iterations {
+            for message in fixture.messages() {
+                let parsed = parse_icu(message).map_err(|error| error.to_string())?;
+                std::hint::black_box(parsed);
+            }
+        }
+        Ok(BenchSample::new(
+            start.elapsed(),
+            config.iterations,
+            fixture.total_bytes(),
+        ))
+    })?;
+    report_icu("parse-icu", fixture, config, &samples);
+    Ok(())
+}
+
+fn bench_validate_icu(fixture: &IcuFixture, config: BenchConfig) -> Result<(), String> {
+    let samples = run_bench(config, || {
+        let start = Instant::now();
+        for _ in 0..config.iterations {
+            for message in fixture.messages() {
+                validate_icu(message).map_err(|error| error.to_string())?;
+            }
+        }
+        Ok(BenchSample::new(
+            start.elapsed(),
+            config.iterations,
+            fixture.total_bytes(),
+        ))
+    })?;
+    report_icu("validate-icu", fixture, config, &samples);
+    Ok(())
+}
+
+fn bench_extract_icu_variables(fixture: &IcuFixture, config: BenchConfig) -> Result<(), String> {
+    let parsed = fixture
+        .messages()
+        .iter()
+        .map(|message| parse_icu(message).map_err(|error| error.to_string()))
+        .collect::<Result<Vec<_>, _>>()?;
+
+    let samples = run_bench(config, || {
+        let start = Instant::now();
+        for _ in 0..config.iterations {
+            for message in &parsed {
+                let variables = extract_variables(message);
+                std::hint::black_box(variables);
+            }
+        }
+        Ok(BenchSample::new(
+            start.elapsed(),
+            config.iterations,
+            fixture.total_bytes(),
+        ))
+    })?;
+    report_icu("extract-icu-variables", fixture, config, &samples);
     Ok(())
 }
 
@@ -392,6 +483,29 @@ fn report_merge(
     println!("existing-items: {}", fixture.existing_entries());
     println!("extracted-items: {}", fixture.extracted_entries());
     println!("bytes/iteration: {bytes_per_iteration}");
+    println!(
+        "median-elapsed: {:.3}s",
+        summary.median.elapsed.as_secs_f64()
+    );
+    println!("median-iter/s: {:.1}", summary.median.iter_per_sec);
+    println!("median-MiB/s: {:.2}", summary.median.mib_per_sec);
+    println!(
+        "iter/s-range: {:.1}..{:.1}",
+        summary.min_iter_per_sec, summary.max_iter_per_sec
+    );
+}
+
+fn report_icu(command: &str, fixture: &IcuFixture, config: BenchConfig, samples: &[BenchSample]) {
+    let summary = summarize(samples);
+
+    println!("command: {command}");
+    println!("fixture: {}", fixture.name());
+    println!("kind: {}", fixture.kind());
+    println!("iterations/run: {}", config.iterations);
+    println!("measured-runs: {}", config.runs);
+    println!("warmup-runs: {}", config.warmup_runs);
+    println!("messages/iteration: {}", fixture.entries());
+    println!("bytes/iteration: {}", fixture.total_bytes());
     println!(
         "median-elapsed: {:.3}s",
         summary.median.elapsed.as_secs_f64()

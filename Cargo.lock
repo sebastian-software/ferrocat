@@ -17,6 +17,7 @@ dependencies = [
 name = "ferrox-bench"
 version = "0.1.0"
 dependencies = [
+ "ferrox-icu",
  "ferrox-po",
 ]
 

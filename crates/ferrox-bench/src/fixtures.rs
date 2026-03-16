@@ -1,4 +1,5 @@
 use std::borrow::Cow;
+use std::collections::BTreeMap;
 
 use ferrox_po::{
     CatalogOrigin, ExtractedMessage, ExtractedPluralMessage, ExtractedSingularMessage,
@@ -30,6 +31,13 @@ pub struct Fixture {
     stats: FixtureStats,
 }
 
+pub struct IcuFixture {
+    name: Cow<'static, str>,
+    kind: &'static str,
+    messages: Vec<String>,
+    total_bytes: usize,
+}
+
 pub struct MergeFixture {
     name: Cow<'static, str>,
     kind: &'static str,
@@ -37,6 +45,25 @@ pub struct MergeFixture {
     extracted_messages: Vec<MergeExtractedMessage<'static>>,
     api_extracted_messages: Vec<ExtractedMessage>,
     existing_entries: usize,
+}
+
+#[derive(Clone, Copy)]
+enum IcuFixtureKind {
+    Literal,
+    Args,
+    Formatters,
+    Plural,
+    Select,
+    Nested,
+    Tags,
+}
+
+#[derive(Clone, Copy)]
+enum CatalogIcuFixtureKind {
+    Light,
+    Heavy,
+    Projectable,
+    Unsupported,
 }
 
 impl MergeFixture {
@@ -87,6 +114,28 @@ impl Fixture {
     }
 }
 
+impl IcuFixture {
+    pub fn name(&self) -> &str {
+        self.name.as_ref()
+    }
+
+    pub fn kind(&self) -> &str {
+        self.kind
+    }
+
+    pub fn messages(&self) -> &[String] {
+        &self.messages
+    }
+
+    pub fn entries(&self) -> usize {
+        self.messages.len()
+    }
+
+    pub fn total_bytes(&self) -> usize {
+        self.total_bytes
+    }
+}
+
 pub fn fixture_by_name(name: &str) -> Option<Fixture> {
     match name {
         "tiny" => Some(static_fixture("tiny", TINY_FIXTURE)),
@@ -98,10 +147,40 @@ pub fn fixture_by_name(name: &str) -> Option<Fixture> {
     }
 }
 
+pub fn icu_fixture_by_name(name: &str) -> Option<IcuFixture> {
+    match name {
+        "icu-literal-1000" => Some(generated_icu_fixture(IcuFixtureKind::Literal, 1_000)),
+        "icu-literal-10000" => Some(generated_icu_fixture(IcuFixtureKind::Literal, 10_000)),
+        "icu-args-1000" => Some(generated_icu_fixture(IcuFixtureKind::Args, 1_000)),
+        "icu-args-10000" => Some(generated_icu_fixture(IcuFixtureKind::Args, 10_000)),
+        "icu-formatters-1000" => Some(generated_icu_fixture(IcuFixtureKind::Formatters, 1_000)),
+        "icu-formatters-10000" => {
+            Some(generated_icu_fixture(IcuFixtureKind::Formatters, 10_000))
+        }
+        "icu-plural-1000" => Some(generated_icu_fixture(IcuFixtureKind::Plural, 1_000)),
+        "icu-plural-10000" => Some(generated_icu_fixture(IcuFixtureKind::Plural, 10_000)),
+        "icu-select-1000" => Some(generated_icu_fixture(IcuFixtureKind::Select, 1_000)),
+        "icu-select-10000" => Some(generated_icu_fixture(IcuFixtureKind::Select, 10_000)),
+        "icu-nested-1000" => Some(generated_icu_fixture(IcuFixtureKind::Nested, 1_000)),
+        "icu-nested-10000" => Some(generated_icu_fixture(IcuFixtureKind::Nested, 10_000)),
+        "icu-tags-1000" => Some(generated_icu_fixture(IcuFixtureKind::Tags, 1_000)),
+        "icu-tags-10000" => Some(generated_icu_fixture(IcuFixtureKind::Tags, 10_000)),
+        _ => None,
+    }
+}
+
 pub fn merge_fixture_by_name(name: &str) -> Option<MergeFixture> {
     match name {
         "mixed-1000" => Some(generated_merge_fixture(1_000)),
         "mixed-10000" => Some(generated_merge_fixture(10_000)),
+        "catalog-icu-light" => Some(generated_catalog_icu_fixture(CatalogIcuFixtureKind::Light, 1_000)),
+        "catalog-icu-heavy" => Some(generated_catalog_icu_fixture(CatalogIcuFixtureKind::Heavy, 1_000)),
+        "catalog-icu-projectable" => {
+            Some(generated_catalog_icu_fixture(CatalogIcuFixtureKind::Projectable, 1_000))
+        }
+        "catalog-icu-unsupported" => {
+            Some(generated_catalog_icu_fixture(CatalogIcuFixtureKind::Unsupported, 1_000))
+        }
         _ => None,
     }
 }
@@ -123,6 +202,20 @@ fn generated_fixture(entries: usize) -> Fixture {
         kind: "generated",
         content: Cow::Owned(content),
         stats,
+    }
+}
+
+fn generated_icu_fixture(kind: IcuFixtureKind, entries: usize) -> IcuFixture {
+    let messages = (0..entries)
+        .map(|index| build_icu_message(kind, index))
+        .collect::<Vec<_>>();
+    let total_bytes = messages.iter().map(|message| message.len()).sum();
+
+    IcuFixture {
+        name: Cow::Owned(format!("{}-{entries}", icu_fixture_kind_name(kind))),
+        kind: "generated",
+        messages,
+        total_bytes,
     }
 }
 
@@ -255,6 +348,394 @@ fn generated_merge_fixture(entries: usize) -> MergeFixture {
         extracted_messages,
         api_extracted_messages,
     }
+}
+
+fn generated_catalog_icu_fixture(kind: CatalogIcuFixtureKind, entries: usize) -> MergeFixture {
+    let mut existing_po = String::with_capacity(entries * 160);
+    existing_po.push_str("# ICU-heavy benchmark catalog\n");
+    existing_po.push_str("msgid \"\"\n");
+    existing_po.push_str("msgstr \"\"\n");
+    existing_po.push_str("\"Project-Id-Version: ferrox icu benchmark\\n\"\n");
+    existing_po.push_str("\"Language: de\\n\"\n");
+    existing_po.push_str("\"Content-Type: text/plain; charset=UTF-8\\n\"\n");
+    existing_po.push_str("\"Content-Transfer-Encoding: 8bit\\n\"\n\n");
+
+    let mut extracted_messages = Vec::with_capacity(entries);
+    let mut api_extracted_messages = Vec::with_capacity(entries);
+
+    for index in 0..entries {
+        let msgctxt = (index % 9 == 0).then(|| format!("icu-context-{}", index % 5));
+        let reference = format!("src/icu_{:04}.tsx:{}", index, (index % 200) + 1);
+        let comments = if index % 7 == 0 {
+            vec![format!("ICU benchmark extractor note {}", index % 11)]
+        } else {
+            Vec::new()
+        };
+        let origin = vec![parse_origin(&reference)];
+        let flavor = catalog_icu_flavor(kind, index);
+        let (msgid, msgstr, api_message, merge_message) =
+            build_catalog_icu_entry(flavor, index, msgctxt.clone(), comments, origin, reference);
+
+        if let Some(ref msgctxt) = msgctxt {
+            push_keyword(&mut existing_po, "", "msgctxt", msgctxt);
+        }
+        push_keyword(&mut existing_po, "", "msgid", &msgid);
+        push_keyword(&mut existing_po, "", "msgstr", &msgstr);
+        existing_po.push('\n');
+
+        api_extracted_messages.push(api_message);
+        extracted_messages.push(merge_message);
+    }
+
+    MergeFixture {
+        name: Cow::Borrowed(match kind {
+            CatalogIcuFixtureKind::Light => "catalog-icu-light",
+            CatalogIcuFixtureKind::Heavy => "catalog-icu-heavy",
+            CatalogIcuFixtureKind::Projectable => "catalog-icu-projectable",
+            CatalogIcuFixtureKind::Unsupported => "catalog-icu-unsupported",
+        }),
+        kind: "generated",
+        existing_entries: entries,
+        existing_po: Cow::Owned(existing_po),
+        extracted_messages,
+        api_extracted_messages,
+    }
+}
+
+fn icu_fixture_kind_name(kind: IcuFixtureKind) -> &'static str {
+    match kind {
+        IcuFixtureKind::Literal => "icu-literal",
+        IcuFixtureKind::Args => "icu-args",
+        IcuFixtureKind::Formatters => "icu-formatters",
+        IcuFixtureKind::Plural => "icu-plural",
+        IcuFixtureKind::Select => "icu-select",
+        IcuFixtureKind::Nested => "icu-nested",
+        IcuFixtureKind::Tags => "icu-tags",
+    }
+}
+
+fn build_icu_message(kind: IcuFixtureKind, index: usize) -> String {
+    match kind {
+        IcuFixtureKind::Literal => {
+            format!("Static localized copy for benchmark entry {index} without ICU placeholders.")
+        }
+        IcuFixtureKind::Args => format!(
+            "Hello {{name}}, benchmark item {index} has {{count}} values and {{value}}."
+        ),
+        IcuFixtureKind::Formatters => format!(
+            "On {{date, date, short}} at {{time, time, ::HHmm}} {{name}} saw {{count, number, integer}} items in list {{items, list, disjunction}}."
+        ),
+        IcuFixtureKind::Plural => icu_top_level_plural(
+            "count",
+            &format!("{index} file for {{name}}"),
+            &format!("{index} files for {{name}}"),
+        ),
+        IcuFixtureKind::Select => format!(
+            "{{gender, select, male {{He has {{count, number}} files for {{name}}}} female {{She has {{count, number}} files for {{name}}}} other {{They have {{count, number}} files for {{name}}}}}}"
+        ),
+        IcuFixtureKind::Nested => format!(
+            "{{gender, select, male {{{{count, plural, one {{He opened one alert}} other {{He opened # alerts for {{name}}}}}}}} female {{{{count, plural, one {{She opened one alert}} other {{She opened # alerts for {{name}}}}}}}} other {{{{count, plural, one {{They opened one alert}} other {{They opened # alerts for {{name}}}}}}}}}}"
+        ),
+        IcuFixtureKind::Tags => format!(
+            "<link>{{name}}</link> has <b>{{count, plural, one {{# alert}} other {{# alerts}}}}</b> in benchmark entry {index}."
+        ),
+    }
+}
+
+fn icu_top_level_plural(variable: &str, one: &str, other: &str) -> String {
+    let mut out = String::new();
+    out.push('{');
+    out.push_str(variable);
+    out.push_str(", plural, one {");
+    out.push_str(one);
+    out.push_str("} other {");
+    out.push_str(other);
+    out.push_str("}}");
+    out
+}
+
+fn catalog_icu_flavor(kind: CatalogIcuFixtureKind, index: usize) -> CatalogIcuFlavor {
+    match kind {
+        CatalogIcuFixtureKind::Light => {
+            if index % 12 == 0 {
+                CatalogIcuFlavor::ProjectablePlural
+            } else if index % 5 == 0 {
+                CatalogIcuFlavor::Formatters
+            } else {
+                CatalogIcuFlavor::Args
+            }
+        }
+        CatalogIcuFixtureKind::Heavy => match index % 6 {
+            0 | 1 => CatalogIcuFlavor::ProjectablePlural,
+            2 => CatalogIcuFlavor::NestedUnsupported,
+            3 => CatalogIcuFlavor::SelectUnsupported,
+            4 => CatalogIcuFlavor::TagsProjectable,
+            _ => CatalogIcuFlavor::Formatters,
+        },
+        CatalogIcuFixtureKind::Projectable => match index % 3 {
+            0 => CatalogIcuFlavor::ProjectablePlural,
+            1 => CatalogIcuFlavor::TagsProjectable,
+            _ => CatalogIcuFlavor::FormatterPlural,
+        },
+        CatalogIcuFixtureKind::Unsupported => match index % 3 {
+            0 => CatalogIcuFlavor::NestedUnsupported,
+            1 => CatalogIcuFlavor::ExactSelectorUnsupported,
+            _ => CatalogIcuFlavor::OffsetUnsupported,
+        },
+    }
+}
+
+#[derive(Clone, Copy)]
+enum CatalogIcuFlavor {
+    Args,
+    Formatters,
+    ProjectablePlural,
+    FormatterPlural,
+    TagsProjectable,
+    NestedUnsupported,
+    SelectUnsupported,
+    ExactSelectorUnsupported,
+    OffsetUnsupported,
+}
+
+fn build_catalog_icu_entry(
+    flavor: CatalogIcuFlavor,
+    index: usize,
+    msgctxt: Option<String>,
+    comments: Vec<String>,
+    origin: Vec<CatalogOrigin>,
+    reference: String,
+) -> (String, String, ExtractedMessage, MergeExtractedMessage<'static>) {
+    let merge_comments = comments.iter().cloned().map(Cow::Owned).collect::<Vec<_>>();
+    let merge_reference = vec![Cow::Owned(reference)];
+    match flavor {
+        CatalogIcuFlavor::Args => {
+            let msgid = format!("Bench {index}: Hello {{name}}, you have {{count}} items.");
+            let msgstr = format!("Lauf {index}: Hallo {{name}}, du hast {{count}} Einträge.");
+            let placeholders = placeholder_map(&[("name", "name"), ("count", "count")]);
+            let api = ExtractedMessage::Singular(ExtractedSingularMessage {
+                msgid: msgid.clone(),
+                msgctxt: msgctxt.clone(),
+                comments,
+                origin,
+                placeholders,
+            });
+            let merge = MergeExtractedMessage {
+                msgctxt: msgctxt.clone().map(Cow::Owned),
+                msgid: Cow::Owned(msgid.clone()),
+                msgid_plural: None,
+                references: merge_reference,
+                extracted_comments: merge_comments,
+                flags: Vec::new(),
+            };
+            (msgid, msgstr, api, merge)
+        }
+        CatalogIcuFlavor::Formatters => {
+            let msgid = format!(
+                "Bench {index}: {{count, number, integer}} items on {{date, date, short}} for {{name}}."
+            );
+            let msgstr = format!(
+                "Lauf {index}: {{count, number, integer}} Einträge am {{date, date, short}} für {{name}}."
+            );
+            let placeholders = placeholder_map(&[
+                ("count", "count"),
+                ("date", "date"),
+                ("name", "name"),
+            ]);
+            let api = ExtractedMessage::Singular(ExtractedSingularMessage {
+                msgid: msgid.clone(),
+                msgctxt: msgctxt.clone(),
+                comments,
+                origin,
+                placeholders,
+            });
+            let merge = MergeExtractedMessage {
+                msgctxt: msgctxt.clone().map(Cow::Owned),
+                msgid: Cow::Owned(msgid.clone()),
+                msgid_plural: None,
+                references: merge_reference,
+                extracted_comments: merge_comments,
+                flags: Vec::new(),
+            };
+            (msgid, msgstr, api, merge)
+        }
+        CatalogIcuFlavor::ProjectablePlural
+        | CatalogIcuFlavor::FormatterPlural
+        | CatalogIcuFlavor::TagsProjectable => {
+            let (msgid, msgstr, one, other) = match flavor {
+                CatalogIcuFlavor::ProjectablePlural => (
+                    icu_top_level_plural(
+                        "count",
+                        &format!("{index} file for {{name}}"),
+                        &format!("{index} files for {{name}}"),
+                    ),
+                    icu_top_level_plural(
+                        "count",
+                        &format!("{index} Datei für {{name}}"),
+                        &format!("{index} Dateien für {{name}}"),
+                    ),
+                    format!("{index} file for {{name}}"),
+                    format!("{index} files for {{name}}"),
+                ),
+                CatalogIcuFlavor::FormatterPlural => (
+                    icu_top_level_plural(
+                        "count",
+                        &format!("{index} file on {{date, date, short}}"),
+                        &format!("{index} files on {{date, date, short}}"),
+                    ),
+                    icu_top_level_plural(
+                        "count",
+                        &format!("{index} Datei am {{date, date, short}}"),
+                        &format!("{index} Dateien am {{date, date, short}}"),
+                    ),
+                    format!("{index} file on {{date, date, short}}"),
+                    format!("{index} files on {{date, date, short}}"),
+                ),
+                CatalogIcuFlavor::TagsProjectable => (
+                    format!(
+                        "{{count, plural, one {{<link>{index} alert</link>}} other {{<link>{index} alerts</link>}}}}"
+                    ),
+                    format!(
+                        "{{count, plural, one {{<link>{index} Hinweis</link>}} other {{<link>{index} Hinweise</link>}}}}"
+                    ),
+                    format!("<link>{index} alert</link>"),
+                    format!("<link>{index} alerts</link>"),
+                ),
+                _ => unreachable!(),
+            };
+            let mut placeholders = placeholder_map(&[("count", "count")]);
+            if matches!(flavor, CatalogIcuFlavor::ProjectablePlural) {
+                placeholders.insert("name".to_owned(), vec!["name".to_owned()]);
+            }
+            if matches!(flavor, CatalogIcuFlavor::FormatterPlural) {
+                placeholders.insert("date".to_owned(), vec!["date".to_owned()]);
+            }
+            let api = ExtractedMessage::Plural(ExtractedPluralMessage {
+                msgid: msgid.clone(),
+                msgctxt: msgctxt.clone(),
+                source: PluralSource {
+                    one: Some(one.clone()),
+                    other: other.clone(),
+                },
+                comments,
+                origin,
+                placeholders,
+            });
+            let merge = MergeExtractedMessage {
+                msgctxt: msgctxt.clone().map(Cow::Owned),
+                msgid: Cow::Owned(msgid.clone()),
+                msgid_plural: None,
+                references: merge_reference,
+                extracted_comments: merge_comments,
+                flags: Vec::new(),
+            };
+            (msgid, msgstr, api, merge)
+        }
+        CatalogIcuFlavor::NestedUnsupported => {
+            let msgid = format!(
+                "{{count, plural, one {{{{name, select, short {{One short file}} other {{One file for {{name}}}}}}}} other {{{{name, select, short {{# short files}} other {{# files for {{name}}}}}}}}}}"
+            );
+            let msgstr = format!(
+                "{{count, plural, one {{{{name, select, short {{Eine kurze Datei}} other {{Eine Datei für {{name}}}}}}}} other {{{{name, select, short {{# kurze Dateien}} other {{# Dateien für {{name}}}}}}}}}}"
+            );
+            let placeholders = placeholder_map(&[("count", "count"), ("name", "name")]);
+            let api = ExtractedMessage::Singular(ExtractedSingularMessage {
+                msgid: msgid.clone(),
+                msgctxt: msgctxt.clone(),
+                comments,
+                origin,
+                placeholders,
+            });
+            let merge = MergeExtractedMessage {
+                msgctxt: msgctxt.clone().map(Cow::Owned),
+                msgid: Cow::Owned(msgid.clone()),
+                msgid_plural: None,
+                references: merge_reference,
+                extracted_comments: merge_comments,
+                flags: Vec::new(),
+            };
+            (msgid, msgstr, api, merge)
+        }
+        CatalogIcuFlavor::SelectUnsupported => {
+            let msgid = format!(
+                "{{choice, select, a {{{{count, plural, one {{One A}} other {{# A items}}}}}} other {{{{count, plural, one {{One other}} other {{# other items}}}}}}}}"
+            );
+            let msgstr = format!(
+                "{{choice, select, a {{{{count, plural, one {{Ein A}} other {{# A-Einträge}}}}}} other {{{{count, plural, one {{Ein anderer}} other {{# andere Einträge}}}}}}}}"
+            );
+            let placeholders = placeholder_map(&[("choice", "choice"), ("count", "count")]);
+            let api = ExtractedMessage::Singular(ExtractedSingularMessage {
+                msgid: msgid.clone(),
+                msgctxt: msgctxt.clone(),
+                comments,
+                origin,
+                placeholders,
+            });
+            let merge = MergeExtractedMessage {
+                msgctxt: msgctxt.clone().map(Cow::Owned),
+                msgid: Cow::Owned(msgid.clone()),
+                msgid_plural: None,
+                references: merge_reference,
+                extracted_comments: merge_comments,
+                flags: Vec::new(),
+            };
+            (msgid, msgstr, api, merge)
+        }
+        CatalogIcuFlavor::ExactSelectorUnsupported => {
+            let msgid = "{count, plural, =0 {No files} one {One file} other {# files}}".to_owned();
+            let msgstr =
+                "{count, plural, =0 {Keine Dateien} one {Eine Datei} other {# Dateien}}".to_owned();
+            let placeholders = placeholder_map(&[("count", "count")]);
+            let api = ExtractedMessage::Singular(ExtractedSingularMessage {
+                msgid: msgid.clone(),
+                msgctxt: msgctxt.clone(),
+                comments,
+                origin,
+                placeholders,
+            });
+            let merge = MergeExtractedMessage {
+                msgctxt: msgctxt.clone().map(Cow::Owned),
+                msgid: Cow::Owned(msgid.clone()),
+                msgid_plural: None,
+                references: merge_reference,
+                extracted_comments: merge_comments,
+                flags: Vec::new(),
+            };
+            (msgid, msgstr, api, merge)
+        }
+        CatalogIcuFlavor::OffsetUnsupported => {
+            let msgid = "{count, plural, offset:1 one {One guest} other {# guests}}".to_owned();
+            let msgstr =
+                "{count, plural, offset:1 one {Ein Gast} other {# Gäste}}".to_owned();
+            let placeholders = placeholder_map(&[("count", "count")]);
+            let api = ExtractedMessage::Singular(ExtractedSingularMessage {
+                msgid: msgid.clone(),
+                msgctxt: msgctxt.clone(),
+                comments,
+                origin,
+                placeholders,
+            });
+            let merge = MergeExtractedMessage {
+                msgctxt: msgctxt.map(Cow::Owned),
+                msgid: Cow::Owned(msgid.clone()),
+                msgid_plural: None,
+                references: merge_reference,
+                extracted_comments: merge_comments,
+                flags: Vec::new(),
+            };
+            (msgid, msgstr, api, merge)
+        }
+    }
+}
+
+fn placeholder_map(entries: &[(&str, &str)]) -> BTreeMap<String, Vec<String>> {
+    let mut map = BTreeMap::new();
+    for (name, value) in entries {
+        map.entry((*name).to_owned())
+            .or_insert_with(Vec::new)
+            .push((*value).to_owned());
+    }
+    map
 }
 
 fn parse_origin(reference: &str) -> CatalogOrigin {
@@ -532,7 +1013,10 @@ fn scan_stats(content: &str) -> FixtureStats {
 
 #[cfg(test)]
 mod tests {
-    use super::fixture_by_name;
+    use ferrox_icu::parse_icu;
+    use ferrox_po::{PluralEncoding, UpdateCatalogOptions, update_catalog};
+
+    use super::{fixture_by_name, icu_fixture_by_name, merge_fixture_by_name};
 
     #[test]
     fn builds_mixed_1000_fixture_with_expected_shape() {
@@ -550,5 +1034,77 @@ mod tests {
         assert!(stats.obsolete_entries >= 9);
         assert!(stats.multiline_entries >= 30);
         assert!(stats.escaped_entries >= 20);
+    }
+
+    #[test]
+    fn builds_parseable_icu_fixtures() {
+        for name in [
+            "icu-literal-1000",
+            "icu-args-1000",
+            "icu-formatters-1000",
+            "icu-plural-1000",
+            "icu-select-1000",
+            "icu-nested-1000",
+            "icu-tags-1000",
+        ] {
+            let fixture = icu_fixture_by_name(name).expect("icu fixture exists");
+            assert_eq!(fixture.entries(), 1000);
+            for message in fixture.messages().iter().take(32) {
+                parse_icu(message).expect("generated icu fixture must parse");
+            }
+        }
+    }
+
+    #[test]
+    fn builds_catalog_icu_fixtures() {
+        for name in [
+            "catalog-icu-light",
+            "catalog-icu-heavy",
+            "catalog-icu-projectable",
+            "catalog-icu-unsupported",
+        ] {
+            let fixture = merge_fixture_by_name(name).expect("catalog icu fixture exists");
+            assert!(fixture.existing_po().contains("msgid"));
+            assert_eq!(fixture.extracted_entries(), 1000);
+        }
+    }
+
+    #[test]
+    fn update_catalog_accepts_projectable_icu_fixture() {
+        let fixture = merge_fixture_by_name("catalog-icu-projectable").expect("fixture exists");
+        let result = update_catalog(UpdateCatalogOptions {
+            locale: Some("de".to_owned()),
+            source_locale: "en".to_owned(),
+            extracted: fixture.api_extracted_messages().to_vec(),
+            existing: Some(fixture.existing_po().to_owned()),
+            plural_encoding: PluralEncoding::Icu,
+            ..UpdateCatalogOptions::default()
+        })
+        .expect("update catalog");
+
+        assert!(result.content.contains("plural"));
+        assert!(result.diagnostics.is_empty());
+    }
+
+    #[test]
+    fn update_catalog_preserves_diagnostics_for_unsupported_icu_fixture() {
+        let fixture = merge_fixture_by_name("catalog-icu-unsupported").expect("fixture exists");
+        let result = update_catalog(UpdateCatalogOptions {
+            locale: Some("de".to_owned()),
+            source_locale: "en".to_owned(),
+            extracted: fixture.api_extracted_messages().to_vec(),
+            existing: Some(fixture.existing_po().to_owned()),
+            plural_encoding: PluralEncoding::Icu,
+            ..UpdateCatalogOptions::default()
+        })
+        .expect("update catalog");
+
+        assert!(!result.diagnostics.is_empty());
+        assert!(
+            result
+                .diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.code == "plural.unsupported_icu_projection")
+        );
     }
 }
