@@ -1,0 +1,56 @@
+{
+  "name": "serious-v1",
+  "minimum_sample_millis": 250,
+  "scenarios": [
+    { "id": "po-parse/mixed-1000/ferrocat-owned", "comparison_group": "po-parse/mixed-1000", "workload": "po-parse", "operation": "parse", "fixture": "mixed-1000", "implementation": "ferrocat-parse", "warmup_runs": 2, "measured_runs": 10 },
+    { "id": "po-parse/mixed-1000/ferrocat-borrowed", "comparison_group": "po-parse/mixed-1000", "workload": "po-parse", "operation": "parse", "fixture": "mixed-1000", "implementation": "ferrocat-parse-borrowed", "warmup_runs": 2, "measured_runs": 10 },
+
+    { "id": "po-parse/mixed-10000/ferrocat-owned", "comparison_group": "po-parse/mixed-10000", "workload": "po-parse", "operation": "parse", "fixture": "mixed-10000", "implementation": "ferrocat-parse", "warmup_runs": 2, "measured_runs": 10 },
+    { "id": "po-parse/mixed-10000/ferrocat-borrowed", "comparison_group": "po-parse/mixed-10000", "workload": "po-parse", "operation": "parse", "fixture": "mixed-10000", "implementation": "ferrocat-parse-borrowed", "warmup_runs": 2, "measured_runs": 10 },
+
+    { "id": "po-stringify/mixed-1000/ferrocat", "comparison_group": "po-stringify/mixed-1000", "workload": "po-stringify", "operation": "stringify", "fixture": "mixed-1000", "implementation": "ferrocat-stringify", "warmup_runs": 2, "measured_runs": 10 },
+    { "id": "po-stringify/mixed-1000/msgcat", "comparison_group": "po-stringify/mixed-1000", "workload": "po-stringify", "operation": "stringify", "fixture": "mixed-1000", "implementation": "msgcat", "warmup_runs": 2, "measured_runs": 10 },
+
+    { "id": "po-stringify/mixed-10000/ferrocat", "comparison_group": "po-stringify/mixed-10000", "workload": "po-stringify", "operation": "stringify", "fixture": "mixed-10000", "implementation": "ferrocat-stringify", "warmup_runs": 2, "measured_runs": 10 },
+    { "id": "po-stringify/mixed-10000/msgcat", "comparison_group": "po-stringify/mixed-10000", "workload": "po-stringify", "operation": "stringify", "fixture": "mixed-10000", "implementation": "msgcat", "warmup_runs": 2, "measured_runs": 10 },
+
+    { "id": "po-merge/mixed-1000/ferrocat", "comparison_group": "po-merge/mixed-1000", "workload": "po-merge-update", "operation": "merge", "fixture": "mixed-1000", "implementation": "ferrocat-merge", "warmup_runs": 2, "measured_runs": 5 },
+    { "id": "po-merge/mixed-10000/ferrocat", "comparison_group": "po-merge/mixed-10000", "workload": "po-merge-update", "operation": "merge", "fixture": "mixed-10000", "implementation": "ferrocat-merge", "warmup_runs": 2, "measured_runs": 5 },
+
+    { "id": "po-update/mixed-1000/ferrocat", "comparison_group": "po-update/mixed-1000", "workload": "po-merge-update", "operation": "update-catalog", "fixture": "mixed-1000", "implementation": "ferrocat-update-catalog", "warmup_runs": 2, "measured_runs": 5 },
+    { "id": "po-update/mixed-10000/ferrocat", "comparison_group": "po-update/mixed-10000", "workload": "po-merge-update", "operation": "update-catalog", "fixture": "mixed-10000", "implementation": "ferrocat-update-catalog", "warmup_runs": 2, "measured_runs": 5 },
+    { "id": "po-update/catalog-icu-heavy/ferrocat", "comparison_group": "po-update/catalog-icu-heavy", "workload": "po-merge-update", "operation": "update-catalog", "fixture": "catalog-icu-heavy", "implementation": "ferrocat-update-catalog", "warmup_runs": 2, "measured_runs": 5 },
+    { "id": "po-update/catalog-icu-projectable/ferrocat", "comparison_group": "po-update/catalog-icu-projectable", "workload": "po-merge-update", "operation": "update-catalog", "fixture": "catalog-icu-projectable", "implementation": "ferrocat-update-catalog", "warmup_runs": 2, "measured_runs": 5 },
+    { "id": "po-update/catalog-icu-unsupported/ferrocat", "comparison_group": "po-update/catalog-icu-unsupported", "workload": "po-merge-update", "operation": "update-catalog", "fixture": "catalog-icu-unsupported", "implementation": "ferrocat-update-catalog", "warmup_runs": 2, "measured_runs": 5 },
+
+    { "id": "icu-parse/icu-args-1000/ferrocat", "comparison_group": "icu-parse/icu-args-1000", "workload": "icu-parse", "operation": "parse-icu", "fixture": "icu-args-1000", "implementation": "ferrocat-parse-icu", "warmup_runs": 2, "measured_runs": 10 },
+    { "id": "icu-parse/icu-args-1000/formatjs", "comparison_group": "icu-parse/icu-args-1000", "workload": "icu-parse", "operation": "parse-icu", "fixture": "icu-args-1000", "implementation": "formatjs-icu-parser", "warmup_runs": 2, "measured_runs": 10 },
+    { "id": "icu-parse/icu-args-1000/messageformat", "comparison_group": "icu-parse/icu-args-1000", "workload": "icu-parse", "operation": "parse-icu", "fixture": "icu-args-1000", "implementation": "messageformat-parser", "warmup_runs": 2, "measured_runs": 10 },
+
+    { "id": "icu-parse/icu-plural-1000/ferrocat", "comparison_group": "icu-parse/icu-plural-1000", "workload": "icu-parse", "operation": "parse-icu", "fixture": "icu-plural-1000", "implementation": "ferrocat-parse-icu", "warmup_runs": 2, "measured_runs": 10 },
+    { "id": "icu-parse/icu-plural-1000/formatjs", "comparison_group": "icu-parse/icu-plural-1000", "workload": "icu-parse", "operation": "parse-icu", "fixture": "icu-plural-1000", "implementation": "formatjs-icu-parser", "warmup_runs": 2, "measured_runs": 10 },
+    { "id": "icu-parse/icu-plural-1000/messageformat", "comparison_group": "icu-parse/icu-plural-1000", "workload": "icu-parse", "operation": "parse-icu", "fixture": "icu-plural-1000", "implementation": "messageformat-parser", "warmup_runs": 2, "measured_runs": 10 },
+
+    { "id": "icu-parse/icu-nested-1000/ferrocat", "comparison_group": "icu-parse/icu-nested-1000", "workload": "icu-parse", "operation": "parse-icu", "fixture": "icu-nested-1000", "implementation": "ferrocat-parse-icu", "warmup_runs": 2, "measured_runs": 10 },
+    { "id": "icu-parse/icu-nested-1000/formatjs", "comparison_group": "icu-parse/icu-nested-1000", "workload": "icu-parse", "operation": "parse-icu", "fixture": "icu-nested-1000", "implementation": "formatjs-icu-parser", "warmup_runs": 2, "measured_runs": 10 },
+    { "id": "icu-parse/icu-nested-1000/messageformat", "comparison_group": "icu-parse/icu-nested-1000", "workload": "icu-parse", "operation": "parse-icu", "fixture": "icu-nested-1000", "implementation": "messageformat-parser", "warmup_runs": 2, "measured_runs": 10 },
+
+    { "id": "icu-parse/icu-tags-1000/ferrocat", "comparison_group": "icu-parse/icu-tags-1000", "workload": "icu-parse", "operation": "parse-icu", "fixture": "icu-tags-1000", "implementation": "ferrocat-parse-icu", "warmup_runs": 2, "measured_runs": 10 },
+    { "id": "icu-parse/icu-tags-1000/formatjs", "comparison_group": "icu-parse/icu-tags-1000", "workload": "icu-parse", "operation": "parse-icu", "fixture": "icu-tags-1000", "implementation": "formatjs-icu-parser", "warmup_runs": 2, "measured_runs": 10 },
+
+    { "id": "icu-parse/icu-args-10000/ferrocat", "comparison_group": "icu-parse/icu-args-10000", "workload": "icu-parse", "operation": "parse-icu", "fixture": "icu-args-10000", "implementation": "ferrocat-parse-icu", "warmup_runs": 2, "measured_runs": 10 },
+    { "id": "icu-parse/icu-args-10000/formatjs", "comparison_group": "icu-parse/icu-args-10000", "workload": "icu-parse", "operation": "parse-icu", "fixture": "icu-args-10000", "implementation": "formatjs-icu-parser", "warmup_runs": 2, "measured_runs": 10 },
+    { "id": "icu-parse/icu-args-10000/messageformat", "comparison_group": "icu-parse/icu-args-10000", "workload": "icu-parse", "operation": "parse-icu", "fixture": "icu-args-10000", "implementation": "messageformat-parser", "warmup_runs": 2, "measured_runs": 10 },
+
+    { "id": "icu-parse/icu-plural-10000/ferrocat", "comparison_group": "icu-parse/icu-plural-10000", "workload": "icu-parse", "operation": "parse-icu", "fixture": "icu-plural-10000", "implementation": "ferrocat-parse-icu", "warmup_runs": 2, "measured_runs": 10 },
+    { "id": "icu-parse/icu-plural-10000/formatjs", "comparison_group": "icu-parse/icu-plural-10000", "workload": "icu-parse", "operation": "parse-icu", "fixture": "icu-plural-10000", "implementation": "formatjs-icu-parser", "warmup_runs": 2, "measured_runs": 10 },
+    { "id": "icu-parse/icu-plural-10000/messageformat", "comparison_group": "icu-parse/icu-plural-10000", "workload": "icu-parse", "operation": "parse-icu", "fixture": "icu-plural-10000", "implementation": "messageformat-parser", "warmup_runs": 2, "measured_runs": 10 },
+
+    { "id": "icu-parse/icu-nested-10000/ferrocat", "comparison_group": "icu-parse/icu-nested-10000", "workload": "icu-parse", "operation": "parse-icu", "fixture": "icu-nested-10000", "implementation": "ferrocat-parse-icu", "warmup_runs": 2, "measured_runs": 10 },
+    { "id": "icu-parse/icu-nested-10000/formatjs", "comparison_group": "icu-parse/icu-nested-10000", "workload": "icu-parse", "operation": "parse-icu", "fixture": "icu-nested-10000", "implementation": "formatjs-icu-parser", "warmup_runs": 2, "measured_runs": 10 },
+    { "id": "icu-parse/icu-nested-10000/messageformat", "comparison_group": "icu-parse/icu-nested-10000", "workload": "icu-parse", "operation": "parse-icu", "fixture": "icu-nested-10000", "implementation": "messageformat-parser", "warmup_runs": 2, "measured_runs": 10 },
+
+    { "id": "icu-parse/icu-tags-10000/ferrocat", "comparison_group": "icu-parse/icu-tags-10000", "workload": "icu-parse", "operation": "parse-icu", "fixture": "icu-tags-10000", "implementation": "ferrocat-parse-icu", "warmup_runs": 2, "measured_runs": 10 },
+    { "id": "icu-parse/icu-tags-10000/formatjs", "comparison_group": "icu-parse/icu-tags-10000", "workload": "icu-parse", "operation": "parse-icu", "fixture": "icu-tags-10000", "implementation": "formatjs-icu-parser", "warmup_runs": 2, "measured_runs": 10 }
+  ]
+}

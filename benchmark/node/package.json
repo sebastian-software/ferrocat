@@ -1,0 +1,12 @@
+{
+  "name": "ferrocat-benchmark-adapters",
+  "private": true,
+  "version": "0.1.0",
+  "description": "External Node-based benchmark adapters for ferrocat comparison runs.",
+  "license": "MIT",
+  "dependencies": {
+    "@formatjs/icu-messageformat-parser": "^2.11.4",
+    "@messageformat/parser": "^5.1.0",
+    "pofile": "^1.1.4"
+  }
+}

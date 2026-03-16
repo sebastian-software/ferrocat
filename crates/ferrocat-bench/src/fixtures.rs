@@ -66,6 +66,22 @@ enum CatalogIcuFixtureKind {
     Unsupported,
 }
 
+#[derive(Clone, Copy)]
+enum GettextFixtureFamily {
+    Ui,
+    Commerce,
+    Saas,
+    Content,
+}
+
+#[derive(Clone, Copy)]
+struct GettextLocaleProfile {
+    id: &'static str,
+    language: &'static str,
+    plural_forms: &'static str,
+    nplurals: usize,
+}
+
 impl MergeFixture {
     pub fn name(&self) -> &str {
         self.name.as_ref()
@@ -143,7 +159,8 @@ pub fn fixture_by_name(name: &str) -> Option<Fixture> {
         "stress" => Some(static_fixture("stress", STRESS_FIXTURE)),
         "mixed-1000" => Some(generated_fixture(1_000)),
         "mixed-10000" => Some(generated_fixture(10_000)),
-        _ => None,
+        _ => parse_gettext_fixture_name(name)
+            .map(|(family, locale, entries)| generated_gettext_fixture(family, locale, entries)),
     }
 }
 
@@ -187,7 +204,9 @@ pub fn merge_fixture_by_name(name: &str) -> Option<MergeFixture> {
             CatalogIcuFixtureKind::Unsupported,
             1_000,
         )),
-        _ => None,
+        _ => parse_gettext_fixture_name(name).map(|(family, locale, entries)| {
+            generated_gettext_merge_fixture(family, locale, entries)
+        }),
     }
 }
 
@@ -211,6 +230,25 @@ fn generated_fixture(entries: usize) -> Fixture {
     }
 }
 
+fn generated_gettext_fixture(
+    family: GettextFixtureFamily,
+    locale: GettextLocaleProfile,
+    entries: usize,
+) -> Fixture {
+    let content = build_gettext_fixture(family, locale, entries);
+    let stats = scan_stats(&content);
+    Fixture {
+        name: Cow::Owned(format!(
+            "gettext-{}-{}-{entries}",
+            gettext_family_name(family),
+            locale.id
+        )),
+        kind: "generated-gettext",
+        content: Cow::Owned(content),
+        stats,
+    }
+}
+
 fn generated_icu_fixture(kind: IcuFixtureKind, entries: usize) -> IcuFixture {
     let messages = (0..entries)
         .map(|index| build_icu_message(kind, index))
@@ -226,11 +264,38 @@ fn generated_icu_fixture(kind: IcuFixtureKind, entries: usize) -> IcuFixture {
 }
 
 fn generated_merge_fixture(entries: usize) -> MergeFixture {
-    let existing_po = build_mixed_fixture(entries);
+    merge_fixture_from_existing(
+        format!("merge-mixed-{entries}"),
+        "generated",
+        build_mixed_fixture(entries),
+    )
+}
+
+fn generated_gettext_merge_fixture(
+    family: GettextFixtureFamily,
+    locale: GettextLocaleProfile,
+    entries: usize,
+) -> MergeFixture {
+    merge_fixture_from_existing(
+        format!(
+            "gettext-{}-{}-{entries}",
+            gettext_family_name(family),
+            locale.id
+        ),
+        "generated-gettext",
+        build_gettext_fixture(family, locale, entries),
+    )
+}
+
+fn merge_fixture_from_existing(
+    name: String,
+    kind: &'static str,
+    existing_po: String,
+) -> MergeFixture {
     let parsed = parse_po(&existing_po).expect("generated merge fixture must parse");
 
-    let mut extracted_messages = Vec::with_capacity((entries * 9) / 10);
-    let mut api_extracted_messages = Vec::with_capacity((entries * 9) / 10);
+    let mut extracted_messages = Vec::with_capacity((parsed.items.len() * 9) / 10);
+    let mut api_extracted_messages = Vec::with_capacity((parsed.items.len() * 9) / 10);
     let mut active_index = 0usize;
     for item in &parsed.items {
         if item.obsolete {
@@ -292,8 +357,8 @@ fn generated_merge_fixture(entries: usize) -> MergeFixture {
         });
     }
 
-    for index in 0..(entries / 10).max(1) {
-        let message_index = entries + index;
+    for index in 0..(parsed.items.len() / 10).max(1) {
+        let message_index = parsed.items.len() + index;
         let msgctxt =
             (message_index % 9 == 0).then(|| format!("merge-context-{}", message_index % 5));
         let msgid = format!("Merged message {}", message_index);
@@ -347,8 +412,8 @@ fn generated_merge_fixture(entries: usize) -> MergeFixture {
     }
 
     MergeFixture {
-        name: Cow::Owned(format!("merge-mixed-{entries}")),
-        kind: "generated",
+        name: Cow::Owned(name),
+        kind,
         existing_entries: parsed.items.len(),
         existing_po: Cow::Owned(existing_po),
         extracted_messages,
@@ -445,6 +510,540 @@ fn build_icu_message(kind: IcuFixtureKind, index: usize) -> String {
         IcuFixtureKind::Tags => format!(
             "<link>{{name}}</link> has <b>{{count, plural, one {{# alert}} other {{# alerts}}}}</b> in benchmark entry {index}."
         ),
+    }
+}
+
+fn parse_gettext_fixture_name(
+    name: &str,
+) -> Option<(GettextFixtureFamily, GettextLocaleProfile, usize)> {
+    let mut parts = name.split('-');
+    let prefix = parts.next()?;
+    let family = parts.next()?;
+    let locale = parts.next()?;
+    let entries = parts.next()?;
+
+    if prefix != "gettext" || parts.next().is_some() {
+        return None;
+    }
+
+    Some((
+        parse_gettext_family(family)?,
+        gettext_locale_profile(locale)?,
+        entries.parse::<usize>().ok()?,
+    ))
+}
+
+fn parse_gettext_family(name: &str) -> Option<GettextFixtureFamily> {
+    match name {
+        "ui" => Some(GettextFixtureFamily::Ui),
+        "commerce" => Some(GettextFixtureFamily::Commerce),
+        "saas" => Some(GettextFixtureFamily::Saas),
+        "content" => Some(GettextFixtureFamily::Content),
+        _ => None,
+    }
+}
+
+fn gettext_locale_profile(id: &str) -> Option<GettextLocaleProfile> {
+    match id {
+        "de" => Some(GettextLocaleProfile {
+            id: "de",
+            language: "de",
+            plural_forms: "nplurals=2; plural=(n != 1);",
+            nplurals: 2,
+        }),
+        "fr" => Some(GettextLocaleProfile {
+            id: "fr",
+            language: "fr",
+            plural_forms: "nplurals=2; plural=(n > 1);",
+            nplurals: 2,
+        }),
+        "pl" => Some(GettextLocaleProfile {
+            id: "pl",
+            language: "pl",
+            plural_forms: "nplurals=3; plural=(n == 1 ? 0 : (n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 10 || n % 100 >= 20)) ? 1 : 2);",
+            nplurals: 3,
+        }),
+        "ar" => Some(GettextLocaleProfile {
+            id: "ar",
+            language: "ar",
+            plural_forms: "nplurals=6; plural=(n == 0 ? 0 : n == 1 ? 1 : n == 2 ? 2 : (n % 100 >= 3 && n % 100 <= 10) ? 3 : (n % 100 >= 11 && n % 100 <= 99) ? 4 : 5);",
+            nplurals: 6,
+        }),
+        _ => None,
+    }
+}
+
+fn gettext_family_name(family: GettextFixtureFamily) -> &'static str {
+    match family {
+        GettextFixtureFamily::Ui => "ui",
+        GettextFixtureFamily::Commerce => "commerce",
+        GettextFixtureFamily::Saas => "saas",
+        GettextFixtureFamily::Content => "content",
+    }
+}
+
+fn build_gettext_fixture(
+    family: GettextFixtureFamily,
+    locale: GettextLocaleProfile,
+    entries: usize,
+) -> String {
+    let mut out = String::with_capacity(entries * 160);
+    out.push_str("# gettext compatibility benchmark corpus\n");
+    out.push_str("msgid \"\"\n");
+    out.push_str("msgstr \"\"\n");
+    out.push_str("\"Project-Id-Version: ferrocat gettext compat benchmark\\n\"\n");
+    out.push_str(&format!("\"Language: {}\\n\"\n", locale.language));
+    out.push_str("\"Content-Type: text/plain; charset=UTF-8\\n\"\n");
+    out.push_str("\"Content-Transfer-Encoding: 8bit\\n\"\n");
+    out.push_str(&format!("\"Plural-Forms: {}\\n\"\n\n", locale.plural_forms));
+
+    for index in 0..entries {
+        let shape = gettext_feature_shape(family, index);
+        let effective_multiline = shape.is_multiline && !(shape.is_plural && locale.nplurals > 2);
+        let effective_escape = shape.has_escape && !(shape.is_plural && locale.nplurals > 2);
+        if shape.has_translator_comment {
+            push_line(
+                &mut out,
+                "",
+                gettext_translator_comment(family, index, shape.is_plural),
+            );
+        }
+        if shape.has_extracted_comment {
+            push_line(
+                &mut out,
+                "",
+                gettext_extracted_comment(family, index, shape.is_plural),
+            );
+        }
+        if shape.has_references {
+            push_line(&mut out, "", &gettext_reference_line(family, index));
+        }
+        if shape.has_fuzzy {
+            push_line(&mut out, "", "#, fuzzy");
+        } else if shape.has_c_format {
+            push_line(&mut out, "", "#, c-format");
+        }
+        if shape.has_context {
+            push_keyword(&mut out, "", "msgctxt", &gettext_context(family, index));
+        }
+
+        let subject = gettext_subject(family, index);
+        let source = gettext_source_message(
+            family,
+            &subject,
+            index,
+            shape.is_plural,
+            effective_multiline,
+            effective_escape,
+        );
+        push_keyword(&mut out, "", "msgid", &source.msgid);
+        if let Some(msgid_plural) = source.msgid_plural.as_deref() {
+            push_keyword(&mut out, "", "msgid_plural", msgid_plural);
+            for (slot, value) in gettext_plural_translations(
+                locale,
+                family,
+                &subject,
+                index,
+                effective_multiline,
+                effective_escape,
+            )
+            .into_iter()
+            .enumerate()
+            {
+                push_indexed_keyword(&mut out, "", "msgstr", slot, &value);
+            }
+        } else {
+            push_keyword(
+                &mut out,
+                "",
+                "msgstr",
+                &gettext_singular_translation(
+                    locale,
+                    family,
+                    &subject,
+                    index,
+                    effective_multiline,
+                    effective_escape,
+                ),
+            );
+        }
+        out.push('\n');
+    }
+
+    out
+}
+
+#[derive(Clone, Copy)]
+struct GettextFeatureShape {
+    is_plural: bool,
+    is_multiline: bool,
+    has_escape: bool,
+    has_context: bool,
+    has_references: bool,
+    has_translator_comment: bool,
+    has_extracted_comment: bool,
+    has_fuzzy: bool,
+    has_c_format: bool,
+}
+
+fn gettext_feature_shape(family: GettextFixtureFamily, index: usize) -> GettextFeatureShape {
+    let plural_mod = match family {
+        GettextFixtureFamily::Ui => 8,
+        GettextFixtureFamily::Commerce => 4,
+        GettextFixtureFamily::Saas => 6,
+        GettextFixtureFamily::Content => 7,
+    };
+    let multiline_mod = match family {
+        GettextFixtureFamily::Ui => 21,
+        GettextFixtureFamily::Commerce => 18,
+        GettextFixtureFamily::Saas => 15,
+        GettextFixtureFamily::Content => 5,
+    };
+    let context_mod = match family {
+        GettextFixtureFamily::Ui => 4,
+        GettextFixtureFamily::Commerce => 6,
+        GettextFixtureFamily::Saas => 5,
+        GettextFixtureFamily::Content => 9,
+    };
+
+    GettextFeatureShape {
+        is_plural: index % plural_mod == 0,
+        is_multiline: index % multiline_mod == 0,
+        has_escape: index % 17 == 0,
+        has_context: index % context_mod == 0,
+        has_references: index % 2 == 0,
+        has_translator_comment: index % 9 == 0,
+        has_extracted_comment: index % 11 == 0,
+        has_fuzzy: index % 19 == 0,
+        has_c_format: true,
+    }
+}
+
+struct GettextSourceMessage {
+    msgid: String,
+    msgid_plural: Option<String>,
+}
+
+fn gettext_source_message(
+    family: GettextFixtureFamily,
+    subject: &str,
+    index: usize,
+    is_plural: bool,
+    is_multiline: bool,
+    has_escape: bool,
+) -> GettextSourceMessage {
+    if is_plural {
+        let (msgid, msgid_plural) = match family {
+            GettextFixtureFamily::Ui => (
+                format!("%d pending {subject} alert for workspace %s"),
+                format!("%d pending {subject} alerts for workspace %s"),
+            ),
+            GettextFixtureFamily::Commerce => (
+                format!("%d {subject} item in cart for order %s"),
+                format!("%d {subject} items in cart for order %s"),
+            ),
+            GettextFixtureFamily::Saas => (
+                format!("%d team member assigned to {subject} in %s"),
+                format!("%d team members assigned to {subject} in %s"),
+            ),
+            GettextFixtureFamily::Content => (
+                format!("%d revised paragraph in {subject} for publication %s"),
+                format!("%d revised paragraphs in {subject} for publication %s"),
+            ),
+        };
+        return GettextSourceMessage {
+            msgid: maybe_multiline_or_escaped(msgid, index, is_multiline, has_escape),
+            msgid_plural: Some(maybe_multiline_or_escaped(
+                msgid_plural,
+                index,
+                is_multiline,
+                has_escape,
+            )),
+        };
+    }
+
+    let msgid = match family {
+        GettextFixtureFamily::Ui => {
+            format!("Open the {subject} panel for workspace %s")
+        }
+        GettextFixtureFamily::Commerce => {
+            format!("Review the {subject} step for order %s")
+        }
+        GettextFixtureFamily::Saas => {
+            format!("Invite %s to the {subject} workspace")
+        }
+        GettextFixtureFamily::Content => {
+            format!("Publish the {subject} article for channel %s")
+        }
+    };
+
+    GettextSourceMessage {
+        msgid: maybe_multiline_or_escaped(msgid, index, is_multiline, has_escape),
+        msgid_plural: None,
+    }
+}
+
+fn maybe_multiline_or_escaped(
+    base: String,
+    index: usize,
+    is_multiline: bool,
+    has_escape: bool,
+) -> String {
+    if is_multiline {
+        format!("{base}.\nReview the current value set before saving entry {index}.")
+    } else if has_escape {
+        format!("\"{base}\" shortcut for entry {index}")
+    } else {
+        base
+    }
+}
+
+fn gettext_singular_translation(
+    locale: GettextLocaleProfile,
+    family: GettextFixtureFamily,
+    subject: &str,
+    index: usize,
+    is_multiline: bool,
+    has_escape: bool,
+) -> String {
+    let base = match (locale.id, family) {
+        ("de", GettextFixtureFamily::Ui) => {
+            format!("Oeffne den Bereich {subject} fuer Workspace %s")
+        }
+        ("de", GettextFixtureFamily::Commerce) => {
+            format!("Pruefe den Schritt {subject} fuer Bestellung %s")
+        }
+        ("de", GettextFixtureFamily::Saas) => format!("Lade %s in den Bereich {subject} ein"),
+        ("de", GettextFixtureFamily::Content) => {
+            format!("Veroeffentliche den Artikel {subject} fuer Kanal %s")
+        }
+        ("fr", GettextFixtureFamily::Ui) => format!("Ouvrir la section {subject} pour espace %s"),
+        ("fr", GettextFixtureFamily::Commerce) => {
+            format!("Verifier letape {subject} pour commande %s")
+        }
+        ("fr", GettextFixtureFamily::Saas) => format!("Inviter %s dans lespace {subject}"),
+        ("fr", GettextFixtureFamily::Content) => {
+            format!("Publier larticle {subject} pour canal %s")
+        }
+        ("pl", GettextFixtureFamily::Ui) => format!("Otworz sekcje {subject} dla workspace %s"),
+        ("pl", GettextFixtureFamily::Commerce) => {
+            format!("Sprawdz etap {subject} dla zamowienia %s")
+        }
+        ("pl", GettextFixtureFamily::Saas) => format!("Zaproś %s do obszaru {subject}"),
+        ("pl", GettextFixtureFamily::Content) => {
+            format!("Opublikuj artykul {subject} dla kanalu %s")
+        }
+        ("ar", GettextFixtureFamily::Ui) => format!("Iftah qism {subject} li workspace %s"),
+        ("ar", GettextFixtureFamily::Commerce) => format!("Muraja khatwa {subject} li order %s"),
+        ("ar", GettextFixtureFamily::Saas) => format!("Uda %s ila masaha {subject}"),
+        ("ar", GettextFixtureFamily::Content) => format!("Unshur maqal {subject} li channel %s"),
+        _ => format!("Translate {subject} entry {index} for %s"),
+    };
+
+    maybe_multiline_or_escaped(base, index, is_multiline, has_escape)
+}
+
+fn gettext_plural_translations(
+    locale: GettextLocaleProfile,
+    family: GettextFixtureFamily,
+    subject: &str,
+    index: usize,
+    is_multiline: bool,
+    has_escape: bool,
+) -> Vec<String> {
+    (0..locale.nplurals)
+        .map(|slot| {
+            let base = match (locale.id, family) {
+                ("de", GettextFixtureFamily::Ui) => {
+                    format!("%d offener Hinweis {subject} fuer Workspace %s [slot {slot}]")
+                }
+                ("de", GettextFixtureFamily::Commerce) => {
+                    format!("%d Artikel {subject} im Warenkorb fuer Bestellung %s [slot {slot}]")
+                }
+                ("de", GettextFixtureFamily::Saas) => {
+                    format!("%d Teammitglieder in {subject} fuer %s [slot {slot}]")
+                }
+                ("de", GettextFixtureFamily::Content) => {
+                    format!("%d Abschnitte in {subject} fuer Veroeffentlichung %s [slot {slot}]")
+                }
+                ("fr", GettextFixtureFamily::Ui) => {
+                    format!("%d alerte {subject} pour espace %s [slot {slot}]")
+                }
+                ("fr", GettextFixtureFamily::Commerce) => {
+                    format!("%d article {subject} dans le panier %s [slot {slot}]")
+                }
+                ("fr", GettextFixtureFamily::Saas) => {
+                    format!("%d membres dans {subject} pour %s [slot {slot}]")
+                }
+                ("fr", GettextFixtureFamily::Content) => {
+                    format!("%d paragraphes dans {subject} pour publication %s [slot {slot}]")
+                }
+                ("pl", GettextFixtureFamily::Ui) => {
+                    format!("%d alerty {subject} dla workspace %s [slot {slot}]")
+                }
+                ("pl", GettextFixtureFamily::Commerce) => {
+                    format!("%d elementy {subject} w koszyku %s [slot {slot}]")
+                }
+                ("pl", GettextFixtureFamily::Saas) => {
+                    format!("%d osoby w {subject} dla %s [slot {slot}]")
+                }
+                ("pl", GettextFixtureFamily::Content) => {
+                    format!("%d akapity w {subject} dla publikacji %s [slot {slot}]")
+                }
+                ("ar", GettextFixtureFamily::Ui) => {
+                    format!("%d tanbih {subject} li workspace %s [slot {slot}]")
+                }
+                ("ar", GettextFixtureFamily::Commerce) => {
+                    format!("%d item {subject} fi cart %s [slot {slot}]")
+                }
+                ("ar", GettextFixtureFamily::Saas) => {
+                    format!("%d member fi {subject} li %s [slot {slot}]")
+                }
+                ("ar", GettextFixtureFamily::Content) => {
+                    format!("%d paragraph fi {subject} li publish %s [slot {slot}]")
+                }
+                _ => format!("%d translated {subject} slot {slot} for %s"),
+            };
+            maybe_multiline_or_escaped(base, index, is_multiline, has_escape)
+        })
+        .collect()
+}
+
+fn gettext_subject(family: GettextFixtureFamily, index: usize) -> String {
+    const UI: [&str; 8] = [
+        "notifications",
+        "billing",
+        "security",
+        "preferences",
+        "dashboard",
+        "integrations",
+        "team access",
+        "release notes",
+    ];
+    const COMMERCE: [&str; 8] = [
+        "cart", "shipment", "payment", "discount", "invoice", "wishlist", "refund", "address",
+    ];
+    const SAAS: [&str; 8] = [
+        "workspace",
+        "project",
+        "environment",
+        "audit log",
+        "role mapping",
+        "team",
+        "service account",
+        "incident policy",
+    ];
+    const CONTENT: [&str; 8] = [
+        "article",
+        "guide",
+        "campaign",
+        "newsletter",
+        "landing page",
+        "knowledge base",
+        "release email",
+        "help center",
+    ];
+
+    let pool = match family {
+        GettextFixtureFamily::Ui => UI.as_slice(),
+        GettextFixtureFamily::Commerce => COMMERCE.as_slice(),
+        GettextFixtureFamily::Saas => SAAS.as_slice(),
+        GettextFixtureFamily::Content => CONTENT.as_slice(),
+    };
+    format!("{} {:04}", pool[index % pool.len()], index)
+}
+
+fn gettext_context(family: GettextFixtureFamily, index: usize) -> String {
+    match family {
+        GettextFixtureFamily::Ui => {
+            ["button", "menu", "dialog.title", "toast", "empty-state"][index % 5].to_owned()
+        }
+        GettextFixtureFamily::Commerce => [
+            "checkout.step",
+            "cart.sidebar",
+            "receipt.email",
+            "invoice.pdf",
+            "promo.banner",
+        ][index % 5]
+            .to_owned(),
+        GettextFixtureFamily::Saas => [
+            "settings.page",
+            "invite.modal",
+            "audit.table",
+            "billing.notice",
+            "access.review",
+        ][index % 5]
+            .to_owned(),
+        GettextFixtureFamily::Content => [
+            "editor.toolbar",
+            "email.subject",
+            "email.body",
+            "help.article",
+            "cms.sidebar",
+        ][index % 5]
+            .to_owned(),
+    }
+}
+
+fn gettext_reference_line(family: GettextFixtureFamily, index: usize) -> String {
+    let path = match family {
+        GettextFixtureFamily::Ui => format!("src/ui/view_{:04}.tsx", index % 320),
+        GettextFixtureFamily::Commerce => format!("src/checkout/flow_{:04}.tsx", index % 280),
+        GettextFixtureFamily::Saas => format!("src/settings/page_{:04}.tsx", index % 260),
+        GettextFixtureFamily::Content => format!("src/content/panel_{:04}.tsx", index % 240),
+    };
+    format!("#: {path}:{}", (index % 180) + 1)
+}
+
+fn gettext_translator_comment(
+    family: GettextFixtureFamily,
+    index: usize,
+    is_plural: bool,
+) -> &'static str {
+    match (family, is_plural, index % 3) {
+        (GettextFixtureFamily::Ui, false, _) => "# Keep the label short for narrow sidebars",
+        (GettextFixtureFamily::Ui, true, _) => {
+            "# Plural wording appears in the notification center"
+        }
+        (GettextFixtureFamily::Commerce, false, _) => "# Used in the checkout confirmation flow",
+        (GettextFixtureFamily::Commerce, true, _) => "# Keep quantity wording natural for the cart",
+        (GettextFixtureFamily::Saas, false, _) => "# Shown to administrators in account settings",
+        (GettextFixtureFamily::Saas, true, _) => "# Used in team membership summary rows",
+        (GettextFixtureFamily::Content, false, _) => "# Appears in long-form publishing workflows",
+        (GettextFixtureFamily::Content, true, _) => {
+            "# Plural text is rendered in editorial summaries"
+        }
+    }
+}
+
+fn gettext_extracted_comment(
+    family: GettextFixtureFamily,
+    index: usize,
+    is_plural: bool,
+) -> &'static str {
+    match (family, is_plural, index % 3) {
+        (GettextFixtureFamily::Ui, false, _) => {
+            "#. UI label rendered in the main application shell"
+        }
+        (GettextFixtureFamily::Ui, true, _) => "#. Quantity label rendered in the alert overview",
+        (GettextFixtureFamily::Commerce, false, _) => {
+            "#. Checkout label rendered during order review"
+        }
+        (GettextFixtureFamily::Commerce, true, _) => {
+            "#. Quantity summary rendered in the cart sidebar"
+        }
+        (GettextFixtureFamily::Saas, false, _) => {
+            "#. Settings label rendered in multi-tenant admin screens"
+        }
+        (GettextFixtureFamily::Saas, true, _) => {
+            "#. Membership summary rendered in access review lists"
+        }
+        (GettextFixtureFamily::Content, false, _) => {
+            "#. Publishing label rendered in content operations tools"
+        }
+        (GettextFixtureFamily::Content, true, _) => {
+            "#. Quantity summary rendered in editorial digests"
+        }
     }
 }
 
@@ -1040,6 +1639,26 @@ mod tests {
     }
 
     #[test]
+    fn builds_gettext_compat_fixtures_with_expected_shape() {
+        for name in [
+            "gettext-ui-de-1000",
+            "gettext-commerce-pl-1000",
+            "gettext-saas-fr-1000",
+            "gettext-content-ar-1000",
+        ] {
+            let fixture = fixture_by_name(name).expect("gettext fixture exists");
+            let stats = fixture.stats();
+            assert_eq!(fixture.kind(), "generated-gettext");
+            assert_eq!(stats.entries, 1000);
+            assert!(stats.plural_entries > 0);
+            assert!(stats.references > 0);
+            assert!(stats.contexts > 0);
+            assert_eq!(stats.metadata_comments, 0);
+            assert_eq!(stats.obsolete_entries, 0);
+        }
+    }
+
+    #[test]
     fn builds_parseable_icu_fixtures() {
         for name in [
             "icu-literal-1000",
@@ -1069,6 +1688,21 @@ mod tests {
             let fixture = merge_fixture_by_name(name).expect("catalog icu fixture exists");
             assert!(fixture.existing_po().contains("msgid"));
             assert_eq!(fixture.extracted_entries(), 1000);
+        }
+    }
+
+    #[test]
+    fn builds_gettext_merge_fixtures() {
+        for name in [
+            "gettext-ui-de-1000",
+            "gettext-commerce-pl-1000",
+            "gettext-saas-fr-1000",
+            "gettext-content-ar-1000",
+        ] {
+            let fixture = merge_fixture_by_name(name).expect("gettext merge fixture exists");
+            assert!(fixture.existing_po().contains("Plural-Forms"));
+            assert_eq!(fixture.existing_entries(), 1000);
+            assert!(fixture.extracted_entries() > 0);
         }
     }
 

@@ -1,3 +1,4 @@
+mod compare;
 #[path = "../../../conformance/harness.rs"]
 mod conformance_harness;
 mod fixtures;
@@ -31,47 +32,71 @@ fn main() -> ExitCode {
 fn run() -> Result<(), String> {
     let mut args = env::args().skip(1);
     let command = args.next().unwrap_or_else(|| "parse".to_owned());
-    let fixture_name = args.next().unwrap_or_else(|| "realistic".to_owned());
-    let config = parse_bench_config(args, &fixture_name)?;
 
     match command.as_str() {
+        "verify-benchmark-env" => compare::run_verify_benchmark_env(),
+        "compare" => {
+            let profile_name = args
+                .next()
+                .ok_or_else(|| "compare requires a profile name".to_owned())?;
+            compare::run_compare_command(&profile_name, args)
+        }
         "parse" => {
+            let fixture_name = args.next().unwrap_or_else(|| "realistic".to_owned());
+            let config = parse_bench_config(args, &fixture_name)?;
             let fixture = load_fixture(&fixture_name)?;
             bench_parse(&fixture, config)
         }
         "parse-borrowed" => {
+            let fixture_name = args.next().unwrap_or_else(|| "realistic".to_owned());
+            let config = parse_bench_config(args, &fixture_name)?;
             let fixture = load_fixture(&fixture_name)?;
             bench_parse_borrowed(&fixture, config)
         }
         "parse-icu" => {
+            let fixture_name = args.next().unwrap_or_else(|| "realistic".to_owned());
+            let config = parse_bench_config(args, &fixture_name)?;
             let fixture = load_icu_fixture(&fixture_name)?;
             bench_parse_icu(&fixture, config)
         }
         "validate-icu" => {
+            let fixture_name = args.next().unwrap_or_else(|| "realistic".to_owned());
+            let config = parse_bench_config(args, &fixture_name)?;
             let fixture = load_icu_fixture(&fixture_name)?;
             bench_validate_icu(&fixture, config)
         }
         "extract-icu-variables" => {
+            let fixture_name = args.next().unwrap_or_else(|| "realistic".to_owned());
+            let config = parse_bench_config(args, &fixture_name)?;
             let fixture = load_icu_fixture(&fixture_name)?;
             bench_extract_icu_variables(&fixture, config)
         }
         "stringify" => {
+            let fixture_name = args.next().unwrap_or_else(|| "realistic".to_owned());
+            let config = parse_bench_config(args, &fixture_name)?;
             let fixture = load_fixture(&fixture_name)?;
             bench_stringify(&fixture, config)
         }
         "merge" => {
+            let fixture_name = args.next().unwrap_or_else(|| "realistic".to_owned());
+            let config = parse_bench_config(args, &fixture_name)?;
             let fixture = load_merge_fixture(&fixture_name)?;
             bench_merge(&fixture, config)
         }
         "update-catalog" => {
+            let fixture_name = args.next().unwrap_or_else(|| "realistic".to_owned());
+            let config = parse_bench_config(args, &fixture_name)?;
             let fixture = load_merge_fixture(&fixture_name)?;
             bench_update_catalog(&fixture, config)
         }
         "update-catalog-file" => {
+            let fixture_name = args.next().unwrap_or_else(|| "realistic".to_owned());
+            let config = parse_bench_config(args, &fixture_name)?;
             let fixture = load_merge_fixture(&fixture_name)?;
             bench_update_catalog_file(&fixture, config)
         }
         "describe" => {
+            let fixture_name = args.next().unwrap_or_else(|| "realistic".to_owned());
             let fixture = load_fixture(&fixture_name)?;
             describe(&fixture);
             Ok(())
@@ -81,7 +106,7 @@ fn run() -> Result<(), String> {
             Ok(())
         }
         other => Err(format!(
-            "unknown command: {other} (use parse, parse-borrowed, parse-icu, validate-icu, extract-icu-variables, stringify, merge, update-catalog, update-catalog-file, describe, or conformance-report)"
+            "unknown command: {other} (use verify-benchmark-env, compare, parse, parse-borrowed, parse-icu, validate-icu, extract-icu-variables, stringify, merge, update-catalog, update-catalog-file, describe, or conformance-report)"
         )),
     }
 }
@@ -157,7 +182,7 @@ fn parse_positive_usize(label: &str, value: &str) -> Result<usize, String> {
 fn load_fixture(fixture_name: &str) -> Result<Fixture, String> {
     fixture_by_name(fixture_name).ok_or_else(|| {
         format!(
-            "unknown fixture: {fixture_name} (use tiny, realistic, stress, mixed-1000, mixed-10000)"
+            "unknown fixture: {fixture_name} (use tiny, realistic, stress, mixed-1000, mixed-10000, or gettext-<ui|commerce|saas|content>-<de|fr|pl|ar>-<count>)"
         )
     })
 }
@@ -173,7 +198,7 @@ fn load_icu_fixture(fixture_name: &str) -> Result<IcuFixture, String> {
 fn load_merge_fixture(fixture_name: &str) -> Result<MergeFixture, String> {
     merge_fixture_by_name(fixture_name).ok_or_else(|| {
         format!(
-            "unknown merge fixture: {fixture_name} (use mixed-1000, mixed-10000, catalog-icu-light, catalog-icu-heavy, catalog-icu-projectable, or catalog-icu-unsupported)"
+            "unknown merge fixture: {fixture_name} (use mixed-1000, mixed-10000, gettext-<ui|commerce|saas|content>-<de|fr|pl|ar>-<count>, catalog-icu-light, catalog-icu-heavy, catalog-icu-projectable, or catalog-icu-unsupported)"
         )
     })
 }
@@ -185,6 +210,8 @@ fn default_iterations(fixture_name: &str) -> usize {
         "catalog-icu-heavy" => 25,
         "catalog-icu-projectable" | "catalog-icu-unsupported" => 50,
         "stress" => 1_000,
+        name if name.starts_with("gettext-") && name.ends_with("-10000") => 100,
+        name if name.starts_with("gettext-") => 400,
         name if name.starts_with("icu-") && name.ends_with("-10000") => 50,
         name if name.starts_with("icu-") => 200,
         _ => 5_000,

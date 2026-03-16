@@ -1,0 +1,61 @@
+{
+  "name": "gettext-compat-v1",
+  "minimum_sample_millis": 250,
+  "scenarios": [
+    { "id": "po-parse/gettext-ui-de-1000/ferrocat-owned", "comparison_group": "po-parse/gettext-ui-de-1000", "workload": "po-parse", "operation": "parse", "fixture": "gettext-ui-de-1000", "implementation": "ferrocat-parse", "warmup_runs": 2, "measured_runs": 10 },
+    { "id": "po-parse/gettext-ui-de-1000/ferrocat-borrowed", "comparison_group": "po-parse/gettext-ui-de-1000", "workload": "po-parse", "operation": "parse", "fixture": "gettext-ui-de-1000", "implementation": "ferrocat-parse-borrowed", "warmup_runs": 2, "measured_runs": 10 },
+    { "id": "po-parse/gettext-ui-de-1000/polib", "comparison_group": "po-parse/gettext-ui-de-1000", "workload": "po-parse", "operation": "parse", "fixture": "gettext-ui-de-1000", "implementation": "polib", "warmup_runs": 2, "measured_runs": 10 },
+    { "id": "po-parse/gettext-ui-de-1000/pofile", "comparison_group": "po-parse/gettext-ui-de-1000", "workload": "po-parse", "operation": "parse", "fixture": "gettext-ui-de-1000", "implementation": "pofile", "warmup_runs": 2, "measured_runs": 10 },
+
+    { "id": "po-parse/gettext-ui-de-10000/ferrocat-owned", "comparison_group": "po-parse/gettext-ui-de-10000", "workload": "po-parse", "operation": "parse", "fixture": "gettext-ui-de-10000", "implementation": "ferrocat-parse", "warmup_runs": 2, "measured_runs": 10 },
+    { "id": "po-parse/gettext-ui-de-10000/ferrocat-borrowed", "comparison_group": "po-parse/gettext-ui-de-10000", "workload": "po-parse", "operation": "parse", "fixture": "gettext-ui-de-10000", "implementation": "ferrocat-parse-borrowed", "warmup_runs": 2, "measured_runs": 10 },
+    { "id": "po-parse/gettext-ui-de-10000/polib", "comparison_group": "po-parse/gettext-ui-de-10000", "workload": "po-parse", "operation": "parse", "fixture": "gettext-ui-de-10000", "implementation": "polib", "warmup_runs": 2, "measured_runs": 10 },
+    { "id": "po-parse/gettext-ui-de-10000/pofile", "comparison_group": "po-parse/gettext-ui-de-10000", "workload": "po-parse", "operation": "parse", "fixture": "gettext-ui-de-10000", "implementation": "pofile", "warmup_runs": 2, "measured_runs": 10 },
+
+    { "id": "po-parse/gettext-commerce-pl-1000/ferrocat-owned", "comparison_group": "po-parse/gettext-commerce-pl-1000", "workload": "po-parse", "operation": "parse", "fixture": "gettext-commerce-pl-1000", "implementation": "ferrocat-parse", "warmup_runs": 2, "measured_runs": 10 },
+    { "id": "po-parse/gettext-commerce-pl-1000/ferrocat-borrowed", "comparison_group": "po-parse/gettext-commerce-pl-1000", "workload": "po-parse", "operation": "parse", "fixture": "gettext-commerce-pl-1000", "implementation": "ferrocat-parse-borrowed", "warmup_runs": 2, "measured_runs": 10 },
+
+    { "id": "po-parse/gettext-commerce-pl-10000/ferrocat-owned", "comparison_group": "po-parse/gettext-commerce-pl-10000", "workload": "po-parse", "operation": "parse", "fixture": "gettext-commerce-pl-10000", "implementation": "ferrocat-parse", "warmup_runs": 2, "measured_runs": 10 },
+    { "id": "po-parse/gettext-commerce-pl-10000/ferrocat-borrowed", "comparison_group": "po-parse/gettext-commerce-pl-10000", "workload": "po-parse", "operation": "parse", "fixture": "gettext-commerce-pl-10000", "implementation": "ferrocat-parse-borrowed", "warmup_runs": 2, "measured_runs": 10 },
+
+    { "id": "po-parse/gettext-saas-fr-1000/ferrocat-owned", "comparison_group": "po-parse/gettext-saas-fr-1000", "workload": "po-parse", "operation": "parse", "fixture": "gettext-saas-fr-1000", "implementation": "ferrocat-parse", "warmup_runs": 2, "measured_runs": 10 },
+    { "id": "po-parse/gettext-saas-fr-1000/ferrocat-borrowed", "comparison_group": "po-parse/gettext-saas-fr-1000", "workload": "po-parse", "operation": "parse", "fixture": "gettext-saas-fr-1000", "implementation": "ferrocat-parse-borrowed", "warmup_runs": 2, "measured_runs": 10 },
+
+    { "id": "po-parse/gettext-saas-fr-10000/ferrocat-owned", "comparison_group": "po-parse/gettext-saas-fr-10000", "workload": "po-parse", "operation": "parse", "fixture": "gettext-saas-fr-10000", "implementation": "ferrocat-parse", "warmup_runs": 2, "measured_runs": 10 },
+    { "id": "po-parse/gettext-saas-fr-10000/ferrocat-borrowed", "comparison_group": "po-parse/gettext-saas-fr-10000", "workload": "po-parse", "operation": "parse", "fixture": "gettext-saas-fr-10000", "implementation": "ferrocat-parse-borrowed", "warmup_runs": 2, "measured_runs": 10 },
+
+    { "id": "po-parse/gettext-content-ar-1000/ferrocat-owned", "comparison_group": "po-parse/gettext-content-ar-1000", "workload": "po-parse", "operation": "parse", "fixture": "gettext-content-ar-1000", "implementation": "ferrocat-parse", "warmup_runs": 2, "measured_runs": 10 },
+    { "id": "po-parse/gettext-content-ar-1000/ferrocat-borrowed", "comparison_group": "po-parse/gettext-content-ar-1000", "workload": "po-parse", "operation": "parse", "fixture": "gettext-content-ar-1000", "implementation": "ferrocat-parse-borrowed", "warmup_runs": 2, "measured_runs": 10 },
+
+    { "id": "po-parse/gettext-content-ar-10000/ferrocat-owned", "comparison_group": "po-parse/gettext-content-ar-10000", "workload": "po-parse", "operation": "parse", "fixture": "gettext-content-ar-10000", "implementation": "ferrocat-parse", "warmup_runs": 2, "measured_runs": 10 },
+    { "id": "po-parse/gettext-content-ar-10000/ferrocat-borrowed", "comparison_group": "po-parse/gettext-content-ar-10000", "workload": "po-parse", "operation": "parse", "fixture": "gettext-content-ar-10000", "implementation": "ferrocat-parse-borrowed", "warmup_runs": 2, "measured_runs": 10 },
+
+    { "id": "po-stringify/gettext-ui-de-1000/ferrocat", "comparison_group": "po-stringify/gettext-ui-de-1000", "workload": "po-stringify", "operation": "stringify", "fixture": "gettext-ui-de-1000", "implementation": "ferrocat-stringify", "warmup_runs": 2, "measured_runs": 10 },
+    { "id": "po-stringify/gettext-ui-de-1000/polib", "comparison_group": "po-stringify/gettext-ui-de-1000", "workload": "po-stringify", "operation": "stringify", "fixture": "gettext-ui-de-1000", "implementation": "polib", "warmup_runs": 2, "measured_runs": 10 },
+    { "id": "po-stringify/gettext-ui-de-1000/pofile", "comparison_group": "po-stringify/gettext-ui-de-1000", "workload": "po-stringify", "operation": "stringify", "fixture": "gettext-ui-de-1000", "implementation": "pofile", "warmup_runs": 2, "measured_runs": 10 },
+    { "id": "po-stringify/gettext-ui-de-1000/msgcat", "comparison_group": "po-stringify/gettext-ui-de-1000", "workload": "po-stringify", "operation": "stringify", "fixture": "gettext-ui-de-1000", "implementation": "msgcat", "warmup_runs": 2, "measured_runs": 10 },
+
+    { "id": "po-stringify/gettext-ui-de-10000/ferrocat", "comparison_group": "po-stringify/gettext-ui-de-10000", "workload": "po-stringify", "operation": "stringify", "fixture": "gettext-ui-de-10000", "implementation": "ferrocat-stringify", "warmup_runs": 2, "measured_runs": 10 },
+    { "id": "po-stringify/gettext-ui-de-10000/polib", "comparison_group": "po-stringify/gettext-ui-de-10000", "workload": "po-stringify", "operation": "stringify", "fixture": "gettext-ui-de-10000", "implementation": "polib", "warmup_runs": 2, "measured_runs": 10 },
+    { "id": "po-stringify/gettext-ui-de-10000/pofile", "comparison_group": "po-stringify/gettext-ui-de-10000", "workload": "po-stringify", "operation": "stringify", "fixture": "gettext-ui-de-10000", "implementation": "pofile", "warmup_runs": 2, "measured_runs": 10 },
+    { "id": "po-stringify/gettext-ui-de-10000/msgcat", "comparison_group": "po-stringify/gettext-ui-de-10000", "workload": "po-stringify", "operation": "stringify", "fixture": "gettext-ui-de-10000", "implementation": "msgcat", "warmup_runs": 2, "measured_runs": 10 },
+
+    { "id": "po-stringify/gettext-commerce-pl-1000/ferrocat", "comparison_group": "po-stringify/gettext-commerce-pl-1000", "workload": "po-stringify", "operation": "stringify", "fixture": "gettext-commerce-pl-1000", "implementation": "ferrocat-stringify", "warmup_runs": 2, "measured_runs": 10 },
+    { "id": "po-stringify/gettext-commerce-pl-1000/msgcat", "comparison_group": "po-stringify/gettext-commerce-pl-1000", "workload": "po-stringify", "operation": "stringify", "fixture": "gettext-commerce-pl-1000", "implementation": "msgcat", "warmup_runs": 2, "measured_runs": 10 },
+
+    { "id": "po-stringify/gettext-commerce-pl-10000/ferrocat", "comparison_group": "po-stringify/gettext-commerce-pl-10000", "workload": "po-stringify", "operation": "stringify", "fixture": "gettext-commerce-pl-10000", "implementation": "ferrocat-stringify", "warmup_runs": 2, "measured_runs": 10 },
+    { "id": "po-stringify/gettext-commerce-pl-10000/msgcat", "comparison_group": "po-stringify/gettext-commerce-pl-10000", "workload": "po-stringify", "operation": "stringify", "fixture": "gettext-commerce-pl-10000", "implementation": "msgcat", "warmup_runs": 2, "measured_runs": 10 },
+
+    { "id": "po-stringify/gettext-saas-fr-1000/ferrocat", "comparison_group": "po-stringify/gettext-saas-fr-1000", "workload": "po-stringify", "operation": "stringify", "fixture": "gettext-saas-fr-1000", "implementation": "ferrocat-stringify", "warmup_runs": 2, "measured_runs": 10 },
+    { "id": "po-stringify/gettext-saas-fr-1000/msgcat", "comparison_group": "po-stringify/gettext-saas-fr-1000", "workload": "po-stringify", "operation": "stringify", "fixture": "gettext-saas-fr-1000", "implementation": "msgcat", "warmup_runs": 2, "measured_runs": 10 },
+
+    { "id": "po-stringify/gettext-saas-fr-10000/ferrocat", "comparison_group": "po-stringify/gettext-saas-fr-10000", "workload": "po-stringify", "operation": "stringify", "fixture": "gettext-saas-fr-10000", "implementation": "ferrocat-stringify", "warmup_runs": 2, "measured_runs": 10 },
+    { "id": "po-stringify/gettext-saas-fr-10000/msgcat", "comparison_group": "po-stringify/gettext-saas-fr-10000", "workload": "po-stringify", "operation": "stringify", "fixture": "gettext-saas-fr-10000", "implementation": "msgcat", "warmup_runs": 2, "measured_runs": 10 },
+
+    { "id": "po-stringify/gettext-content-ar-1000/ferrocat", "comparison_group": "po-stringify/gettext-content-ar-1000", "workload": "po-stringify", "operation": "stringify", "fixture": "gettext-content-ar-1000", "implementation": "ferrocat-stringify", "warmup_runs": 2, "measured_runs": 10 },
+    { "id": "po-stringify/gettext-content-ar-1000/msgcat", "comparison_group": "po-stringify/gettext-content-ar-1000", "workload": "po-stringify", "operation": "stringify", "fixture": "gettext-content-ar-1000", "implementation": "msgcat", "warmup_runs": 2, "measured_runs": 10 },
+
+    { "id": "po-stringify/gettext-content-ar-10000/ferrocat", "comparison_group": "po-stringify/gettext-content-ar-10000", "workload": "po-stringify", "operation": "stringify", "fixture": "gettext-content-ar-10000", "implementation": "ferrocat-stringify", "warmup_runs": 2, "measured_runs": 10 },
+    { "id": "po-stringify/gettext-content-ar-10000/msgcat", "comparison_group": "po-stringify/gettext-content-ar-10000", "workload": "po-stringify", "operation": "stringify", "fixture": "gettext-content-ar-10000", "implementation": "msgcat", "warmup_runs": 2, "measured_runs": 10 }
+  ]
+}
