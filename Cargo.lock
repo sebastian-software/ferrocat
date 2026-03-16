@@ -15,7 +15,7 @@ dependencies = [
 
 [[package]]
 name = "ferrocat"
-version = "0.3.0"
+version = "0.2.0"
 dependencies = [
  "ferrocat-icu",
  "ferrocat-po",
@@ -23,7 +23,7 @@ dependencies = [
 
 [[package]]
 name = "ferrocat-bench"
-version = "0.3.0"
+version = "0.2.0"
 dependencies = [
  "ferrocat-conformance",
  "ferrocat-icu",
@@ -32,18 +32,18 @@ dependencies = [
 
 [[package]]
 name = "ferrocat-conformance"
-version = "0.3.0"
+version = "0.2.0"
 
 [[package]]
 name = "ferrocat-icu"
-version = "0.3.0"
+version = "0.2.0"
 dependencies = [
  "ferrocat-conformance",
 ]
 
 [[package]]
 name = "ferrocat-po"
-version = "0.3.0"
+version = "0.2.0"
 dependencies = [
  "ferrocat-conformance",
  "ferrocat-icu",

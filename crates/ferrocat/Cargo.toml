@@ -1,6 +1,6 @@
 [package]
 name = "ferrocat"
-version.workspace = true
+version = "0.2.0"
 edition.workspace = true
 homepage.workspace = true
 license.workspace = true
@@ -16,8 +16,8 @@ categories = ["internationalization", "localization", "parser-implementations"]
 path = "src/lib.rs"
 
 [dependencies]
-ferrocat-icu = { version = "0.3.0", path = "../ferrocat-icu" }
-ferrocat-po = { version = "0.3.0", path = "../ferrocat-po" }
+ferrocat-icu = { version = "0.2.0", path = "../ferrocat-icu" }
+ferrocat-po = { version = "0.2.0", path = "../ferrocat-po" }
 
 [lints]
 workspace = true
