@@ -40,6 +40,9 @@ struct Parser<'a> {
 }
 
 impl<'a> Parser<'a> {
+    const OFFSET_PREFIX: &'static [u8] = b"offset:";
+    const CLOSE_TAG_PREFIX: &'static [u8] = b"</";
+
     fn new(input: &'a str, options: &'a IcuParserOptions) -> Self {
         Self {
             input,
@@ -180,8 +183,8 @@ impl<'a> Parser<'a> {
 
         loop {
             self.skip_whitespace();
-            if self.input[self.pos..].starts_with("offset:") {
-                self.pos += "offset:".len();
+            if self.starts_with_bytes(Self::OFFSET_PREFIX) {
+                self.pos += Self::OFFSET_PREFIX.len();
                 self.skip_whitespace();
                 offset = self.parse_unsigned_int()? as u32;
             } else {
@@ -208,7 +211,7 @@ impl<'a> Parser<'a> {
 
         loop {
             self.skip_whitespace();
-            if self.peek_char() == Some('}') {
+            if self.byte_at() == Some(b'}') {
                 break;
             }
             let selector = self.parse_selector()?;
@@ -231,7 +234,7 @@ impl<'a> Parser<'a> {
         let name = self.parse_tag_name()?;
         self.expect_char('>')?;
         let children = self.parse_nodes(Some(&name), plural_depth)?;
-        self.expect_str("</")?;
+        self.expect_bytes(Self::CLOSE_TAG_PREFIX)?;
         let close_name = self.parse_tag_name()?;
         if close_name != name {
             return Err(self.error("Mismatched closing tag"));
@@ -326,7 +329,7 @@ impl<'a> Parser<'a> {
             return Err(self.error("Expected ICU identifier"));
         }
 
-        Ok(self.input[start..self.pos].trim().to_owned())
+        Ok(self.input[start..self.pos].to_owned())
     }
 
     fn parse_tag_name(&mut self) -> Result<String, IcuParseError> {
@@ -399,11 +402,12 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn expect_str(&mut self, expected: &str) -> Result<(), IcuParseError> {
-        if self.input[self.pos..].starts_with(expected) {
+    fn expect_bytes(&mut self, expected: &[u8]) -> Result<(), IcuParseError> {
+        if self.starts_with_bytes(expected) {
             self.pos += expected.len();
             Ok(())
         } else {
+            let expected = core::str::from_utf8(expected).unwrap_or("<bytes>");
             Err(self.error(format!("Expected \"{expected}\"")))
         }
     }
@@ -457,9 +461,13 @@ impl<'a> Parser<'a> {
         let Some(rest) = self.input_bytes.get(self.pos..) else {
             return false;
         };
-        rest.starts_with(b"</")
+        rest.starts_with(Self::CLOSE_TAG_PREFIX)
             && rest[2..].starts_with(name.as_bytes())
             && rest.get(2 + name.len()) == Some(&b'>')
+    }
+
+    fn starts_with_bytes(&self, expected: &[u8]) -> bool {
+        self.input_bytes[self.pos..].starts_with(expected)
     }
 
     fn is_eof(&self) -> bool {

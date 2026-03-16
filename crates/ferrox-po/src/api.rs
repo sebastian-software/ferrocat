@@ -1527,10 +1527,9 @@ fn plural_key_rank(key: &str) -> usize {
 }
 
 fn dedupe_strings(values: Vec<String>) -> Vec<String> {
-    let mut seen = BTreeSet::new();
     let mut out = Vec::new();
     for value in values {
-        if seen.insert(value.clone()) {
+        if !push_unique_string(&out, &value) {
             out.push(value);
         }
     }
@@ -1538,6 +1537,15 @@ fn dedupe_strings(values: Vec<String>) -> Vec<String> {
 }
 
 fn merge_unique_strings(target: &mut Vec<String>, incoming: Vec<String>) {
+    if target.len() + incoming.len() < 8 {
+        for value in incoming {
+            if !push_unique_string(target, &value) {
+                target.push(value);
+            }
+        }
+        return;
+    }
+
     let mut seen = target.iter().cloned().collect::<BTreeSet<_>>();
     for value in incoming {
         if seen.insert(value.clone()) {
@@ -1546,11 +1554,22 @@ fn merge_unique_strings(target: &mut Vec<String>, incoming: Vec<String>) {
     }
 }
 
+fn push_unique_string(target: &[String], value: &str) -> bool {
+    if target.len() < 8 {
+        target.iter().any(|existing| existing == value)
+    } else {
+        target
+            .iter()
+            .cloned()
+            .collect::<BTreeSet<_>>()
+            .contains(value)
+    }
+}
+
 fn dedupe_origins(values: Vec<CatalogOrigin>) -> Vec<CatalogOrigin> {
-    let mut seen = BTreeSet::new();
     let mut out = Vec::new();
     for value in values {
-        if seen.insert((value.file.clone(), value.line)) {
+        if !push_unique_origin(&out, &value) {
             out.push(value);
         }
     }
@@ -1558,6 +1577,15 @@ fn dedupe_origins(values: Vec<CatalogOrigin>) -> Vec<CatalogOrigin> {
 }
 
 fn merge_unique_origins(target: &mut Vec<CatalogOrigin>, incoming: Vec<CatalogOrigin>) {
+    if target.len() + incoming.len() < 8 {
+        for value in incoming {
+            if !push_unique_origin(target, &value) {
+                target.push(value);
+            }
+        }
+        return;
+    }
+
     let mut seen = target
         .iter()
         .map(|origin| (origin.file.clone(), origin.line))
@@ -1566,6 +1594,20 @@ fn merge_unique_origins(target: &mut Vec<CatalogOrigin>, incoming: Vec<CatalogOr
         if seen.insert((value.file.clone(), value.line)) {
             target.push(value);
         }
+    }
+}
+
+fn push_unique_origin(target: &[CatalogOrigin], value: &CatalogOrigin) -> bool {
+    if target.len() < 8 {
+        target
+            .iter()
+            .any(|origin| origin.file == value.file && origin.line == value.line)
+    } else {
+        target
+            .iter()
+            .map(|origin| (origin.file.clone(), origin.line))
+            .collect::<BTreeSet<_>>()
+            .contains(&(value.file.clone(), value.line))
     }
 }
 
