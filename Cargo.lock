@@ -28,6 +28,7 @@ version = "0.1.0"
 name = "ferrox-po"
 version = "0.1.0"
 dependencies = [
+ "ferrox-icu",
  "icu_locale",
  "icu_plurals",
  "memchr",

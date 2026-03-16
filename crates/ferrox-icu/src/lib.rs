@@ -1,41 +1,11 @@
-//! Compact, performance-oriented ICU parsing primitives.
+//! Compact, performance-oriented ICU MessageFormat parsing primitives.
 
-use core::fmt;
+mod ast;
+mod error;
+mod parser;
+mod utils;
 
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub struct IcuMessage {
-    pub nodes: Vec<IcuNode>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum IcuNode {
-    Literal(String),
-    Argument { name: String },
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct IcuParseError {
-    message: String,
-}
-
-impl IcuParseError {
-    pub fn new(message: impl Into<String>) -> Self {
-        Self {
-            message: message.into(),
-        }
-    }
-}
-
-impl fmt::Display for IcuParseError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(&self.message)
-    }
-}
-
-impl std::error::Error for IcuParseError {}
-
-pub fn parse_icu(_input: &str) -> Result<IcuMessage, IcuParseError> {
-    Err(IcuParseError::new(
-        "parse_icu is not implemented yet; the ICU AST and parser land in a later milestone",
-    ))
-}
+pub use ast::{IcuMessage, IcuNode, IcuOption, IcuPluralKind};
+pub use error::{IcuErrorKind, IcuParseError, IcuPosition};
+pub use parser::{IcuParserOptions, parse_icu, parse_icu_with_options};
+pub use utils::{extract_variables, has_plural, has_select, has_selectordinal, has_tag, validate_icu};
