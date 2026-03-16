@@ -581,4 +581,25 @@ mod tests {
         assert_eq!(reparsed.items[0].msgid, "Grüße aus Köln");
         assert_eq!(reparsed.items[0].msgstr[0], "Übermäßig höflich");
     }
+
+    #[test]
+    fn drops_previous_msgid_history_on_roundtrip() {
+        let input = r#"#| msgctxt "Old menu context"
+#| msgid "Old file label"
+msgctxt "menu"
+msgid "File"
+msgstr "Datei"
+"#;
+
+        let parsed = parse_po(input).expect("parse previous-msgid input");
+        assert_eq!(parsed.items.len(), 1);
+        assert_eq!(parsed.items[0].msgctxt.as_deref(), Some("menu"));
+        assert_eq!(parsed.items[0].msgid, "File");
+
+        let output = stringify_po(&parsed, &SerializeOptions::default());
+        assert!(!output.contains("#| "));
+        assert!(output.contains("msgctxt \"menu\"\n"));
+        assert!(output.contains("msgid \"File\"\n"));
+    }
+
 }

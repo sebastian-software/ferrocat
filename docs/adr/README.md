@@ -10,3 +10,4 @@ Current records:
 - [0004: Model `msgstr` by Semantics Instead of Always Using `Vec<String>`](0004-model-msgstr-by-semantics.md)
 - [0005: Treat ICU as the Canonical Model and Gettext as a Compatibility Bridge](0005-icu-canonical-model-and-gettext-bridge.md)
 - [0006: Separate the PO Core from the High-Level Catalog API](0006-separate-po-core-from-high-level-catalog-api.md)
+- [0007: Do Not Support `previous_msgid` History](0007-drop-previous-msgid-history.md)

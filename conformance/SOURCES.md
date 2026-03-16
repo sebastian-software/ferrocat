@@ -7,7 +7,7 @@ This directory stores the first hermetic conformance snapshot for `ferrox`.
 - Source snapshots were selected on 2026-03-16.
 - Fixtures are compact semantic adaptations of upstream tests unless noted otherwise.
 - GNU `gettext` is intentionally excluded from phase 1.
-- Current snapshot size on 2026-03-16: `56` cases / `423` assertions.
+- Current snapshot size on 2026-03-16: `55` cases / `422` assertions.
 
 ## Upstream Sources
 
@@ -15,8 +15,8 @@ This directory stores the first hermetic conformance snapshot for `ferrox`.
   - Upstream: <https://github.com/izimobil/polib>
   - License: MIT
   - Role: primary PO edge-case baseline
-  - Snapshot here: `13` cases / `78` assertions
-  - Coverage here: comment ordering, wrapping, invalid quoting, merge semantics, merge output semantics, known gaps for previous-message history and UTF-8 BOM handling
+  - Snapshot here: `12` cases / `77` assertions
+  - Coverage here: comment ordering, wrapping, invalid quoting, merge semantics, merge output semantics, and a known gap for UTF-8 BOM handling
 
 - `rubenv/pofile`
   - Upstream: <https://github.com/rubenv/pofile>

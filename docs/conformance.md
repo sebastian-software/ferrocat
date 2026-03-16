@@ -13,16 +13,16 @@ Phase 1 intentionally excludes GNU `gettext`. The current snapshot uses:
 
 Current snapshot totals as of 2026-03-16:
 
-- `56` source-attributed conformance cases
-- `423` concrete assertions checked by the harness
+- `55` source-attributed conformance cases
+- `422` concrete assertions checked by the harness
 - `45` expected passes
 - `4` expected rejects
-- `7` documented `known_gap` cases
+- `6` documented `known_gap` cases
 
 Per suite:
 
 - `po-pofile`: `30` cases / `301` assertions
-- `po-polib`: `13` cases / `78` assertions
+- `po-polib`: `12` cases / `77` assertions
 - `po-babel`: `5` cases / `23` assertions
 - `icu-official`: `8` cases / `21` assertions
 
@@ -30,7 +30,7 @@ The case count tracks individually addressable upstream-derived scenarios. The a
 
 ## Snapshot Scope
 
-- `po-polib`: comment ordering, wrapping, invalid quoting, merge semantics, merge output parsing, and known gaps for previous-message history and UTF-8 BOM handling
+- `po-polib`: comment ordering, wrapping, invalid quoting, merge semantics, merge output parsing, and known gaps for UTF-8 BOM handling
 - `po-pofile`: multiline values, references, comments, contexts, obsolete entries, C-string escapes, fuzzy roundtrip, and `Plural-Forms`
 - `po-babel`: unknown locale roundtrip, irregular multiline `msgstr`, enclosed location parsing, and a known gap for structured location splitting
 - `icu-official`: simple arguments, plural/selectordinal, nested tags, apostrophe escaping, and parser-visible failure cases
@@ -58,6 +58,8 @@ The report prints totals per suite and capability, broken down into `pass`, `rej
 It also prints assertion totals, so we can talk about both "how many source-attributed cases" and "how many concrete checks" without inflating fixture counts.
 
 Known gaps are counted and documented, but they do not fail CI.
+
+Not every upstream-derived behavior is treated as a desired future target. `previous_msgid` history from traditional gettext merge workflows is intentionally out of scope and therefore not counted as a `known_gap`.
 
 ## Phase 1 Exclusion
 

@@ -117,16 +117,6 @@ upstream_source = "https://raw.githubusercontent.com/izimobil/polib/master/tests
 upstream_ref = "tests/test_merge_after.po:marks missing message obsolete"
 
 [[cases]]
-id = "polib.previous_msgid_history"
-capability = "parse"
-runner = "po_parse"
-expectation = "known_gap"
-input = "polib/previous_msgid.po"
-notes = "Previous msgid/msgctxt history comments are not modeled by ferrox-po yet."
-upstream_source = "https://raw.githubusercontent.com/izimobil/polib/master/tests/test_previous_msgid.po"
-upstream_ref = "tests/test_previous_msgid.po"
-
-[[cases]]
 id = "polib.previous_msgid_current_item"
 capability = "parse"
 runner = "po_parse"
