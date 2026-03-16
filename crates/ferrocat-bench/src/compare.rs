@@ -139,6 +139,7 @@ fn run_profile(
                     .unwrap_or(profile.minimum_sample_millis),
                 validation.elapsed_ns,
             );
+            let cli_baseline = PreparedScenario::prepare_cli_baseline(workspace, &scenario)?;
 
             for _ in 0..scenario.warmup_runs {
                 let warmup = execute_scenario(workspace, &prepared, &scenario, iterations, false)?;
@@ -148,16 +149,30 @@ fn run_profile(
                         scenario.id, validated_digest, warmup.reported_digest
                     ));
                 }
+                if let Some(baseline) = &cli_baseline {
+                    execute_scenario(workspace, &baseline.prepared, &scenario, iterations, false)?;
+                }
             }
 
             let mut samples = Vec::with_capacity(scenario.measured_runs);
             for _ in 0..scenario.measured_runs {
-                let sample = execute_scenario(workspace, &prepared, &scenario, iterations, false)?;
+                let mut sample =
+                    execute_scenario(workspace, &prepared, &scenario, iterations, false)?;
                 if sample.reported_digest != validated_digest {
                     return Err(format!(
                         "measured digest mismatch for scenario {}: expected {}, got {}",
                         scenario.id, validated_digest, sample.reported_digest
                     ));
+                }
+                if let Some(baseline) = &cli_baseline {
+                    let baseline_sample = execute_scenario(
+                        workspace,
+                        &baseline.prepared,
+                        &scenario,
+                        iterations,
+                        false,
+                    )?;
+                    sample.baseline_elapsed_ns = Some(baseline_sample.elapsed_ns);
                 }
                 samples.push(sample);
             }
@@ -175,6 +190,8 @@ fn run_profile(
                 warmup_runs: scenario.warmup_runs,
                 measured_runs: scenario.measured_runs,
                 semantic_digest: validated_digest,
+                baseline_strategy: cli_baseline.as_ref().map(|_| "empty-cli-run".to_owned()),
+                baseline_fixture: cli_baseline.as_ref().map(|baseline| baseline.label.clone()),
                 statistics,
                 samples: samples
                     .into_iter()
@@ -340,6 +357,12 @@ struct PreparedScenario {
     icu_messages: Option<Vec<String>>,
 }
 
+#[derive(Debug)]
+struct CliBaselineScenario {
+    label: String,
+    prepared: PreparedScenario,
+}
+
 impl PreparedScenario {
     fn prepare(workspace: &Path, scenarios: &[BenchmarkScenario]) -> Result<Self, String> {
         let Some(first) = scenarios.first() else {
@@ -455,6 +478,88 @@ impl PreparedScenario {
         }
     }
 
+    fn prepare_cli_baseline(
+        workspace: &Path,
+        scenario: &BenchmarkScenario,
+    ) -> Result<Option<CliBaselineScenario>, String> {
+        match scenario.implementation.as_str() {
+            "msgcat" => {
+                let tempdir = tempfile::Builder::new()
+                    .prefix("ferrocat-cli-baseline-")
+                    .tempdir_in(workspace.join("target"))
+                    .map_err(|error| format!("failed to create cli baseline tempdir: {error}"))?;
+                let locale = fixture_locale(&scenario.fixture);
+                let content = build_cli_baseline_po(locale.as_deref());
+                let input_path = tempdir.path().join("baseline.po");
+                fs::write(&input_path, &content).map_err(|error| {
+                    format!(
+                        "failed to write cli baseline input {}: {error}",
+                        input_path.display()
+                    )
+                })?;
+                Ok(Some(CliBaselineScenario {
+                    label: format!("header-only-po:{}", locale.as_deref().unwrap_or("default")),
+                    prepared: Self {
+                        operation: scenario.operation.clone(),
+                        fixture: format!("cli-baseline-msgcat-{}", scenario.fixture),
+                        _tempdir: tempdir,
+                        po_input_path: Some(input_path),
+                        icu_messages_path: None,
+                        existing_po_path: None,
+                        pot_path: None,
+                        po_content: Some(content),
+                        po_file: None,
+                        merge_fixture: None,
+                        icu_messages: None,
+                    },
+                }))
+            }
+            "msgmerge" => {
+                let tempdir = tempfile::Builder::new()
+                    .prefix("ferrocat-cli-baseline-")
+                    .tempdir_in(workspace.join("target"))
+                    .map_err(|error| format!("failed to create cli baseline tempdir: {error}"))?;
+                let locale = fixture_locale(&scenario.fixture);
+                let existing = build_cli_baseline_po(locale.as_deref());
+                let pot = build_cli_baseline_pot();
+                let existing_po_path = tempdir.path().join("baseline-existing.po");
+                let pot_path = tempdir.path().join("baseline-template.pot");
+                fs::write(&existing_po_path, &existing).map_err(|error| {
+                    format!(
+                        "failed to write cli baseline existing {}: {error}",
+                        existing_po_path.display()
+                    )
+                })?;
+                fs::write(&pot_path, &pot).map_err(|error| {
+                    format!(
+                        "failed to write cli baseline template {}: {error}",
+                        pot_path.display()
+                    )
+                })?;
+                Ok(Some(CliBaselineScenario {
+                    label: format!(
+                        "header-only-merge:{}",
+                        locale.as_deref().unwrap_or("default")
+                    ),
+                    prepared: Self {
+                        operation: scenario.operation.clone(),
+                        fixture: format!("cli-baseline-msgmerge-{}", scenario.fixture),
+                        _tempdir: tempdir,
+                        po_input_path: None,
+                        icu_messages_path: None,
+                        existing_po_path: Some(existing_po_path),
+                        pot_path: Some(pot_path),
+                        po_content: None,
+                        po_file: None,
+                        merge_fixture: None,
+                        icu_messages: None,
+                    },
+                }))
+            }
+            _ => Ok(None),
+        }
+    }
+
     fn validate(&self, result: &ExecutionResult) -> Result<String, String> {
         let digest = match self.operation.as_str() {
             "parse" => match result.artifact.as_ref() {
@@ -533,6 +638,7 @@ impl PreparedScenario {
             tool_version: INTERNAL_TOOL_VERSION.to_owned(),
             reported_digest: digest,
             elapsed_ns: elapsed.as_nanos(),
+            baseline_elapsed_ns: None,
             bytes_processed: (input.len() * iterations) as u64,
             items_processed: summary
                 .items
@@ -575,6 +681,7 @@ impl PreparedScenario {
             tool_version: INTERNAL_TOOL_VERSION.to_owned(),
             reported_digest: digest,
             elapsed_ns: elapsed.as_nanos(),
+            baseline_elapsed_ns: None,
             bytes_processed: bytes_processed as u64,
             items_processed: summary
                 .items
@@ -617,6 +724,7 @@ impl PreparedScenario {
             tool_version: INTERNAL_TOOL_VERSION.to_owned(),
             reported_digest: digest,
             elapsed_ns: elapsed.as_nanos(),
+            baseline_elapsed_ns: None,
             bytes_processed: bytes_processed as u64,
             items_processed: summary
                 .items
@@ -668,6 +776,7 @@ impl PreparedScenario {
             tool_version: INTERNAL_TOOL_VERSION.to_owned(),
             reported_digest: digest,
             elapsed_ns: elapsed.as_nanos(),
+            baseline_elapsed_ns: None,
             bytes_processed: bytes_processed as u64,
             items_processed: summary
                 .items
@@ -703,6 +812,7 @@ impl PreparedScenario {
             tool_version: INTERNAL_TOOL_VERSION.to_owned(),
             reported_digest: digest,
             elapsed_ns: elapsed.as_nanos(),
+            baseline_elapsed_ns: None,
             bytes_processed: (total_bytes * iterations) as u64,
             items_processed: None,
             messages_processed: Some((messages.len() * iterations) as u64),
@@ -795,6 +905,7 @@ impl PreparedScenario {
                 .to_owned(),
             reported_digest: digest,
             elapsed_ns: elapsed.as_nanos(),
+            baseline_elapsed_ns: None,
             bytes_processed: bytes_processed as u64,
             items_processed: summary
                 .items
@@ -864,6 +975,7 @@ impl PreparedScenario {
                 .to_owned(),
             reported_digest: digest,
             elapsed_ns: elapsed.as_nanos(),
+            baseline_elapsed_ns: None,
             bytes_processed: bytes_processed as u64,
             items_processed: summary
                 .items
@@ -1027,6 +1139,34 @@ fn load_merge_fixture(name: &str) -> Result<MergeFixture, String> {
     merge_fixture_by_name(name).ok_or_else(|| format!("unknown merge fixture: {name}"))
 }
 
+fn build_cli_baseline_po(locale: Option<&str>) -> String {
+    let (language, plural_forms) = fixture_locale_metadata(locale.unwrap_or("de"));
+    format!(
+        concat!(
+            "msgid \"\"\n",
+            "msgstr \"\"\n",
+            "\"Project-Id-Version: ferrocat benchmark baseline\\n\"\n",
+            "\"Language: {language}\\n\"\n",
+            "\"Content-Type: text/plain; charset=UTF-8\\n\"\n",
+            "\"Content-Transfer-Encoding: 8bit\\n\"\n",
+            "\"Plural-Forms: {plural_forms}\\n\"\n"
+        ),
+        language = language,
+        plural_forms = plural_forms
+    )
+}
+
+fn build_cli_baseline_pot() -> String {
+    concat!(
+        "msgid \"\"\n",
+        "msgstr \"\"\n",
+        "\"Project-Id-Version: ferrocat benchmark template\\n\"\n",
+        "\"Content-Type: text/plain; charset=UTF-8\\n\"\n",
+        "\"Content-Transfer-Encoding: 8bit\\n\"\n"
+    )
+    .to_owned()
+}
+
 fn fixture_locale(name: &str) -> Option<String> {
     if !name.starts_with("gettext-") {
         return Some("de".to_owned());
@@ -1037,6 +1177,22 @@ fn fixture_locale(name: &str) -> Option<String> {
     let _family = parts.next()?;
     let locale = parts.next()?;
     Some(locale.to_owned())
+}
+
+fn fixture_locale_metadata(locale: &str) -> (&'static str, &'static str) {
+    match locale {
+        "de" => ("de", "nplurals=2; plural=(n != 1);"),
+        "fr" => ("fr", "nplurals=2; plural=(n > 1);"),
+        "pl" => (
+            "pl",
+            "nplurals=3; plural=(n == 1 ? 0 : n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 12 || n % 100 > 14) ? 1 : 2);",
+        ),
+        "ar" => (
+            "ar",
+            "nplurals=6; plural=(n==0 ? 0 : n==1 ? 1 : n==2 ? 2 : n%100>=3 && n%100<=10 ? 3 : n%100>=11 && n%100<=99 ? 4 : 5);",
+        ),
+        _ => ("de", "nplurals=2; plural=(n != 1);"),
+    }
 }
 
 fn fixture_plural_encoding(name: &str) -> PluralEncoding {
@@ -1306,6 +1462,8 @@ struct ScenarioReport {
     warmup_runs: usize,
     measured_runs: usize,
     semantic_digest: String,
+    baseline_strategy: Option<String>,
+    baseline_fixture: Option<String>,
     statistics: ScenarioStatistics,
     samples: Vec<ScenarioSampleReport>,
 }
@@ -1313,11 +1471,15 @@ struct ScenarioReport {
 #[derive(Debug, Serialize)]
 struct ScenarioSampleReport {
     elapsed_ns: u128,
+    baseline_elapsed_ns: Option<u128>,
+    adjusted_elapsed_ns: Option<u128>,
     bytes_processed: u64,
     items_processed: Option<u64>,
     messages_processed: Option<u64>,
     mib_per_sec: f64,
     units_per_sec: f64,
+    adjusted_mib_per_sec: Option<f64>,
+    adjusted_units_per_sec: Option<f64>,
 }
 
 impl ScenarioSampleReport {
@@ -1327,13 +1489,23 @@ impl ScenarioSampleReport {
             .items_processed
             .or(sample.messages_processed)
             .unwrap_or(0) as f64;
+        let adjusted_elapsed_ns = sample.adjusted_elapsed_ns();
+        let adjusted_seconds = adjusted_elapsed_ns.map(nanos_to_seconds);
         Self {
             elapsed_ns: sample.elapsed_ns,
+            baseline_elapsed_ns: sample.baseline_elapsed_ns,
+            adjusted_elapsed_ns,
             bytes_processed: sample.bytes_processed,
             items_processed: sample.items_processed,
             messages_processed: sample.messages_processed,
             mib_per_sec: throughput_mib(sample.bytes_processed, elapsed_seconds),
             units_per_sec: throughput_units(units, elapsed_seconds),
+            adjusted_mib_per_sec: adjusted_seconds
+                .filter(|seconds| *seconds > 0.0)
+                .map(|seconds| throughput_mib(sample.bytes_processed, seconds)),
+            adjusted_units_per_sec: adjusted_seconds
+                .filter(|seconds| *seconds > 0.0)
+                .map(|seconds| throughput_units(units, seconds)),
         }
     }
 }
@@ -1346,6 +1518,10 @@ struct ScenarioStatistics {
     stddev_elapsed_ns: f64,
     median_mib_per_sec: f64,
     median_units_per_sec: f64,
+    median_baseline_elapsed_ns: Option<u128>,
+    median_adjusted_elapsed_ns: Option<u128>,
+    median_adjusted_mib_per_sec: Option<f64>,
+    median_adjusted_units_per_sec: Option<f64>,
 }
 
 impl ScenarioStatistics {
@@ -1395,6 +1571,49 @@ impl ScenarioStatistics {
             .map(|entry| entry.1)
             .unwrap_or(0.0);
 
+        let baseline_elapsed = samples
+            .iter()
+            .filter_map(|sample| sample.baseline_elapsed_ns)
+            .collect::<Vec<_>>();
+        let adjusted_elapsed = samples
+            .iter()
+            .filter_map(ExecutionResult::adjusted_elapsed_ns)
+            .collect::<Vec<_>>();
+        let adjusted_rates = samples
+            .iter()
+            .filter_map(|sample| {
+                let adjusted_ns = sample.adjusted_elapsed_ns()?;
+                if adjusted_ns == 0 {
+                    return None;
+                }
+                let seconds = nanos_to_seconds(adjusted_ns);
+                Some((
+                    throughput_mib(sample.bytes_processed, seconds),
+                    throughput_units(
+                        sample
+                            .items_processed
+                            .or(sample.messages_processed)
+                            .unwrap_or(0) as f64,
+                        seconds,
+                    ),
+                ))
+            })
+            .collect::<Vec<_>>();
+        let median_baseline_elapsed_ns = median_u128(baseline_elapsed);
+        let median_adjusted_elapsed_ns = median_u128(adjusted_elapsed);
+        let median_adjusted_mib_per_sec = median_f64(
+            adjusted_rates
+                .iter()
+                .map(|entry| entry.0)
+                .collect::<Vec<_>>(),
+        );
+        let median_adjusted_units_per_sec = median_f64(
+            adjusted_rates
+                .iter()
+                .map(|entry| entry.1)
+                .collect::<Vec<_>>(),
+        );
+
         Self {
             median_elapsed_ns,
             min_elapsed_ns,
@@ -1402,8 +1621,28 @@ impl ScenarioStatistics {
             stddev_elapsed_ns: variance.sqrt(),
             median_mib_per_sec,
             median_units_per_sec,
+            median_baseline_elapsed_ns,
+            median_adjusted_elapsed_ns,
+            median_adjusted_mib_per_sec,
+            median_adjusted_units_per_sec,
         }
     }
+}
+
+fn median_u128(mut values: Vec<u128>) -> Option<u128> {
+    if values.is_empty() {
+        return None;
+    }
+    values.sort_unstable();
+    values.get(values.len() / 2).copied()
+}
+
+fn median_f64(mut values: Vec<f64>) -> Option<f64> {
+    if values.is_empty() {
+        return None;
+    }
+    values.sort_by(f64::total_cmp);
+    values.get(values.len() / 2).copied()
 }
 
 fn nanos_to_seconds(value: u128) -> f64 {
@@ -1429,10 +1668,18 @@ struct ExecutionResult {
     tool_version: String,
     reported_digest: String,
     elapsed_ns: u128,
+    baseline_elapsed_ns: Option<u128>,
     bytes_processed: u64,
     items_processed: Option<u64>,
     messages_processed: Option<u64>,
     artifact: Option<ExecutionArtifact>,
+}
+
+impl ExecutionResult {
+    fn adjusted_elapsed_ns(&self) -> Option<u128> {
+        self.baseline_elapsed_ns
+            .map(|baseline| self.elapsed_ns.saturating_sub(baseline))
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -1862,6 +2109,7 @@ fn run_external_adapter(
         tool_version: response.tool_version,
         reported_digest: response.semantic_digest,
         elapsed_ns: response.elapsed_ns,
+        baseline_elapsed_ns: None,
         bytes_processed: response.bytes_processed,
         items_processed: response.items_processed,
         messages_processed: response.messages_processed,
@@ -2195,6 +2443,7 @@ mod tests {
                 tool_version: "tool".to_owned(),
                 reported_digest: "a".to_owned(),
                 elapsed_ns: 10,
+                baseline_elapsed_ns: None,
                 bytes_processed: 1024,
                 items_processed: Some(10),
                 messages_processed: None,
@@ -2204,6 +2453,7 @@ mod tests {
                 tool_version: "tool".to_owned(),
                 reported_digest: "a".to_owned(),
                 elapsed_ns: 30,
+                baseline_elapsed_ns: None,
                 bytes_processed: 1024,
                 items_processed: Some(10),
                 messages_processed: None,
@@ -2213,6 +2463,7 @@ mod tests {
                 tool_version: "tool".to_owned(),
                 reported_digest: "a".to_owned(),
                 elapsed_ns: 20,
+                baseline_elapsed_ns: None,
                 bytes_processed: 1024,
                 items_processed: Some(10),
                 messages_processed: None,

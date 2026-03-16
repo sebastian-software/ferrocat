@@ -74,6 +74,13 @@ The compare command:
 - records 10 measured samples per parse/stringify scenario
 - stores raw samples plus aggregated statistics in JSON
 
+For GNU gettext CLI scenarios, the report additionally records an `empty-cli-run` baseline using a minimal header-only input. This adds:
+
+- `baseline_elapsed_ns` and adjusted sample fields for `msgcat` / `msgmerge`
+- adjusted median statistics alongside the raw end-to-end statistics
+
+The raw timing remains the primary comparison number. The adjusted timing is a secondary estimate for understanding how much of the CLI measurement is fixed overhead versus actual fixture work.
+
 For the workflow-oriented suite:
 
 ```bash

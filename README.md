@@ -147,45 +147,55 @@ Current external gettext snapshot from [benchmark/results/gettext-compat-v1-firs
 
 The important number is throughput, not `median-ms`. The compare runner calibrates each sample to roughly the same wall-clock duration, so `median-ms` is mainly useful inside one scenario run. For cross-tool reading, compare `items/s`.
 
-### Parse winners
+For GNU gettext CLI tools, the JSON report now also includes an `empty-cli-run` baseline measured with a minimal header-only input. That gives each `msgcat`/`msgmerge` sample both:
 
-| Fixture | Compared implementations | Fastest | Throughput |
-|---|---|---:|---:|
-| `gettext-ui-de-1000` | `ferrocat`, `ferrocat-borrowed`, `pofile`, `polib` | **`ferrocat`** | **1.47M items/s** |
-| `gettext-ui-de-10000` | `ferrocat`, `ferrocat-borrowed`, `pofile`, `polib` | **`ferrocat`** | **1.36M items/s** |
-| `gettext-saas-fr-1000` | `ferrocat`, `ferrocat-borrowed` | **`ferrocat`** | **1.41M items/s** |
-| `gettext-saas-fr-10000` | `ferrocat`, `ferrocat-borrowed` | **`ferrocat`** | **1.33M items/s** |
-| `gettext-commerce-pl-1000` | `ferrocat`, `ferrocat-borrowed` | **`ferrocat`** | **1.39M items/s** |
-| `gettext-commerce-pl-10000` | `ferrocat`, `ferrocat-borrowed` | **`ferrocat`** | **1.31M items/s** |
-| `gettext-content-ar-1000` | `ferrocat`, `ferrocat-borrowed` | **`ferrocat`** | **1.19M items/s** |
-| `gettext-content-ar-10000` | `ferrocat`, `ferrocat-borrowed` | **`ferrocat`** | **1.11M items/s** |
+- a raw end-to-end value
+- an adjusted value with the minimal CLI baseline subtracted
 
-For the conservative UI/de corpus with external parsers included, the first run came out like this:
+The raw value remains the primary benchmark number. The adjusted value is a secondary estimate that helps separate command startup and tiny fixed costs from the actual workload.
 
-| Fixture | `ferrocat` | `ferrocat-borrowed` | `pofile` | `polib` |
+Column labels:
+
+- `ferrocat` and `ferrocat-borrowed`: native Rust implementations from this repo
+- `pofile (Node.js)`: the JavaScript/Node gettext parser package
+- `polib (Python)`: the Python gettext library
+- `msgcat` and `msgmerge` (`GNU gettext` CLI, C ecosystem): command-line tools from the classic gettext toolchain
+- `—`: not part of that official comparison group
+
+### Parse throughput
+
+| Fixture | `ferrocat (Rust)` | `ferrocat-borrowed (Rust)` | `pofile (Node.js)` | `polib (Python)` |
 |---|---:|---:|---:|---:|
 | `gettext-ui-de-1000` | **1.47M** | 1.41M | 266k | 59k |
 | `gettext-ui-de-10000` | **1.36M** | 1.30M | 11.9k | 59k |
+| `gettext-saas-fr-1000` | **1.41M** | 1.35M | — | — |
+| `gettext-saas-fr-10000` | **1.33M** | 1.28M | — | — |
+| `gettext-commerce-pl-1000` | **1.39M** | 1.36M | — | — |
+| `gettext-commerce-pl-10000` | **1.31M** | 1.27M | — | — |
+| `gettext-content-ar-1000` | **1.19M** | 1.17M | — | — |
+| `gettext-content-ar-10000` | **1.11M** | 1.08M | — | — |
 
-### Stringify winners
+### Stringify throughput
 
-| Fixture | Compared implementations | Fastest | Throughput |
-|---|---|---:|---:|
-| `gettext-ui-de-1000` | `ferrocat`, `pofile`, `polib`, `msgcat` | **`ferrocat`** | **6.38M items/s** |
-| `gettext-ui-de-10000` | `ferrocat`, `pofile`, `polib`, `msgcat` | **`ferrocat`** | **6.02M items/s** |
-| `gettext-saas-fr-1000` | `ferrocat`, `msgcat` | **`ferrocat`** | **6.32M items/s** |
-| `gettext-saas-fr-10000` | `ferrocat`, `msgcat` | **`ferrocat`** | **5.93M items/s** |
-| `gettext-commerce-pl-1000` | `ferrocat`, `msgcat` | **`ferrocat`** | **6.82M items/s** |
-| `gettext-commerce-pl-10000` | `ferrocat`, `msgcat` | **`ferrocat`** | **6.37M items/s** |
-| `gettext-content-ar-1000` | `ferrocat`, `msgcat` | **`ferrocat`** | **4.92M items/s** |
-| `gettext-content-ar-10000` | `ferrocat`, `msgcat` | **`ferrocat`** | **4.64M items/s** |
-
-For the conservative UI/de corpus with all classic stringify baselines included:
-
-| Fixture | `ferrocat` | `pofile` | `polib` | `msgcat` |
+| Fixture | `ferrocat (Rust)` | `pofile (Node.js)` | `polib (Python)` | `msgcat (GNU gettext CLI)` |
 |---|---:|---:|---:|---:|
 | `gettext-ui-de-1000` | **6.38M** | 730k | 100k | 25k |
 | `gettext-ui-de-10000` | **6.02M** | 679k | 99k | 30k |
+| `gettext-saas-fr-1000` | **6.32M** | — | — | 25.8k |
+| `gettext-saas-fr-10000` | **5.93M** | — | — | 30.9k |
+| `gettext-commerce-pl-1000` | **6.82M** | — | — | 24.6k |
+| `gettext-commerce-pl-10000` | **6.37M** | — | — | 29.2k |
+| `gettext-content-ar-1000` | **4.92M** | — | — | 20.4k |
+| `gettext-content-ar-10000` | **4.64M** | — | — | 23.4k |
+
+Workflow snapshot from [benchmark/results/gettext-workflows-v1-first-run.json](benchmark/results/gettext-workflows-v1-first-run.json):
+
+### Workflow throughput
+
+| Fixture | `merge_catalog (Rust)` | `msgmerge (GNU gettext CLI)` | `update_catalog (Rust)` | `msgmerge (GNU gettext CLI)` |
+|---|---:|---:|---:|---:|
+| `gettext-ui-de-1000` | **1.96M** | 22.7k | **395k** | 22.6k |
+| `gettext-ui-de-10000` | **1.80M** | 26.2k | **341k** | 25.8k |
 
 So the first official gettext benchmark does not show `pofile` as the overall winner. `pofile` is very quick on some calibrated sample medians, but once you normalize by work done per sample, `ferrocat` is currently fastest in every official comparison group of this run.
 
