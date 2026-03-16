@@ -126,6 +126,7 @@ struct BorrowedLine<'a> {
 }
 
 pub fn parse_po(input: &str) -> Result<PoFile, ParseError> {
+    let input = strip_utf8_bom(input);
     let normalized;
     let input = if input.as_bytes().contains(&b'\r') {
         normalized = input.replace("\r\n", "\n").replace('\r', "\n");
@@ -154,6 +155,11 @@ pub fn parse_po(input: &str) -> Result<PoFile, ParseError> {
     finish_item(&mut state, &mut file, &mut current_nplurals)?;
 
     Ok(file)
+}
+
+#[inline]
+fn strip_utf8_bom(input: &str) -> &str {
+    input.strip_prefix('\u{feff}').unwrap_or(input)
 }
 
 fn parse_line(
@@ -565,5 +571,15 @@ msgstr "Datei"
         assert_eq!(po.items.len(), 1);
         assert_eq!(po.items[0].msgctxt.as_deref(), Some("menu"));
         assert_eq!(po.items[0].msgid, "File");
+    }
+
+    #[test]
+    fn strips_utf8_bom_prefix() {
+        let input = "\u{feff}msgid \"foo\"\nmsgstr \"bar\"\n";
+        let po = parse_po(input).expect("parse");
+
+        assert_eq!(po.items.len(), 1);
+        assert_eq!(po.items[0].msgid, "foo");
+        assert_eq!(po.items[0].msgstr[0], "bar");
     }
 }

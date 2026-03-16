@@ -240,6 +240,7 @@ struct BorrowedLine<'a> {
 }
 
 pub fn parse_po_borrowed<'a>(input: &'a str) -> Result<BorrowedPoFile<'a>, ParseError> {
+    let input = input.strip_prefix('\u{feff}').unwrap_or(input);
     if input.as_bytes().contains(&b'\r') {
         return Err(ParseError::new(
             "borrowed PO parsing currently requires LF-only input",
@@ -657,5 +658,18 @@ msgstr "world"
         let file = parse_po_borrowed(input).expect("borrowed parse with headers");
         assert_eq!(file.headers[0].key, Cow::Borrowed("Language"));
         assert_eq!(file.headers[0].value, Cow::Borrowed("de"));
+    }
+
+    #[test]
+    fn strips_utf8_bom_prefix() {
+        let input = "\u{feff}msgid \"foo\"\nmsgstr \"bar\"\n";
+        let file = parse_po_borrowed(input).expect("borrowed parse");
+
+        assert_eq!(file.items.len(), 1);
+        assert_eq!(file.items[0].msgid, Cow::Borrowed("foo"));
+        assert_eq!(
+            file.items[0].msgstr,
+            super::BorrowedMsgStr::Singular(Cow::Borrowed("bar"))
+        );
     }
 }

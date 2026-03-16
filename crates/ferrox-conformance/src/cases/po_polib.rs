@@ -193,8 +193,20 @@ fn cases() -> Vec<ConformanceCase> {
             "tests/test_previous_msgid.po:parses current item body",
         ),
 
-        parse_known_gap_case("polib_utf8_bom", "polib/bom.po")
-            .with_notes("Owned parser does not yet normalize UTF-8 BOM-prefixed PO content.")
+        parse_case(
+            "polib_utf8_bom",
+            "polib/bom.po",
+            PoParseExpected {
+                item_count: Some(1),
+                header_count: Some(1),
+                headers: headers([("Project-Id-Version", "django")]),
+                items: vec![PoItemExpected {
+                    msgid: "foo".to_owned(),
+                    msgstr: strings(["bar"]),
+                    ..PoItemExpected::default()
+                }],
+            },
+        )
             .source(
                 "https://raw.githubusercontent.com/izimobil/polib/master/tests/test_ufeff.po",
                 "tests/test_ufeff.po",
@@ -205,10 +217,6 @@ fn cases() -> Vec<ConformanceCase> {
 fn parse_case(id: &str, input: &str, expected: PoParseExpected) -> ConformanceCase {
     ConformanceCase::new(id, "parse", "po_parse", Expectation::Pass, input)
         .with_expected_artifact(ExpectedArtifact::PoParse(expected))
-}
-
-fn parse_known_gap_case(id: &str, input: &str) -> ConformanceCase {
-    ConformanceCase::new(id, "parse", "po_parse", Expectation::KnownGap, input)
 }
 
 fn reject_known_gap_case(id: &str, input: &str, expected: PoRejectExpected) -> ConformanceCase {

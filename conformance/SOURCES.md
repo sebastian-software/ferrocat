@@ -8,7 +8,7 @@ This directory stores the first hermetic conformance snapshot for `ferrox`.
 - Fixtures are compact semantic adaptations of upstream tests unless noted otherwise.
 - Small structured expectations are stored inline in the Rust case definitions; external fixtures are reserved for realistic inputs and full text outputs.
 - GNU `gettext` is intentionally excluded from phase 1.
-- Current snapshot size on 2026-03-16: `55` cases / `422` assertions.
+- Current snapshot size on 2026-03-16: `55` cases / `433` assertions.
 
 ## Upstream Sources
 
@@ -16,8 +16,8 @@ This directory stores the first hermetic conformance snapshot for `ferrox`.
   - Upstream: <https://github.com/izimobil/polib>
   - License: MIT
   - Role: primary PO edge-case baseline
-  - Snapshot here: `12` cases / `77` assertions
-  - Coverage here: comment ordering, wrapping, invalid quoting, merge semantics, merge output semantics, and a known gap for UTF-8 BOM handling
+  - Snapshot here: `12` cases / `88` assertions
+  - Coverage here: comment ordering, UTF-8 BOM handling, wrapping, invalid quoting, merge semantics, and merge output semantics
 
 - `rubenv/pofile`
   - Upstream: <https://github.com/rubenv/pofile>
