@@ -1,0 +1,7 @@
+#: src/new.rs:10
+msgid "keep"
+msgstr ""
+
+#: src/new.rs:20
+msgid "add"
+msgstr ""

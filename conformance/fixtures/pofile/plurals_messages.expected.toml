@@ -1,0 +1,5 @@
+kind = "po_plural_header"
+raw_value = "nplurals=2; plural=(n != 1);"
+nplurals = 2
+plural_expression = "(n != 1)"
+first_item_msgstr_len = 2

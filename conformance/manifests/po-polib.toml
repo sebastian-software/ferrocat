@@ -1,0 +1,147 @@
+suite = "po-polib"
+source = "izimobil/polib"
+upstream_source = "https://github.com/izimobil/polib"
+upstream_ref = "master snapshot 2026-03-16"
+license = "MIT"
+scope = "Primary PO edge-case reference adapted from polib tests."
+notes = [
+  "Fixtures are compact semantic snapshots derived from upstream tests, not raw bulk copies.",
+]
+
+[[cases]]
+id = "polib.comment_ordering_roundtrip"
+capability = "roundtrip"
+runner = "po_roundtrip"
+expectation = "pass"
+input = "polib/comment_ordering.po"
+expected = "polib/comment_ordering.expected.po"
+upstream_source = "https://raw.githubusercontent.com/izimobil/polib/master/tests/test_comment_ordering.po"
+upstream_ref = "tests/test_comment_ordering.po"
+
+[[cases]]
+id = "polib.comment_ordering_parse"
+capability = "parse"
+runner = "po_parse"
+expectation = "pass"
+input = "polib/comment_ordering.po"
+expected = "polib/comment_ordering.expected.toml"
+upstream_source = "https://raw.githubusercontent.com/izimobil/polib/master/tests/test_comment_ordering.po"
+upstream_ref = "tests/test_comment_ordering.po + tests.py:test_comment_ordering"
+
+[[cases]]
+id = "polib.wrapwidth_50"
+capability = "serialize"
+runner = "po_roundtrip"
+expectation = "known_gap"
+input = "polib/wrap_input.po"
+expected = "polib/wrap_expected.po"
+fold_length = 50
+notes = "ferrox-po wraps long msgid lines differently from polib's serializer today."
+upstream_source = "https://raw.githubusercontent.com/izimobil/polib/master/tests/test_wrap.po"
+upstream_ref = "tests/test_wrap.po + tests.py:test_wrapping"
+
+[[cases]]
+id = "polib.wrap_second_item_parse"
+capability = "parse"
+runner = "po_parse"
+expectation = "pass"
+input = "polib/wrap_input.po"
+expected = "polib/wrap_second_item.expected.toml"
+item_start_index = 1
+upstream_source = "https://raw.githubusercontent.com/izimobil/polib/master/tests/test_wrap.po"
+upstream_ref = "tests/test_wrap.po + tests.py:test_wrapping"
+
+[[cases]]
+id = "polib.wrap_third_item_parse"
+capability = "parse"
+runner = "po_parse"
+expectation = "pass"
+input = "polib/wrap_input.po"
+expected = "polib/wrap_third_item.expected.toml"
+item_start_index = 2
+upstream_source = "https://raw.githubusercontent.com/izimobil/polib/master/tests/test_wrap.po"
+upstream_ref = "tests/test_wrap.po + tests.py:test_wrapping"
+
+[[cases]]
+id = "polib.invalid_quote_reject"
+capability = "diagnostics"
+runner = "po_reject"
+expectation = "known_gap"
+input = "polib/unescaped_quote.po"
+expected = "polib/unescaped_quote.expected.toml"
+notes = "The permissive parser currently accepts this invalid quoting pattern."
+upstream_source = "https://raw.githubusercontent.com/izimobil/polib/master/tests/tests.py"
+upstream_ref = "tests.py:test_unescaped_double_quote2"
+
+[[cases]]
+id = "polib.merge_basic"
+capability = "merge"
+runner = "po_merge"
+expectation = "pass"
+input = "polib/merge_before.po"
+companion_input = "polib/merge_template.pot"
+expected = "polib/merge_expected.po"
+upstream_source = "https://raw.githubusercontent.com/izimobil/polib/master/tests/test_merge_before.po"
+upstream_ref = "tests/test_merge_before.po + tests/test_merge_after.po"
+
+[[cases]]
+id = "polib.merge_keep_item"
+capability = "parse"
+runner = "po_parse"
+expectation = "pass"
+input = "polib/merge_expected.po"
+expected = "polib/merge_keep.expected.toml"
+upstream_source = "https://raw.githubusercontent.com/izimobil/polib/master/tests/test_merge_after.po"
+upstream_ref = "tests/test_merge_after.po:preserves existing translation and updates references"
+
+[[cases]]
+id = "polib.merge_add_item"
+capability = "parse"
+runner = "po_parse"
+expectation = "pass"
+input = "polib/merge_expected.po"
+expected = "polib/merge_add.expected.toml"
+item_start_index = 1
+upstream_source = "https://raw.githubusercontent.com/izimobil/polib/master/tests/test_merge_after.po"
+upstream_ref = "tests/test_merge_after.po:adds new template message"
+
+[[cases]]
+id = "polib.merge_drop_item"
+capability = "parse"
+runner = "po_parse"
+expectation = "pass"
+input = "polib/merge_expected.po"
+expected = "polib/merge_drop.expected.toml"
+item_start_index = 2
+upstream_source = "https://raw.githubusercontent.com/izimobil/polib/master/tests/test_merge_after.po"
+upstream_ref = "tests/test_merge_after.po:marks missing message obsolete"
+
+[[cases]]
+id = "polib.previous_msgid_history"
+capability = "parse"
+runner = "po_parse"
+expectation = "known_gap"
+input = "polib/previous_msgid.po"
+notes = "Previous msgid/msgctxt history comments are not modeled by ferrox-po yet."
+upstream_source = "https://raw.githubusercontent.com/izimobil/polib/master/tests/test_previous_msgid.po"
+upstream_ref = "tests/test_previous_msgid.po"
+
+[[cases]]
+id = "polib.previous_msgid_current_item"
+capability = "parse"
+runner = "po_parse"
+expectation = "pass"
+input = "polib/previous_msgid.po"
+expected = "polib/previous_msgid_core.expected.toml"
+upstream_source = "https://raw.githubusercontent.com/izimobil/polib/master/tests/test_previous_msgid.po"
+upstream_ref = "tests/test_previous_msgid.po:parses current item body"
+
+[[cases]]
+id = "polib_utf8_bom"
+capability = "parse"
+runner = "po_parse"
+expectation = "known_gap"
+input = "polib/bom.po"
+notes = "Owned parser does not yet normalize UTF-8 BOM-prefixed PO content."
+upstream_source = "https://raw.githubusercontent.com/izimobil/polib/master/tests/test_ufeff.po"
+upstream_ref = "tests/test_ufeff.po"

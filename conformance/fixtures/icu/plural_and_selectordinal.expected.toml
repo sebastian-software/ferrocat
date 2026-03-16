@@ -1,0 +1,7 @@
+kind = "icu_parse"
+top_level_count = 4
+first_plural_kind = "cardinal"
+first_plural_offset = 1
+first_plural_option_count = 3
+second_plural_kind = "ordinal"
+second_plural_option_count = 2

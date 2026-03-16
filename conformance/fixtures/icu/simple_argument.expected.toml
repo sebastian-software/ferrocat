@@ -1,0 +1,5 @@
+kind = "icu_parse"
+node_kinds = ["literal", "argument", "literal"]
+top_level_count = 3
+first_literal = "Hello "
+first_argument_name = "name"

@@ -1,0 +1,16 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: Test\n"
+
+#: src/new.rs:10
+msgid "keep"
+msgstr "Behalten"
+
+
+#: src/new.rs:20
+msgid "add"
+msgstr ""
+
+
+#~ msgid "drop"
+#~ msgstr "Entfernen"

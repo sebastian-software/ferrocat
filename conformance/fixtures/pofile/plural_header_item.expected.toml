@@ -1,0 +1,7 @@
+kind = "po_parse"
+item_count = 1
+
+[[items]]
+msgid = "thing"
+msgid_plural = "things"
+msgstr = ["eins", "zwei", "viele"]

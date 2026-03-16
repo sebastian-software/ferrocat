@@ -1,5 +1,5 @@
 [package]
-name = "ferrox-icu"
+name = "ferrox-conformance"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -8,8 +8,9 @@ rust-version.workspace = true
 [lib]
 path = "src/lib.rs"
 
-[dev-dependencies]
-ferrox-conformance = { path = "../ferrox-conformance" }
+[dependencies]
+serde = { version = "1.0.228", features = ["derive"] }
+toml = "0.8.23"
 
 [lints]
 workspace = true

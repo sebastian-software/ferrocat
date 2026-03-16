@@ -1,0 +1,86 @@
+suite = "icu-official"
+source = "unicode-org/icu"
+upstream_source = "https://github.com/unicode-org/icu"
+upstream_ref = "main snapshot 2026-03-16"
+license = "Unicode License"
+scope = "Official ICU MessageFormat parser reference focused on parser-visible behavior."
+
+[[cases]]
+id = "icu.simple_argument"
+capability = "icu_parse"
+runner = "icu_parse"
+expectation = "pass"
+input = "icu/simple_argument.txt"
+expected = "icu/simple_argument.expected.toml"
+upstream_source = "https://raw.githubusercontent.com/unicode-org/icu/main/icu4j/main/common_tests/src/test/java/com/ibm/icu/dev/test/format/TestMessageFormat.java"
+upstream_ref = "TestMessageFormat: basic argument parsing"
+
+[[cases]]
+id = "icu.plural_and_selectordinal"
+capability = "icu_parse"
+runner = "icu_parse"
+expectation = "pass"
+input = "icu/plural_and_selectordinal.txt"
+expected = "icu/plural_and_selectordinal.expected.toml"
+upstream_source = "https://raw.githubusercontent.com/unicode-org/icu/main/icu4j/main/common_tests/src/test/java/com/ibm/icu/dev/test/format/TestMessageFormat.java"
+upstream_ref = "TestMessageFormat: parses plural/selectordinal"
+
+[[cases]]
+id = "icu.tags_nested"
+capability = "icu_parse"
+runner = "icu_parse"
+expectation = "pass"
+input = "icu/tags_nested.txt"
+expected = "icu/tags_nested.expected.toml"
+upstream_source = "https://raw.githubusercontent.com/unicode-org/icu/main/icu4j/main/common_tests/src/test/java/com/ibm/icu/dev/test/format/TestMessageFormat.java"
+upstream_ref = "TestMessageFormat: parses tags and nested content"
+
+[[cases]]
+id = "icu.apostrophe_escape"
+capability = "icu_parse"
+runner = "icu_parse"
+expectation = "pass"
+input = "icu/apostrophe_escape.txt"
+expected = "icu/apostrophe_escape.expected.toml"
+upstream_source = "https://raw.githubusercontent.com/unicode-org/icu/main/icu4j/main/common_tests/src/test/java/com/ibm/icu/dev/test/format/TestMessageFormat.java"
+upstream_ref = "TestMessageFormat: apostrophe escaping"
+
+[[cases]]
+id = "icu.missing_other_reject"
+capability = "icu_parse"
+runner = "icu_reject"
+expectation = "reject"
+input = "icu/missing_other.txt"
+expected = "icu/missing_other.expected.toml"
+upstream_source = "https://raw.githubusercontent.com/unicode-org/icu/main/icu4j/main/common_tests/src/test/java/com/ibm/icu/dev/test/format/TestMessageFormat.java"
+upstream_ref = "TestMessageFormat: missing other clause"
+
+[[cases]]
+id = "icu.invalid_offset_reject"
+capability = "icu_parse"
+runner = "icu_reject"
+expectation = "reject"
+input = "icu/invalid_offset.txt"
+expected = "icu/invalid_offset.expected.toml"
+upstream_source = "https://raw.githubusercontent.com/unicode-org/icu/main/icu4j/main/common_tests/src/test/java/com/ibm/icu/dev/test/format/TestMessageFormat.java"
+upstream_ref = "TestMessageFormat: invalid offset"
+
+[[cases]]
+id = "icu.mismatched_tag_reject"
+capability = "icu_parse"
+runner = "icu_reject"
+expectation = "reject"
+input = "icu/mismatched_tag.txt"
+expected = "icu/mismatched_tag.expected.toml"
+upstream_source = "https://raw.githubusercontent.com/unicode-org/icu/main/icu4j/main/common_tests/src/test/java/com/ibm/icu/dev/test/format/TestMessageFormat.java"
+upstream_ref = "TestMessageFormat: mismatched closing tag"
+
+[[cases]]
+id = "icu.error_position_reject"
+capability = "icu_parse"
+runner = "icu_reject"
+expectation = "reject"
+input = "icu/error_position.txt"
+expected = "icu/error_position.expected.toml"
+upstream_source = "https://raw.githubusercontent.com/unicode-org/icu/main/icu4j/main/common_tests/src/test/java/com/ibm/icu/dev/test/format/TestMessageFormat.java"
+upstream_ref = "TestMessageFormat: error positions are reported"

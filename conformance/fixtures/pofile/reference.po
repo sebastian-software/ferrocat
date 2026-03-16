@@ -1,0 +1,4 @@
+# Comment
+#: src/app.js:1 src/lib.js:2
+msgid "Title, as plain text"
+msgstr "Attribut title, en tant que texte brut"

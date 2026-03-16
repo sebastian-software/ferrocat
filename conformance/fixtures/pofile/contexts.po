@@ -1,0 +1,13 @@
+msgctxt "folder display"
+msgid "Empty folder"
+msgstr "Leerer Ordner"
+
+msgctxt "folder action"
+msgid "Empty folder"
+msgstr "Ordner leeren"
+
+msgctxt ""
+"folder "
+"meta"
+msgid "Created Date"
+msgstr "Erstellt am"

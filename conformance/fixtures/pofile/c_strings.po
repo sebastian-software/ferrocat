@@ -1,0 +1,21 @@
+msgid ""
+msgstr ""
+"Plural-Forms: nplurals=2; plural=(n > 1);\n"
+
+msgid "The name field must not contain characters like \" or \\"
+msgstr ""
+
+msgid ""
+"%1$s\n"
+"%2$s %3$s\n"
+"%4$s\n"
+"%5$s"
+msgstr ""
+
+msgid ""
+"define('some/test/module', function () {\n"
+"\t'use strict';\n"
+"\treturn {};\n"
+"});\n"
+""
+msgstr ""

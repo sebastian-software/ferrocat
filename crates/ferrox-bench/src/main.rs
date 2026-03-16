@@ -1,3 +1,5 @@
+#[path = "../../../conformance/harness.rs"]
+mod conformance_harness;
 mod fixtures;
 
 use std::env;
@@ -5,6 +7,10 @@ use std::fs;
 use std::process::ExitCode;
 use std::time::{Duration, Instant};
 
+use conformance_harness::{evaluate_all_cases, summarize_evaluations};
+use ferrox_conformance::{
+    ConformanceCase, Expectation, ExpectedArtifact, load_all_manifests, read_expected_artifact,
+};
 use ferrox_icu::{extract_variables, parse_icu, validate_icu};
 use ferrox_po::{
     PluralEncoding, SerializeOptions, UpdateCatalogFileOptions, UpdateCatalogOptions,
@@ -72,8 +78,12 @@ fn run() -> Result<(), String> {
             describe(&fixture);
             Ok(())
         }
+        "conformance-report" => {
+            conformance_report();
+            Ok(())
+        }
         other => Err(format!(
-            "unknown command: {other} (use parse, parse-borrowed, parse-icu, validate-icu, extract-icu-variables, stringify, merge, update-catalog, update-catalog-file, or describe)"
+            "unknown command: {other} (use parse, parse-borrowed, parse-icu, validate-icu, extract-icu-variables, stringify, merge, update-catalog, update-catalog-file, describe, or conformance-report)"
         )),
     }
 }
@@ -463,6 +473,159 @@ fn describe(fixture: &Fixture) {
     println!("obsolete-items: {}", fixture.stats().obsolete_entries);
     println!("multiline-items: {}", fixture.stats().multiline_entries);
     println!("escaped-items: {}", fixture.stats().escaped_entries);
+}
+
+fn conformance_report() {
+    let evaluations = match evaluate_all_cases() {
+        Ok(evaluations) => evaluations,
+        Err(error) => {
+            eprintln!("failed to evaluate conformance cases: {error}");
+            return;
+        }
+    };
+    let assertion_counts = match load_assertion_counts() {
+        Ok(counts) => counts,
+        Err(error) => {
+            eprintln!("failed to load conformance metadata: {error}");
+            return;
+        }
+    };
+
+    let summary = summarize_evaluations(&evaluations);
+    let total_assertions = evaluations
+        .iter()
+        .map(|evaluation| *assertion_counts.get(&evaluation.case_id).unwrap_or(&1))
+        .sum::<usize>();
+    println!("command: conformance-report");
+    println!("total-cases: {}", summary.total);
+    println!("total-assertions: {total_assertions}");
+    println!("expected-pass: {}", summary.pass);
+    println!("expected-reject: {}", summary.reject);
+    println!("known-gap: {}", summary.known_gap);
+    println!("failed-cases: {}", summary.failures.len());
+
+    let mut by_suite = std::collections::BTreeMap::<String, Vec<_>>::new();
+    for evaluation in &evaluations {
+        by_suite
+            .entry(evaluation.suite.clone())
+            .or_default()
+            .push(evaluation);
+    }
+
+    for (suite, entries) in by_suite {
+        let suite_assertions = entries
+            .iter()
+            .map(|entry| *assertion_counts.get(&entry.case_id).unwrap_or(&1))
+            .sum::<usize>();
+        println!();
+        println!("suite: {suite}");
+        println!("cases: {}", entries.len());
+        println!("assertions: {suite_assertions}");
+
+        let mut by_capability =
+            std::collections::BTreeMap::<String, (usize, usize, usize, usize)>::new();
+        for entry in &entries {
+            let counts = by_capability
+                .entry(entry.capability.clone())
+                .or_insert((0, 0, 0, 0));
+            match entry.expectation {
+                Expectation::Pass => counts.0 += 1,
+                Expectation::Reject => counts.1 += 1,
+                Expectation::KnownGap => counts.2 += 1,
+            }
+            counts.3 += *assertion_counts.get(&entry.case_id).unwrap_or(&1);
+        }
+
+        for (capability, (pass, reject, known_gap, assertions)) in by_capability {
+            println!(
+                "capability: {capability} pass={pass} reject={reject} known_gap={known_gap} assertions={assertions}"
+            );
+        }
+
+        for failure in entries
+            .iter()
+            .filter(|entry| entry.status == conformance_harness::EvaluationStatus::Failed)
+        {
+            println!("failure: {} {}", failure.case_id, failure.detail);
+        }
+    }
+}
+
+fn load_assertion_counts() -> Result<std::collections::BTreeMap<String, usize>, String> {
+    let manifests = load_all_manifests().map_err(|error| error.to_string())?;
+    let mut counts = std::collections::BTreeMap::new();
+    for manifest in manifests {
+        for case in manifest.cases {
+            counts.insert(case.id.clone(), count_case_assertions(&case)?);
+        }
+    }
+    Ok(counts)
+}
+
+fn count_case_assertions(case: &ConformanceCase) -> Result<usize, String> {
+    match case.runner.as_str() {
+        "po_roundtrip" | "po_merge" => Ok(1),
+        "po_reject" => Ok(1),
+        "po_parse" => match case.expected.as_deref() {
+            Some(path) => match read_expected_artifact(path).map_err(|error| error.to_string())? {
+                ExpectedArtifact::PoParse(expected) => {
+                    let mut count = 0usize;
+                    count += usize::from(expected.item_count.is_some());
+                    count += usize::from(expected.header_count.is_some());
+                    count += expected.headers.len();
+                    count += expected.items.len() * 9;
+                    Ok(count.max(1))
+                }
+                _ => Ok(1),
+            },
+            None => Ok(1),
+        },
+        "po_plural_header" => match case.expected.as_deref() {
+            Some(path) => match read_expected_artifact(path).map_err(|error| error.to_string())? {
+                ExpectedArtifact::PoPluralHeader(expected) => {
+                    let count = usize::from(expected.raw_value.is_some())
+                        + usize::from(expected.nplurals.is_some())
+                        + usize::from(expected.plural_expression.is_some())
+                        + usize::from(expected.first_item_msgstr_len.is_some())
+                        + usize::from(case.locale.is_some());
+                    Ok(count.max(1))
+                }
+                _ => Ok(1),
+            },
+            None => Ok(1),
+        },
+        "icu_parse" => match case.expected.as_deref() {
+            Some(path) => match read_expected_artifact(path).map_err(|error| error.to_string())? {
+                ExpectedArtifact::IcuParse(expected) => {
+                    let count = usize::from(!expected.node_kinds.is_empty())
+                        + usize::from(expected.top_level_count.is_some())
+                        + usize::from(expected.first_literal.is_some())
+                        + usize::from(expected.first_argument_name.is_some())
+                        + usize::from(expected.first_plural_kind.is_some())
+                        + usize::from(expected.first_plural_offset.is_some())
+                        + usize::from(expected.first_plural_option_count.is_some())
+                        + usize::from(expected.second_plural_kind.is_some())
+                        + usize::from(expected.second_plural_option_count.is_some());
+                    Ok(count.max(1))
+                }
+                _ => Ok(1),
+            },
+            None => Ok(1),
+        },
+        "icu_reject" => match case.expected.as_deref() {
+            Some(path) => match read_expected_artifact(path).map_err(|error| error.to_string())? {
+                ExpectedArtifact::IcuReject(expected) => {
+                    let count = 1
+                        + usize::from(expected.line.is_some())
+                        + usize::from(expected.min_column.is_some());
+                    Ok(count)
+                }
+                _ => Ok(1),
+            },
+            None => Ok(1),
+        },
+        _ => Ok(1),
+    }
 }
 
 fn report_merge(

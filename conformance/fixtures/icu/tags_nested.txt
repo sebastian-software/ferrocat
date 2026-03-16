@@ -1,0 +1,1 @@
+<0>{count, plural, one {<b>#</b>} other {items}}</0>

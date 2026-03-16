@@ -1,0 +1,12 @@
+#. extracted from test
+# Translator comment
+#: .tmp/crm/controllers/map.js
+msgid "Title, as plain text"
+msgstr "Attribut title, en tant que texte brut"
+#. Extracted comment
+
+#
+#.
+#:
+msgid "Empty comment"
+msgstr "Empty"

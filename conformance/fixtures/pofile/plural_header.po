@@ -1,0 +1,9 @@
+msgid ""
+msgstr ""
+"Plural-Forms: nplurals=3; plural=(n==1 ? 0 : n==2 ? 1 : 2);\n"
+
+msgid "thing"
+msgid_plural "things"
+msgstr[0] "eins"
+msgstr[1] "zwei"
+msgstr[2] "viele"

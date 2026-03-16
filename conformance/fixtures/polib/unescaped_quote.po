@@ -1,0 +1,3 @@
+msgid "Some msgid with \"double\" quotes"
+msgstr ""
+"Some msgstr with "double\" quotes"

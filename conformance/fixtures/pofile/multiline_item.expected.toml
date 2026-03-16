@@ -1,0 +1,5 @@
+kind = "po_parse"
+
+[[items]]
+msgid = "The following placeholder tokens can be used in both paths and titles. When used in a path or title, they will be replaced with the appropriate values."
+msgstr = ["Les ébauches de jetons suivantes peuvent être utilisées à la fois dans les chemins et dans les titres. Lorsqu'elles sont utilisées dans un chemin ou un titre, elles seront remplacées par les valeurs appropriées."]

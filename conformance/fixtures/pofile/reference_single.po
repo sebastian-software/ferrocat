@@ -1,0 +1,4 @@
+# Comment
+#: .tmp/crm/controllers/map.js
+msgid "Title, as plain text"
+msgstr "Attribut title, en tant que texte brut"

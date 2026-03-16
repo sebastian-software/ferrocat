@@ -1,0 +1,4 @@
+kind = "icu_reject"
+message_contains = "Expected"
+line = 3
+min_column = 1

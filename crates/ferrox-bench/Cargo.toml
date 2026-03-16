@@ -10,6 +10,7 @@ name = "ferrox-bench"
 path = "src/main.rs"
 
 [dependencies]
+ferrox-conformance = { path = "../ferrox-conformance" }
 ferrox-icu = { path = "../ferrox-icu" }
 ferrox-po = { path = "../ferrox-po" }
 

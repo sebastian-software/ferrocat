@@ -1,0 +1,319 @@
+suite = "po-pofile"
+source = "rubenv/pofile"
+upstream_source = "https://github.com/rubenv/pofile"
+upstream_ref = "master snapshot 2026-03-16"
+license = "MIT"
+scope = "Secondary JS-oriented PO reference adapted from pofile tests."
+
+[[cases]]
+id = "pofile.multiline_parse"
+capability = "parse"
+runner = "po_parse"
+expectation = "pass"
+input = "pofile/multiline.po"
+expected = "pofile/multiline.expected.toml"
+upstream_source = "https://raw.githubusercontent.com/rubenv/pofile/master/test/fixtures/multi-line.po"
+upstream_ref = "test/fixtures/multi-line.po + test/parse.js"
+
+[[cases]]
+id = "pofile.multiline_headers"
+capability = "parse"
+runner = "po_parse"
+expectation = "pass"
+input = "pofile/multiline.po"
+expected = "pofile/multiline_header.expected.toml"
+upstream_source = "https://raw.githubusercontent.com/rubenv/pofile/master/test/fixtures/multi-line.po"
+upstream_ref = "test/fixtures/multi-line.po + test/parse.js:Handles multi-line headers"
+
+[[cases]]
+id = "pofile.multiline_project_id_header"
+capability = "parse"
+runner = "po_parse"
+expectation = "pass"
+input = "pofile/multiline.po"
+expected = "pofile/multiline_project_id.expected.toml"
+upstream_source = "https://raw.githubusercontent.com/rubenv/pofile/master/test/fixtures/multi-line.po"
+upstream_ref = "test/fixtures/multi-line.po + test/parse.js:Handles multi-line headers"
+
+[[cases]]
+id = "pofile.multiline_item"
+capability = "parse"
+runner = "po_parse"
+expectation = "pass"
+input = "pofile/multiline.po"
+expected = "pofile/multiline_item.expected.toml"
+upstream_source = "https://raw.githubusercontent.com/rubenv/pofile/master/test/fixtures/multi-line.po"
+upstream_ref = "test/fixtures/multi-line.po + test/parse.js:Handles multi-line values"
+
+[[cases]]
+id = "pofile.translator_comments"
+capability = "parse"
+runner = "po_parse"
+expectation = "pass"
+input = "pofile/comment.po"
+expected = "pofile/comment_translator.expected.toml"
+upstream_source = "https://raw.githubusercontent.com/rubenv/pofile/master/test/fixtures/comment.po"
+upstream_ref = "test/fixtures/comment.po + test/parse.js:Handles translator comments"
+
+[[cases]]
+id = "pofile.extracted_comments"
+capability = "parse"
+runner = "po_parse"
+expectation = "pass"
+input = "pofile/comment.po"
+expected = "pofile/comment_extracted.expected.toml"
+item_start_index = 1
+upstream_source = "https://raw.githubusercontent.com/rubenv/pofile/master/test/fixtures/comment.po"
+upstream_ref = "test/fixtures/comment.po + test/parse.js:Handles extracted comments"
+
+[[cases]]
+id = "pofile.empty_comments"
+capability = "parse"
+runner = "po_parse"
+expectation = "pass"
+input = "pofile/comment.po"
+expected = "pofile/comment_empty.expected.toml"
+item_start_index = 1
+upstream_source = "https://raw.githubusercontent.com/rubenv/pofile/master/test/fixtures/comment.po"
+upstream_ref = "test/fixtures/comment.po + test/parse.js:Handle empty comments"
+
+[[cases]]
+id = "pofile.references_parse"
+capability = "parse"
+runner = "po_parse"
+expectation = "known_gap"
+input = "pofile/reference.po"
+expected = "pofile/reference.expected.toml"
+notes = "ferrox-po preserves the combined reference token instead of splitting it into separate references."
+upstream_source = "https://raw.githubusercontent.com/rubenv/pofile/master/test/fixtures/reference.po"
+upstream_ref = "test/fixtures/reference.po + test/parse.js"
+
+[[cases]]
+id = "pofile.reference_single"
+capability = "parse"
+runner = "po_parse"
+expectation = "pass"
+input = "pofile/reference_single.po"
+expected = "pofile/reference_single.expected.toml"
+upstream_source = "https://raw.githubusercontent.com/rubenv/pofile/master/test/fixtures/reference.po"
+upstream_ref = "test/fixtures/reference.po + test/parse.js:in simple cases"
+
+[[cases]]
+id = "pofile.reference_stdin_combined"
+capability = "parse"
+runner = "po_parse"
+expectation = "pass"
+input = "pofile/reference_stdin.po"
+expected = "pofile/reference_stdin.expected.toml"
+upstream_source = "https://raw.githubusercontent.com/rubenv/pofile/master/test/fixtures/reference.po"
+upstream_ref = "test/fixtures/reference.po + test/parse.js:does not process reference items"
+
+[[cases]]
+id = "pofile.flags_fuzzy"
+capability = "parse"
+runner = "po_parse"
+expectation = "pass"
+input = "pofile/fuzzy.po"
+expected = "pofile/fuzzy_parse.expected.toml"
+upstream_source = "https://raw.githubusercontent.com/rubenv/pofile/master/test/fixtures/fuzzy.po"
+upstream_ref = "test/fixtures/fuzzy.po + test/parse.js:Parses flags"
+
+[[cases]]
+id = "pofile.context_disambiguation"
+capability = "parse"
+runner = "po_parse"
+expectation = "pass"
+input = "pofile/contexts.po"
+expected = "pofile/contexts_ambiguous.expected.toml"
+upstream_source = "https://raw.githubusercontent.com/rubenv/pofile/master/test/fixtures/big.po"
+upstream_ref = "test/fixtures/big.po + test/parse.js:Parses item context"
+
+[[cases]]
+id = "pofile.context_display"
+capability = "parse"
+runner = "po_parse"
+expectation = "pass"
+input = "pofile/contexts.po"
+expected = "pofile/context_display.expected.toml"
+upstream_source = "https://raw.githubusercontent.com/rubenv/pofile/master/test/fixtures/big.po"
+upstream_ref = "test/fixtures/big.po + test/parse.js:Parses item context"
+
+[[cases]]
+id = "pofile.context_action"
+capability = "parse"
+runner = "po_parse"
+expectation = "pass"
+input = "pofile/contexts.po"
+expected = "pofile/context_action.expected.toml"
+item_start_index = 1
+upstream_source = "https://raw.githubusercontent.com/rubenv/pofile/master/test/fixtures/big.po"
+upstream_ref = "test/fixtures/big.po + test/parse.js:Parses item context"
+
+[[cases]]
+id = "pofile.multiline_context"
+capability = "parse"
+runner = "po_parse"
+expectation = "pass"
+input = "pofile/contexts.po"
+expected = "pofile/contexts_multiline.expected.toml"
+item_start_index = 2
+upstream_source = "https://raw.githubusercontent.com/rubenv/pofile/master/test/fixtures/big.po"
+upstream_ref = "test/fixtures/big.po + test/parse.js:Parses item multiline context"
+
+[[cases]]
+id = "pofile.obsolete_parse"
+capability = "parse"
+runner = "po_parse"
+expectation = "pass"
+input = "pofile/commented.po"
+expected = "pofile/commented.expected.toml"
+upstream_source = "https://raw.githubusercontent.com/rubenv/pofile/master/test/fixtures/commented.po"
+upstream_ref = "test/fixtures/commented.po + test/parse.js"
+
+[[cases]]
+id = "pofile.obsolete_active_item"
+capability = "parse"
+runner = "po_parse"
+expectation = "pass"
+input = "pofile/commented.po"
+expected = "pofile/commented_active.expected.toml"
+upstream_source = "https://raw.githubusercontent.com/rubenv/pofile/master/test/fixtures/commented.po"
+upstream_ref = "test/fixtures/commented.po + test/parse.js:keeps active item"
+
+[[cases]]
+id = "pofile.obsolete_first_item"
+capability = "parse"
+runner = "po_parse"
+expectation = "pass"
+input = "pofile/commented.po"
+expected = "pofile/commented_obsolete_first.expected.toml"
+item_start_index = 1
+upstream_source = "https://raw.githubusercontent.com/rubenv/pofile/master/test/fixtures/commented.po"
+upstream_ref = "test/fixtures/commented.po + test/parse.js:parses obsolete item"
+
+[[cases]]
+id = "pofile.obsolete_second_item"
+capability = "parse"
+runner = "po_parse"
+expectation = "pass"
+input = "pofile/commented.po"
+expected = "pofile/commented_obsolete_second.expected.toml"
+item_start_index = 2
+upstream_source = "https://raw.githubusercontent.com/rubenv/pofile/master/test/fixtures/commented.po"
+upstream_ref = "test/fixtures/commented.po + test/parse.js:parses commented obsolete item"
+
+[[cases]]
+id = "pofile.c_strings_parse"
+capability = "parse"
+runner = "po_parse"
+expectation = "pass"
+input = "pofile/c_strings.po"
+expected = "pofile/c_strings.expected.toml"
+upstream_source = "https://raw.githubusercontent.com/rubenv/pofile/master/test/fixtures/c-strings.po"
+upstream_ref = "test/fixtures/c-strings.po + test/parse.js"
+
+[[cases]]
+id = "pofile.c_strings_plural_header"
+capability = "parse"
+runner = "po_parse"
+expectation = "pass"
+input = "pofile/c_strings.po"
+expected = "pofile/c_strings_header.expected.toml"
+upstream_source = "https://raw.githubusercontent.com/rubenv/pofile/master/test/fixtures/c-strings.po"
+upstream_ref = "test/fixtures/c-strings.po + test/parse.js:Parses headers"
+
+[[cases]]
+id = "pofile.c_string_quote"
+capability = "parse"
+runner = "po_parse"
+expectation = "pass"
+input = "pofile/c_strings.po"
+expected = "pofile/c_string_quote.expected.toml"
+upstream_source = "https://raw.githubusercontent.com/rubenv/pofile/master/test/fixtures/c-strings.po"
+upstream_ref = "test/fixtures/c-strings.po + test/parse.js:extract strings containing quote and backslash"
+
+[[cases]]
+id = "pofile.c_string_newlines"
+capability = "parse"
+runner = "po_parse"
+expectation = "pass"
+input = "pofile/c_strings.po"
+expected = "pofile/c_string_newlines.expected.toml"
+item_start_index = 1
+upstream_source = "https://raw.githubusercontent.com/rubenv/pofile/master/test/fixtures/c-strings.po"
+upstream_ref = "test/fixtures/c-strings.po + test/parse.js:handle newline escapes"
+
+[[cases]]
+id = "pofile.c_string_tabs"
+capability = "parse"
+runner = "po_parse"
+expectation = "pass"
+input = "pofile/c_strings.po"
+expected = "pofile/c_string_tabs.expected.toml"
+item_start_index = 2
+upstream_source = "https://raw.githubusercontent.com/rubenv/pofile/master/test/fixtures/c-strings.po"
+upstream_ref = "test/fixtures/c-strings.po + test/parse.js:handle tab escapes"
+
+[[cases]]
+id = "pofile.fuzzy_roundtrip"
+capability = "roundtrip"
+runner = "po_roundtrip"
+expectation = "known_gap"
+input = "pofile/fuzzy.po"
+expected = "pofile/fuzzy.po"
+notes = "ferrox-po currently normalizes no-header files into an explicit header entry on write."
+upstream_source = "https://raw.githubusercontent.com/rubenv/pofile/master/test/fixtures/fuzzy.po"
+upstream_ref = "test/fixtures/fuzzy.po + test/write.js"
+
+[[cases]]
+id = "pofile.plural_header_parse"
+capability = "plural_header"
+runner = "po_plural_header"
+expectation = "pass"
+input = "pofile/plural_header.po"
+expected = "pofile/plural_header.expected.toml"
+locale = "fr"
+source_locale = "en"
+upstream_source = "https://raw.githubusercontent.com/rubenv/pofile/master/test/parse-plural-forms.js"
+upstream_ref = "test/parse-plural-forms.js"
+
+[[cases]]
+id = "pofile.plural_header_item_parse"
+capability = "parse"
+runner = "po_parse"
+expectation = "pass"
+input = "pofile/plural_header.po"
+expected = "pofile/plural_header_item.expected.toml"
+upstream_source = "https://raw.githubusercontent.com/rubenv/pofile/master/test/parse-plural-forms.js"
+upstream_ref = "test/parse-plural-forms.js + fixtures/plural header item"
+
+[[cases]]
+id = "pofile.plural_slots_two_forms"
+capability = "plural_header"
+runner = "po_plural_header"
+expectation = "pass"
+input = "pofile/plurals_messages.po"
+expected = "pofile/plurals_messages.expected.toml"
+upstream_source = "https://raw.githubusercontent.com/rubenv/pofile/master/test/fixtures/plurals/messages.po"
+upstream_ref = "test/fixtures/plurals/messages.po + test/write.js:nplurals INTEGER"
+
+[[cases]]
+id = "pofile.plural_slots_first_item"
+capability = "parse"
+runner = "po_parse"
+expectation = "pass"
+input = "pofile/plurals_messages.po"
+expected = "pofile/plurals_messages_first.expected.toml"
+upstream_source = "https://raw.githubusercontent.com/rubenv/pofile/master/test/fixtures/plurals/messages.po"
+upstream_ref = "test/fixtures/plurals/messages.po + test/write.js:first plural item"
+
+[[cases]]
+id = "pofile.plural_slots_second_item"
+capability = "parse"
+runner = "po_parse"
+expectation = "pass"
+input = "pofile/plurals_messages.po"
+expected = "pofile/plurals_messages_second.expected.toml"
+item_start_index = 1
+upstream_source = "https://raw.githubusercontent.com/rubenv/pofile/master/test/fixtures/plurals/messages.po"
+upstream_ref = "test/fixtures/plurals/messages.po + test/write.js:second plural item"

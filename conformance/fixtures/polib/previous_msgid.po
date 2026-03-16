@@ -1,0 +1,5 @@
+#| msgctxt "Old menu context"
+#| msgid "Old file label"
+msgctxt "menu"
+msgid "File"
+msgstr "Datei"

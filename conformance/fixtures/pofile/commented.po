@@ -1,0 +1,14 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: Test\n"
+
+msgid "{{dataLoader.data.length}} results"
+msgstr "{{dataLoader.data.length}} resultaten"
+
+#~ msgid "Add order"
+#~ msgstr "Order toevoegen"
+
+# commented obsolete item
+#, fuzzy
+#~ msgid "Second commented item"
+#~ msgstr "also not sure"

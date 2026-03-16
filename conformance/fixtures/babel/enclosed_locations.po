@@ -1,0 +1,3 @@
+#: ⁨main 1.py⁩:1 other.py:2
+msgid "foo"
+msgstr "bar"

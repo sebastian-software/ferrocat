@@ -31,6 +31,26 @@ The borrowed parser exists because many real workflows are read-heavy and transf
 
 At the high-level catalog layer, ICU is the default semantic target and gettext is treated as a compatibility bridge for import, export, and migration-oriented workflows.
 
+## Conformance
+
+`ferrox` includes a hermetic, source-attributed conformance snapshot under [`conformance`](conformance).
+
+As of 2026-03-16, the snapshot covers `56` upstream-derived conformance cases and `423` concrete assertions across:
+
+- `izimobil/polib`
+- `rubenv/pofile`
+- `python-babel/babel`
+- `unicode-org/icu`
+
+Use:
+
+```bash
+cargo test --workspace
+cargo run -p ferrox-bench -- conformance-report
+```
+
+The report breaks coverage down into `pass`, `reject`, and `known_gap` and is intended to provide publishable, source-backed compatibility numbers.
+
 ## Parse Modes
 
 ### Owned parse

@@ -1,0 +1,7 @@
+kind = "po_parse"
+item_count = 3
+
+[[items]]
+msgid = "Created Date"
+msgctxt = "folder meta"
+msgstr = ["Erstellt am"]
