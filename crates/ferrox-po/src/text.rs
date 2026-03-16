@@ -23,8 +23,20 @@ pub(crate) fn escape_string_into(out: &mut String, input: &str) {
         return;
     };
 
-    out.push_str(&input[..first_escape]);
-    escape_string_from(out, input, bytes, first_escape);
+    escape_string_into_known(out, input, first_escape);
+}
+
+pub(crate) fn escape_string_into_with_first_escape(
+    out: &mut String,
+    input: &str,
+    first_escape: Option<usize>,
+) {
+    let Some(first_escape) = first_escape else {
+        out.push_str(input);
+        return;
+    };
+
+    escape_string_into_known(out, input, first_escape);
 }
 
 pub fn unescape_string(input: &str) -> Result<String, ParseError> {
@@ -141,6 +153,13 @@ fn escape_string_from(out: &mut String, input: &str, bytes: &[u8], first_escape:
     }
 }
 
+#[inline]
+fn escape_string_into_known(out: &mut String, input: &str, first_escape: usize) {
+    let bytes = input.as_bytes();
+    out.push_str(&input[..first_escape]);
+    escape_string_from(out, input, bytes, first_escape);
+}
+
 fn push_escape(out: &mut String, byte: u8) {
     out.push('\\');
     out.push(match byte {
@@ -187,8 +206,8 @@ mod tests {
     use std::borrow::Cow;
 
     use super::{
-        escape_string, escape_string_into, extract_quoted, extract_quoted_bytes_cow,
-        extract_quoted_cow, unescape_string,
+        escape_string, escape_string_into, escape_string_into_with_first_escape, extract_quoted,
+        extract_quoted_bytes_cow, extract_quoted_cow, unescape_string,
     };
 
     #[test]
@@ -228,6 +247,13 @@ mod tests {
     fn appends_escaped_text_into_existing_buffer() {
         let mut out = String::from("prefix:");
         escape_string_into(&mut out, "Say \"Hi\"\n");
+        assert_eq!(out, "prefix:Say \\\"Hi\\\"\\n");
+    }
+
+    #[test]
+    fn appends_escaped_text_into_existing_buffer_with_known_escape() {
+        let mut out = String::from("prefix:");
+        escape_string_into_with_first_escape(&mut out, "Say \"Hi\"\n", Some(4));
         assert_eq!(out, "prefix:Say \\\"Hi\\\"\\n");
     }
 

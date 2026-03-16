@@ -1,4 +1,5 @@
-use crate::text::escape_string_into;
+use crate::scan::find_escapable_byte;
+use crate::text::{escape_string_into, escape_string_into_with_first_escape};
 use crate::{PoFile, PoItem, SerializeOptions};
 
 pub fn stringify_po(file: &PoFile, options: &SerializeOptions) -> String {
@@ -222,7 +223,8 @@ fn try_write_simple_keyword(
     index: Option<usize>,
     options: &SerializeOptions,
 ) -> bool {
-    if value.contains('\n') {
+    let first_escape = find_escapable_byte(value.as_bytes());
+    if matches!(first_escape, Some(index) if value.as_bytes()[index] == b'\n') {
         return false;
     }
 
@@ -237,10 +239,11 @@ fn try_write_simple_keyword(
     }
 
     let start_len = out.len();
+    out.reserve(obsolete_prefix.len() + prefix_len + value.len() + 3);
     out.push_str(obsolete_prefix);
     push_keyword_prefix(out, keyword, index);
     out.push('"');
-    escape_string_into(out, value);
+    escape_string_into_with_first_escape(out, value, first_escape);
     out.push_str("\"\n");
 
     if options.fold_length > 0 && out.len() - start_len - 1 > options.fold_length {
