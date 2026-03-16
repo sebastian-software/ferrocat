@@ -125,6 +125,7 @@ pub(crate) fn extract_quoted_bytes_cow<'a>(line: &'a [u8]) -> Result<Cow<'a, str
     };
 
     let raw = &line[start..end];
+    validate_quoted_content(raw)?;
     if !has_byte(b'\\', raw) {
         return Ok(Cow::Borrowed(bytes_to_str(raw)?));
     }
@@ -190,6 +191,22 @@ pub(crate) fn split_reference_comment<'a>(input: &'a str) -> Vec<Cow<'a, str>> {
     }
 
     vec![Cow::Borrowed(trimmed)]
+}
+
+pub(crate) fn validate_quoted_content(raw: &[u8]) -> Result<(), ParseError> {
+    let mut trailing_backslashes = 0usize;
+
+    for &byte in raw {
+        match byte {
+            b'\\' => trailing_backslashes += 1,
+            b'"' if trailing_backslashes % 2 == 0 => {
+                return Err(ParseError::new("unescaped quote in string literal"));
+            }
+            _ => trailing_backslashes = 0,
+        }
+    }
+
+    Ok(())
 }
 
 fn escape_string_from(out: &mut String, input: &str, bytes: &[u8], first_escape: usize) {
@@ -277,6 +294,7 @@ mod tests {
     use super::{
         escape_string, escape_string_into, escape_string_into_with_first_escape, extract_quoted,
         extract_quoted_bytes_cow, extract_quoted_cow, split_reference_comment, unescape_string,
+        validate_quoted_content,
     };
 
     #[test]
@@ -358,6 +376,16 @@ mod tests {
                 Cow::Owned("main 1.py:1".to_owned()),
                 Cow::Borrowed("other.py:2"),
             ]
+        );
+    }
+
+    #[test]
+    fn rejects_unescaped_quote_in_string_literal() {
+        assert_eq!(
+            validate_quoted_content(br#"Some msgstr with "double\" quotes"#)
+                .unwrap_err()
+                .to_string(),
+            "unescaped quote in string literal"
         );
     }
 }

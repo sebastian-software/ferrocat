@@ -587,4 +587,12 @@ msgstr "Datei"
         assert_eq!(po.items[0].msgid, "foo");
         assert_eq!(po.items[0].msgstr[0], "bar");
     }
+
+    #[test]
+    fn rejects_unescaped_quote_sequences() {
+        let input = "msgid \"Some msgid with \\\"double\\\" quotes\"\nmsgstr \"\"\n\"Some msgstr with \"double\\\" quotes\"\n";
+        let error = parse_po(input).expect_err("invalid quote pattern should fail");
+
+        assert!(error.to_string().contains("unescaped"));
+    }
 }

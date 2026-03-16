@@ -16,8 +16,8 @@ Current snapshot totals as of 2026-03-16:
 - `55` source-attributed conformance cases
 - `442` concrete assertions checked by the harness
 - `48` expected passes
-- `4` expected rejects
-- `3` documented `known_gap` cases
+- `5` expected rejects
+- `2` documented `known_gap` cases
 
 Per suite:
 
@@ -32,7 +32,7 @@ Small structured expectations now live inline in the Rust case definitions next 
 
 ## Snapshot Scope
 
-- `po-polib`: comment ordering, UTF-8 BOM handling, wrapping, invalid quoting, merge semantics, and merge output parsing
+- `po-polib`: comment ordering, UTF-8 BOM handling, strict invalid quoting rejects, wrapping, merge semantics, and merge output parsing
 - `po-pofile`: multiline values, structured references, comments, contexts, obsolete entries, C-string escapes, fuzzy roundtrip, and `Plural-Forms`
 - `po-babel`: unknown locale roundtrip, irregular multiline `msgstr`, and enclosed location parsing with structured references
 - `icu-official`: simple arguments, plural/selectordinal, nested tags, apostrophe escaping, and parser-visible failure cases

@@ -17,7 +17,7 @@ This directory stores the first hermetic conformance snapshot for `ferrox`.
   - License: MIT
   - Role: primary PO edge-case baseline
   - Snapshot here: `12` cases / `88` assertions
-  - Coverage here: comment ordering, UTF-8 BOM handling, wrapping, invalid quoting, merge semantics, and merge output semantics
+  - Coverage here: comment ordering, UTF-8 BOM handling, strict invalid quoting rejects, wrapping, merge semantics, and merge output semantics
 
 - `rubenv/pofile`
   - Upstream: <https://github.com/rubenv/pofile>

@@ -95,14 +95,13 @@ fn cases() -> Vec<ConformanceCase> {
             "tests/test_wrap.po + tests.py:test_wrapping",
         ),
 
-        reject_known_gap_case(
+        reject_case(
             "polib.invalid_quote_reject",
             "polib/unescaped_quote.po",
             PoRejectExpected {
                 message_contains: "unescaped".to_owned(),
             },
         )
-        .with_notes("The permissive parser currently accepts this invalid quoting pattern.")
         .source(
             "https://raw.githubusercontent.com/izimobil/polib/master/tests/tests.py",
             "tests.py:test_unescaped_double_quote2",
@@ -219,8 +218,8 @@ fn parse_case(id: &str, input: &str, expected: PoParseExpected) -> ConformanceCa
         .with_expected_artifact(ExpectedArtifact::PoParse(expected))
 }
 
-fn reject_known_gap_case(id: &str, input: &str, expected: PoRejectExpected) -> ConformanceCase {
-    ConformanceCase::new(id, "diagnostics", "po_reject", Expectation::KnownGap, input)
+fn reject_case(id: &str, input: &str, expected: PoRejectExpected) -> ConformanceCase {
+    ConformanceCase::new(id, "diagnostics", "po_reject", Expectation::Reject, input)
         .with_expected_artifact(ExpectedArtifact::PoReject(expected))
 }
 
