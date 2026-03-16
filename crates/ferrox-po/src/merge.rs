@@ -95,6 +95,18 @@ impl<'a> ParserState<'a> {
         *self = Self::new(nplurals);
     }
 
+    #[inline]
+    fn reset_after_take(&mut self, nplurals: usize) {
+        self.item.nplurals = nplurals;
+        self.header_entries.clear();
+        self.msgstr = BorrowedMsgStr::None;
+        self.context = None;
+        self.plural_index = 0;
+        self.obsolete_line_count = 0;
+        self.content_line_count = 0;
+        self.has_keyword = false;
+    }
+
     fn set_msgstr(&mut self, plural_index: usize, value: Cow<'a, str>) {
         match (&mut self.msgstr, plural_index) {
             (BorrowedMsgStr::None, 0) => self.msgstr = BorrowedMsgStr::Singular(value),
@@ -448,7 +460,7 @@ fn finish_item<'a>(
 
     state.item.nplurals = *current_nplurals;
     file.items.push(std::mem::take(&mut state.item));
-    state.reset(*current_nplurals);
+    state.reset_after_take(*current_nplurals);
     Ok(())
 }
 
