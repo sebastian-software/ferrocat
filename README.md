@@ -1,91 +1,43 @@
-# ferrox
+# ferrocat
 
-`ferrox` is a Rust-native, performance-first toolkit for gettext PO handling, built for teams that want modern i18n workflows without being trapped in legacy toolchain shapes.
+`ferrocat` is a Rust-first gettext and ICU toolkit built around predictable performance, explicit crate boundaries, and source-attributed compatibility coverage.
 
-It is not a literal port of an existing JavaScript library. It is a deliberate Rust implementation with:
+The public entry point is the `ferrocat` crate. It re-exports the stable Rust surface from the lower-level workspace crates:
 
-- a low-level PO core that respects ownership, borrowing, and hot-path efficiency
-- a high-level catalog API that treats ICU-style structure as the long-term semantic target
-- source-attributed conformance coverage against real upstream parser and writer behavior
+- `ferrocat`: umbrella crate and recommended dependency for application code
+- `ferrocat-po`: PO parsing, serialization, merge helpers, and catalog update APIs
+- `ferrocat-icu`: ICU MessageFormat parsing and structural helpers
+- `ferrocat-bench`: workspace-only benchmark harness
+- `ferrocat-conformance`: workspace-only upstream-derived conformance fixtures
 
-## Why `ferrox`
+## Installation
 
-Most PO tooling still makes at least one of these tradeoffs:
+```bash
+cargo add ferrocat
+```
 
-- it is tied to historical gettext workflows first, and modern semantics second
-- it is convenient, but not built around predictable performance
-- it has tests, but not source-backed conformance evidence
+If you want a narrower dependency, `ferrocat-po` and `ferrocat-icu` remain publishable secondary crates.
 
-`ferrox` is trying to be stronger on all three axes:
+## Why `ferrocat`
+
+Most PO tooling still makes at least one uncomfortable tradeoff:
+
+- compatibility with legacy gettext workflows comes first, modern semantics second
+- convenience wins over predictable allocation behavior and hot-path efficiency
+- tests exist, but they are not tied back to independently maintained upstream suites
+
+`ferrocat` aims to be stronger on all three axes:
 
 - Rust-native implementation instead of line-by-line translation
 - performance-first parser and serializer architecture
-- compatibility measured against independently maintained upstream suites
+- compatibility measured against real upstream behavior
 
-## What Is In The Workspace
-
-- `ferrox-po`: owned and borrowed PO parsing, serialization, merge support, and a higher-level catalog API
-- `ferrox-icu`: the beginning of the ICU/MessageFormat layer
-- `ferrox-bench`: repeatable benchmark and conformance reporting harness
-
-## Current Highlights
-
-- Owned parse via `parse_po`
-- Borrowed parse via `parse_po_borrowed`
-- Serialization via `stringify_po`
-- Merge workflow via `merge_catalog`
-- High-level catalog APIs via `parse_catalog`, `update_catalog`, and `update_catalog_file`
-- Support for comments, metadata, references, flags, contexts, plurals, headers, and obsolete entries
-- Conservative gettext compatibility with diagnostics where ambiguity matters
-
-The borrowed parser exists because real PO workflows are often read-heavy and transformation-heavy. In those paths, avoiding unnecessary allocation is not a micro-optimization. It is the difference between a nice API and a scalable one.
-
-## Modern Direction
-
-At the catalog layer, `ferrox` treats ICU-style structure as the canonical semantic model and gettext as a compatibility bridge.
-
-That means:
-
-- internal modeling is aimed at structured messages rather than legacy slot arrays alone
-- gettext import and export remain important, but do not define the architecture
-- future-facing i18n work has a cleaner base than classic PO-only tooling usually offers
-
-If your world is still gettext today, `ferrox` is meant to help there too. The point is not to abandon compatibility. The point is to avoid making historical compatibility the architectural center forever.
-
-## Conformance
-
-`ferrox` includes a hermetic, source-attributed conformance snapshot under [`conformance`](conformance).
-
-As of 2026-03-16, the current scoreboard is:
-
-- `55` upstream-derived conformance cases
-- `442` concrete assertions
-- `50` expected passes
-- `5` expected rejects
-- `0` `known_gap`
-
-The snapshot currently draws from:
-
-- `izimobil/polib`
-- `rubenv/pofile`
-- `python-babel/babel`
-- `unicode-org/icu`
-
-This matters because the tests are not just local inventions. They are tied back to behavior from real upstream ecosystems.
-
-Run the full verification with:
-
-```bash
-cargo test --workspace
-cargo run -p ferrox-bench -- conformance-report
-```
-
-`ferrox-po` intentionally normalizes headerless PO files on write by emitting an explicit empty header entry. That behavior is documented and is not counted as a compatibility gap.
+At the catalog layer, `ferrocat` treats ICU-style structure as the long-term semantic model and gettext as the compatibility bridge.
 
 ## Example
 
 ```rust
-use ferrox_po::{SerializeOptions, parse_po, stringify_po};
+use ferrocat::{SerializeOptions, parse_po, stringify_po};
 
 let mut file = parse_po(
     r#"
@@ -97,53 +49,69 @@ msgstr "world"
 file.items[0].msgstr = "Welt".to_owned().into();
 
 let rendered = stringify_po(&file, &SerializeOptions::default());
+assert!(rendered.contains(r#"msgstr "Welt""#));
 ```
 
-## Merge Workflow
-
-For the common "read an existing catalog, merge fresh extracted messages, write the updated PO back" workflow:
+For the common "merge fresh extracted messages into an existing catalog" workflow:
 
 ```rust
 use std::borrow::Cow;
 
-use ferrox_po::{ExtractedMessage, merge_catalog};
+use ferrocat::{MergeExtractedMessage, merge_catalog};
 
 let updated = merge_catalog(
     existing_po,
-    &[ExtractedMessage {
+    &[MergeExtractedMessage {
         msgid: Cow::Borrowed("hello"),
         references: vec![Cow::Borrowed("src/app.rs:10")],
-        ..ExtractedMessage::default()
+        ..MergeExtractedMessage::default()
     }],
 )?;
 ```
 
-This keeps existing translations, refreshes extractor-owned fields such as references and extracted comments, adds new messages, and marks removed ones obsolete.
+## Current Highlights
 
-## Parse Modes
+- owned parse via `parse_po`
+- borrowed parse via `parse_po_borrowed`
+- serialization via `stringify_po`
+- merge workflow via `merge_catalog`
+- high-level catalog APIs via `parse_catalog`, `update_catalog`, and `update_catalog_file`
+- ICU parsing via `parse_icu` plus helpers such as `extract_variables`
+- conservative gettext compatibility with diagnostics where ambiguity matters
 
-### Owned parse
+The borrowed parser exists because real PO workflows are often read-heavy and transformation-heavy. In those paths, avoiding unnecessary allocation is the difference between a pleasant API and a scalable one.
 
-Use `parse_po` when the parsed catalog needs to outlive the input buffer, move across API boundaries, or be freely mutated.
+## Conformance
 
-### Borrowed parse
+`ferrocat` includes a hermetic, source-attributed conformance snapshot under [`conformance`](conformance).
 
-Use `parse_po_borrowed` when allocation pressure matters and the input buffer can stay alive for the lifetime of the parsed structure.
+As of 2026-03-16, the current scoreboard is:
 
-Today, borrowed parsing requires LF-only input. Owned parsing still handles CRLF normalization.
+- `55` upstream-derived conformance cases
+- `442` concrete assertions
+- `50` expected passes
+- `5` expected rejects
+- `0` `known_gap`
+
+Run the full verification with:
+
+```bash
+cargo test --workspace
+cargo run -p ferrocat-bench -- conformance-report
+```
+
+`ferrocat-po` intentionally normalizes headerless PO files on write by emitting an explicit empty header entry. That behavior is documented and is not counted as a compatibility gap.
 
 ## Benchmarks And Profiling
 
-The benchmark harness lives in `crates/ferrox-bench`.
-
-Useful commands:
+Useful benchmark commands:
 
 ```bash
-cargo run --release -p ferrox-bench -- parse mixed-10000 200
-cargo run --release -p ferrox-bench -- parse-borrowed mixed-10000 200
-cargo run --release -p ferrox-bench -- stringify mixed-10000 200
-cargo run --release -p ferrox-bench -- merge mixed-10000 100
-cargo run -p ferrox-bench -- describe mixed-1000
+cargo run --release -p ferrocat-bench -- parse mixed-10000 200
+cargo run --release -p ferrocat-bench -- parse-borrowed mixed-10000 200
+cargo run --release -p ferrocat-bench -- stringify mixed-10000 200
+cargo run --release -p ferrocat-bench -- merge mixed-10000 100
+cargo run -p ferrocat-bench -- describe mixed-1000
 ```
 
 Historical benchmark results live in [docs/performance-history.md](docs/performance-history.md).
@@ -151,18 +119,16 @@ Historical benchmark results live in [docs/performance-history.md](docs/performa
 For profiling on macOS:
 
 ```bash
-cargo instruments --no-open -t "Time Profiler" --bin ferrox-bench -- parse mixed-10000 2000
+cargo instruments --no-open -t "Time Profiler" --bin ferrocat-bench -- parse mixed-10000 2000
 ```
 
-## Design Notes
-
-The highest-signal project decisions are recorded in [docs/adr](docs/adr).
-
-Useful supporting docs:
+## Project Docs
 
 - [docs/conformance.md](docs/conformance.md)
 - [docs/performance-history.md](docs/performance-history.md)
 - [docs/benchmark-fixtures.md](docs/benchmark-fixtures.md)
+- [docs/release-verification.md](docs/release-verification.md)
 - [docs/notes/2026-03-14-scan-architecture.md](docs/notes/2026-03-14-scan-architecture.md)
+- [docs/adr](docs/adr)
 
 Contribution conventions, including Conventional Commits, are documented in [CONTRIBUTING.md](CONTRIBUTING.md).

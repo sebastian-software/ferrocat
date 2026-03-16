@@ -14,31 +14,39 @@ dependencies = [
 ]
 
 [[package]]
-name = "ferrox-bench"
-version = "0.1.0"
+name = "ferrocat"
+version = "0.3.0"
 dependencies = [
- "ferrox-conformance",
- "ferrox-icu",
- "ferrox-po",
+ "ferrocat-icu",
+ "ferrocat-po",
 ]
 
 [[package]]
-name = "ferrox-conformance"
-version = "0.1.0"
-
-[[package]]
-name = "ferrox-icu"
-version = "0.1.0"
+name = "ferrocat-bench"
+version = "0.3.0"
 dependencies = [
- "ferrox-conformance",
+ "ferrocat-conformance",
+ "ferrocat-icu",
+ "ferrocat-po",
 ]
 
 [[package]]
-name = "ferrox-po"
-version = "0.1.0"
+name = "ferrocat-conformance"
+version = "0.3.0"
+
+[[package]]
+name = "ferrocat-icu"
+version = "0.3.0"
 dependencies = [
- "ferrox-conformance",
- "ferrox-icu",
+ "ferrocat-conformance",
+]
+
+[[package]]
+name = "ferrocat-po"
+version = "0.3.0"
+dependencies = [
+ "ferrocat-conformance",
+ "ferrocat-icu",
  "icu_locale",
  "icu_plurals",
  "memchr",

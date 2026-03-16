@@ -1,0 +1,27 @@
+[package]
+name = "ferrocat-po"
+version.workspace = true
+edition.workspace = true
+homepage.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+description = "Performance-first PO parsing, serialization, and catalog update primitives for ferrocat."
+documentation = "https://docs.rs/ferrocat-po"
+keywords = ["ferrocat", "gettext", "po", "i18n", "parser"]
+categories = ["internationalization", "localization", "parser-implementations"]
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+ferrocat-icu = { version = "0.3.0", path = "../ferrocat-icu" }
+icu_locale = "2.1.1"
+icu_plurals = { version = "2.1.1", features = ["compiled_data"] }
+memchr = "2.7.6"
+
+[dev-dependencies]
+ferrocat-conformance = { path = "../ferrocat-conformance" }
+
+[lints]
+workspace = true

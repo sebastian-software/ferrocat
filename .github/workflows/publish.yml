@@ -1,0 +1,84 @@
+name: Publish
+
+env:
+  CARGO_TERM_COLOR: always
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+on:
+  push:
+    branches:
+      - main
+
+concurrency:
+  group: publish-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  create-releases:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+    outputs:
+      releases_created: ${{ steps.release.outputs.releases_created }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Create GitHub releases from merged release PRs
+        id: release
+        uses: googleapis/release-please-action@v4
+        with:
+          config-file: .release-please-config.json
+          manifest-file: .release-please-manifest.json
+          skip-github-pull-request: true
+          token: ${{ secrets.RELEASE_PLEASE_TOKEN || secrets.GITHUB_TOKEN }}
+
+  publish-rust:
+    needs: create-releases
+    if: ${{ needs.create-releases.outputs.releases_created == 'true' }}
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Authenticate to crates.io
+        id: crates-auth
+        uses: rust-lang/crates-io-auth-action@v1
+
+      - name: Publish Rust crates in dependency order
+        shell: bash
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ steps.crates-auth.outputs.token }}
+        run: |
+          publish_with_retry() {
+            local crate="$1"
+            local attempts="$2"
+            local delay="$3"
+            local attempt
+            for attempt in $(seq 1 "$attempts"); do
+              if cargo publish -p "$crate" --locked; then
+                return 0
+              fi
+              if [ "$attempt" -eq "$attempts" ]; then
+                return 1
+              fi
+              echo "Waiting ${delay}s before retrying $crate..."
+              sleep "$delay"
+            done
+          }
+
+          publish_with_retry ferrocat-icu 1 0
+          publish_with_retry ferrocat-po 5 30
+          publish_with_retry ferrocat 5 30

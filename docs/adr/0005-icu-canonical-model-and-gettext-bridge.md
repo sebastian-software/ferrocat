@@ -5,7 +5,7 @@
 
 ## Context
 
-`ferrox` now has a high-level catalog API layered on top of the PO core:
+`ferrocat` now has a high-level catalog API layered on top of the PO core:
 
 - `parse_catalog`
 - `update_catalog`
@@ -49,7 +49,7 @@ Concretely:
 
 We explicitly do not make full gettext plural/header parity a short-term architectural goal.
 
-Instead, the next major semantic milestone after stabilizing the bridge is a real `ferrox-icu` MessageFormat v1 parser.
+Instead, the next major semantic milestone after stabilizing the bridge is a real `ferrocat-icu` MessageFormat v1 parser.
 
 ## Consequences
 

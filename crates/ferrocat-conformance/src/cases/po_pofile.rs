@@ -409,7 +409,7 @@ fn cases() -> Vec<ConformanceCase> {
             roundtrip_case("pofile.fuzzy_roundtrip", "pofile/fuzzy.po")
                 .with_expected_fixture("pofile/fuzzy.normalized.expected.po")
                 .with_notes(
-                    "ferrox-po intentionally normalizes headerless files by emitting an empty header on write.",
+                    "ferrocat-po intentionally normalizes headerless files by emitting an empty header on write.",
                 )
                 .source(
                     "https://raw.githubusercontent.com/rubenv/pofile/master/test/fixtures/fuzzy.po",

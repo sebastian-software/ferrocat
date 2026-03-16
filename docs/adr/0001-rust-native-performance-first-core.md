@@ -17,7 +17,7 @@ The project target is a Rust library that can later support Node/N-API and other
 
 ## Decision
 
-Build `ferrox` as a Rust-native implementation with performance as a first-class constraint.
+Build `ferrocat` as a Rust-native implementation with performance as a first-class constraint.
 
 This means:
 

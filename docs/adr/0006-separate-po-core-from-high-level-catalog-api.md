@@ -5,7 +5,7 @@
 
 ## Context
 
-`ferrox` started as a fast PO parser and serializer with an explicit focus on low-level performance.
+`ferrocat` started as a fast PO parser and serializer with an explicit focus on low-level performance.
 
 That core is still important:
 

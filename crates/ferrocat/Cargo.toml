@@ -1,0 +1,23 @@
+[package]
+name = "ferrocat"
+version.workspace = true
+edition.workspace = true
+homepage.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+description = "Rust-first gettext and ICU toolkit for PO parsing, catalog updates, and MessageFormat parsing."
+documentation = "https://docs.rs/ferrocat"
+readme = "README.md"
+keywords = ["ferrocat", "gettext", "po", "icu", "i18n"]
+categories = ["internationalization", "localization", "parser-implementations"]
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+ferrocat-icu = { version = "0.3.0", path = "../ferrocat-icu" }
+ferrocat-po = { version = "0.3.0", path = "../ferrocat-po" }
+
+[lints]
+workspace = true

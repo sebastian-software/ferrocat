@@ -1,7 +1,7 @@
 use std::borrow::Cow;
 use std::collections::BTreeMap;
 
-use ferrox_po::{
+use ferrocat_po::{
     CatalogOrigin, ExtractedMessage, ExtractedPluralMessage, ExtractedSingularMessage,
     MergeExtractedMessage, PluralSource, parse_po,
 };
@@ -361,7 +361,7 @@ fn generated_catalog_icu_fixture(kind: CatalogIcuFixtureKind, entries: usize) ->
     existing_po.push_str("# ICU-heavy benchmark catalog\n");
     existing_po.push_str("msgid \"\"\n");
     existing_po.push_str("msgstr \"\"\n");
-    existing_po.push_str("\"Project-Id-Version: ferrox icu benchmark\\n\"\n");
+    existing_po.push_str("\"Project-Id-Version: ferrocat icu benchmark\\n\"\n");
     existing_po.push_str("\"Language: de\\n\"\n");
     existing_po.push_str("\"Content-Type: text/plain; charset=UTF-8\\n\"\n");
     existing_po.push_str("\"Content-Transfer-Encoding: 8bit\\n\"\n\n");
@@ -760,11 +760,11 @@ fn parse_origin(reference: &str) -> CatalogOrigin {
 
 fn build_mixed_fixture(entries: usize) -> String {
     let mut out = String::with_capacity(entries * 120);
-    out.push_str("# Benchmark corpus for ferrox\n");
+    out.push_str("# Benchmark corpus for ferrocat\n");
     out.push_str("# Mixed feature distribution, deterministic generation\n");
     out.push_str("msgid \"\"\n");
     out.push_str("msgstr \"\"\n");
-    out.push_str("\"Project-Id-Version: ferrox benchmark\\n\"\n");
+    out.push_str("\"Project-Id-Version: ferrocat benchmark\\n\"\n");
     out.push_str("\"Language: de\\n\"\n");
     out.push_str("\"Content-Type: text/plain; charset=UTF-8\\n\"\n");
     out.push_str("\"Content-Transfer-Encoding: 8bit\\n\"\n");
@@ -1020,8 +1020,8 @@ fn scan_stats(content: &str) -> FixtureStats {
 
 #[cfg(test)]
 mod tests {
-    use ferrox_icu::parse_icu;
-    use ferrox_po::{PluralEncoding, UpdateCatalogOptions, update_catalog};
+    use ferrocat_icu::parse_icu;
+    use ferrocat_po::{PluralEncoding, UpdateCatalogOptions, update_catalog};
 
     use super::{fixture_by_name, icu_fixture_by_name, merge_fixture_by_name};
 

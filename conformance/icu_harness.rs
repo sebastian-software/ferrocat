@@ -1,10 +1,10 @@
 #![allow(dead_code)]
 
-use ferrox_conformance::{
+use ferrocat_conformance::{
     ConformanceCase, ConformanceManifest, Expectation, ExpectedArtifact, IcuParseExpected,
     IcuRejectExpected, load_all_manifests, read_fixture_text,
 };
-use ferrox_icu::{IcuNode, IcuPluralKind, parse_icu};
+use ferrocat_icu::{IcuNode, IcuPluralKind, parse_icu};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum EvaluationStatus {

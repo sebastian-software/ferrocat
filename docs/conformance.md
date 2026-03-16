@@ -1,13 +1,13 @@
 # Conformance
 
-`ferrox` now carries a hermetic conformance snapshot under [`/Users/sebastian/Workspace/ferrox/conformance`](/Users/sebastian/Workspace/ferrox/conformance), with case definitions in [`/Users/sebastian/Workspace/ferrox/crates/ferrox-conformance/src/cases`](/Users/sebastian/Workspace/ferrox/crates/ferrox-conformance/src/cases).
+`ferrocat` now carries a hermetic conformance snapshot under [`../conformance`](../conformance), with case definitions in [`../crates/ferrocat-conformance/src/cases`](../crates/ferrocat-conformance/src/cases).
 
 Phase 1 intentionally excludes GNU `gettext`. The current snapshot uses:
 
 - `izimobil/polib` as the primary PO edge-case baseline
 - `rubenv/pofile` as a secondary JS-oriented PO cross-check
 - Babel as a targeted PO supplement
-- the official ICU MessageFormat tests as the parser reference for `ferrox-icu`
+- the official ICU MessageFormat tests as the parser reference for `ferrocat-icu`
 
 ## Current Counts
 
@@ -41,10 +41,10 @@ Small structured expectations now live inline in the Rust case definitions next 
 
 Existing local tests still provide broad regression coverage in:
 
-- `parse`, `serialize`, `merge`, and `api` behavior inside `ferrox-po`
-- parser and utility behavior inside `ferrox-icu`
+- `parse`, `serialize`, `merge`, and `api` behavior inside `ferrocat-po`
+- parser and utility behavior inside `ferrocat-icu`
 
-The conformance layer is intentionally narrower and source-attributed. It exists to answer a different question: whether `ferrox` matches independently maintained reference behavior on representative upstream cases.
+The conformance layer is intentionally narrower and source-attributed. It exists to answer a different question: whether `ferrocat` matches independently maintained reference behavior on representative upstream cases.
 
 ## Scoreboard
 
@@ -52,7 +52,7 @@ Use:
 
 ```bash
 cargo test --workspace
-cargo run -p ferrox-bench -- conformance-report
+cargo run -p ferrocat-bench -- conformance-report
 ```
 
 The report prints totals per suite and capability, broken down into `pass`, `reject`, and `known_gap`.
@@ -61,7 +61,7 @@ It also prints assertion totals, so we can talk about both "how many source-attr
 
 Known gaps are counted and documented, but they do not fail CI. The current snapshot has `0`.
 
-Headerless PO files are not treated as a gap. `ferrox-po` intentionally normalizes them on write by emitting an explicit empty header entry.
+Headerless PO files are not treated as a gap. `ferrocat-po` intentionally normalizes them on write by emitting an explicit empty header entry.
 
 Not every upstream-derived behavior is treated as a desired future target. `previous_msgid` history from traditional gettext merge workflows is intentionally out of scope and therefore not counted as a `known_gap`.
 

@@ -1,17 +1,20 @@
 [workspace]
 members = [
-    "crates/ferrox-conformance",
-    "crates/ferrox-po",
-    "crates/ferrox-icu",
-    "crates/ferrox-bench",
+    "crates/ferrocat",
+    "crates/ferrocat-po",
+    "crates/ferrocat-icu",
+    "crates/ferrocat-conformance",
+    "crates/ferrocat-bench",
 ]
 resolver = "2"
 
 [workspace.package]
 edition = "2024"
+homepage = "https://github.com/sebastian-software/ferrocat"
 license = "MIT"
-version = "0.1.0"
+repository = "https://github.com/sebastian-software/ferrocat"
 rust-version = "1.85"
+version = "0.3.0"
 
 [workspace.lints.rust]
 unsafe_op_in_unsafe_fn = "deny"

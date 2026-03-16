@@ -1,6 +1,6 @@
 # Conformance Sources
 
-This directory stores the first hermetic conformance snapshot for `ferrox`.
+This directory stores the first hermetic conformance snapshot for `ferrocat`.
 
 ## Snapshot Policy
 
@@ -36,6 +36,6 @@ This directory stores the first hermetic conformance snapshot for `ferrox`.
 - `unicode-org/icu`
   - Upstream: <https://github.com/unicode-org/icu>
   - License: Unicode License
-  - Role: official MessageFormat parser reference for `ferrox-icu`
+  - Role: official MessageFormat parser reference for `ferrocat-icu`
   - Snapshot here: `8` cases / `21` assertions
   - Coverage here: simple arguments, plural/selectordinal, nested tags, apostrophe escaping, and parser-visible failure cases

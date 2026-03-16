@@ -1,0 +1,5 @@
+{
+  "crates/ferrocat": "0.3.0",
+  "crates/ferrocat-po": "0.3.0",
+  "crates/ferrocat-icu": "0.3.0"
+}

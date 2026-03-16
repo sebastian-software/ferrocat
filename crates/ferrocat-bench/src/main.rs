@@ -8,9 +8,9 @@ use std::process::ExitCode;
 use std::time::{Duration, Instant};
 
 use conformance_harness::{evaluate_all_cases, summarize_evaluations};
-use ferrox_conformance::{ConformanceCase, Expectation, ExpectedArtifact, load_all_manifests};
-use ferrox_icu::{extract_variables, parse_icu, validate_icu};
-use ferrox_po::{
+use ferrocat_conformance::{ConformanceCase, Expectation, ExpectedArtifact, load_all_manifests};
+use ferrocat_icu::{extract_variables, parse_icu, validate_icu};
+use ferrocat_po::{
     PluralEncoding, SerializeOptions, UpdateCatalogFileOptions, UpdateCatalogOptions,
     merge_catalog, parse_po, parse_po_borrowed, stringify_po, update_catalog, update_catalog_file,
 };
@@ -396,7 +396,7 @@ fn bench_update_catalog(fixture: &MergeFixture, config: BenchConfig) -> Result<(
 fn bench_update_catalog_file(fixture: &MergeFixture, config: BenchConfig) -> Result<(), String> {
     let mut bytes_per_iteration = 0usize;
     let temp_root = std::env::temp_dir().join(format!(
-        "ferrox-bench-update-catalog-file-{}",
+        "ferrocat-bench-update-catalog-file-{}",
         std::process::id()
     ));
     fs::create_dir_all(&temp_root).map_err(|error| error.to_string())?;

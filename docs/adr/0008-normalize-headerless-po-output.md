@@ -15,7 +15,7 @@ msgid "Save"
 msgstr "Speichern"
 ```
 
-`ferrox-po` currently serializes such catalogs with an explicit empty header:
+`ferrocat-po` currently serializes such catalogs with an explicit empty header:
 
 ```po
 msgid ""
@@ -32,7 +32,7 @@ This differs from byte-preserving roundtrip behavior, but it reflects the
 
 ## Decision
 
-`ferrox-po` will normalize headerless PO files on write.
+`ferrocat-po` will normalize headerless PO files on write.
 
 Specifically:
 
@@ -54,5 +54,5 @@ This is intentional normalization behavior, not a compatibility bug.
 - Preserve headerless files exactly on write.
 
 This would improve diff stability for that narrow case, but it would keep a
- less canonical PO shape and make `ferrox-po` less opinionated about output
+ less canonical PO shape and make `ferrocat-po` less opinionated about output
  normalization.

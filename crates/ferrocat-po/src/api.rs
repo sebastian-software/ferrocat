@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 use std::sync::{Mutex, OnceLock};
 
 use crate::{Header, MsgStr, ParseError, PoFile, PoItem, SerializeOptions, parse_po, stringify_po};
-use ferrox_icu::{IcuMessage, IcuNode, IcuPluralKind, parse_icu};
+use ferrocat_icu::{IcuMessage, IcuNode, IcuPluralKind, parse_icu};
 use icu_locale::Locale;
 use icu_plurals::{PluralCategory, PluralRules};
 
@@ -884,7 +884,7 @@ fn apply_header_defaults(
         .or_insert_with(|| "8bit".to_owned());
     headers
         .entry("X-Generator".to_owned())
-        .or_insert_with(|| "ferrox".to_owned());
+        .or_insert_with(|| "ferrocat".to_owned());
     if let Some(locale) = locale {
         headers.insert("Language".to_owned(), locale.to_owned());
     }
@@ -1826,7 +1826,7 @@ fn atomic_write(path: &Path, content: &str) -> Result<(), ApiError> {
         .ok_or_else(|| {
             ApiError::InvalidArguments("target_path must have a file name".to_owned())
         })?;
-    let temp_path = directory.join(format!(".{file_name}.ferrox.tmp"));
+    let temp_path = directory.join(format!(".{file_name}.ferrocat.tmp"));
     fs::write(&temp_path, content)?;
     fs::rename(&temp_path, path)?;
     Ok(())
@@ -2182,7 +2182,7 @@ mod tests {
 
     #[test]
     fn update_catalog_file_writes_only_when_changed() {
-        let temp_dir = std::env::temp_dir().join("ferrox-po-update-file-test");
+        let temp_dir = std::env::temp_dir().join("ferrocat-po-update-file-test");
         let _ = fs::remove_dir_all(&temp_dir);
         fs::create_dir_all(&temp_dir).expect("create temp dir");
         let path = temp_dir.join("messages.po");

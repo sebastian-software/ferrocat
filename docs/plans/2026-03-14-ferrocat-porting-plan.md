@@ -1,4 +1,4 @@
-# ferrox Porting Plan for `pofile-ts`
+# ferrocat Porting Plan for `pofile-ts`
 
 ## Goal
 
@@ -16,7 +16,7 @@ This should not be a line-by-line port. The design target is:
 
 ## Confirmed Decisions
 
-The current direction for `ferrox` is:
+The current direction for `ferrocat` is:
 
 1. phase 1 includes both PO and the important ICU core
 2. not every small helper from `pofile-ts` needs parity immediately
@@ -42,24 +42,24 @@ one monolithic crate.
 
 ### Phase 1 crate boundary
 
-- `ferrox-po`
+- `ferrocat-po`
   - parse `.po` text into typed structures
   - serialize typed structures back into `.po`
   - support comments, metadata, flags, references, context, plurals, obsolete items
-- `ferrox-icu`
+- `ferrocat-icu`
   - parse ICU messages into a compact Rust AST
   - provide a performance-first foundation for later validation/compilation
-- `ferrox-bench`
+- `ferrocat-bench`
   - benchmark harness and corpus tooling
 
 ### Later crates
 
-- `ferrox-catalog`
+- `ferrocat-catalog`
   - catalog transforms and message-id helpers
-- `ferrox-icu`
-- `ferrox-compile`
+- `ferrocat-icu`
+- `ferrocat-compile`
   - runtime formatter / codegen / compiled catalogs
-- `ferrox-napi`
+- `ferrocat-napi`
   - N-API bindings once the Rust core stabilizes
 
 This keeps the hot-path parser work lean, starts ICU early as requested, and
@@ -414,7 +414,7 @@ Avoid:
 
 ## Biggest Architectural Choice Still Open
 
-The critical scope question is whether `ferrox` is:
+The critical scope question is whether `ferrocat` is:
 
 1. a best-in-class PO engine first
 2. a full Rust i18n toolkit matching `pofile-ts`

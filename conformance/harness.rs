@@ -2,12 +2,12 @@
 
 use std::borrow::Cow;
 
-use ferrox_conformance::{
+use ferrocat_conformance::{
     ConformanceCase, ConformanceManifest, Expectation, ExpectedArtifact, IcuParseExpected,
     IcuRejectExpected, PoItemExpected, PoParseExpected, load_all_manifests, read_fixture_text,
 };
-use ferrox_icu::{IcuNode, IcuPluralKind, parse_icu};
-use ferrox_po::{
+use ferrocat_icu::{IcuNode, IcuPluralKind, parse_icu};
+use ferrocat_po::{
     MergeExtractedMessage, ParseCatalogOptions, PluralEncoding, PoFile, PoItem, SerializeOptions,
     merge_catalog, parse_catalog, parse_po, stringify_po,
 };

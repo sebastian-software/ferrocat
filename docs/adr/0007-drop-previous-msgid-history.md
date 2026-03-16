@@ -17,7 +17,7 @@ msgstr "Datei"
 
 These lines are useful in classic translator-centered merge workflows because they preserve a hint about the previous source text after fuzzy matching or `msgmerge` updates.
 
-`ferrox` is intentionally optimizing for a different center of gravity:
+`ferrocat` is intentionally optimizing for a different center of gravity:
 
 - current source text is the canonical identity surface
 - memory efficiency and hot-path performance matter more than preserving historical merge metadata
@@ -28,7 +28,7 @@ In that product direction, `previous_msgid` history is legacy workflow metadata 
 
 ## Decision
 
-`ferrox` will not model, preserve, or roundtrip `previous_msgid` / previous-`msgctxt` history.
+`ferrocat` will not model, preserve, or roundtrip `previous_msgid` / previous-`msgctxt` history.
 
 Concretely:
 
@@ -50,7 +50,7 @@ Positive:
 
 Negative:
 
-- `ferrox` is not a lossless roundtrip engine for PO files that rely on previous-source history
+- `ferrocat` is not a lossless roundtrip engine for PO files that rely on previous-source history
 - users migrating from traditional gettext workflows may lose those hints after rewrite
 - full historical parity with tools like `msgmerge` is explicitly out of scope
 

@@ -1,6 +1,6 @@
 # Benchmark Fixtures
 
-`ferrox-bench` uses two fixture classes:
+`ferrocat-bench` uses two fixture classes:
 
 - static fixtures
   - small, hand-written PO files for quick smoke runs
@@ -32,8 +32,8 @@ fixture stays deterministic so benchmark history remains comparable.
 ## Useful Commands
 
 ```bash
-cargo run -p ferrox-bench -- describe mixed-1000
-cargo run -p ferrox-bench -- parse mixed-1000 200
-cargo run -p ferrox-bench -- stringify mixed-1000 200
-cargo instruments --no-open -o target/instruments/parse-mixed-1000.trace -t "Time Profiler" --bin ferrox-bench -- parse mixed-1000 200
+cargo run -p ferrocat-bench -- describe mixed-1000
+cargo run -p ferrocat-bench -- parse mixed-1000 200
+cargo run -p ferrocat-bench -- stringify mixed-1000 200
+cargo instruments --no-open -o target/instruments/parse-mixed-1000.trace -t "Time Profiler" --bin ferrocat-bench -- parse mixed-1000 200
 ```

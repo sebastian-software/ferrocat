@@ -1,0 +1,21 @@
+[package]
+name = "ferrocat-icu"
+version.workspace = true
+edition.workspace = true
+homepage.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+description = "Compact, Rust-native ICU MessageFormat parsing primitives for ferrocat."
+documentation = "https://docs.rs/ferrocat-icu"
+keywords = ["ferrocat", "icu", "messageformat", "i18n", "parser"]
+categories = ["internationalization", "localization", "parser-implementations"]
+
+[lib]
+path = "src/lib.rs"
+
+[dev-dependencies]
+ferrocat-conformance = { path = "../ferrocat-conformance" }
+
+[lints]
+workspace = true

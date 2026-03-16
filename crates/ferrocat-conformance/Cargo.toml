@@ -1,0 +1,16 @@
+[package]
+name = "ferrocat-conformance"
+version.workspace = true
+edition.workspace = true
+homepage.workspace = true
+license.workspace = true
+publish = false
+repository.workspace = true
+rust-version.workspace = true
+description = "Workspace-only conformance fixtures and source-attributed expectations for ferrocat."
+
+[lib]
+path = "src/lib.rs"
+
+[lints]
+workspace = true
