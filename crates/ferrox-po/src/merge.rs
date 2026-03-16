@@ -2,11 +2,11 @@ use std::borrow::Cow;
 use std::str;
 
 use crate::scan::{
-    CommentKind, Keyword, LineKind, LineScanner, classify_line, find_quoted_bounds, has_byte,
-    parse_plural_index, split_once_byte, trim_ascii,
+    CommentKind, Keyword, LineKind, LineScanner, classify_line, find_byte, find_quoted_bounds,
+    has_byte, parse_plural_index, split_once_byte, trim_ascii,
 };
 use crate::serialize::{write_keyword, write_prefixed_line};
-use crate::text::{escape_string_into, extract_quoted_bytes_cow};
+use crate::text::{escape_string_into, unescape_string};
 use crate::{BorrowedMsgStr, ParseError, SerializeOptions};
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -329,7 +329,7 @@ fn parse_keyword_line<'a>(
     match keyword {
         Keyword::MsgIdPlural => {
             state.obsolete_line_count += usize::from(obsolete);
-            state.item.msgid_plural = Some(extract_quoted_bytes_cow(line_bytes)?);
+            state.item.msgid_plural = Some(extract_merge_quoted_cow(line_bytes)?);
             state.context = Some(Context::MsgIdPlural);
             state.content_line_count += 1;
             state.has_keyword = true;
@@ -337,7 +337,7 @@ fn parse_keyword_line<'a>(
         Keyword::MsgId => {
             finish_item(state, file, current_nplurals)?;
             state.obsolete_line_count += usize::from(obsolete);
-            state.item.msgid = extract_quoted_bytes_cow(line_bytes)?;
+            state.item.msgid = extract_merge_quoted_cow(line_bytes)?;
             state.context = Some(Context::MsgId);
             state.content_line_count += 1;
             state.has_keyword = true;
@@ -346,7 +346,7 @@ fn parse_keyword_line<'a>(
             let plural_index = parse_plural_index(line_bytes).unwrap_or(0);
             state.plural_index = plural_index;
             state.obsolete_line_count += usize::from(obsolete);
-            state.set_msgstr(plural_index, extract_quoted_bytes_cow(line_bytes)?);
+            state.set_msgstr(plural_index, extract_merge_quoted_cow(line_bytes)?);
             if is_header_candidate(state) {
                 state
                     .header_entries
@@ -359,7 +359,7 @@ fn parse_keyword_line<'a>(
         Keyword::MsgCtxt => {
             finish_item(state, file, current_nplurals)?;
             state.obsolete_line_count += usize::from(obsolete);
-            state.item.msgctxt = Some(extract_quoted_bytes_cow(line_bytes)?);
+            state.item.msgctxt = Some(extract_merge_quoted_cow(line_bytes)?);
             state.context = Some(Context::MsgCtxt);
             state.content_line_count += 1;
             state.has_keyword = true;
@@ -376,7 +376,7 @@ fn append_continuation<'a>(
 ) -> Result<(), ParseError> {
     state.obsolete_line_count += usize::from(obsolete);
     state.content_line_count += 1;
-    let value = extract_quoted_bytes_cow(line_bytes)?;
+    let value = extract_merge_quoted_cow(line_bytes)?;
 
     match state.context {
         Some(Context::MsgStr) => {
@@ -475,10 +475,9 @@ fn is_header_candidate(state: &ParserState<'_>) -> bool {
 }
 
 fn parse_header_fragment<'a>(line_bytes: &'a [u8]) -> Result<Vec<MergeHeader<'a>>, ParseError> {
-    let Some((start, end)) = find_quoted_bounds(line_bytes) else {
+    let Some(raw) = merge_quoted_raw(line_bytes) else {
         return Ok(Vec::new());
     };
-    let raw = &line_bytes[start..end];
 
     if header_fragment_is_borrowable(raw) {
         return parse_header_fragment_borrowed(raw);
@@ -525,7 +524,7 @@ fn push_borrowed_header_segment<'a>(
 fn parse_header_fragment_owned<'a>(
     line_bytes: &'a [u8],
 ) -> Result<Vec<MergeHeader<'a>>, ParseError> {
-    let decoded = extract_quoted_bytes_cow(line_bytes)?;
+    let decoded = extract_merge_quoted_cow(line_bytes)?;
     let mut headers = Vec::new();
     for segment in decoded.split('\n') {
         if segment.is_empty() {
@@ -554,6 +553,38 @@ fn header_fragment_is_borrowable(raw: &[u8]) -> bool {
         index += 1;
     }
     !has_byte(b'"', raw)
+}
+
+#[inline]
+fn extract_merge_quoted_cow<'a>(line_bytes: &'a [u8]) -> Result<Cow<'a, str>, ParseError> {
+    let Some(raw) = merge_quoted_raw(line_bytes) else {
+        return Ok(Cow::Borrowed(""));
+    };
+
+    if !has_byte(b'\\', raw) {
+        return Ok(Cow::Borrowed(bytes_to_str(raw)?));
+    }
+
+    Ok(Cow::Owned(unescape_string(bytes_to_str(raw)?)?))
+}
+
+#[inline]
+fn merge_quoted_raw(line_bytes: &[u8]) -> Option<&[u8]> {
+    let start = match line_bytes.first() {
+        Some(b'"') => 1,
+        _ => find_byte(b'"', line_bytes)? + 1,
+    };
+
+    if start > line_bytes.len() {
+        return None;
+    }
+
+    if line_bytes.len() >= start + 1 && line_bytes.last() == Some(&b'"') {
+        return Some(&line_bytes[start..line_bytes.len() - 1]);
+    }
+
+    let (quoted_start, quoted_end) = find_quoted_bounds(line_bytes)?;
+    Some(&line_bytes[quoted_start..quoted_end])
 }
 
 fn find_existing_index(
