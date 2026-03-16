@@ -130,22 +130,22 @@ fn cases() -> Vec<ConformanceCase> {
                 "https://raw.githubusercontent.com/rubenv/pofile/master/test/fixtures/comment.po",
                 "test/fixtures/comment.po + test/parse.js:Handle empty comments",
             ),
-            parse_known_gap_case("pofile.references_parse", "pofile/reference.po")
-                .with_notes(
-                    "ferrox-po preserves the combined reference token instead of splitting it into separate references.",
-                )
-                .with_expected_artifact(ExpectedArtifact::PoParse(PoParseExpected {
+            parse_case(
+                "pofile.references_parse",
+                "pofile/reference.po",
+                PoParseExpected {
                     item_count: Some(1),
                     items: vec![item("Title, as plain text")
                         .with_msgstr(strings(["Attribut title, en tant que texte brut"]))
                         .with_comments(strings(["Comment"]))
                         .with_references(strings(["src/app.js:1", "src/lib.js:2"]))],
                     ..PoParseExpected::default()
-                }))
-                .source(
-                    "https://raw.githubusercontent.com/rubenv/pofile/master/test/fixtures/reference.po",
-                    "test/fixtures/reference.po + test/parse.js",
-                ),
+                },
+            )
+            .source(
+                "https://raw.githubusercontent.com/rubenv/pofile/master/test/fixtures/reference.po",
+                "test/fixtures/reference.po + test/parse.js",
+            ),
             parse_case(
                 "pofile.reference_single",
                 "pofile/reference_single.po",
@@ -500,10 +500,6 @@ fn cases() -> Vec<ConformanceCase> {
 fn parse_case(id: &str, input: &str, expected: PoParseExpected) -> ConformanceCase {
     ConformanceCase::new(id, "parse", "po_parse", Expectation::Pass, input)
         .with_expected_artifact(ExpectedArtifact::PoParse(expected))
-}
-
-fn parse_known_gap_case(id: &str, input: &str) -> ConformanceCase {
-    ConformanceCase::new(id, "parse", "po_parse", Expectation::KnownGap, input)
 }
 
 fn plural_header_case(id: &str, input: &str, expected: PoPluralHeaderExpected) -> ConformanceCase {

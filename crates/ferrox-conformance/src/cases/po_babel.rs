@@ -55,14 +55,24 @@ fn cases() -> Vec<ConformanceCase> {
             "test_pofile.py:test_denormalize_on_msgstr_without_empty_first_line",
         ),
 
-        parse_known_gap_case("babel.enclosed_location_comment", "babel/enclosed_locations.po")
-            .with_notes(
-                "Filename isolates with spaces are not yet parsed into structured references.",
-            )
-            .source(
-                "https://raw.githubusercontent.com/python-babel/babel/master/tests/messages/test_pofile.py",
-                "test_pofile.py:test_extract_locations_valid_location_comment",
-            ),
+        parse_case(
+            "babel.enclosed_location_comment",
+            "babel/enclosed_locations.po",
+            PoParseExpected {
+                item_count: Some(1),
+                items: vec![PoItemExpected {
+                    msgid: "foo".to_owned(),
+                    msgstr: strings(["bar"]),
+                    references: strings(["main 1.py:1", "other.py:2"]),
+                    ..PoItemExpected::default()
+                }],
+                ..PoParseExpected::default()
+            },
+        )
+        .source(
+            "https://raw.githubusercontent.com/python-babel/babel/master/tests/messages/test_pofile.py",
+            "test_pofile.py:test_extract_locations_valid_location_comment",
+        ),
 
         parse_case(
             "babel.enclosed_location_message",
@@ -72,7 +82,7 @@ fn cases() -> Vec<ConformanceCase> {
                 items: vec![PoItemExpected {
                     msgid: "foo".to_owned(),
                     msgstr: strings(["bar"]),
-                    references: strings(["\u{2068}main 1.py\u{2069}:1 other.py:2"]),
+                    references: strings(["main 1.py:1", "other.py:2"]),
                     ..PoItemExpected::default()
                 }],
                 ..PoParseExpected::default()
@@ -88,10 +98,6 @@ fn cases() -> Vec<ConformanceCase> {
 fn parse_case(id: &str, input: &str, expected: PoParseExpected) -> ConformanceCase {
     ConformanceCase::new(id, "parse", "po_parse", Expectation::Pass, input)
         .with_expected_artifact(ExpectedArtifact::PoParse(expected))
-}
-
-fn parse_known_gap_case(id: &str, input: &str) -> ConformanceCase {
-    ConformanceCase::new(id, "parse", "po_parse", Expectation::KnownGap, input)
 }
 
 fn roundtrip_case(id: &str, input: &str) -> ConformanceCase {

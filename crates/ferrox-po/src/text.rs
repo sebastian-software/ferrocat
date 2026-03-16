@@ -136,6 +136,62 @@ pub fn extract_quoted(line: &str) -> Result<String, ParseError> {
     Ok(extract_quoted_bytes_cow(line.as_bytes())?.into_owned())
 }
 
+pub(crate) fn split_reference_comment<'a>(input: &'a str) -> Vec<Cow<'a, str>> {
+    let trimmed = input.trim();
+    if trimmed.is_empty() {
+        return vec![Cow::Borrowed("")];
+    }
+
+    let mut parts = Vec::new();
+    let mut start = None;
+    let mut isolate_depth = 0usize;
+
+    for (index, ch) in trimmed.char_indices() {
+        match ch {
+            '\u{2068}' => {
+                if start.is_none() {
+                    start = Some(index);
+                }
+                isolate_depth += 1;
+            }
+            '\u{2069}' => {
+                if start.is_none() {
+                    start = Some(index);
+                }
+                isolate_depth = isolate_depth.saturating_sub(1);
+            }
+            _ if ch.is_whitespace() && isolate_depth == 0 => {
+                if let Some(segment_start) = start.take()
+                    && segment_start < index
+                {
+                    parts.push(normalize_reference_token(&trimmed[segment_start..index]));
+                }
+            }
+            _ => {
+                if start.is_none() {
+                    start = Some(index);
+                }
+            }
+        }
+    }
+
+    if let Some(segment_start) = start
+        && segment_start < trimmed.len()
+    {
+        parts.push(normalize_reference_token(&trimmed[segment_start..]));
+    }
+
+    if parts.len() == 1 {
+        return vec![normalize_reference_token(trimmed)];
+    }
+
+    if parts.iter().all(|part| part.contains(':')) {
+        return parts;
+    }
+
+    vec![Cow::Borrowed(trimmed)]
+}
+
 fn escape_string_from(out: &mut String, input: &str, bytes: &[u8], first_escape: usize) {
     let mut start = first_escape;
 
@@ -201,13 +257,26 @@ fn bytes_to_str(bytes: &[u8]) -> Result<&str, ParseError> {
     Ok(unsafe { std::str::from_utf8_unchecked(bytes) })
 }
 
+fn normalize_reference_token(input: &str) -> Cow<'_, str> {
+    if !input.contains('\u{2068}') && !input.contains('\u{2069}') {
+        return Cow::Borrowed(input);
+    }
+
+    Cow::Owned(
+        input
+            .chars()
+            .filter(|ch| *ch != '\u{2068}' && *ch != '\u{2069}')
+            .collect(),
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use std::borrow::Cow;
 
     use super::{
         escape_string, escape_string_into, escape_string_into_with_first_escape, extract_quoted,
-        extract_quoted_bytes_cow, extract_quoted_cow, unescape_string,
+        extract_quoted_bytes_cow, extract_quoted_cow, split_reference_comment, unescape_string,
     };
 
     #[test]
@@ -262,6 +331,33 @@ mod tests {
         assert_eq!(
             extract_quoted_bytes_cow(br#"msgid "byte path""#),
             Ok(Cow::Borrowed("byte path"))
+        );
+    }
+
+    #[test]
+    fn splits_multiple_reference_tokens() {
+        assert_eq!(
+            split_reference_comment("src/app.js:1 src/lib.js:2"),
+            vec![Cow::Borrowed("src/app.js:1"), Cow::Borrowed("src/lib.js:2")]
+        );
+    }
+
+    #[test]
+    fn preserves_standard_input_reference_lines() {
+        assert_eq!(
+            split_reference_comment("standard input:12 standard input:17"),
+            vec![Cow::Borrowed("standard input:12 standard input:17")]
+        );
+    }
+
+    #[test]
+    fn strips_isolates_when_splitting_reference_tokens() {
+        assert_eq!(
+            split_reference_comment("\u{2068}main 1.py\u{2069}:1 other.py:2"),
+            vec![
+                Cow::Owned("main 1.py:1".to_owned()),
+                Cow::Borrowed("other.py:2"),
+            ]
         );
     }
 }

@@ -1,10 +1,11 @@
+use std::borrow::Cow;
 use std::str;
 
 use crate::scan::{
     CommentKind, Keyword, LineKind, LineScanner, classify_line, parse_plural_index,
     split_once_byte, trim_ascii,
 };
-use crate::text::extract_quoted_bytes_cow;
+use crate::text::{extract_quoted_bytes_cow, split_reference_comment};
 use crate::{Header, MsgStr, ParseError, PoFile, PoItem};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -198,10 +199,14 @@ fn parse_comment_line(
     finish_item(state, file, current_nplurals)?;
 
     match kind {
-        CommentKind::Reference => state
-            .item
-            .references
-            .push(trimmed_string(&line_bytes[2..])?),
+        CommentKind::Reference => {
+            let reference_line = trimmed_str(&line_bytes[2..])?;
+            state.item.references.extend(
+                split_reference_comment(reference_line)
+                    .into_iter()
+                    .map(Cow::into_owned),
+            );
+        }
         CommentKind::Flags => {
             for flag in trimmed_str(&line_bytes[2..])?.split(',') {
                 state.item.flags.push(flag.trim().to_owned());

@@ -5,7 +5,7 @@ use crate::scan::{
     CommentKind, Keyword, LineKind, LineScanner, classify_line, find_quoted_bounds, has_byte,
     parse_plural_index, split_once_byte, trim_ascii,
 };
-use crate::text::extract_quoted_bytes_cow;
+use crate::text::{extract_quoted_bytes_cow, split_reference_comment};
 use crate::{Header, MsgStr, ParseError, PoFile, PoItem};
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -305,7 +305,13 @@ fn parse_comment_line<'a>(
     finish_item(state, file, current_nplurals)?;
 
     match kind {
-        CommentKind::Reference => state.item.references.push(trimmed_cow(&line_bytes[2..])?),
+        CommentKind::Reference => {
+            let reference_line = trimmed_str(&line_bytes[2..])?;
+            state
+                .item
+                .references
+                .extend(split_reference_comment(reference_line));
+        }
         CommentKind::Flags => {
             for flag in trimmed_str(&line_bytes[2..])?.split(',') {
                 state.item.flags.push(Cow::Borrowed(flag.trim()));

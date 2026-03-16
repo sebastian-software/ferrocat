@@ -14,16 +14,16 @@ Phase 1 intentionally excludes GNU `gettext`. The current snapshot uses:
 Current snapshot totals as of 2026-03-16:
 
 - `55` source-attributed conformance cases
-- `433` concrete assertions checked by the harness
-- `46` expected passes
+- `442` concrete assertions checked by the harness
+- `48` expected passes
 - `4` expected rejects
-- `5` documented `known_gap` cases
+- `3` documented `known_gap` cases
 
 Per suite:
 
 - `po-pofile`: `30` cases / `301` assertions
 - `po-polib`: `12` cases / `88` assertions
-- `po-babel`: `5` cases / `23` assertions
+- `po-babel`: `5` cases / `32` assertions
 - `icu-official`: `8` cases / `21` assertions
 
 The case count tracks individually addressable upstream-derived scenarios. The assertion count tracks the concrete field- and structure-level comparisons performed by the harness, which is the better number to use when communicating weight and breadth.
@@ -33,8 +33,8 @@ Small structured expectations now live inline in the Rust case definitions next 
 ## Snapshot Scope
 
 - `po-polib`: comment ordering, UTF-8 BOM handling, wrapping, invalid quoting, merge semantics, and merge output parsing
-- `po-pofile`: multiline values, references, comments, contexts, obsolete entries, C-string escapes, fuzzy roundtrip, and `Plural-Forms`
-- `po-babel`: unknown locale roundtrip, irregular multiline `msgstr`, enclosed location parsing, and a known gap for structured location splitting
+- `po-pofile`: multiline values, structured references, comments, contexts, obsolete entries, C-string escapes, fuzzy roundtrip, and `Plural-Forms`
+- `po-babel`: unknown locale roundtrip, irregular multiline `msgstr`, and enclosed location parsing with structured references
 - `icu-official`: simple arguments, plural/selectordinal, nested tags, apostrophe escaping, and parser-visible failure cases
 
 ## Local Coverage Mapping
