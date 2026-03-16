@@ -1,8 +1,11 @@
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::fmt;
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::{Mutex, OnceLock};
 
+use icu_locale::Locale;
+use icu_plurals::{PluralCategory, PluralRules};
 use crate::{Header, MsgStr, ParseError, PoFile, PoItem, SerializeOptions, parse_po, stringify_po};
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -1218,25 +1221,76 @@ fn public_message_from_canonical(message: CanonicalMessage) -> CatalogMessage {
 }
 
 fn plural_categories_for(locale: Option<&str>, nplurals: Option<usize>) -> Vec<String> {
-    let locale = locale.unwrap_or_default().to_ascii_lowercase();
-    let categories = if locale.starts_with("cs")
-        || locale.starts_with("pl")
-        || locale.starts_with("ru")
-        || locale.starts_with("uk")
-        || locale.starts_with("sr")
-    {
-        vec!["one", "few", "many", "other"]
-    } else if locale.starts_with("ar") {
-        vec!["zero", "one", "two", "few", "many", "other"]
-    } else {
-        match nplurals.unwrap_or(2) {
-            0 | 1 => vec!["other"],
-            2 => vec!["one", "other"],
-            3 => vec!["one", "few", "other"],
-            4 => vec!["one", "few", "many", "other"],
-            5 => vec!["zero", "one", "few", "many", "other"],
-            _ => vec!["zero", "one", "two", "few", "many", "other"],
+    if let Some(locale_categories) = locale.and_then(icu_plural_categories_for) {
+        if nplurals.is_none() || nplurals == Some(locale_categories.len()) {
+            return locale_categories;
         }
+    }
+
+    fallback_plural_categories(nplurals)
+}
+
+fn icu_plural_categories_for(locale: &str) -> Option<Vec<String>> {
+    static CACHE: OnceLock<Mutex<HashMap<String, Option<Vec<String>>>>> = OnceLock::new();
+
+    let normalized = normalize_plural_locale(locale);
+    if normalized.is_empty() {
+        return None;
+    }
+
+    let cache = CACHE.get_or_init(|| Mutex::new(HashMap::new()));
+    if let Some(cached) = cache
+        .lock()
+        .expect("plural category cache mutex poisoned")
+        .get(&normalized)
+        .cloned()
+    {
+        return cached;
+    }
+
+    let resolved = normalized
+        .parse::<Locale>()
+        .ok()
+        .and_then(|locale| PluralRules::try_new_cardinal(locale.into()).ok())
+        .map(|rules| {
+            rules
+                .categories()
+                .map(plural_category_name)
+                .map(str::to_owned)
+                .collect::<Vec<_>>()
+        });
+
+    cache
+        .lock()
+        .expect("plural category cache mutex poisoned")
+        .insert(normalized, resolved.clone());
+
+    resolved
+}
+
+fn normalize_plural_locale(locale: &str) -> String {
+    locale.trim().replace('_', "-")
+}
+
+fn plural_category_name(category: PluralCategory) -> &'static str {
+    match category {
+        PluralCategory::Zero => "zero",
+        PluralCategory::One => "one",
+        PluralCategory::Two => "two",
+        PluralCategory::Few => "few",
+        PluralCategory::Many => "many",
+        PluralCategory::Other => "other",
+    }
+}
+
+fn fallback_plural_categories(nplurals: Option<usize>) -> Vec<String> {
+    let categories = match nplurals.unwrap_or(2) {
+        0 | 1 => vec!["other"],
+        2 => vec!["one", "other"],
+        3 => vec!["one", "few", "other"],
+        4 => vec!["one", "few", "many", "other"],
+        5 => vec!["zero", "one", "few", "many", "other"],
+        _ => vec!["zero", "one", "two", "few", "many", "other"],
     };
 
     categories.into_iter().map(str::to_owned).collect()
@@ -1621,6 +1675,37 @@ mod tests {
     }
 
     #[test]
+    fn parse_catalog_uses_icu_plural_categories_for_french_gettext() {
+        let parsed = parse_catalog(ParseCatalogOptions {
+            content: concat!(
+                "msgid \"fichier\"\n",
+                "msgid_plural \"fichiers\"\n",
+                "msgstr[0] \"fichier\"\n",
+                "msgstr[1] \"millions de fichiers\"\n",
+                "msgstr[2] \"fichiers\"\n",
+            )
+            .to_owned(),
+            locale: Some("fr".to_owned()),
+            source_locale: "en".to_owned(),
+            plural_encoding: PluralEncoding::Gettext,
+            strict: false,
+        })
+        .expect("parse");
+
+        match &parsed.messages[0].translation {
+            TranslationShape::Plural { translation, .. } => {
+                assert_eq!(translation.get("one").map(String::as_str), Some("fichier"));
+                assert_eq!(
+                    translation.get("many").map(String::as_str),
+                    Some("millions de fichiers")
+                );
+                assert_eq!(translation.get("other").map(String::as_str), Some("fichiers"));
+            }
+            other => panic!("expected plural translation, got {other:?}"),
+        }
+    }
+
+    #[test]
     fn parse_catalog_detects_simple_icu_plural_when_requested() {
         let parsed = parse_catalog(ParseCatalogOptions {
             content: concat!(
@@ -1731,6 +1816,29 @@ mod tests {
         assert_eq!(parsed.items[0].msgid, "book");
         assert_eq!(parsed.items[0].msgid_plural.as_deref(), Some("books"));
         assert_eq!(parsed.items[0].msgstr.len(), 2);
+    }
+
+    #[test]
+    fn update_catalog_gettext_export_uses_icu_plural_categories_for_french() {
+        let result = update_catalog(UpdateCatalogOptions {
+            source_locale: "en".to_owned(),
+            locale: Some("fr".to_owned()),
+            plural_encoding: PluralEncoding::Gettext,
+            extracted: vec![ExtractedMessage::Plural(ExtractedPluralMessage {
+                msgid: "files".to_owned(),
+                source: PluralSource {
+                    one: Some("file".to_owned()),
+                    other: "files".to_owned(),
+                },
+                placeholders: BTreeMap::from([("count".to_owned(), vec!["count".to_owned()])]),
+                ..ExtractedPluralMessage::default()
+            })],
+            ..UpdateCatalogOptions::default()
+        })
+        .expect("update");
+
+        let parsed = parse_po(&result.content).expect("parse output");
+        assert_eq!(parsed.items[0].msgstr.len(), 3);
     }
 
     #[test]
