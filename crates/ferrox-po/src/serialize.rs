@@ -31,7 +31,6 @@ pub fn stringify_po(file: &PoFile, options: &SerializeOptions) -> String {
         if iter.peek().is_some() {
             out.push('\n');
         }
-        out.push('\n');
     }
 
     out
@@ -313,8 +312,6 @@ fn write_complex_keyword(
 ) {
     let prefix_len = keyword_prefix_len(keyword, index);
     let has_multiple_lines = text.contains('\n');
-    let use_compact =
-        options.compact_multiline && text.split('\n').next().unwrap_or_default() != "";
     let first_line_max = if options.fold_length == 0 {
         usize::MAX
     } else {
@@ -325,6 +322,20 @@ fn write_complex_keyword(
     } else {
         options.fold_length.saturating_sub(2).max(1)
     };
+    let parts = parts_with_has_next(text).collect::<Vec<_>>();
+    let requires_folding = options.fold_length > 0
+        && parts.iter().any(|(part, has_next)| {
+            let escaped_len = escaped_part_len(part, *has_next);
+            let limit = if has_multiple_lines {
+                other_line_max
+            } else {
+                first_line_max
+            };
+            escaped_len > limit
+        });
+    let use_compact = options.compact_multiline
+        && text.split('\n').next().unwrap_or_default() != ""
+        && !requires_folding;
     let mut wrote_first_value_line = false;
 
     if !use_compact {
@@ -334,7 +345,7 @@ fn write_complex_keyword(
         wrote_first_value_line = true;
     }
 
-    for (part, has_next) in parts_with_has_next(text) {
+    for (part, has_next) in parts {
         scratch.clear();
         escape_string_into(scratch, part);
         if has_next {
@@ -360,11 +371,12 @@ fn write_complex_keyword(
 }
 
 fn parts_with_has_next(input: &str) -> impl Iterator<Item = (&str, bool)> {
-    let mut parts = input.split('\n').peekable();
-    std::iter::from_fn(move || {
-        let part = parts.next()?;
-        Some((part, parts.peek().is_some()))
-    })
+    input
+        .split_inclusive('\n')
+        .map(|part| match part.strip_suffix('\n') {
+            Some(stripped) => (stripped, true),
+            None => (part, false),
+        })
 }
 
 fn write_folded_segments(
@@ -412,26 +424,55 @@ fn write_quoted_segment(
     out.push_str("\"\n");
 }
 
+fn escaped_part_len(part: &str, has_next: bool) -> usize {
+    let escaped_len = match find_escapable_byte(part.as_bytes()) {
+        Some(_) => {
+            let mut escaped = String::new();
+            escape_string_into(&mut escaped, part);
+            escaped.len()
+        }
+        None => part.len(),
+    };
+
+    escaped_len + if has_next { 2 } else { 0 }
+}
+
 fn folded_split_point(input: &str, start: usize, max_len: usize) -> usize {
     let remaining = input.len() - start;
     if remaining <= max_len {
         return input.len();
     }
 
-    let end = clamp_char_boundary(input, start, start + max_len);
-    let mut break_at = None;
-    for (offset, byte) in input.as_bytes()[start..end].iter().enumerate().rev() {
-        if *byte == b' ' {
-            break_at = Some(start + offset + 1);
+    let mut end = start;
+    while end < input.len() {
+        let chunk_end = next_fold_chunk_end(input, end);
+        let next_len = chunk_end - start;
+        if next_len > max_len {
             break;
         }
+        end = chunk_end;
     }
 
-    match break_at {
-        Some(index) => index,
-        None if input.as_bytes()[end - 1] == b'\\' => end - 1,
-        None => end,
+    if end > start {
+        return end;
     }
+
+    let end = clamp_char_boundary(input, start, start + max_len);
+    if input.as_bytes()[end - 1] == b'\\' {
+        end - 1
+    } else {
+        end
+    }
+}
+
+fn next_fold_chunk_end(input: &str, start: usize) -> usize {
+    let bytes = input.as_bytes();
+    let is_space = bytes[start] == b' ';
+    let mut end = start + 1;
+    while end < bytes.len() && (bytes[end] == b' ') == is_space {
+        end += 1;
+    }
+    end
 }
 
 fn clamp_char_boundary(input: &str, start: usize, requested_end: usize) -> usize {
@@ -619,5 +660,37 @@ msgstr "Datei"
         let output = stringify_po(&file, &SerializeOptions::default());
         assert!(output.starts_with("msgid \"\"\nmsgstr \"\"\n\n"));
         assert!(output.contains("#, fuzzy\nmsgid \"Save\"\nmsgstr \"Speichern\"\n"));
+    }
+
+    #[test]
+    fn folds_single_line_values_like_gettext_style_multiline_entries() {
+        let file = PoFile {
+            headers: vec![],
+            comments: vec!["test wrapping".to_owned()],
+            extracted_comments: vec![],
+            items: vec![
+                PoItem {
+                    msgid: "Some line that contain special characters \" and that \t is very, very, very long...: %s \n".to_owned(),
+                    msgstr: MsgStr::from(vec!["".to_owned()]),
+                    ..PoItem::new(2)
+                },
+                PoItem {
+                    msgid: "Some line that contain special characters \"foobar\" and that contains whitespace at the end          ".to_owned(),
+                    msgstr: MsgStr::from(vec!["".to_owned()]),
+                    ..PoItem::new(2)
+                },
+            ],
+        };
+
+        let output = stringify_po(
+            &file,
+            &SerializeOptions {
+                fold_length: 50,
+                compact_multiline: true,
+            },
+        );
+
+        assert!(output.contains("msgid \"\"\n\"Some line that contain special characters \\\" and\"\n\" that \\t is very, very, very long...: %s \\n\"\n"));
+        assert!(output.contains("msgid \"\"\n\"Some line that contain special characters \"\n\"\\\"foobar\\\" and that contains whitespace at the \"\n\"end          \"\n"));
     }
 }

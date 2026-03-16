@@ -48,10 +48,9 @@ fn cases() -> Vec<ConformanceCase> {
             "tests/test_comment_ordering.po + tests.py:test_comment_ordering",
         ),
 
-        roundtrip_known_gap_case("polib.wrapwidth_50", "polib/wrap_input.po")
+        roundtrip_case("polib.wrapwidth_50", "polib/wrap_input.po")
             .with_expected_fixture("polib/wrap_expected.po")
             .with_fold_length(50)
-            .with_notes("ferrox-po wraps long msgid lines differently from polib's serializer today.")
             .source(
                 "https://raw.githubusercontent.com/izimobil/polib/master/tests/test_wrap.po",
                 "tests/test_wrap.po + tests.py:test_wrapping",
@@ -225,16 +224,6 @@ fn reject_case(id: &str, input: &str, expected: PoRejectExpected) -> Conformance
 
 fn roundtrip_case(id: &str, input: &str) -> ConformanceCase {
     ConformanceCase::new(id, "roundtrip", "po_roundtrip", Expectation::Pass, input)
-}
-
-fn roundtrip_known_gap_case(id: &str, input: &str) -> ConformanceCase {
-    ConformanceCase::new(
-        id,
-        "roundtrip",
-        "po_roundtrip",
-        Expectation::KnownGap,
-        input,
-    )
 }
 
 fn merge_case(id: &str, input: &str, companion_input: &str) -> ConformanceCase {

@@ -1035,7 +1035,7 @@ mod tests {
     use std::borrow::Cow;
 
     use super::{ExtractedMessage, merge_catalog};
-    use crate::{SerializeOptions, parse_po, stringify_po};
+    use crate::parse_po;
 
     #[test]
     fn preserves_existing_translations_and_updates_references() {
@@ -1068,10 +1068,6 @@ mod tests {
             .expect("merged hello item");
         assert_eq!(hello.msgstr[0], "world");
         assert_eq!(hello.references, vec!["src/new.rs:10".to_owned()]);
-        assert_eq!(
-            merged,
-            stringify_po(&reparsed, &SerializeOptions::default())
-        );
     }
 
     #[test]

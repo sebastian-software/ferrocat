@@ -53,6 +53,8 @@ The report breaks coverage down into `pass`, `reject`, and `known_gap` and is in
 
 `ferrox-po` intentionally normalizes headerless PO files on write by emitting an explicit empty header entry, so this behavior is not counted as a conformance gap.
 
+Current scoreboard: `50` expected passes, `5` expected rejects, `0` `known_gap`.
+
 ## Parse Modes
 
 ### Owned parse

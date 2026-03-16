@@ -15,9 +15,9 @@ Current snapshot totals as of 2026-03-16:
 
 - `55` source-attributed conformance cases
 - `442` concrete assertions checked by the harness
-- `49` expected passes
+- `50` expected passes
 - `5` expected rejects
-- `1` documented `known_gap` case
+- `0` documented `known_gap` cases
 
 Per suite:
 
@@ -59,7 +59,7 @@ The report prints totals per suite and capability, broken down into `pass`, `rej
 
 It also prints assertion totals, so we can talk about both "how many source-attributed cases" and "how many concrete checks" without inflating fixture counts.
 
-Known gaps are counted and documented, but they do not fail CI.
+Known gaps are counted and documented, but they do not fail CI. The current snapshot has `0`.
 
 Headerless PO files are not treated as a gap. `ferrox-po` intentionally normalizes them on write by emitting an explicit empty header entry.
 
