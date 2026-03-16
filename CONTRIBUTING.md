@@ -1,5 +1,26 @@
 # Contributing
 
+## Git Hooks
+
+This repository ships tracked Git hooks under `.githooks/`.
+
+Enable it once per clone with:
+
+```bash
+git config core.hooksPath .githooks
+```
+
+`pre-commit` runs for staged Rust or Cargo-related changes.
+
+`pre-push` always runs for the full workspace before a push.
+
+Both hooks mirror the Rust linting commands from CI:
+
+```bash
+cargo fmt --all --check
+cargo clippy --workspace --all-targets --all-features -- -D warnings
+```
+
 ## Commit Messages
 
 This repository uses Conventional Commits.

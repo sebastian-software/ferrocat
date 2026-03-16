@@ -112,10 +112,10 @@ mod backend {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Keyword {
-    MsgId,
-    MsgIdPlural,
-    MsgStr,
-    MsgCtxt,
+    Id,
+    IdPlural,
+    Str,
+    Ctxt,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -297,9 +297,9 @@ pub fn classify_line(line: &[u8]) -> LineKind {
                 && line[10] == b'a'
                 && line[11] == b'l'
             {
-                LineKind::Keyword(Keyword::MsgIdPlural)
+                LineKind::Keyword(Keyword::IdPlural)
             } else {
-                LineKind::Keyword(Keyword::MsgId)
+                LineKind::Keyword(Keyword::Id)
             }
         }
         Some(b'm')
@@ -310,7 +310,7 @@ pub fn classify_line(line: &[u8]) -> LineKind {
                 && line[4] == b't'
                 && line[5] == b'r' =>
         {
-            LineKind::Keyword(Keyword::MsgStr)
+            LineKind::Keyword(Keyword::Str)
         }
         Some(b'm')
             if line.len() >= 7
@@ -321,7 +321,7 @@ pub fn classify_line(line: &[u8]) -> LineKind {
                 && line[5] == b'x'
                 && line[6] == b't' =>
         {
-            LineKind::Keyword(Keyword::MsgCtxt)
+            LineKind::Keyword(Keyword::Ctxt)
         }
         _ => LineKind::Other,
     }
@@ -393,7 +393,7 @@ mod tests {
         );
         assert_eq!(
             classify_line(b"msgid \"x\""),
-            LineKind::Keyword(Keyword::MsgId)
+            LineKind::Keyword(Keyword::Id)
         );
         assert_eq!(classify_line(br#""continued""#), LineKind::Continuation);
     }

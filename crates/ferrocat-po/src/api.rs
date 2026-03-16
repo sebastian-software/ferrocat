@@ -663,7 +663,7 @@ fn merge_catalogs(
     obsolete_strategy: ObsoleteStrategy,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> (Catalog, CatalogStats) {
-    let is_source_locale = locale.map_or(true, |value| value == source_locale);
+    let is_source_locale = locale.is_none_or(|value| value == source_locale);
     let mut stats = CatalogStats::default();
 
     let mut existing_index = BTreeMap::<(String, Option<String>), usize>::new();
@@ -1909,7 +1909,7 @@ mod tests {
 
     #[test]
     fn obsolete_strategy_delete_removes_missing_messages() {
-        let existing = concat!("msgid \"keep\"\nmsgstr \"x\"\n\nmsgid \"drop\"\nmsgstr \"y\"\n");
+        let existing = "msgid \"keep\"\nmsgstr \"x\"\n\nmsgid \"drop\"\nmsgstr \"y\"\n";
         let result = update_catalog(UpdateCatalogOptions {
             source_locale: "en".to_owned(),
             locale: Some("de".to_owned()),

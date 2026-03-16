@@ -428,20 +428,20 @@ fn build_icu_message(kind: IcuFixtureKind, index: usize) -> String {
         IcuFixtureKind::Args => {
             format!("Hello {{name}}, benchmark item {index} has {{count}} values and {{value}}.")
         }
-        IcuFixtureKind::Formatters => format!(
-            "On {{date, date, short}} at {{time, time, ::HHmm}} {{name}} saw {{count, number, integer}} items in list {{items, list, disjunction}}."
-        ),
+        IcuFixtureKind::Formatters => {
+            "On {date, date, short} at {time, time, ::HHmm} {name} saw {count, number, integer} items in list {items, list, disjunction}.".to_string()
+        }
         IcuFixtureKind::Plural => icu_top_level_plural(
             "count",
             &format!("{index} file for {{name}}"),
             &format!("{index} files for {{name}}"),
         ),
-        IcuFixtureKind::Select => format!(
-            "{{gender, select, male {{He has {{count, number}} files for {{name}}}} female {{She has {{count, number}} files for {{name}}}} other {{They have {{count, number}} files for {{name}}}}}}"
-        ),
-        IcuFixtureKind::Nested => format!(
-            "{{gender, select, male {{{{count, plural, one {{He opened one alert}} other {{He opened # alerts for {{name}}}}}}}} female {{{{count, plural, one {{She opened one alert}} other {{She opened # alerts for {{name}}}}}}}} other {{{{count, plural, one {{They opened one alert}} other {{They opened # alerts for {{name}}}}}}}}}}"
-        ),
+        IcuFixtureKind::Select => {
+            "{gender, select, male {He has {count, number} files for {name}} female {She has {count, number} files for {name}} other {They have {count, number} files for {name}}}".to_string()
+        }
+        IcuFixtureKind::Nested => {
+            "{gender, select, male {{count, plural, one {He opened one alert} other {He opened # alerts for {name}}}} female {{count, plural, one {She opened one alert} other {She opened # alerts for {name}}}} other {{count, plural, one {They opened one alert} other {They opened # alerts for {name}}}}}".to_string()
+        }
         IcuFixtureKind::Tags => format!(
             "<link>{{name}}</link> has <b>{{count, plural, one {{# alert}} other {{# alerts}}}}</b> in benchmark entry {index}."
         ),
@@ -640,12 +640,10 @@ fn build_catalog_icu_entry(
             (msgid, msgstr, api, merge)
         }
         CatalogIcuFlavor::NestedUnsupported => {
-            let msgid = format!(
-                "{{count, plural, one {{{{name, select, short {{One short file}} other {{One file for {{name}}}}}}}} other {{{{name, select, short {{# short files}} other {{# files for {{name}}}}}}}}}}"
-            );
-            let msgstr = format!(
-                "{{count, plural, one {{{{name, select, short {{Eine kurze Datei}} other {{Eine Datei für {{name}}}}}}}} other {{{{name, select, short {{# kurze Dateien}} other {{# Dateien für {{name}}}}}}}}}}"
-            );
+            let msgid =
+                "{count, plural, one {{name, select, short {One short file} other {One file for {name}}}} other {{name, select, short {# short files} other {# files for {name}}}}}".to_string();
+            let msgstr =
+                "{count, plural, one {{name, select, short {Eine kurze Datei} other {Eine Datei für {name}}}} other {{name, select, short {# kurze Dateien} other {# Dateien für {name}}}}}".to_string();
             let placeholders = placeholder_map(&[("count", "count"), ("name", "name")]);
             let api = ExtractedMessage::Singular(ExtractedSingularMessage {
                 msgid: msgid.clone(),
@@ -665,12 +663,10 @@ fn build_catalog_icu_entry(
             (msgid, msgstr, api, merge)
         }
         CatalogIcuFlavor::SelectUnsupported => {
-            let msgid = format!(
-                "{{choice, select, a {{{{count, plural, one {{One A}} other {{# A items}}}}}} other {{{{count, plural, one {{One other}} other {{# other items}}}}}}}}"
-            );
-            let msgstr = format!(
-                "{{choice, select, a {{{{count, plural, one {{Ein A}} other {{# A-Einträge}}}}}} other {{{{count, plural, one {{Ein anderer}} other {{# andere Einträge}}}}}}}}"
-            );
+            let msgid =
+                "{choice, select, a {{count, plural, one {One A} other {# A items}}} other {{count, plural, one {One other} other {# other items}}}}".to_string();
+            let msgstr =
+                "{choice, select, a {{count, plural, one {Ein A} other {# A-Einträge}}} other {{count, plural, one {Ein anderer} other {# andere Einträge}}}}".to_string();
             let placeholders = placeholder_map(&[("choice", "choice"), ("count", "count")]);
             let api = ExtractedMessage::Singular(ExtractedSingularMessage {
                 msgid: msgid.clone(),

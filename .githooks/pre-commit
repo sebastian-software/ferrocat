@@ -1,0 +1,21 @@
+#!/bin/sh
+
+set -eu
+
+if ! git diff --cached --name-only --diff-filter=ACMR -- \
+    ':(glob)**/*.rs' \
+    Cargo.toml \
+    Cargo.lock \
+    rust-toolchain \
+    rust-toolchain.toml \
+    ':(glob).cargo/**' | grep -q .; then
+    exit 0
+fi
+
+printf '%s\n' "Running Rust pre-commit checks..."
+
+printf '%s\n' "- cargo fmt --all --check"
+cargo fmt --all --check
+
+printf '%s\n' "- cargo clippy --workspace --all-targets --all-features -- -D warnings"
+cargo clippy --workspace --all-targets --all-features -- -D warnings

@@ -136,10 +136,10 @@ impl<'a> BorrowedMsgStr<'a> {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Context {
-    MsgId,
-    MsgIdPlural,
-    MsgStr,
-    MsgCtxt,
+    Id,
+    IdPlural,
+    Str,
+    Ctxt,
 }
 
 #[derive(Debug)]
@@ -347,22 +347,22 @@ fn parse_keyword_line<'a>(
     current_nplurals: &mut usize,
 ) -> Result<(), ParseError> {
     match keyword {
-        Keyword::MsgIdPlural => {
+        Keyword::IdPlural => {
             state.obsolete_line_count += usize::from(obsolete);
             state.item.msgid_plural = Some(extract_quoted_bytes_cow(line_bytes)?);
-            state.context = Some(Context::MsgIdPlural);
+            state.context = Some(Context::IdPlural);
             state.content_line_count += 1;
             state.has_keyword = true;
         }
-        Keyword::MsgId => {
+        Keyword::Id => {
             finish_item(state, file, current_nplurals)?;
             state.obsolete_line_count += usize::from(obsolete);
             state.item.msgid = extract_quoted_bytes_cow(line_bytes)?;
-            state.context = Some(Context::MsgId);
+            state.context = Some(Context::Id);
             state.content_line_count += 1;
             state.has_keyword = true;
         }
-        Keyword::MsgStr => {
+        Keyword::Str => {
             let plural_index = parse_plural_index(line_bytes).unwrap_or(0);
             state.plural_index = plural_index;
             state.obsolete_line_count += usize::from(obsolete);
@@ -372,15 +372,15 @@ fn parse_keyword_line<'a>(
                     .header_entries
                     .extend(parse_header_fragment(line_bytes)?);
             }
-            state.context = Some(Context::MsgStr);
+            state.context = Some(Context::Str);
             state.content_line_count += 1;
             state.has_keyword = true;
         }
-        Keyword::MsgCtxt => {
+        Keyword::Ctxt => {
             finish_item(state, file, current_nplurals)?;
             state.obsolete_line_count += usize::from(obsolete);
             state.item.msgctxt = Some(extract_quoted_bytes_cow(line_bytes)?);
-            state.context = Some(Context::MsgCtxt);
+            state.context = Some(Context::Ctxt);
             state.content_line_count += 1;
             state.has_keyword = true;
         }
@@ -399,7 +399,7 @@ fn append_continuation<'a>(
     let value = extract_quoted_bytes_cow(line_bytes)?;
 
     match state.context {
-        Some(Context::MsgStr) => {
+        Some(Context::Str) => {
             state.append_msgstr(state.plural_index, value);
             if is_header_candidate(state) {
                 state
@@ -407,16 +407,13 @@ fn append_continuation<'a>(
                     .extend(parse_header_fragment(line_bytes)?);
             }
         }
-        Some(Context::MsgId) => state.item.msgid.to_mut().push_str(value.as_ref()),
-        Some(Context::MsgIdPlural) => {
-            let target = state
-                .item
-                .msgid_plural
-                .get_or_insert_with(|| Cow::Borrowed(""));
+        Some(Context::Id) => state.item.msgid.to_mut().push_str(value.as_ref()),
+        Some(Context::IdPlural) => {
+            let target = state.item.msgid_plural.get_or_insert(Cow::Borrowed(""));
             target.to_mut().push_str(value.as_ref());
         }
-        Some(Context::MsgCtxt) => {
-            let target = state.item.msgctxt.get_or_insert_with(|| Cow::Borrowed(""));
+        Some(Context::Ctxt) => {
+            let target = state.item.msgctxt.get_or_insert(Cow::Borrowed(""));
             target.to_mut().push_str(value.as_ref());
         }
         None => {}

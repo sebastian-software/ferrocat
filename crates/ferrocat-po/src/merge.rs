@@ -59,10 +59,10 @@ impl<'a> MergeBorrowedItem<'a> {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Context {
-    MsgId,
-    MsgIdPlural,
-    MsgStr,
-    MsgCtxt,
+    Id,
+    IdPlural,
+    Str,
+    Ctxt,
 }
 
 #[derive(Debug)]
@@ -339,22 +339,22 @@ fn parse_keyword_line<'a>(
     current_nplurals: &mut usize,
 ) -> Result<(), ParseError> {
     match keyword {
-        Keyword::MsgIdPlural => {
+        Keyword::IdPlural => {
             state.obsolete_line_count += usize::from(obsolete);
             state.item.msgid_plural = Some(extract_merge_quoted_cow(line_bytes)?);
-            state.context = Some(Context::MsgIdPlural);
+            state.context = Some(Context::IdPlural);
             state.content_line_count += 1;
             state.has_keyword = true;
         }
-        Keyword::MsgId => {
+        Keyword::Id => {
             finish_item(state, file, current_nplurals)?;
             state.obsolete_line_count += usize::from(obsolete);
             state.item.msgid = extract_merge_quoted_cow(line_bytes)?;
-            state.context = Some(Context::MsgId);
+            state.context = Some(Context::Id);
             state.content_line_count += 1;
             state.has_keyword = true;
         }
-        Keyword::MsgStr => {
+        Keyword::Str => {
             let plural_index = parse_plural_index(line_bytes).unwrap_or(0);
             state.plural_index = plural_index;
             state.obsolete_line_count += usize::from(obsolete);
@@ -364,15 +364,15 @@ fn parse_keyword_line<'a>(
                     .header_entries
                     .extend(parse_header_fragment(line_bytes)?);
             }
-            state.context = Some(Context::MsgStr);
+            state.context = Some(Context::Str);
             state.content_line_count += 1;
             state.has_keyword = true;
         }
-        Keyword::MsgCtxt => {
+        Keyword::Ctxt => {
             finish_item(state, file, current_nplurals)?;
             state.obsolete_line_count += usize::from(obsolete);
             state.item.msgctxt = Some(extract_merge_quoted_cow(line_bytes)?);
-            state.context = Some(Context::MsgCtxt);
+            state.context = Some(Context::Ctxt);
             state.content_line_count += 1;
             state.has_keyword = true;
         }
@@ -391,7 +391,7 @@ fn append_continuation<'a>(
     let value = extract_merge_quoted_cow(line_bytes)?;
 
     match state.context {
-        Some(Context::MsgStr) => {
+        Some(Context::Str) => {
             state.append_msgstr(state.plural_index, value);
             if is_header_candidate(state) {
                 state
@@ -399,16 +399,13 @@ fn append_continuation<'a>(
                     .extend(parse_header_fragment(line_bytes)?);
             }
         }
-        Some(Context::MsgId) => state.item.msgid.to_mut().push_str(value.as_ref()),
-        Some(Context::MsgIdPlural) => {
-            let target = state
-                .item
-                .msgid_plural
-                .get_or_insert_with(|| Cow::Borrowed(""));
+        Some(Context::Id) => state.item.msgid.to_mut().push_str(value.as_ref()),
+        Some(Context::IdPlural) => {
+            let target = state.item.msgid_plural.get_or_insert(Cow::Borrowed(""));
             target.to_mut().push_str(value.as_ref());
         }
-        Some(Context::MsgCtxt) => {
-            let target = state.item.msgctxt.get_or_insert_with(|| Cow::Borrowed(""));
+        Some(Context::Ctxt) => {
+            let target = state.item.msgctxt.get_or_insert(Cow::Borrowed(""));
             target.to_mut().push_str(value.as_ref());
         }
         None => {}
@@ -592,7 +589,7 @@ fn merge_quoted_raw(line_bytes: &[u8]) -> Option<&[u8]> {
         return None;
     }
 
-    if line_bytes.len() >= start + 1 && line_bytes.last() == Some(&b'"') {
+    if line_bytes.len() > start && line_bytes.last() == Some(&b'"') {
         return Some(&line_bytes[start..line_bytes.len() - 1]);
     }
 
@@ -704,8 +701,10 @@ fn write_merged_existing_item(
         scratch,
         obsolete_prefix,
         &existing.msgstr,
-        existing.msgid_plural.is_some(),
-        extracted.msgid_plural.is_some(),
+        MsgstrShape {
+            preserve_existing: existing.msgid_plural.is_some() == extracted.msgid_plural.is_some(),
+            plural: extracted.msgid_plural.is_some(),
+        },
         nplurals,
         options,
     );
@@ -882,7 +881,7 @@ fn write_merged_flags_line(
         .copied()
         .chain(extracted.iter().map(|value| value.as_ref()))
     {
-        if seen.iter().any(|existing| *existing == flag) {
+        if seen.contains(&flag) {
             continue;
         }
         if wrote_any {
@@ -943,18 +942,30 @@ fn write_existing_msgstr(
     );
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct MsgstrShape {
+    preserve_existing: bool,
+    plural: bool,
+}
+
 fn write_normalized_msgstr(
     out: &mut String,
     scratch: &mut String,
     obsolete_prefix: &str,
     msgstr: &BorrowedMsgStr<'_>,
-    was_plural: bool,
-    is_plural: bool,
+    shape: MsgstrShape,
     nplurals: usize,
     options: &SerializeOptions,
 ) {
-    if was_plural != is_plural {
-        write_default_msgstr(out, scratch, obsolete_prefix, is_plural, nplurals, options);
+    if !shape.preserve_existing {
+        write_default_msgstr(
+            out,
+            scratch,
+            obsolete_prefix,
+            shape.plural,
+            nplurals,
+            options,
+        );
         return;
     }
 
@@ -963,7 +974,7 @@ fn write_normalized_msgstr(
         scratch,
         obsolete_prefix,
         msgstr,
-        is_plural,
+        shape.plural,
         nplurals,
         options,
     );

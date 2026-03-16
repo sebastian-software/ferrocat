@@ -383,7 +383,7 @@ mod tests {
     fn rejects_unescaped_quote_in_string_literal() {
         assert_eq!(
             validate_quoted_content(br#"Some msgstr with "double\" quotes"#)
-                .unwrap_err()
+                .expect_err("expected unescaped quote error")
                 .to_string(),
             "unescaped quote in string literal"
         );
