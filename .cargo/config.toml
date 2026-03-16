@@ -1,0 +1,4 @@
+[alias]
+coverage = "llvm-cov --workspace --exclude ferrocat-bench --exclude ferrocat-conformance --html --output-dir target/coverage/html"
+coverage-lcov = "llvm-cov --workspace --exclude ferrocat-bench --exclude ferrocat-conformance --lcov --output-path target/coverage/lcov.info"
+coverage-summary = "llvm-cov --workspace --exclude ferrocat-bench --exclude ferrocat-conformance --summary-only"

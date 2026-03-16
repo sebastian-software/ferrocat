@@ -1,5 +1,7 @@
 # ferrocat
 
+[![codecov](https://codecov.io/github/sebastian-software/ferrocat/graph/badge.svg?branch=main)](https://app.codecov.io/github/sebastian-software/ferrocat)
+
 `ferrocat` is a Rust-first gettext and ICU toolkit built around predictable performance, explicit crate boundaries, and source-attributed compatibility coverage.
 
 The public entry point is the `ferrocat` crate. It re-exports the stable Rust surface from the lower-level workspace crates:
@@ -102,6 +104,22 @@ cargo run -p ferrocat-bench -- conformance-report
 
 `ferrocat-po` intentionally normalizes headerless PO files on write by emitting an explicit empty header entry. That behavior is documented and is not counted as a compatibility gap.
 
+## Test Coverage
+
+Coverage reporting is wired through workspace-local Cargo aliases backed by `cargo-llvm-cov`.
+
+Useful commands:
+
+```bash
+cargo coverage-summary
+cargo coverage
+cargo coverage-lcov
+```
+
+The coverage setup focuses on `ferrocat`, `ferrocat-po`, and `ferrocat-icu`, while excluding the workspace-only benchmark and conformance crates.
+
+See [docs/test-coverage.md](docs/test-coverage.md) for local setup, Codecov wiring, and artifact locations.
+
 ## Benchmarks And Profiling
 
 Useful benchmark commands:
@@ -128,6 +146,7 @@ cargo instruments --no-open -t "Time Profiler" --bin ferrocat-bench -- parse mix
 - [docs/performance-history.md](docs/performance-history.md)
 - [docs/benchmark-fixtures.md](docs/benchmark-fixtures.md)
 - [docs/release-verification.md](docs/release-verification.md)
+- [docs/test-coverage.md](docs/test-coverage.md)
 - [docs/notes/2026-03-14-scan-architecture.md](docs/notes/2026-03-14-scan-architecture.md)
 - [docs/adr](docs/adr)
 
