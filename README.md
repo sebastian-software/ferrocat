@@ -180,6 +180,8 @@ xcrun xctrace record --template "Time Profiler" --output target/instruments/pars
 
 Important design decisions live in [docs/adr](docs/adr).
 
+Commit message conventions are documented in [CONTRIBUTING.md](CONTRIBUTING.md).
+
 The highest-signal supporting docs today are:
 
 - [docs/performance-history.md](docs/performance-history.md)
