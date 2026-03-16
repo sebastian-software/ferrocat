@@ -1621,6 +1621,10 @@ fn synthesize_icu_plural(variable: &str, branches: &BTreeMap<String, String>) ->
 }
 
 fn project_icu_plural(input: &str) -> IcuPluralProjection {
+    if !looks_like_icu_message(input.as_bytes()) {
+        return IcuPluralProjection::NotPlural;
+    }
+
     let message = match parse_icu(input) {
         Ok(message) => message,
         Err(_) => return IcuPluralProjection::Malformed,
@@ -1665,6 +1669,13 @@ fn project_icu_plural(input: &str) -> IcuPluralProjection {
         variable: name.clone(),
         branches,
     })
+}
+
+#[inline]
+fn looks_like_icu_message(input: &[u8]) -> bool {
+    input
+        .iter()
+        .any(|byte| matches!(byte, b'{' | b'}' | b'<'))
 }
 
 fn only_node(message: &IcuMessage) -> Option<&IcuNode> {
