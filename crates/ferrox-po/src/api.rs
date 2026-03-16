@@ -4,10 +4,10 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::{Mutex, OnceLock};
 
+use crate::{Header, MsgStr, ParseError, PoFile, PoItem, SerializeOptions, parse_po, stringify_po};
 use ferrox_icu::{IcuMessage, IcuNode, IcuPluralKind, parse_icu};
 use icu_locale::Locale;
 use icu_plurals::{PluralCategory, PluralRules};
-use crate::{Header, MsgStr, ParseError, PoFile, PoItem, SerializeOptions, parse_po, stringify_po};
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct CatalogOrigin {
@@ -377,7 +377,8 @@ struct PluralProfile {
 
 impl PluralProfile {
     fn new(locale: Option<&str>, nplurals: Option<usize>) -> Self {
-        let categories = if let Some(locale_categories) = locale.and_then(icu_plural_categories_for) {
+        let categories = if let Some(locale_categories) = locale.and_then(icu_plural_categories_for)
+        {
             if nplurals.is_none() || nplurals == Some(locale_categories.len()) {
                 locale_categories
             } else {
@@ -398,7 +399,10 @@ impl PluralProfile {
         Self::new(locale, nplurals)
     }
 
-    fn for_translation(locale: Option<&str>, translation_by_category: &BTreeMap<String, String>) -> Self {
+    fn for_translation(
+        locale: Option<&str>,
+        translation_by_category: &BTreeMap<String, String>,
+    ) -> Self {
         Self::new(locale, Some(translation_by_category.len()))
     }
 
@@ -977,7 +981,10 @@ fn export_message_to_po(
         CanonicalTranslation::Plural {
             translation_by_category,
             ..
-        } => Some(PluralProfile::for_translation(locale, translation_by_category)),
+        } => Some(PluralProfile::for_translation(
+            locale,
+            translation_by_category,
+        )),
         CanonicalTranslation::Singular { .. } => None,
     };
     let nplurals = match &message.translation {
@@ -1210,33 +1217,33 @@ fn import_message_from_po(
                 IcuPluralProjection::Projected(source_plural) => {
                     let translated_projection = project_icu_plural(&msgstr);
                     match translated_projection {
-                    IcuPluralProjection::Projected(translated_plural)
-                        if translated_plural.variable == source_plural.variable =>
-                    {
-                        CanonicalTranslation::Plural {
-                            source: PluralSource {
-                                one: source_plural.branches.get("one").cloned(),
-                                other: source_plural
-                                    .branches
-                                    .get("other")
-                                    .cloned()
-                                    .unwrap_or_else(|| item.msgid.clone()),
-                            },
-                            translation_by_category: materialize_plural_categories(
-                                &sorted_plural_keys(&translated_plural.branches),
-                                translated_plural.branches,
-                            ),
-                            variable: source_plural.variable,
+                        IcuPluralProjection::Projected(translated_plural)
+                            if translated_plural.variable == source_plural.variable =>
+                        {
+                            CanonicalTranslation::Plural {
+                                source: PluralSource {
+                                    one: source_plural.branches.get("one").cloned(),
+                                    other: source_plural
+                                        .branches
+                                        .get("other")
+                                        .cloned()
+                                        .unwrap_or_else(|| item.msgid.clone()),
+                                },
+                                translation_by_category: materialize_plural_categories(
+                                    &sorted_plural_keys(&translated_plural.branches),
+                                    translated_plural.branches,
+                                ),
+                                variable: source_plural.variable,
+                            }
                         }
-                    }
-                    IcuPluralProjection::Projected(_) => {
-                        if strict {
-                            return Err(ApiError::Unsupported(
-                                "ICU plural source and translation use different variables"
-                                    .to_owned(),
-                            ));
-                        }
-                        diagnostics.push(
+                        IcuPluralProjection::Projected(_) => {
+                            if strict {
+                                return Err(ApiError::Unsupported(
+                                    "ICU plural source and translation use different variables"
+                                        .to_owned(),
+                                ));
+                            }
+                            diagnostics.push(
                             Diagnostic::new(
                                 DiagnosticSeverity::Warning,
                                 "plural.partial_icu_parse",
@@ -1244,16 +1251,18 @@ fn import_message_from_po(
                             )
                             .with_identity(&item.msgid, item.msgctxt.as_deref()),
                         );
-                        CanonicalTranslation::Singular { value: msgstr }
-                    }
-                    IcuPluralProjection::Unsupported(_) | IcuPluralProjection::Malformed => {
-                        if strict && matches!(translated_projection, IcuPluralProjection::Malformed)
-                        {
-                            return Err(ApiError::Unsupported(
-                                "ICU plural message could not be parsed in strict mode".to_owned(),
-                            ));
+                            CanonicalTranslation::Singular { value: msgstr }
                         }
-                        diagnostics.push(
+                        IcuPluralProjection::Unsupported(_) | IcuPluralProjection::Malformed => {
+                            if strict
+                                && matches!(translated_projection, IcuPluralProjection::Malformed)
+                            {
+                                return Err(ApiError::Unsupported(
+                                    "ICU plural message could not be parsed in strict mode"
+                                        .to_owned(),
+                                ));
+                            }
+                            diagnostics.push(
                             Diagnostic::new(
                                 DiagnosticSeverity::Warning,
                                 "plural.partial_icu_parse",
@@ -1261,10 +1270,10 @@ fn import_message_from_po(
                             )
                             .with_identity(&item.msgid, item.msgctxt.as_deref()),
                         );
-                        CanonicalTranslation::Singular { value: msgstr }
-                    }
-                    IcuPluralProjection::NotPlural => {
-                        diagnostics.push(
+                            CanonicalTranslation::Singular { value: msgstr }
+                        }
+                        IcuPluralProjection::NotPlural => {
+                            diagnostics.push(
                             Diagnostic::new(
                                 DiagnosticSeverity::Warning,
                                 "plural.partial_icu_parse",
@@ -1272,9 +1281,9 @@ fn import_message_from_po(
                             )
                             .with_identity(&item.msgid, item.msgctxt.as_deref()),
                         );
-                        CanonicalTranslation::Singular { value: msgstr }
+                            CanonicalTranslation::Singular { value: msgstr }
+                        }
                     }
-                }
                 }
                 IcuPluralProjection::NotPlural => CanonicalTranslation::Singular { value: msgstr },
                 IcuPluralProjection::Malformed if strict => {
@@ -1715,9 +1724,7 @@ fn project_icu_plural(input: &str) -> IcuPluralProjection {
 
 #[inline]
 fn looks_like_icu_message(input: &[u8]) -> bool {
-    input
-        .iter()
-        .any(|byte| matches!(byte, b'{' | b'}' | b'<'))
+    input.iter().any(|byte| matches!(byte, b'{' | b'}' | b'<'))
 }
 
 fn only_node(message: &IcuMessage) -> Option<&IcuNode> {
@@ -1767,7 +1774,7 @@ fn render_projectable_icu_node(node: &IcuNode, out: &mut String) -> Result<(), &
         IcuNode::Select { .. } | IcuNode::Plural { .. } => {
             return Err(
                 "Nested ICU select/plural structures are not projected into the current catalog plural model.",
-            )
+            );
         }
     }
 
@@ -2029,7 +2036,10 @@ mod tests {
                     translation.get("many").map(String::as_str),
                     Some("millions de fichiers")
                 );
-                assert_eq!(translation.get("other").map(String::as_str), Some("fichiers"));
+                assert_eq!(
+                    translation.get("other").map(String::as_str),
+                    Some("fichiers")
+                );
             }
             other => panic!("expected plural translation, got {other:?}"),
         }
@@ -2084,10 +2094,12 @@ mod tests {
         })
         .expect("parse");
 
-        assert!(parsed
-            .diagnostics
-            .iter()
-            .any(|diagnostic| diagnostic.code == "plural.nplurals_locale_mismatch"));
+        assert!(
+            parsed
+                .diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.code == "plural.nplurals_locale_mismatch")
+        );
     }
 
     #[test]
@@ -2135,10 +2147,12 @@ mod tests {
         })
         .expect("parse");
 
-        assert!(parsed
-            .diagnostics
-            .iter()
-            .any(|diagnostic| diagnostic.code == "plural.unsupported_icu_projection"));
+        assert!(
+            parsed
+                .diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.code == "plural.unsupported_icu_projection")
+        );
         assert!(matches!(
             parsed.messages[0].translation,
             TranslationShape::Singular { .. }
@@ -2288,10 +2302,12 @@ mod tests {
         })
         .expect("update");
 
-        assert!(result
-            .diagnostics
-            .iter()
-            .any(|diagnostic| diagnostic.code == "plural.missing_plural_forms_header"));
+        assert!(
+            result
+                .diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.code == "plural.missing_plural_forms_header")
+        );
     }
 
     #[test]
@@ -2317,10 +2333,12 @@ mod tests {
         })
         .expect("update");
 
-        assert!(result
-            .diagnostics
-            .iter()
-            .any(|diagnostic| diagnostic.code == "plural.completed_plural_forms_header"));
+        assert!(
+            result
+                .diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.code == "plural.completed_plural_forms_header")
+        );
 
         let parsed = parse_po(&result.content).expect("parse output");
         let plural_forms = parsed
@@ -2354,10 +2372,12 @@ mod tests {
         })
         .expect("update");
 
-        assert!(!result
-            .diagnostics
-            .iter()
-            .any(|diagnostic| diagnostic.code == "plural.completed_plural_forms_header"));
+        assert!(
+            !result
+                .diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.code == "plural.completed_plural_forms_header")
+        );
 
         let parsed = parse_po(&result.content).expect("parse output");
         let plural_forms = parsed

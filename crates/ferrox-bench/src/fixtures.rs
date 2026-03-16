@@ -154,9 +154,7 @@ pub fn icu_fixture_by_name(name: &str) -> Option<IcuFixture> {
         "icu-args-1000" => Some(generated_icu_fixture(IcuFixtureKind::Args, 1_000)),
         "icu-args-10000" => Some(generated_icu_fixture(IcuFixtureKind::Args, 10_000)),
         "icu-formatters-1000" => Some(generated_icu_fixture(IcuFixtureKind::Formatters, 1_000)),
-        "icu-formatters-10000" => {
-            Some(generated_icu_fixture(IcuFixtureKind::Formatters, 10_000))
-        }
+        "icu-formatters-10000" => Some(generated_icu_fixture(IcuFixtureKind::Formatters, 10_000)),
         "icu-plural-1000" => Some(generated_icu_fixture(IcuFixtureKind::Plural, 1_000)),
         "icu-plural-10000" => Some(generated_icu_fixture(IcuFixtureKind::Plural, 10_000)),
         "icu-select-1000" => Some(generated_icu_fixture(IcuFixtureKind::Select, 1_000)),
@@ -173,14 +171,22 @@ pub fn merge_fixture_by_name(name: &str) -> Option<MergeFixture> {
     match name {
         "mixed-1000" => Some(generated_merge_fixture(1_000)),
         "mixed-10000" => Some(generated_merge_fixture(10_000)),
-        "catalog-icu-light" => Some(generated_catalog_icu_fixture(CatalogIcuFixtureKind::Light, 1_000)),
-        "catalog-icu-heavy" => Some(generated_catalog_icu_fixture(CatalogIcuFixtureKind::Heavy, 1_000)),
-        "catalog-icu-projectable" => {
-            Some(generated_catalog_icu_fixture(CatalogIcuFixtureKind::Projectable, 1_000))
-        }
-        "catalog-icu-unsupported" => {
-            Some(generated_catalog_icu_fixture(CatalogIcuFixtureKind::Unsupported, 1_000))
-        }
+        "catalog-icu-light" => Some(generated_catalog_icu_fixture(
+            CatalogIcuFixtureKind::Light,
+            1_000,
+        )),
+        "catalog-icu-heavy" => Some(generated_catalog_icu_fixture(
+            CatalogIcuFixtureKind::Heavy,
+            1_000,
+        )),
+        "catalog-icu-projectable" => Some(generated_catalog_icu_fixture(
+            CatalogIcuFixtureKind::Projectable,
+            1_000,
+        )),
+        "catalog-icu-unsupported" => Some(generated_catalog_icu_fixture(
+            CatalogIcuFixtureKind::Unsupported,
+            1_000,
+        )),
         _ => None,
     }
 }
@@ -419,9 +425,9 @@ fn build_icu_message(kind: IcuFixtureKind, index: usize) -> String {
         IcuFixtureKind::Literal => {
             format!("Static localized copy for benchmark entry {index} without ICU placeholders.")
         }
-        IcuFixtureKind::Args => format!(
-            "Hello {{name}}, benchmark item {index} has {{count}} values and {{value}}."
-        ),
+        IcuFixtureKind::Args => {
+            format!("Hello {{name}}, benchmark item {index} has {{count}} values and {{value}}.")
+        }
         IcuFixtureKind::Formatters => format!(
             "On {{date, date, short}} at {{time, time, ::HHmm}} {{name}} saw {{count, number, integer}} items in list {{items, list, disjunction}}."
         ),
@@ -505,7 +511,12 @@ fn build_catalog_icu_entry(
     comments: Vec<String>,
     origin: Vec<CatalogOrigin>,
     reference: String,
-) -> (String, String, ExtractedMessage, MergeExtractedMessage<'static>) {
+) -> (
+    String,
+    String,
+    ExtractedMessage,
+    MergeExtractedMessage<'static>,
+) {
     let merge_comments = comments.iter().cloned().map(Cow::Owned).collect::<Vec<_>>();
     let merge_reference = vec![Cow::Owned(reference)];
     match flavor {
@@ -537,11 +548,8 @@ fn build_catalog_icu_entry(
             let msgstr = format!(
                 "Lauf {index}: {{count, number, integer}} Einträge am {{date, date, short}} für {{name}}."
             );
-            let placeholders = placeholder_map(&[
-                ("count", "count"),
-                ("date", "date"),
-                ("name", "name"),
-            ]);
+            let placeholders =
+                placeholder_map(&[("count", "count"), ("date", "date"), ("name", "name")]);
             let api = ExtractedMessage::Singular(ExtractedSingularMessage {
                 msgid: msgid.clone(),
                 msgctxt: msgctxt.clone(),
@@ -705,8 +713,7 @@ fn build_catalog_icu_entry(
         }
         CatalogIcuFlavor::OffsetUnsupported => {
             let msgid = "{count, plural, offset:1 one {One guest} other {# guests}}".to_owned();
-            let msgstr =
-                "{count, plural, offset:1 one {Ein Gast} other {# Gäste}}".to_owned();
+            let msgstr = "{count, plural, offset:1 one {Ein Gast} other {# Gäste}}".to_owned();
             let placeholders = placeholder_map(&[("count", "count")]);
             let api = ExtractedMessage::Singular(ExtractedSingularMessage {
                 msgid: msgid.clone(),

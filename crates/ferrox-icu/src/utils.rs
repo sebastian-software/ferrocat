@@ -1,6 +1,6 @@
 use std::collections::BTreeSet;
 
-use crate::ast::{IcuMessage, IcuNode, IcuPluralKind, IcuOption};
+use crate::ast::{IcuMessage, IcuNode, IcuOption, IcuPluralKind};
 
 pub fn validate_icu(input: &str) -> Result<(), crate::IcuParseError> {
     crate::parse_icu(input).map(|_| ())
@@ -30,7 +30,9 @@ pub fn has_plural(message: &IcuMessage) -> bool {
 }
 
 pub fn has_select(message: &IcuMessage) -> bool {
-    any_nodes(&message.nodes, &|node| matches!(node, IcuNode::Select { .. }))
+    any_nodes(&message.nodes, &|node| {
+        matches!(node, IcuNode::Select { .. })
+    })
 }
 
 pub fn has_selectordinal(message: &IcuMessage) -> bool {
@@ -86,7 +88,10 @@ fn visit_options(options: &[IcuOption], visitor: &mut impl FnMut(&str)) {
 fn any_nodes(nodes: &[IcuNode], predicate: &impl Fn(&IcuNode) -> bool) -> bool {
     nodes.iter().any(|node| match node {
         IcuNode::Select { options, .. } | IcuNode::Plural { options, .. } => {
-            predicate(node) || options.iter().any(|option| any_nodes(&option.value, predicate))
+            predicate(node)
+                || options
+                    .iter()
+                    .any(|option| any_nodes(&option.value, predicate))
         }
         IcuNode::Tag { children, .. } => predicate(node) || any_nodes(children, predicate),
         _ => predicate(node),

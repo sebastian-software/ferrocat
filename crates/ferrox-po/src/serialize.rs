@@ -601,5 +601,4 @@ msgstr "Datei"
         assert!(output.contains("msgctxt \"menu\"\n"));
         assert!(output.contains("msgid \"File\"\n"));
     }
-
 }

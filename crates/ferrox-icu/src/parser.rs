@@ -497,8 +497,8 @@ fn has_other_clause(options: &[IcuOption]) -> bool {
 #[cfg(test)]
 mod tests {
     use crate::{
-        IcuNode, IcuParseError, IcuParserOptions, IcuPluralKind, parse_icu,
-        parse_icu_with_options, validate_icu,
+        IcuNode, IcuParseError, IcuParserOptions, IcuPluralKind, parse_icu, parse_icu_with_options,
+        validate_icu,
     };
 
     #[test]
@@ -580,7 +580,8 @@ mod tests {
 
     #[test]
     fn parses_tags_and_nested_content() {
-        let message = parse_icu("<0>{count, plural, one {<b>#</b>} other {items}}</0>").expect("parse");
+        let message =
+            parse_icu("<0>{count, plural, one {<b>#</b>} other {items}}</0>").expect("parse");
         assert!(matches!(
             &message.nodes[0],
             IcuNode::Tag { name, children } if name == "0" && !children.is_empty()
@@ -597,7 +598,10 @@ mod tests {
             },
         )
         .expect("parse");
-        assert_eq!(message.nodes, vec![IcuNode::Literal("<b>Hello</b>".to_owned())]);
+        assert_eq!(
+            message.nodes,
+            vec![IcuNode::Literal("<b>Hello</b>".to_owned())]
+        );
     }
 
     #[test]
@@ -662,7 +666,10 @@ mod tests {
     #[test]
     fn pound_outside_plural_is_literal() {
         let message = parse_icu("Total # items").expect("parse");
-        assert_eq!(message.nodes, vec![IcuNode::Literal("Total # items".to_owned())]);
+        assert_eq!(
+            message.nodes,
+            vec![IcuNode::Literal("Total # items".to_owned())]
+        );
     }
 
     #[test]

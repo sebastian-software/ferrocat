@@ -18,15 +18,41 @@ pub struct IcuOption {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum IcuNode {
     Literal(String),
-    Argument { name: String },
-    Number { name: String, style: Option<String> },
-    Date { name: String, style: Option<String> },
-    Time { name: String, style: Option<String> },
-    List { name: String, style: Option<String> },
-    Duration { name: String, style: Option<String> },
-    Ago { name: String, style: Option<String> },
-    Name { name: String, style: Option<String> },
-    Select { name: String, options: Vec<IcuOption> },
+    Argument {
+        name: String,
+    },
+    Number {
+        name: String,
+        style: Option<String>,
+    },
+    Date {
+        name: String,
+        style: Option<String>,
+    },
+    Time {
+        name: String,
+        style: Option<String>,
+    },
+    List {
+        name: String,
+        style: Option<String>,
+    },
+    Duration {
+        name: String,
+        style: Option<String>,
+    },
+    Ago {
+        name: String,
+        style: Option<String>,
+    },
+    Name {
+        name: String,
+        style: Option<String>,
+    },
+    Select {
+        name: String,
+        options: Vec<IcuOption>,
+    },
     Plural {
         name: String,
         kind: IcuPluralKind,
@@ -34,5 +60,8 @@ pub enum IcuNode {
         options: Vec<IcuOption>,
     },
     Pound,
-    Tag { name: String, children: Vec<IcuNode> },
+    Tag {
+        name: String,
+        children: Vec<IcuNode>,
+    },
 }
