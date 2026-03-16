@@ -305,6 +305,7 @@ struct Catalog {
     file_comments: Vec<String>,
     file_extracted_comments: Vec<String>,
     messages: Vec<CanonicalMessage>,
+    diagnostics: Vec<Diagnostic>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -354,6 +355,103 @@ struct ParsedIcuPlural {
     branches: BTreeMap<String, String>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+struct ParsedPluralFormsHeader {
+    nplurals: Option<usize>,
+    plural: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct PluralProfile {
+    categories: Vec<String>,
+}
+
+impl PluralProfile {
+    fn new(locale: Option<&str>, nplurals: Option<usize>) -> Self {
+        let categories = if let Some(locale_categories) = locale.and_then(icu_plural_categories_for) {
+            if nplurals.is_none() || nplurals == Some(locale_categories.len()) {
+                locale_categories
+            } else {
+                fallback_plural_categories(nplurals)
+            }
+        } else {
+            fallback_plural_categories(nplurals)
+        };
+
+        Self { categories }
+    }
+
+    fn for_locale(locale: Option<&str>) -> Self {
+        Self::new(locale, None)
+    }
+
+    fn for_gettext_slots(locale: Option<&str>, nplurals: Option<usize>) -> Self {
+        Self::new(locale, nplurals)
+    }
+
+    fn for_translation(locale: Option<&str>, translation_by_category: &BTreeMap<String, String>) -> Self {
+        Self::new(locale, Some(translation_by_category.len()))
+    }
+
+    fn categories(&self) -> &[String] {
+        &self.categories
+    }
+
+    fn nplurals(&self) -> usize {
+        self.categories.len().max(1)
+    }
+
+    fn materialize_translation(
+        &self,
+        translation: &BTreeMap<String, String>,
+    ) -> BTreeMap<String, String> {
+        self.categories
+            .iter()
+            .map(|category| {
+                (
+                    category.clone(),
+                    translation.get(category).cloned().unwrap_or_default(),
+                )
+            })
+            .collect()
+    }
+
+    fn source_locale_translation(&self, source: &PluralSource) -> BTreeMap<String, String> {
+        let mut translation = BTreeMap::new();
+        for category in &self.categories {
+            let value = match category.as_str() {
+                "one" => source.one.clone().unwrap_or_else(|| source.other.clone()),
+                "other" => source.other.clone(),
+                _ => source.other.clone(),
+            };
+            translation.insert(category.clone(), value);
+        }
+        translation
+    }
+
+    fn empty_translation(&self) -> BTreeMap<String, String> {
+        self.categories
+            .iter()
+            .map(|category| (category.clone(), String::new()))
+            .collect()
+    }
+
+    fn gettext_values(&self, translation: &BTreeMap<String, String>) -> Vec<String> {
+        self.categories
+            .iter()
+            .map(|category| translation.get(category).cloned().unwrap_or_default())
+            .collect()
+    }
+
+    fn gettext_header(&self) -> Option<String> {
+        match self.nplurals() {
+            1 => Some("nplurals=1; plural=0;".to_owned()),
+            2 => Some("nplurals=2; plural=(n != 1);".to_owned()),
+            _ => None,
+        }
+    }
+}
+
 pub fn update_catalog(options: UpdateCatalogOptions) -> Result<CatalogUpdateResult, ApiError> {
     validate_source_locale(&options.source_locale)?;
 
@@ -372,6 +470,7 @@ pub fn update_catalog(options: UpdateCatalogOptions) -> Result<CatalogUpdateResu
             file_comments: Vec::new(),
             file_extracted_comments: Vec::new(),
             messages: Vec::new(),
+            diagnostics: Vec::new(),
         },
     };
 
@@ -381,7 +480,7 @@ pub fn update_catalog(options: UpdateCatalogOptions) -> Result<CatalogUpdateResu
         .or_else(|| existing.locale.clone())
         .or_else(|| existing.headers.get("Language").cloned());
     let normalized = normalize_extracted(&options.extracted)?;
-    let mut diagnostics = Vec::new();
+    let mut diagnostics = existing.diagnostics.clone();
     let (mut merged, stats) = merge_catalogs(
         existing,
         &normalized,
@@ -395,6 +494,8 @@ pub fn update_catalog(options: UpdateCatalogOptions) -> Result<CatalogUpdateResu
     apply_header_defaults(
         &mut merged.headers,
         locale.as_deref(),
+        options.plural_encoding,
+        &mut diagnostics,
         &options.custom_header_attributes,
     );
     sort_messages(&mut merged.messages, options.order_by);
@@ -466,7 +567,7 @@ pub fn parse_catalog(options: ParseCatalogOptions) -> Result<ParsedCatalog, ApiE
         locale: catalog.locale,
         headers: catalog.headers,
         messages,
-        diagnostics: Vec::new(),
+        diagnostics: catalog.diagnostics,
     })
 }
 
@@ -616,6 +717,7 @@ fn merge_catalogs(
             file_comments: existing.file_comments,
             file_extracted_comments: existing.file_extracted_comments,
             messages,
+            diagnostics: existing.diagnostics,
         },
         stats,
     )
@@ -629,9 +731,9 @@ fn merge_message(
     overwrite_source_translations: bool,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> CanonicalMessage {
-    let expected_categories = match &next.kind {
-        NormalizedKind::Singular => Vec::new(),
-        NormalizedKind::Plural(_) => plural_categories_for(locale, None),
+    let plural_profile = match &next.kind {
+        NormalizedKind::Singular => None,
+        NormalizedKind::Plural(_) => Some(PluralProfile::for_locale(locale)),
     };
 
     let translation = match (&next.kind, previous) {
@@ -658,10 +760,10 @@ fn merge_message(
             };
             CanonicalTranslation::Plural {
                 source: source.clone(),
-                translation_by_category: materialize_plural_categories(
-                    &expected_categories,
-                    previous_map,
-                ),
+                translation_by_category: plural_profile
+                    .as_ref()
+                    .expect("plural messages require plural profile")
+                    .materialize_translation(&previous_map),
                 variable: previous_variable,
             }
         }
@@ -691,9 +793,15 @@ fn merge_message(
             CanonicalTranslation::Plural {
                 source: source.clone(),
                 translation_by_category: if is_source_locale {
-                    source_locale_plural_translation(&expected_categories, source)
+                    plural_profile
+                        .as_ref()
+                        .expect("plural messages require plural profile")
+                        .source_locale_translation(source)
                 } else {
-                    empty_plural_translation(&expected_categories)
+                    plural_profile
+                        .as_ref()
+                        .expect("plural messages require plural profile")
+                        .empty_translation()
                 },
                 variable,
             }
@@ -723,29 +831,6 @@ fn merge_message(
     }
 }
 
-fn source_locale_plural_translation(
-    categories: &[String],
-    source: &PluralSource,
-) -> BTreeMap<String, String> {
-    let mut translation = BTreeMap::new();
-    for category in categories {
-        let value = match category.as_str() {
-            "one" => source.one.clone().unwrap_or_else(|| source.other.clone()),
-            "other" => source.other.clone(),
-            _ => source.other.clone(),
-        };
-        translation.insert(category.clone(), value);
-    }
-    translation
-}
-
-fn empty_plural_translation(categories: &[String]) -> BTreeMap<String, String> {
-    categories
-        .iter()
-        .map(|category| (category.clone(), String::new()))
-        .collect()
-}
-
 fn materialize_plural_categories(
     categories: &[String],
     translation: BTreeMap<String, String>,
@@ -771,6 +856,8 @@ fn extract_plural_variable(message: &CanonicalMessage) -> Option<String> {
 fn apply_header_defaults(
     headers: &mut BTreeMap<String, String>,
     locale: Option<&str>,
+    plural_encoding: PluralEncoding,
+    diagnostics: &mut Vec<Diagnostic>,
     custom: &BTreeMap<String, String>,
 ) {
     headers
@@ -787,6 +874,22 @@ fn apply_header_defaults(
         .or_insert_with(|| "ferrox".to_owned());
     if let Some(locale) = locale {
         headers.insert("Language".to_owned(), locale.to_owned());
+    }
+    if plural_encoding == PluralEncoding::Gettext
+        && !custom.contains_key("Plural-Forms")
+        && !headers.contains_key("Plural-Forms")
+    {
+        let profile = PluralProfile::for_locale(locale);
+        match profile.gettext_header() {
+            Some(header) => {
+                headers.insert("Plural-Forms".to_owned(), header);
+            }
+            None => diagnostics.push(Diagnostic::new(
+                DiagnosticSeverity::Info,
+                "plural.missing_plural_forms_header",
+                "No safe default Plural-Forms header is known for this locale; keeping the header unset.",
+            )),
+        }
     }
     for (key, value) in custom {
         headers.insert(key.clone(), value.clone());
@@ -851,11 +954,22 @@ fn export_message_to_po(
     locale: Option<&str>,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> Result<PoItem, ApiError> {
+    let plural_profile = match &message.translation {
+        CanonicalTranslation::Plural {
+            translation_by_category,
+            ..
+        } => Some(PluralProfile::for_translation(locale, translation_by_category)),
+        CanonicalTranslation::Singular { .. } => None,
+    };
     let nplurals = match &message.translation {
         CanonicalTranslation::Plural {
             translation_by_category,
             ..
-        } => translation_by_category.len().max(1),
+        } => plural_profile
+            .as_ref()
+            .expect("plural messages require plural profile")
+            .nplurals()
+            .max(translation_by_category.len().max(1)),
         CanonicalTranslation::Singular { .. } => 1,
     };
     let mut item = PoItem::new(nplurals);
@@ -912,12 +1026,6 @@ fn export_message_to_po(
             },
             PluralEncoding::Gettext,
         ) => {
-            let categories = plural_categories_for(locale, Some(translation_by_category.len()));
-            if categories.is_empty() {
-                return Err(ApiError::Unsupported(
-                    "gettext plural export requires at least one plural category".to_owned(),
-                ));
-            }
             if !translation_by_category.contains_key("other") {
                 diagnostics.push(
                     Diagnostic::new(
@@ -934,17 +1042,15 @@ fn export_message_to_po(
             item.msgid = source.one.clone().unwrap_or_else(|| source.other.clone());
             item.msgid_plural = Some(source.other.clone());
             item.msgstr = MsgStr::from(
-                categories
-                    .iter()
-                    .map(|category| {
-                        translation_by_category
-                            .get(category)
-                            .cloned()
-                            .unwrap_or_default()
-                    })
-                    .collect::<Vec<_>>(),
+                plural_profile
+                    .as_ref()
+                    .expect("plural messages require plural profile")
+                    .gettext_values(translation_by_category),
             );
-            item.nplurals = categories.len();
+            item.nplurals = plural_profile
+                .as_ref()
+                .expect("plural messages require plural profile")
+                .nplurals();
         }
     }
 
@@ -1007,7 +1113,15 @@ fn parse_catalog_to_internal(
     let locale = locale_override
         .map(str::to_owned)
         .or_else(|| headers.get("Language").cloned());
-    let nplurals = parse_nplurals_from_headers(&headers);
+    let plural_forms = parse_plural_forms_from_headers(&headers);
+    let nplurals = plural_forms.nplurals;
+    let mut diagnostics = Vec::new();
+    validate_plural_forms_header(
+        locale.as_deref(),
+        &plural_forms,
+        plural_encoding,
+        &mut diagnostics,
+    );
     let mut messages = Vec::with_capacity(file.items.len());
 
     for item in file.items {
@@ -1020,6 +1134,7 @@ fn parse_catalog_to_internal(
             strict,
             &mut conversion_diagnostics,
         )?;
+        diagnostics.extend(conversion_diagnostics);
         messages.push(message);
     }
 
@@ -1029,6 +1144,7 @@ fn parse_catalog_to_internal(
         file_comments: file.comments,
         file_extracted_comments: file.extracted_comments,
         messages,
+        diagnostics,
     })
 }
 
@@ -1048,13 +1164,15 @@ fn import_message_from_po(
         .collect();
 
     let translation = if let Some(msgid_plural) = &item.msgid_plural {
-        let categories = plural_categories_for(locale, nplurals.or(Some(item.msgstr.len())));
+        let plural_profile =
+            PluralProfile::for_gettext_slots(locale, nplurals.or(Some(item.msgstr.len())));
         CanonicalTranslation::Plural {
             source: PluralSource {
                 one: Some(item.msgid.clone()),
                 other: msgid_plural.clone(),
             },
-            translation_by_category: categories
+            translation_by_category: plural_profile
+                .categories()
                 .iter()
                 .enumerate()
                 .map(|(index, category)| {
@@ -1186,11 +1304,64 @@ fn parse_origin(reference: &str) -> CatalogOrigin {
     }
 }
 
-fn parse_nplurals_from_headers(headers: &BTreeMap<String, String>) -> Option<usize> {
-    let plural_forms = headers.get("Plural-Forms")?;
-    plural_forms
-        .split(';')
-        .find_map(|part| part.trim().strip_prefix("nplurals=")?.trim().parse().ok())
+fn parse_plural_forms_from_headers(headers: &BTreeMap<String, String>) -> ParsedPluralFormsHeader {
+    let Some(plural_forms) = headers.get("Plural-Forms") else {
+        return ParsedPluralFormsHeader::default();
+    };
+
+    let mut parsed = ParsedPluralFormsHeader::default();
+    for part in plural_forms.split(';') {
+        let trimmed = part.trim();
+        if let Some(value) = trimmed.strip_prefix("nplurals=") {
+            parsed.nplurals = value.trim().parse().ok();
+        } else if let Some(value) = trimmed.strip_prefix("plural=") {
+            let value = value.trim();
+            if !value.is_empty() {
+                parsed.plural = Some(value.to_owned());
+            }
+        }
+    }
+
+    parsed
+}
+
+fn validate_plural_forms_header(
+    locale: Option<&str>,
+    plural_forms: &ParsedPluralFormsHeader,
+    plural_encoding: PluralEncoding,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    if plural_encoding != PluralEncoding::Gettext {
+        return;
+    }
+
+    if let Some(nplurals) = plural_forms.nplurals {
+        let profile = PluralProfile::for_locale(locale);
+        let expected = profile.nplurals();
+        if locale.is_some() && nplurals != expected {
+            diagnostics.push(Diagnostic::new(
+                DiagnosticSeverity::Warning,
+                "plural.nplurals_locale_mismatch",
+                format!(
+                    "Plural-Forms declares nplurals={nplurals}, but locale-derived categories expect {expected}."
+                ),
+            ));
+        }
+    } else if plural_forms.plural.is_some() {
+        diagnostics.push(Diagnostic::new(
+            DiagnosticSeverity::Warning,
+            "parse.invalid_plural_forms_header",
+            "Plural-Forms header contains a plural expression but no parseable nplurals value.",
+        ));
+    }
+
+    if plural_forms.nplurals.is_some() && plural_forms.plural.is_none() {
+        diagnostics.push(Diagnostic::new(
+            DiagnosticSeverity::Info,
+            "plural.missing_plural_expression",
+            "Plural-Forms header declares nplurals but omits the plural expression.",
+        ));
+    }
 }
 
 fn public_message_from_canonical(message: CanonicalMessage) -> CatalogMessage {
@@ -1218,16 +1389,6 @@ fn public_message_from_canonical(message: CanonicalMessage) -> CatalogMessage {
             flags: message.flags,
         }),
     }
-}
-
-fn plural_categories_for(locale: Option<&str>, nplurals: Option<usize>) -> Vec<String> {
-    if let Some(locale_categories) = locale.and_then(icu_plural_categories_for) {
-        if nplurals.is_none() || nplurals == Some(locale_categories.len()) {
-            return locale_categories;
-        }
-    }
-
-    fallback_plural_categories(nplurals)
 }
 
 fn icu_plural_categories_for(locale: &str) -> Option<Vec<String>> {
@@ -1706,6 +1867,61 @@ mod tests {
     }
 
     #[test]
+    fn parse_catalog_prefers_gettext_slot_count_when_it_disagrees_with_locale_categories() {
+        let parsed = parse_catalog(ParseCatalogOptions {
+            content: concat!(
+                "msgid \"\"\n",
+                "msgstr \"\"\n",
+                "\"Plural-Forms: nplurals=2; plural=(n != 1);\\n\"\n",
+                "\n",
+                "msgid \"livre\"\n",
+                "msgid_plural \"livres\"\n",
+                "msgstr[0] \"livre\"\n",
+                "msgstr[1] \"livres\"\n",
+            )
+            .to_owned(),
+            locale: Some("fr".to_owned()),
+            source_locale: "en".to_owned(),
+            plural_encoding: PluralEncoding::Gettext,
+            strict: false,
+        })
+        .expect("parse");
+
+        match &parsed.messages[0].translation {
+            TranslationShape::Plural { translation, .. } => {
+                assert_eq!(translation.len(), 2);
+                assert_eq!(translation.get("one").map(String::as_str), Some("livre"));
+                assert_eq!(translation.get("other").map(String::as_str), Some("livres"));
+                assert!(translation.get("many").is_none());
+            }
+            other => panic!("expected plural translation, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parse_catalog_reports_plural_forms_locale_mismatch() {
+        let parsed = parse_catalog(ParseCatalogOptions {
+            content: concat!(
+                "msgid \"\"\n",
+                "msgstr \"\"\n",
+                "\"Language: fr\\n\"\n",
+                "\"Plural-Forms: nplurals=2; plural=(n != 1);\\n\"\n",
+            )
+            .to_owned(),
+            locale: Some("fr".to_owned()),
+            source_locale: "en".to_owned(),
+            plural_encoding: PluralEncoding::Gettext,
+            strict: false,
+        })
+        .expect("parse");
+
+        assert!(parsed
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == "plural.nplurals_locale_mismatch"));
+    }
+
+    #[test]
     fn parse_catalog_detects_simple_icu_plural_when_requested() {
         let parsed = parse_catalog(ParseCatalogOptions {
             content: concat!(
@@ -1839,6 +2055,49 @@ mod tests {
 
         let parsed = parse_po(&result.content).expect("parse output");
         assert_eq!(parsed.items[0].msgstr.len(), 3);
+    }
+
+    #[test]
+    fn update_catalog_gettext_sets_safe_plural_forms_header_for_two_form_locale() {
+        let result = update_catalog(UpdateCatalogOptions {
+            source_locale: "en".to_owned(),
+            locale: Some("de".to_owned()),
+            plural_encoding: PluralEncoding::Gettext,
+            extracted: vec![ExtractedMessage::Singular(ExtractedSingularMessage {
+                msgid: "Hello".to_owned(),
+                ..ExtractedSingularMessage::default()
+            })],
+            ..UpdateCatalogOptions::default()
+        })
+        .expect("update");
+
+        let parsed = parse_po(&result.content).expect("parse output");
+        let plural_forms = parsed
+            .headers
+            .iter()
+            .find(|header| header.key == "Plural-Forms")
+            .map(|header| header.value.as_str());
+        assert_eq!(plural_forms, Some("nplurals=2; plural=(n != 1);"));
+    }
+
+    #[test]
+    fn update_catalog_gettext_reports_when_no_safe_plural_forms_header_is_known() {
+        let result = update_catalog(UpdateCatalogOptions {
+            source_locale: "en".to_owned(),
+            locale: Some("fr".to_owned()),
+            plural_encoding: PluralEncoding::Gettext,
+            extracted: vec![ExtractedMessage::Singular(ExtractedSingularMessage {
+                msgid: "Bonjour".to_owned(),
+                ..ExtractedSingularMessage::default()
+            })],
+            ..UpdateCatalogOptions::default()
+        })
+        .expect("update");
+
+        assert!(result
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == "plural.missing_plural_forms_header"));
     }
 
     #[test]
