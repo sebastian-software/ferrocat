@@ -23,10 +23,13 @@ The current workspace contains:
 - borrowed parsing via `parse_po_borrowed`
 - serialization via `stringify_po`
 - catalog merging via `merge_catalog`
+- high-level catalog APIs via `parse_catalog`, `update_catalog`, and `update_catalog_file`
 - C-style escape/unescape handling
 - comments, metadata, references, flags, contexts, plurals, headers, and obsolete entries
 
 The borrowed parser exists because many real workflows are read-heavy and transformation-heavy, but do not need a fully owned AST immediately.
+
+At the high-level catalog layer, ICU is the default semantic target and gettext is treated as a compatibility bridge for import, export, and migration-oriented workflows.
 
 ## Parse Modes
 
@@ -102,6 +105,22 @@ let updated = merge_catalog(
 ```
 
 This keeps matching translations, refreshes extractor-owned fields like references and extracted comments, adds new messages, and marks removed ones obsolete.
+
+## High-Level Catalog API
+
+For product-style workflows, prefer the high-level catalog API over direct PO item manipulation.
+
+- `parse_catalog` projects a PO catalog into a structured catalog model
+- `update_catalog` updates catalog content in memory
+- `update_catalog_file` wraps the same flow around file I/O
+
+`PluralEncoding::Icu` is the default. `PluralEncoding::Gettext` exists as a compatibility mode for existing gettext-based catalogs and toolchains, but it is not the canonical internal model.
+
+This means:
+
+- catalog parsing and updates are modeled around structured semantics first
+- export format is an output decision, not the internal source of truth
+- gettext `Plural-Forms` handling is intentionally conservative and diagnostic-driven
 
 ## Benchmarks
 

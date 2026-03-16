@@ -357,6 +357,7 @@ struct ParsedIcuPlural {
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 struct ParsedPluralFormsHeader {
+    raw: Option<String>,
     nplurals: Option<usize>,
     plural: Option<String>,
 }
@@ -875,20 +876,30 @@ fn apply_header_defaults(
     if let Some(locale) = locale {
         headers.insert("Language".to_owned(), locale.to_owned());
     }
-    if plural_encoding == PluralEncoding::Gettext
-        && !custom.contains_key("Plural-Forms")
-        && !headers.contains_key("Plural-Forms")
-    {
+    if plural_encoding == PluralEncoding::Gettext && !custom.contains_key("Plural-Forms") {
         let profile = PluralProfile::for_locale(locale);
-        match profile.gettext_header() {
-            Some(header) => {
+        let parsed_header = parse_plural_forms_from_headers(headers);
+        match (parsed_header.raw.as_deref(), profile.gettext_header()) {
+            (None, Some(header)) => {
                 headers.insert("Plural-Forms".to_owned(), header);
             }
-            None => diagnostics.push(Diagnostic::new(
+            (None, None) => diagnostics.push(Diagnostic::new(
                 DiagnosticSeverity::Info,
                 "plural.missing_plural_forms_header",
                 "No safe default Plural-Forms header is known for this locale; keeping the header unset.",
             )),
+            (Some(_), Some(header))
+                if parsed_header.nplurals == Some(profile.nplurals())
+                    && parsed_header.plural.is_none() =>
+            {
+                headers.insert("Plural-Forms".to_owned(), header);
+                diagnostics.push(Diagnostic::new(
+                    DiagnosticSeverity::Info,
+                    "plural.completed_plural_forms_header",
+                    "Plural-Forms header was missing the plural expression and has been completed using a safe locale default.",
+                ));
+            }
+            _ => {}
         }
     }
     for (key, value) in custom {
@@ -1309,7 +1320,10 @@ fn parse_plural_forms_from_headers(headers: &BTreeMap<String, String>) -> Parsed
         return ParsedPluralFormsHeader::default();
     };
 
-    let mut parsed = ParsedPluralFormsHeader::default();
+    let mut parsed = ParsedPluralFormsHeader {
+        raw: Some(plural_forms.clone()),
+        ..ParsedPluralFormsHeader::default()
+    };
     for part in plural_forms.split(';') {
         let trimmed = part.trim();
         if let Some(value) = trimmed.strip_prefix("nplurals=") {
@@ -2098,6 +2112,80 @@ mod tests {
             .diagnostics
             .iter()
             .any(|diagnostic| diagnostic.code == "plural.missing_plural_forms_header"));
+    }
+
+    #[test]
+    fn update_catalog_gettext_completes_partial_plural_forms_header_when_safe() {
+        let result = update_catalog(UpdateCatalogOptions {
+            source_locale: "en".to_owned(),
+            locale: Some("de".to_owned()),
+            plural_encoding: PluralEncoding::Gettext,
+            existing: Some(
+                concat!(
+                    "msgid \"\"\n",
+                    "msgstr \"\"\n",
+                    "\"Language: de\\n\"\n",
+                    "\"Plural-Forms: nplurals=2;\\n\"\n",
+                )
+                .to_owned(),
+            ),
+            extracted: vec![ExtractedMessage::Singular(ExtractedSingularMessage {
+                msgid: "Hello".to_owned(),
+                ..ExtractedSingularMessage::default()
+            })],
+            ..UpdateCatalogOptions::default()
+        })
+        .expect("update");
+
+        assert!(result
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == "plural.completed_plural_forms_header"));
+
+        let parsed = parse_po(&result.content).expect("parse output");
+        let plural_forms = parsed
+            .headers
+            .iter()
+            .find(|header| header.key == "Plural-Forms")
+            .map(|header| header.value.as_str());
+        assert_eq!(plural_forms, Some("nplurals=2; plural=(n != 1);"));
+    }
+
+    #[test]
+    fn update_catalog_gettext_preserves_existing_complete_plural_forms_header() {
+        let result = update_catalog(UpdateCatalogOptions {
+            source_locale: "en".to_owned(),
+            locale: Some("de".to_owned()),
+            plural_encoding: PluralEncoding::Gettext,
+            existing: Some(
+                concat!(
+                    "msgid \"\"\n",
+                    "msgstr \"\"\n",
+                    "\"Language: de\\n\"\n",
+                    "\"Plural-Forms: nplurals=2; plural=(n > 1);\\n\"\n",
+                )
+                .to_owned(),
+            ),
+            extracted: vec![ExtractedMessage::Singular(ExtractedSingularMessage {
+                msgid: "Hello".to_owned(),
+                ..ExtractedSingularMessage::default()
+            })],
+            ..UpdateCatalogOptions::default()
+        })
+        .expect("update");
+
+        assert!(!result
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == "plural.completed_plural_forms_header"));
+
+        let parsed = parse_po(&result.content).expect("parse output");
+        let plural_forms = parsed
+            .headers
+            .iter()
+            .find(|header| header.key == "Plural-Forms")
+            .map(|header| header.value.as_str());
+        assert_eq!(plural_forms, Some("nplurals=2; plural=(n > 1);"));
     }
 
     #[test]
