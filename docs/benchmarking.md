@@ -63,12 +63,12 @@ This checks the required executables and adapter packages and prints the detecte
   - broader gettext-only matrix with additional locale/family coverage
   - useful when you want more detail than the slim official profile
 - `gettext-workflows-v1`
-  - focused workflow suite for classic gettext merge/update paths
-  - compares `merge_catalog` and `update_catalog` against `msgmerge`
+  - focused workflow suite for classic gettext merge paths
+  - compares `merge_catalog` against `msgmerge`
   - kept separate from the slim official profile so workflow tuning does not dominate the main benchmark story
 - `gettext-workflows-ecosystem-v1`
-  - extended workflow suite for classic gettext merge/update paths
-  - compares `merge_catalog` and `update_catalog` against `msgmerge`, `pofile`, `pofile-ts`, and `polib`
+  - extended workflow suite for classic gettext merge paths
+  - compares `merge_catalog` against `msgmerge`, `pofile`, `pofile-ts`, and `polib`
   - external library numbers are measured as reconstructed parse -> merge -> serialize pipelines
   - useful when you want workflow numbers across the broader gettext ecosystem
 - `serious-v1`
@@ -122,7 +122,8 @@ cargo run --release -p ferrocat-bench -- compare gettext-workflows-v1 --out benc
 That profile covers:
 
 - `merge_catalog` versus `msgmerge`
-- `update_catalog` versus a `msgmerge`-style external workflow baseline
+
+The `msgmerge` benchmark path runs with `--no-fuzzy-matching`. This makes the comparison closer to `ferrocat`'s exact-match merge model and avoids comparing heuristic translation carry-over against a library that intentionally does not optimize for msgid-based fuzzy recovery.
 
 For the broader workflow ecosystem suite:
 
@@ -162,7 +163,7 @@ External baselines currently wired:
 
 - `polib`, `pofile`, `pofile-ts`, and `gettext-parser` on the classic gettext parse/stringify corpora: `gettext-ui-de-10000`, `gettext-saas-fr-10000`, `gettext-commerce-pl-10000`
 - `msgcat` on stringify comparisons
-- `msgmerge` on the conservative workflow corpus
+- `msgmerge` on the conservative merge corpus, with `--no-fuzzy-matching`
 - `ferrocat` internal owned vs borrowed parse baselines on `de`, `fr`, and `pl`
 
 Workflow-only baselines currently wired:
@@ -170,6 +171,7 @@ Workflow-only baselines currently wired:
 - `pofile`, `pofile-ts`, and `polib` on `gettext-workflows-ecosystem-v1`
 - each measured as parse -> merge -> serialize pipelines on `gettext-ui-de-1000` and `gettext-ui-de-10000`
 - `gettext-parser` is intentionally excluded from workflow benchmarking for now because its PO compile/parse path does not preserve obsolete entries in a way that is semantically fair for `msgmerge`-style workflows
+- `update_catalog` is intentionally excluded from the public cross-tool benchmark tables because it is a broader catalog-maintenance API without a clean direct equivalent in the external comparison set
 
 This is intentional. The official profile is meant to answer the small, understandable benchmark question first. The broader `gettext-compat-v1` profile is still available when you want more detail, and the advanced `mixed-*` / ICU-heavy corpora remain separate from the official gettext comparison track.
 

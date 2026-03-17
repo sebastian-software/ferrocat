@@ -943,6 +943,7 @@ impl PreparedScenario {
             let output = Command::new("msgmerge")
                 .arg("--no-wrap")
                 .arg("--quiet")
+                .arg("--no-fuzzy-matching")
                 .arg(existing)
                 .arg(pot)
                 .output()
