@@ -18,6 +18,7 @@ This page is a lightweight guide for choosing the right function before there is
 | Merge fresh extracted gettext messages into an existing `.po` file | `merge_catalog` |
 | Read a `.po` file into the higher-level canonical catalog model | `parse_catalog` |
 | Build keyed lookup/helpers on top of a parsed catalog | `ParsedCatalog::into_normalized_view` |
+| Compile a normalized catalog into runtime lookup entries | `NormalizedParsedCatalog::compile` |
 | Perform a full in-memory catalog update | `update_catalog` |
 | Perform a full catalog update and write the result to disk only when changed | `update_catalog_file` |
 | Parse ICU MessageFormat into a structural AST | `parse_icu` |
@@ -81,6 +82,26 @@ Use this when you want more than raw PO syntax. It projects a PO file into `ferr
 Choose this when your application wants semantic catalog data rather than just PO syntax nodes.
 
 `parse_catalog` intentionally stays as the neutral parse step. If you want keyed lookups or effective-translation helpers, build a richer view explicitly with `ParsedCatalog::into_normalized_view()`.
+
+### `NormalizedParsedCatalog::compile`
+
+Use this when you want a runtime-facing lookup structure with stable compiled keys rather than raw gettext identities.
+
+This sits one layer above parsed catalog lookup:
+
+- start with `parse_catalog`
+- build the normalized keyed view
+- compile to `CompiledCatalog` for runtime-oriented consumption
+
+The default behavior keeps translations as they exist in the catalog. Optional source-locale fallback is explicit rather than automatic.
+
+The built-in `CompiledKeyStrategy::FerrocatV1` contract is intentionally compact:
+
+- SHA-256 over a versioned source-identity payload
+- truncated to 64 bits
+- encoded as unpadded Base64URL
+- no visible version prefix in the emitted key
+- hard compile failure on collisions
 
 ### `update_catalog`
 

@@ -19,6 +19,7 @@ ferrocat-icu = { version = "0.5.2", path = "../ferrocat-icu" }
 icu_locale = "2.1.1"
 icu_plurals = { version = "2.1.1", features = ["compiled_data"] }
 memchr = "2.7.6"
+sha2 = "0.10.9"
 
 [dev-dependencies]
 ferrocat-conformance = { path = "../ferrocat-conformance" }

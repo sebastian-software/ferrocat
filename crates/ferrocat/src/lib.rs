@@ -16,6 +16,22 @@
 //! assert_eq!(icu.nodes.len(), 2);
 //! # Ok::<(), Box<dyn std::error::Error>>(())
 //! ```
+//!
+//! ```rust
+//! use ferrocat::{CompileCatalogOptions, ParseCatalogOptions, parse_catalog};
+//!
+//! let parsed = parse_catalog(ParseCatalogOptions {
+//!     content: "msgid \"Hello\"\nmsgstr \"Hallo\"\n".to_owned(),
+//!     source_locale: "en".to_owned(),
+//!     locale: Some("de".to_owned()),
+//!     ..ParseCatalogOptions::default()
+//! })?;
+//! let normalized = parsed.into_normalized_view()?;
+//! let compiled = normalized.compile(&CompileCatalogOptions::default())?;
+//!
+//! assert_eq!(compiled.len(), 1);
+//! # Ok::<(), Box<dyn std::error::Error>>(())
+//! ```
 
 pub use ferrocat_icu::has_selectordinal as has_select_ordinal;
 pub use ferrocat_icu::{
@@ -26,7 +42,8 @@ pub use ferrocat_icu::{
 pub use ferrocat_po::{
     ApiError, BorrowedHeader, BorrowedMsgStr, BorrowedPoFile, BorrowedPoItem, CatalogMessage,
     CatalogMessageExtra, CatalogMessageKey, CatalogOrigin, CatalogStats, CatalogUpdateInput,
-    CatalogUpdateResult, Diagnostic, DiagnosticSeverity, EffectiveTranslation,
+    CatalogUpdateResult, CompileCatalogOptions, CompiledCatalog, CompiledKeyStrategy,
+    CompiledMessage, CompiledTranslation, Diagnostic, DiagnosticSeverity, EffectiveTranslation,
     EffectiveTranslationRef, ExtractedMessage, ExtractedPluralMessage, ExtractedSingularMessage,
     Header, MergeExtractedMessage, MsgStr, MsgStrIter, NormalizedParsedCatalog, ObsoleteStrategy,
     OrderBy, ParseCatalogOptions, ParseError, ParsedCatalog, PlaceholderCommentMode,

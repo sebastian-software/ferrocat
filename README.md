@@ -95,6 +95,7 @@ The current public surface falls into three practical layers, depending on wheth
 | PO core | `parse_po`, `parse_po_borrowed`, `stringify_po` | parse and write classic `.po` files directly |
 | Catalog workflows | `merge_catalog` | do the lean gettext-style merge step against fresh extracted messages |
 | Catalog workflows | `parse_catalog` | read a `.po` file into the higher-level canonical catalog model |
+| Catalog workflows | `NormalizedParsedCatalog::compile` | compile a normalized catalog into runtime lookup entries with stable derived keys |
 | Catalog workflows | `update_catalog` | run the full in-memory catalog update flow with headers, plurals, sorting, and diagnostics |
 | Catalog workflows | `update_catalog_file` | run the same full update flow directly against a file on disk |
 | ICU | `parse_icu`, `validate_icu`, `extract_variables` | parse or inspect ICU MessageFormat structure |
@@ -104,6 +105,43 @@ See [docs/api-overview.md](docs/api-overview.md) for the fuller "what should I u
 Across all of these layers, `ferrocat` keeps a conservative gettext-compatibility stance and surfaces diagnostics where ambiguity matters.
 
 The borrowed parser exists because real PO workflows are often read-heavy and transformation-heavy. In those paths, avoiding unnecessary allocation is the difference between a pleasant API and a scalable one.
+
+## Runtime Catalog Compilation
+
+`ferrocat` now also exposes a first runtime-oriented compile step on top of the parsed catalog API:
+
+```rust
+use ferrocat::{CompileCatalogOptions, ParseCatalogOptions, parse_catalog};
+
+let parsed = parse_catalog(ParseCatalogOptions {
+    content: "msgid \"Hello\"\nmsgstr \"Hallo\"\n".to_owned(),
+    source_locale: "en".to_owned(),
+    locale: Some("de".to_owned()),
+    ..ParseCatalogOptions::default()
+})?;
+let normalized = parsed.into_normalized_view()?;
+let compiled = normalized.compile(&CompileCatalogOptions::default())?;
+
+assert_eq!(compiled.len(), 1);
+```
+
+This layer is intentionally small:
+
+- it starts from `NormalizedParsedCatalog`, so source identity is still `msgid + msgctxt`
+- it produces typed runtime values instead of flattening plurals into strings
+- it derives compact stable lookup keys for runtime maps
+- it does **not** silently fill source text by default
+
+Current key contract:
+
+- built-in strategy: `CompiledKeyStrategy::FerrocatV1`
+- hash: SHA-256
+- output: first 64 bits, encoded as unpadded Base64URL
+- visible version prefix: none
+- versioning: internal domain-separation input to the hash, not part of the emitted key
+- collisions: compile-time error, never overwrite
+
+The goal is to give downstream runtimes small, reproducible lookup keys without turning the library into a code generator. If you need JS/TS/Rust module generation, `CompiledCatalog` is the intended handoff point.
 
 ## Conformance
 

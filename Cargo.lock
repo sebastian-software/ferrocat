@@ -143,6 +143,7 @@ dependencies = [
  "icu_locale",
  "icu_plurals",
  "memchr",
+ "sha2",
 ]
 
 [[package]]

@@ -12,3 +12,4 @@ Current records:
 - [0006: Separate the PO Core from the High-Level Catalog API](0006-separate-po-core-from-high-level-catalog-api.md)
 - [0007: Do Not Support `previous_msgid` History](0007-drop-previous-msgid-history.md)
 - [0008: Normalize Headerless PO Files on Write](0008-normalize-headerless-po-output.md)
+- [0009: Use Versioned, Truncated SHA-256 Keys for Runtime Catalog Compilation](0009-runtime-catalog-compiled-key-strategy.md)

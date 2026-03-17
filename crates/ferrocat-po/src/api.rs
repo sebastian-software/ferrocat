@@ -8,6 +8,7 @@ use crate::{Header, MsgStr, ParseError, PoFile, PoItem, SerializeOptions, parse_
 use ferrocat_icu::{IcuMessage, IcuNode, IcuPluralKind, parse_icu};
 use icu_locale::Locale;
 use icu_plurals::{PluralCategory, PluralRules};
+use sha2::{Digest, Sha256};
 
 /// File and line information for an extracted message origin.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -110,6 +111,85 @@ pub enum EffectiveTranslationRef<'a> {
 pub enum EffectiveTranslation {
     Singular(String),
     Plural(BTreeMap<String, String>),
+}
+
+/// Translation value stored in a compiled runtime catalog.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CompiledTranslation {
+    Singular(String),
+    Plural(BTreeMap<String, String>),
+}
+
+/// Built-in key strategy used when compiling runtime catalogs.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum CompiledKeyStrategy {
+    /// `ferrocat` v1 key format: SHA-256 over a versioned, length-delimited
+    /// `msgctxt`/`msgid` payload, truncated to 64 bits and encoded as unpadded
+    /// Base64URL.
+    #[default]
+    FerrocatV1,
+}
+
+/// Options controlling runtime catalog compilation.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CompileCatalogOptions {
+    /// Built-in strategy used to derive stable runtime keys.
+    pub key_strategy: CompiledKeyStrategy,
+    /// Whether empty source-locale values should be filled from the source text.
+    pub source_fallback: bool,
+    /// Source locale used when `source_fallback` is enabled.
+    pub source_locale: Option<String>,
+}
+
+impl Default for CompileCatalogOptions {
+    fn default() -> Self {
+        Self {
+            key_strategy: CompiledKeyStrategy::FerrocatV1,
+            source_fallback: false,
+            source_locale: None,
+        }
+    }
+}
+
+/// A compiled runtime message keyed by a derived lookup key.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CompiledMessage {
+    /// Stable runtime key derived from the source identity.
+    pub key: String,
+    /// Original gettext identity preserved for diagnostics and tooling.
+    pub source_key: CatalogMessageKey,
+    /// Materialized translation payload for runtime lookup.
+    pub translation: CompiledTranslation,
+}
+
+/// Runtime-oriented lookup structure compiled from a normalized catalog.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct CompiledCatalog {
+    entries: BTreeMap<String, CompiledMessage>,
+}
+
+impl CompiledCatalog {
+    /// Returns the compiled message for `key`, if present.
+    pub fn get(&self, key: &str) -> Option<&CompiledMessage> {
+        self.entries.get(key)
+    }
+
+    /// Returns the number of compiled entries.
+    pub fn len(&self) -> usize {
+        self.entries.len()
+    }
+
+    /// Returns `true` when the compiled catalog has no entries.
+    pub fn is_empty(&self) -> bool {
+        self.entries.is_empty()
+    }
+
+    /// Iterates over compiled entries in key order.
+    pub fn iter(&self) -> impl Iterator<Item = (&str, &CompiledMessage)> + '_ {
+        self.entries
+            .iter()
+            .map(|(key, message)| (key.as_str(), message))
+    }
 }
 
 /// Extra translator-facing metadata preserved on a catalog message.
@@ -366,6 +446,84 @@ impl NormalizedParsedCatalog {
             Some(message.effective_translation_owned())
         }
     }
+
+    /// Compiles the normalized catalog into a runtime-oriented lookup map.
+    ///
+    /// Compiled keys are derived from the canonical gettext identity
+    /// (`msgctxt` + `msgid`) using the selected built-in key strategy.
+    /// The default configuration keeps translations as-is without filling
+    /// missing values from the source text.
+    ///
+    /// ```rust
+    /// use ferrocat_po::{CompileCatalogOptions, ParseCatalogOptions, parse_catalog};
+    ///
+    /// let parsed = parse_catalog(ParseCatalogOptions {
+    ///     content: "msgid \"Hello\"\nmsgstr \"Hallo\"\n".to_owned(),
+    ///     source_locale: "en".to_owned(),
+    ///     locale: Some("de".to_owned()),
+    ///     ..ParseCatalogOptions::default()
+    /// })?;
+    /// let normalized = parsed.into_normalized_view()?;
+    /// let compiled = normalized.compile(&CompileCatalogOptions::default())?;
+    ///
+    /// assert_eq!(compiled.len(), 1);
+    /// let (_, message) = compiled.iter().next().expect("compiled message");
+    /// assert_eq!(message.source_key.msgid, "Hello");
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
+    /// ```
+    pub fn compile(&self, options: &CompileCatalogOptions) -> Result<CompiledCatalog, ApiError> {
+        self.compile_with_key_generator(options, compiled_key_for)
+    }
+
+    fn compile_with_key_generator<F>(
+        &self,
+        options: &CompileCatalogOptions,
+        mut key_generator: F,
+    ) -> Result<CompiledCatalog, ApiError>
+    where
+        F: FnMut(CompiledKeyStrategy, &CatalogMessageKey) -> String,
+    {
+        let source_locale = if options.source_fallback {
+            Some(options.source_locale.as_deref().ok_or_else(|| {
+                ApiError::InvalidArguments(
+                    "compile_catalog source_fallback requires source_locale".to_owned(),
+                )
+            })?)
+        } else {
+            None
+        };
+        let mut entries = BTreeMap::new();
+
+        for (source_key, message) in self.iter() {
+            let translation = if let Some(source_locale) = source_locale {
+                compiled_translation_from_effective(
+                    self.effective_translation_with_source_fallback(source_key, source_locale)
+                        .expect("normalized catalog lookup"),
+                )
+            } else {
+                compiled_translation_from_effective(message.effective_translation_owned())
+            };
+            let compiled_key = key_generator(options.key_strategy, source_key);
+            let compiled_message = CompiledMessage {
+                key: compiled_key.clone(),
+                source_key: source_key.clone(),
+                translation,
+            };
+
+            if let Some(existing) = entries.insert(compiled_key.clone(), compiled_message) {
+                return Err(ApiError::Conflict(format!(
+                    "compiled catalog key collision for {:?} / {:?} and {:?} / {:?} using key {}",
+                    existing.source_key.msgctxt,
+                    existing.source_key.msgid,
+                    source_key.msgctxt,
+                    source_key.msgid,
+                    compiled_key
+                )));
+            }
+        }
+
+        Ok(CompiledCatalog { entries })
+    }
 }
 
 /// Encoding used for plural messages in PO files.
@@ -508,6 +666,78 @@ pub enum ApiError {
     InvalidArguments(String),
     Conflict(String),
     Unsupported(String),
+}
+
+fn compiled_translation_from_effective(value: EffectiveTranslation) -> CompiledTranslation {
+    match value {
+        EffectiveTranslation::Singular(value) => CompiledTranslation::Singular(value),
+        EffectiveTranslation::Plural(values) => CompiledTranslation::Plural(values),
+    }
+}
+
+fn compiled_key_for(strategy: CompiledKeyStrategy, key: &CatalogMessageKey) -> String {
+    match strategy {
+        CompiledKeyStrategy::FerrocatV1 => ferrocat_v1_compiled_key(key),
+    }
+}
+
+fn ferrocat_v1_compiled_key(key: &CatalogMessageKey) -> String {
+    let mut payload = Vec::with_capacity(
+        16 + 1 + 4 + key.msgctxt.as_ref().map_or(0, String::len) + 1 + 4 + key.msgid.len(),
+    );
+    payload.extend_from_slice(b"ferrocat:compile:v1");
+    push_compiled_key_component(&mut payload, key.msgctxt.as_deref());
+    push_compiled_key_component(&mut payload, Some(key.msgid.as_str()));
+    let digest = Sha256::digest(&payload);
+    base64_url_no_pad(&digest[..8])
+}
+
+fn push_compiled_key_component(out: &mut Vec<u8>, value: Option<&str>) {
+    match value {
+        Some(value) => {
+            out.push(1);
+            out.extend_from_slice(&(value.len() as u32).to_be_bytes());
+            out.extend_from_slice(value.as_bytes());
+        }
+        None => {
+            out.push(0);
+            out.extend_from_slice(&0u32.to_be_bytes());
+        }
+    }
+}
+
+fn base64_url_no_pad(bytes: &[u8]) -> String {
+    const ALPHABET: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
+    let mut out = String::with_capacity((bytes.len() * 4).div_ceil(3));
+    let mut index = 0;
+
+    while index + 3 <= bytes.len() {
+        let chunk = ((bytes[index] as u32) << 16)
+            | ((bytes[index + 1] as u32) << 8)
+            | bytes[index + 2] as u32;
+        out.push(ALPHABET[((chunk >> 18) & 0x3f) as usize] as char);
+        out.push(ALPHABET[((chunk >> 12) & 0x3f) as usize] as char);
+        out.push(ALPHABET[((chunk >> 6) & 0x3f) as usize] as char);
+        out.push(ALPHABET[(chunk & 0x3f) as usize] as char);
+        index += 3;
+    }
+
+    match bytes.len() - index {
+        1 => {
+            let chunk = (bytes[index] as u32) << 16;
+            out.push(ALPHABET[((chunk >> 18) & 0x3f) as usize] as char);
+            out.push(ALPHABET[((chunk >> 12) & 0x3f) as usize] as char);
+        }
+        2 => {
+            let chunk = ((bytes[index] as u32) << 16) | ((bytes[index + 1] as u32) << 8);
+            out.push(ALPHABET[((chunk >> 18) & 0x3f) as usize] as char);
+            out.push(ALPHABET[((chunk >> 12) & 0x3f) as usize] as char);
+            out.push(ALPHABET[((chunk >> 6) & 0x3f) as usize] as char);
+        }
+        _ => {}
+    }
+
+    out
 }
 
 impl fmt::Display for ApiError {
@@ -2162,12 +2392,13 @@ fn atomic_write(path: &Path, content: &str) -> Result<(), ApiError> {
 #[cfg(test)]
 mod tests {
     use super::{
-        ApiError, CatalogMessageKey, CatalogUpdateInput, DiagnosticSeverity, EffectiveTranslation,
+        ApiError, CatalogMessageKey, CatalogUpdateInput, CompileCatalogOptions,
+        CompiledKeyStrategy, CompiledTranslation, DiagnosticSeverity, EffectiveTranslation,
         EffectiveTranslationRef, ExtractedMessage, ExtractedPluralMessage,
         ExtractedSingularMessage, ObsoleteStrategy, ParseCatalogOptions, PluralEncoding,
         PluralSource, SourceExtractedMessage, TranslationShape, UpdateCatalogFileOptions,
-        UpdateCatalogOptions, cached_icu_plural_categories_for, parse_catalog, update_catalog,
-        update_catalog_file,
+        UpdateCatalogOptions, cached_icu_plural_categories_for, compiled_key_for, parse_catalog,
+        update_catalog, update_catalog_file,
     };
     use crate::parse_po;
     use std::collections::{BTreeMap, HashMap};
@@ -2180,6 +2411,219 @@ mod tests {
 
     fn source_first_input(messages: Vec<SourceExtractedMessage>) -> CatalogUpdateInput {
         CatalogUpdateInput::SourceFirst(messages)
+    }
+
+    fn normalized_catalog(
+        content: &str,
+        locale: Option<&str>,
+        plural_encoding: PluralEncoding,
+    ) -> super::NormalizedParsedCatalog {
+        parse_catalog(ParseCatalogOptions {
+            content: content.to_owned(),
+            source_locale: "en".to_owned(),
+            locale: locale.map(str::to_owned),
+            plural_encoding,
+            ..ParseCatalogOptions::default()
+        })
+        .expect("parse catalog")
+        .into_normalized_view()
+        .expect("normalized view")
+    }
+
+    #[test]
+    fn compile_catalog_returns_empty_catalog_for_empty_input() {
+        let normalized = normalized_catalog("", Some("de"), PluralEncoding::Icu);
+        let compiled = normalized
+            .compile(&CompileCatalogOptions::default())
+            .expect("compile");
+
+        assert!(compiled.is_empty());
+        assert_eq!(compiled.len(), 0);
+        assert!(compiled.get("missing").is_none());
+    }
+
+    #[test]
+    fn compile_catalog_preserves_singular_translation_and_source_key() {
+        let normalized = normalized_catalog(
+            "msgid \"Hello\"\nmsgstr \"Hallo\"\n",
+            Some("de"),
+            PluralEncoding::Icu,
+        );
+        let compiled = normalized
+            .compile(&CompileCatalogOptions::default())
+            .expect("compile");
+
+        let (_, message) = compiled.iter().next().expect("compiled message");
+        assert_eq!(message.source_key, CatalogMessageKey::new("Hello", None));
+        assert!(matches!(
+            &message.translation,
+            CompiledTranslation::Singular(value) if value == "Hallo"
+        ));
+        assert_eq!(compiled.get(&message.key), Some(message));
+    }
+
+    #[test]
+    fn compile_catalog_changes_key_when_context_changes() {
+        let without_context = compiled_key_for(
+            CompiledKeyStrategy::FerrocatV1,
+            &CatalogMessageKey::new("Save", None),
+        );
+        let with_context = compiled_key_for(
+            CompiledKeyStrategy::FerrocatV1,
+            &CatalogMessageKey::new("Save", Some("menu".to_owned())),
+        );
+        let repeated = compiled_key_for(
+            CompiledKeyStrategy::FerrocatV1,
+            &CatalogMessageKey::new("Save", None),
+        );
+
+        assert_eq!(without_context, repeated);
+        assert_ne!(without_context, with_context);
+        assert_eq!(without_context.len(), 11);
+        assert!(
+            without_context
+                .chars()
+                .all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '-' | '_'))
+        );
+    }
+
+    #[test]
+    fn compile_catalog_changes_key_when_msgid_changes() {
+        let left = compiled_key_for(
+            CompiledKeyStrategy::FerrocatV1,
+            &CatalogMessageKey::new("Save", None),
+        );
+        let right = compiled_key_for(
+            CompiledKeyStrategy::FerrocatV1,
+            &CatalogMessageKey::new("Store", None),
+        );
+
+        assert_ne!(left, right);
+    }
+
+    #[test]
+    fn compile_catalog_preserves_plural_translation_shape() {
+        let normalized = normalized_catalog(
+            concat!(
+                "msgid \"\"\n",
+                "msgstr \"\"\n",
+                "\"Language: ru\\n\"\n",
+                "\"Plural-Forms: nplurals=3; plural=(n%10==1 && n%100!=11 ? 0 : ",
+                "n%10>=2 && n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2);\\n\"\n\n",
+                "msgid \"day\"\n",
+                "msgid_plural \"days\"\n",
+                "msgstr[0] \"den\"\n",
+                "msgstr[1] \"dnya\"\n",
+                "msgstr[2] \"dney\"\n",
+            ),
+            Some("ru"),
+            PluralEncoding::Gettext,
+        );
+        let compiled = normalized
+            .compile(&CompileCatalogOptions::default())
+            .expect("compile");
+
+        let (_, message) = compiled.iter().next().expect("compiled message");
+        match &message.translation {
+            CompiledTranslation::Plural(values) => {
+                assert_eq!(values.get("one").map(String::as_str), Some("den"));
+                assert_eq!(values.get("few").map(String::as_str), Some("dnya"));
+                assert!(values.values().any(|value| value == "dney"));
+            }
+            other => panic!("expected plural translation, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn compile_catalog_keeps_empty_source_values_by_default() {
+        let normalized = normalized_catalog(
+            "msgid \"Hello\"\nmsgstr \"\"\n",
+            Some("en"),
+            PluralEncoding::Icu,
+        );
+        let compiled = normalized
+            .compile(&CompileCatalogOptions::default())
+            .expect("compile");
+
+        let (_, message) = compiled.iter().next().expect("compiled message");
+        assert!(matches!(
+            &message.translation,
+            CompiledTranslation::Singular(value) if value.is_empty()
+        ));
+    }
+
+    #[test]
+    fn compile_catalog_can_fill_source_values_when_requested() {
+        let normalized = normalized_catalog(
+            "msgid \"Hello\"\nmsgstr \"\"\n",
+            Some("en"),
+            PluralEncoding::Icu,
+        );
+        let compiled = normalized
+            .compile(&CompileCatalogOptions {
+                source_fallback: true,
+                source_locale: Some("en".to_owned()),
+                ..CompileCatalogOptions::default()
+            })
+            .expect("compile");
+
+        let (_, message) = compiled.iter().next().expect("compiled message");
+        assert!(matches!(
+            &message.translation,
+            CompiledTranslation::Singular(value) if value == "Hello"
+        ));
+    }
+
+    #[test]
+    fn compile_catalog_requires_source_locale_when_source_fallback_is_enabled() {
+        let normalized = normalized_catalog(
+            "msgid \"Hello\"\nmsgstr \"\"\n",
+            Some("en"),
+            PluralEncoding::Icu,
+        );
+        let error = normalized
+            .compile(&CompileCatalogOptions {
+                source_fallback: true,
+                source_locale: None,
+                ..CompileCatalogOptions::default()
+            })
+            .expect_err("missing source locale");
+
+        match error {
+            ApiError::InvalidArguments(message) => {
+                assert!(message.contains("source_locale"));
+            }
+            other => panic!("unexpected error: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn compile_catalog_reports_key_collisions() {
+        let normalized = normalized_catalog(
+            concat!(
+                "msgid \"Hello\"\n",
+                "msgstr \"Hallo\"\n\n",
+                "msgctxt \"menu\"\n",
+                "msgid \"Save\"\n",
+                "msgstr \"Speichern\"\n",
+            ),
+            Some("de"),
+            PluralEncoding::Icu,
+        );
+        let error = normalized
+            .compile_with_key_generator(&CompileCatalogOptions::default(), |_, _| {
+                "fc1_collision".to_owned()
+            })
+            .expect_err("collision");
+
+        match error {
+            ApiError::Conflict(message) => {
+                assert!(message.contains("Hello"));
+                assert!(message.contains("Save"));
+                assert!(message.contains("collision"));
+            }
+            other => panic!("unexpected error: {other:?}"),
+        }
     }
 
     #[test]

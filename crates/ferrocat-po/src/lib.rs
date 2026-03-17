@@ -16,6 +16,22 @@
 //! assert!(output.contains("msgid \"Hello\""));
 //! # Ok::<(), ferrocat_po::ParseError>(())
 //! ```
+//!
+//! ```rust
+//! use ferrocat_po::{CompileCatalogOptions, ParseCatalogOptions, parse_catalog};
+//!
+//! let parsed = parse_catalog(ParseCatalogOptions {
+//!     content: "msgid \"Hello\"\nmsgstr \"Hallo\"\n".to_owned(),
+//!     source_locale: "en".to_owned(),
+//!     locale: Some("de".to_owned()),
+//!     ..ParseCatalogOptions::default()
+//! })?;
+//! let normalized = parsed.into_normalized_view()?;
+//! let compiled = normalized.compile(&CompileCatalogOptions::default())?;
+//!
+//! assert_eq!(compiled.len(), 1);
+//! # Ok::<(), Box<dyn std::error::Error>>(())
+//! ```
 
 mod api;
 mod borrowed;
@@ -27,12 +43,13 @@ mod text;
 
 pub use api::{
     ApiError, CatalogMessage, CatalogMessageExtra, CatalogMessageKey, CatalogOrigin, CatalogStats,
-    CatalogUpdateInput, CatalogUpdateResult, Diagnostic, DiagnosticSeverity, EffectiveTranslation,
-    EffectiveTranslationRef, ExtractedMessage, ExtractedPluralMessage, ExtractedSingularMessage,
-    NormalizedParsedCatalog, ObsoleteStrategy, OrderBy, ParseCatalogOptions, ParsedCatalog,
-    PlaceholderCommentMode, PluralEncoding, PluralSource, SourceExtractedMessage, TranslationShape,
-    UpdateCatalogFileOptions, UpdateCatalogOptions, parse_catalog, update_catalog,
-    update_catalog_file,
+    CatalogUpdateInput, CatalogUpdateResult, CompileCatalogOptions, CompiledCatalog,
+    CompiledKeyStrategy, CompiledMessage, CompiledTranslation, Diagnostic, DiagnosticSeverity,
+    EffectiveTranslation, EffectiveTranslationRef, ExtractedMessage, ExtractedPluralMessage,
+    ExtractedSingularMessage, NormalizedParsedCatalog, ObsoleteStrategy, OrderBy,
+    ParseCatalogOptions, ParsedCatalog, PlaceholderCommentMode, PluralEncoding, PluralSource,
+    SourceExtractedMessage, TranslationShape, UpdateCatalogFileOptions, UpdateCatalogOptions,
+    parse_catalog, update_catalog, update_catalog_file,
 };
 pub use borrowed::{
     BorrowedHeader, BorrowedMsgStr, BorrowedPoFile, BorrowedPoItem, parse_po_borrowed,
