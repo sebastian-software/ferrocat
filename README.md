@@ -106,6 +106,7 @@ The current public surface falls into three practical layers, depending on wheth
 | Catalog workflows | `parse_catalog` | read a `.po` file into the higher-level canonical catalog model |
 | Catalog workflows | `NormalizedParsedCatalog::compile` | compile a normalized catalog into runtime lookup entries with stable derived keys |
 | Catalog workflows | `compile_catalog_artifact` | compile one requested-locale runtime artifact with fallback resolution, missing reports, and final ICU strings |
+| Catalog workflows | `compile_catalog_artifact_selected` | compile only a selected subset of compiled runtime IDs into a locale artifact slice |
 | Catalog workflows | `update_catalog` | run the full in-memory catalog update flow with headers, plurals, sorting, and diagnostics |
 | Catalog workflows | `update_catalog_file` | run the same full update flow directly against a file on disk |
 | ICU | `parse_icu`, `validate_icu`, `extract_variables` | parse or inspect ICU MessageFormat structure |
@@ -195,7 +196,7 @@ This higher-level compile path is meant for runtime/export tooling that wants:
 - explicit missing-message reporting for non-source locales
 - final ICU-string validation diagnostics
 
-Use `NormalizedParsedCatalog::compile` when you only want the smaller typed runtime lookup layer for one normalized catalog. Use `compile_catalog_artifact` when you need the fully resolved locale-specific runtime artifact that downstream loaders or bundlers can consume directly.
+Use `NormalizedParsedCatalog::compile` when you only want the smaller typed runtime lookup layer for one normalized catalog. Use `compile_catalog_artifact` when you need the fully resolved locale-specific runtime artifact that downstream loaders or bundlers can consume directly. Use `compile_catalog_artifact_selected` when a host adapter already knows the exact compiled runtime IDs it needs and wants only that subset.
 
 ## Project Status
 

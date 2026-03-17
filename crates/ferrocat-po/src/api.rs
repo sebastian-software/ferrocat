@@ -182,6 +182,52 @@ impl Default for CompileCatalogArtifactOptions {
     }
 }
 
+/// Options controlling selected-subset compiled catalog artifact generation.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CompileSelectedCatalogArtifactOptions {
+    /// Locale for which the runtime artifact should be produced.
+    pub requested_locale: String,
+    /// Source locale used for explicit source fallback behavior.
+    pub source_locale: String,
+    /// Ordered fallback locales consulted after the requested locale.
+    pub fallback_chain: Vec<String>,
+    /// Built-in strategy used to derive stable runtime keys.
+    pub key_strategy: CompiledKeyStrategy,
+    /// Whether source text should be used when no non-source translation exists.
+    pub source_fallback: bool,
+    /// Whether invalid final ICU messages should fail compilation instead of producing diagnostics.
+    pub strict_icu: bool,
+    /// Requested compiled runtime IDs to include in the artifact.
+    pub compiled_ids: Vec<String>,
+}
+
+impl Default for CompileSelectedCatalogArtifactOptions {
+    fn default() -> Self {
+        Self {
+            requested_locale: String::new(),
+            source_locale: String::new(),
+            fallback_chain: Vec::new(),
+            key_strategy: CompiledKeyStrategy::FerrocatV1,
+            source_fallback: false,
+            strict_icu: false,
+            compiled_ids: Vec::new(),
+        }
+    }
+}
+
+impl CompileSelectedCatalogArtifactOptions {
+    fn artifact_options(&self) -> CompileCatalogArtifactOptions {
+        CompileCatalogArtifactOptions {
+            requested_locale: self.requested_locale.clone(),
+            source_locale: self.source_locale.clone(),
+            fallback_chain: self.fallback_chain.clone(),
+            key_strategy: self.key_strategy,
+            source_fallback: self.source_fallback,
+            strict_icu: self.strict_icu,
+        }
+    }
+}
+
 /// A compiled runtime message keyed by a derived lookup key.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CompiledMessage {
@@ -223,6 +269,93 @@ impl CompiledCatalog {
         self.entries
             .iter()
             .map(|(key, message)| (key.as_str(), message))
+    }
+}
+
+/// Stable compiled runtime ID index built from one or more normalized catalogs.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct CompiledCatalogIdIndex {
+    ids: BTreeMap<String, CatalogMessageKey>,
+}
+
+impl CompiledCatalogIdIndex {
+    /// Builds a deterministic compiled-ID index for the union of non-obsolete messages.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ApiError::Conflict`] when two different source identities compile to the same ID.
+    pub fn new(
+        catalogs: &[&NormalizedParsedCatalog],
+        key_strategy: CompiledKeyStrategy,
+    ) -> Result<Self, ApiError> {
+        Self::new_with_key_generator(catalogs, key_strategy, compiled_key_for)
+    }
+
+    fn new_with_key_generator<F>(
+        catalogs: &[&NormalizedParsedCatalog],
+        key_strategy: CompiledKeyStrategy,
+        mut key_generator: F,
+    ) -> Result<Self, ApiError>
+    where
+        F: FnMut(CompiledKeyStrategy, &CatalogMessageKey) -> String,
+    {
+        let mut ids = BTreeMap::<String, CatalogMessageKey>::new();
+
+        for catalog in catalogs {
+            for (source_key, message) in catalog.iter() {
+                if message.obsolete {
+                    continue;
+                }
+                let compiled_id = key_generator(key_strategy, source_key);
+                if let Some(existing) = ids.get(&compiled_id) {
+                    if existing != source_key {
+                        return Err(ApiError::Conflict(format!(
+                            "compiled catalog key collision for {:?} / {:?} and {:?} / {:?} using key {}",
+                            existing.msgctxt,
+                            existing.msgid,
+                            source_key.msgctxt,
+                            source_key.msgid,
+                            compiled_id
+                        )));
+                    }
+                    continue;
+                }
+                ids.insert(compiled_id, source_key.clone());
+            }
+        }
+
+        Ok(Self { ids })
+    }
+
+    /// Returns the source key for `compiled_id`, if present.
+    #[must_use]
+    pub fn get(&self, compiled_id: &str) -> Option<&CatalogMessageKey> {
+        self.ids.get(compiled_id)
+    }
+
+    /// Returns `true` when the index contains `compiled_id`.
+    #[must_use]
+    pub fn contains_id(&self, compiled_id: &str) -> bool {
+        self.ids.contains_key(compiled_id)
+    }
+
+    /// Returns the number of indexed compiled IDs.
+    #[must_use]
+    pub fn len(&self) -> usize {
+        self.ids.len()
+    }
+
+    /// Returns `true` when the index contains no compiled IDs.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.ids.is_empty()
+    }
+
+    /// Iterates over compiled IDs in sorted order.
+    pub fn iter(&self) -> impl Iterator<Item = (&str, &CatalogMessageKey)> + '_ {
+        self.ids
+            .iter()
+            .map(|(compiled_id, source_key)| (compiled_id.as_str(), source_key))
     }
 }
 
@@ -644,143 +777,58 @@ pub fn compile_catalog_artifact(
     catalogs: &[&NormalizedParsedCatalog],
     options: &CompileCatalogArtifactOptions,
 ) -> Result<CompiledCatalogArtifact, ApiError> {
-    validate_source_locale(&options.source_locale)?;
-    if options.requested_locale.trim().is_empty() {
-        return Err(ApiError::InvalidArguments(
-            "requested_locale must not be empty".to_owned(),
-        ));
-    }
-    if catalogs.is_empty() {
-        return Err(ApiError::InvalidArguments(
-            "compile_catalog_artifact requires at least one catalog".to_owned(),
-        ));
-    }
+    let locales = prepare_compiled_catalog_artifact_catalogs(
+        catalogs,
+        &options.requested_locale,
+        &options.source_locale,
+        &options.fallback_chain,
+    )?;
+    compile_catalog_artifact_from_source_keys(
+        &locales,
+        collect_compiled_catalog_artifact_source_keys(&locales),
+        options,
+    )
+}
 
-    let mut locales = BTreeMap::<String, &NormalizedParsedCatalog>::new();
-    for catalog in catalogs {
-        let locale = catalog
-            .parsed_catalog()
-            .locale
-            .as_deref()
-            .ok_or_else(|| {
-                ApiError::InvalidArguments(
-                    "compile_catalog_artifact requires every catalog to declare a locale"
-                        .to_owned(),
-                )
-            })?
-            .trim()
-            .to_owned();
-        if locale.is_empty() {
-            return Err(ApiError::InvalidArguments(
-                "compile_catalog_artifact does not accept empty catalog locales".to_owned(),
-            ));
-        }
-        if locales.insert(locale.clone(), *catalog).is_some() {
-            return Err(ApiError::InvalidArguments(format!(
-                "compile_catalog_artifact received duplicate catalog locale {locale:?}"
-            )));
-        }
-    }
-
-    if !locales.contains_key(&options.requested_locale) {
-        return Err(ApiError::InvalidArguments(format!(
-            "compile_catalog_artifact is missing the requested locale catalog {:?}",
-            options.requested_locale
-        )));
-    }
-    if !locales.contains_key(&options.source_locale) {
-        return Err(ApiError::InvalidArguments(format!(
-            "compile_catalog_artifact is missing the source locale catalog {:?}",
-            options.source_locale
-        )));
-    }
-
-    let mut seen_fallbacks = BTreeSet::new();
-    for locale in &options.fallback_chain {
-        if locale == &options.requested_locale || locale == &options.source_locale {
-            return Err(ApiError::InvalidArguments(format!(
-                "compile_catalog_artifact fallback_chain must not repeat requested or source locale {:?}",
-                locale
-            )));
-        }
-        if !seen_fallbacks.insert(locale.clone()) {
-            return Err(ApiError::InvalidArguments(format!(
-                "compile_catalog_artifact fallback_chain contains duplicate locale {:?}",
-                locale
-            )));
-        }
-        if !locales.contains_key(locale) {
-            return Err(ApiError::InvalidArguments(format!(
-                "compile_catalog_artifact fallback locale {:?} was not provided",
-                locale
-            )));
-        }
-    }
+/// Compiles one requested-locale runtime artifact for a selected subset of compiled IDs.
+///
+/// # Errors
+///
+/// Returns [`ApiError::InvalidArguments`] when the selected IDs are unknown or the
+/// catalog inputs are inconsistent, [`ApiError::Conflict`] on compiled-key collisions,
+/// or [`ApiError::Unsupported`] when `strict_icu` is enabled and a final runtime
+/// message fails ICU validation.
+pub fn compile_catalog_artifact_selected(
+    catalogs: &[&NormalizedParsedCatalog],
+    index: &CompiledCatalogIdIndex,
+    options: &CompileSelectedCatalogArtifactOptions,
+) -> Result<CompiledCatalogArtifact, ApiError> {
+    let artifact_options = options.artifact_options();
+    let locales = prepare_compiled_catalog_artifact_catalogs(
+        catalogs,
+        &artifact_options.requested_locale,
+        &artifact_options.source_locale,
+        &artifact_options.fallback_chain,
+    )?;
 
     let mut source_keys = BTreeSet::new();
-    for catalog in locales.values() {
-        for (source_key, message) in catalog.iter() {
-            if !message.obsolete {
-                source_keys.insert(source_key.clone());
-            }
-        }
-    }
-
-    let mut compiled_keys = BTreeMap::<String, CatalogMessageKey>::new();
-    let mut artifact = CompiledCatalogArtifact::default();
-
-    for source_key in source_keys {
-        let compiled_key = compiled_key_for(options.key_strategy, &source_key);
-        if let Some(existing) = compiled_keys.insert(compiled_key.clone(), source_key.clone()) {
-            return Err(ApiError::Conflict(format!(
-                "compiled catalog key collision for {:?} / {:?} and {:?} / {:?} using key {}",
-                existing.msgctxt,
-                existing.msgid,
-                source_key.msgctxt,
-                source_key.msgid,
-                compiled_key
+    for compiled_id in &options.compiled_ids {
+        let source_key = index.get(compiled_id).ok_or_else(|| {
+            ApiError::InvalidArguments(format!(
+                "compile_catalog_artifact_selected received unknown compiled ID {:?}",
+                compiled_id
+            ))
+        })?;
+        if !compiled_catalog_artifact_catalogs_contain_key(&locales, source_key) {
+            return Err(ApiError::InvalidArguments(format!(
+                "compile_catalog_artifact_selected compiled ID {:?} was not present in the provided catalog set",
+                compiled_id
             )));
         }
-
-        let resolved = resolve_compiled_catalog_artifact_message(&locales, &source_key, options);
-        if options.requested_locale != options.source_locale {
-            let resolved_locale = resolved.as_ref().map(|value| value.locale.clone());
-            if resolved_locale.as_deref() != Some(options.requested_locale.as_str()) {
-                artifact.missing.push(CompiledCatalogMissingMessage {
-                    key: compiled_key.clone(),
-                    source_key: source_key.clone(),
-                    requested_locale: options.requested_locale.clone(),
-                    resolved_locale: resolved_locale.clone(),
-                });
-            }
-        }
-
-        let Some(resolved) = resolved else {
-            continue;
-        };
-
-        if let Err(error) = parse_icu(&resolved.message) {
-            if options.strict_icu {
-                return Err(ApiError::Unsupported(format!(
-                    "compiled catalog artifact produced invalid ICU for locale {:?}, msgid {:?}, context {:?}: {}",
-                    resolved.locale, source_key.msgid, source_key.msgctxt, error
-                )));
-            }
-            artifact.diagnostics.push(CompiledCatalogDiagnostic {
-                severity: DiagnosticSeverity::Error,
-                code: "compile.invalid_icu_message".to_owned(),
-                message: format!("Final runtime message failed ICU validation: {error}"),
-                key: compiled_key.clone(),
-                msgid: source_key.msgid.clone(),
-                msgctxt: source_key.msgctxt.clone(),
-                locale: resolved.locale.clone(),
-            });
-        }
-
-        artifact.messages.insert(compiled_key, resolved.message);
+        source_keys.insert(source_key.clone());
     }
 
-    Ok(artifact)
+    compile_catalog_artifact_from_source_keys(&locales, source_keys, &artifact_options)
 }
 
 /// Encoding used for plural messages in PO files.
@@ -2262,6 +2310,178 @@ fn public_message_from_canonical(message: CanonicalMessage) -> CatalogMessage {
     }
 }
 
+fn prepare_compiled_catalog_artifact_catalogs<'a>(
+    catalogs: &[&'a NormalizedParsedCatalog],
+    requested_locale: &str,
+    source_locale: &str,
+    fallback_chain: &[String],
+) -> Result<BTreeMap<String, &'a NormalizedParsedCatalog>, ApiError> {
+    validate_source_locale(source_locale)?;
+    if requested_locale.trim().is_empty() {
+        return Err(ApiError::InvalidArguments(
+            "requested_locale must not be empty".to_owned(),
+        ));
+    }
+    if catalogs.is_empty() {
+        return Err(ApiError::InvalidArguments(
+            "compile_catalog_artifact requires at least one catalog".to_owned(),
+        ));
+    }
+
+    let mut locales = BTreeMap::<String, &NormalizedParsedCatalog>::new();
+    for catalog in catalogs {
+        let locale = catalog
+            .parsed_catalog()
+            .locale
+            .as_deref()
+            .ok_or_else(|| {
+                ApiError::InvalidArguments(
+                    "compile_catalog_artifact requires every catalog to declare a locale"
+                        .to_owned(),
+                )
+            })?
+            .trim()
+            .to_owned();
+        if locale.is_empty() {
+            return Err(ApiError::InvalidArguments(
+                "compile_catalog_artifact does not accept empty catalog locales".to_owned(),
+            ));
+        }
+        if locales.insert(locale.clone(), *catalog).is_some() {
+            return Err(ApiError::InvalidArguments(format!(
+                "compile_catalog_artifact received duplicate catalog locale {locale:?}"
+            )));
+        }
+    }
+
+    if !locales.contains_key(requested_locale) {
+        return Err(ApiError::InvalidArguments(format!(
+            "compile_catalog_artifact is missing the requested locale catalog {:?}",
+            requested_locale
+        )));
+    }
+    if !locales.contains_key(source_locale) {
+        return Err(ApiError::InvalidArguments(format!(
+            "compile_catalog_artifact is missing the source locale catalog {:?}",
+            source_locale
+        )));
+    }
+
+    let mut seen_fallbacks = BTreeSet::new();
+    for locale in fallback_chain {
+        if locale == requested_locale || locale == source_locale {
+            return Err(ApiError::InvalidArguments(format!(
+                "compile_catalog_artifact fallback_chain must not repeat requested or source locale {:?}",
+                locale
+            )));
+        }
+        if !seen_fallbacks.insert(locale.clone()) {
+            return Err(ApiError::InvalidArguments(format!(
+                "compile_catalog_artifact fallback_chain contains duplicate locale {:?}",
+                locale
+            )));
+        }
+        if !locales.contains_key(locale) {
+            return Err(ApiError::InvalidArguments(format!(
+                "compile_catalog_artifact fallback locale {:?} was not provided",
+                locale
+            )));
+        }
+    }
+
+    Ok(locales)
+}
+
+fn collect_compiled_catalog_artifact_source_keys(
+    locales: &BTreeMap<String, &NormalizedParsedCatalog>,
+) -> BTreeSet<CatalogMessageKey> {
+    let mut source_keys = BTreeSet::new();
+    for catalog in locales.values() {
+        for (source_key, message) in catalog.iter() {
+            if !message.obsolete {
+                source_keys.insert(source_key.clone());
+            }
+        }
+    }
+    source_keys
+}
+
+fn compiled_catalog_artifact_catalogs_contain_key(
+    locales: &BTreeMap<String, &NormalizedParsedCatalog>,
+    source_key: &CatalogMessageKey,
+) -> bool {
+    locales.values().any(|catalog| {
+        catalog
+            .get(source_key)
+            .is_some_and(|message| !message.obsolete)
+    })
+}
+
+fn compile_catalog_artifact_from_source_keys<I>(
+    locales: &BTreeMap<String, &NormalizedParsedCatalog>,
+    source_keys: I,
+    options: &CompileCatalogArtifactOptions,
+) -> Result<CompiledCatalogArtifact, ApiError>
+where
+    I: IntoIterator<Item = CatalogMessageKey>,
+{
+    let mut compiled_keys = BTreeMap::<String, CatalogMessageKey>::new();
+    let mut artifact = CompiledCatalogArtifact::default();
+
+    for source_key in source_keys {
+        let compiled_key = compiled_key_for(options.key_strategy, &source_key);
+        if let Some(existing) = compiled_keys.insert(compiled_key.clone(), source_key.clone()) {
+            return Err(ApiError::Conflict(format!(
+                "compiled catalog key collision for {:?} / {:?} and {:?} / {:?} using key {}",
+                existing.msgctxt,
+                existing.msgid,
+                source_key.msgctxt,
+                source_key.msgid,
+                compiled_key
+            )));
+        }
+
+        let resolved = resolve_compiled_catalog_artifact_message(locales, &source_key, options);
+        if options.requested_locale != options.source_locale {
+            let resolved_locale = resolved.as_ref().map(|value| value.locale.clone());
+            if resolved_locale.as_deref() != Some(options.requested_locale.as_str()) {
+                artifact.missing.push(CompiledCatalogMissingMessage {
+                    key: compiled_key.clone(),
+                    source_key: source_key.clone(),
+                    requested_locale: options.requested_locale.clone(),
+                    resolved_locale: resolved_locale.clone(),
+                });
+            }
+        }
+
+        let Some(resolved) = resolved else {
+            continue;
+        };
+
+        if let Err(error) = parse_icu(&resolved.message) {
+            if options.strict_icu {
+                return Err(ApiError::Unsupported(format!(
+                    "compiled catalog artifact produced invalid ICU for locale {:?}, msgid {:?}, context {:?}: {}",
+                    resolved.locale, source_key.msgid, source_key.msgctxt, error
+                )));
+            }
+            artifact.diagnostics.push(CompiledCatalogDiagnostic {
+                severity: DiagnosticSeverity::Error,
+                code: "compile.invalid_icu_message".to_owned(),
+                message: format!("Final runtime message failed ICU validation: {error}"),
+                key: compiled_key.clone(),
+                msgid: source_key.msgid.clone(),
+                msgctxt: source_key.msgctxt.clone(),
+                locale: resolved.locale.clone(),
+            });
+        }
+
+        artifact.messages.insert(compiled_key, resolved.message);
+    }
+
+    Ok(artifact)
+}
+
 fn resolve_compiled_catalog_artifact_message(
     catalogs: &BTreeMap<String, &NormalizedParsedCatalog>,
     source_key: &CatalogMessageKey,
@@ -2739,12 +2959,14 @@ fn atomic_write(path: &Path, content: &str) -> Result<(), ApiError> {
 mod tests {
     use super::{
         ApiError, CatalogMessageKey, CatalogUpdateInput, CompileCatalogArtifactOptions,
-        CompileCatalogOptions, CompiledKeyStrategy, CompiledTranslation, DiagnosticSeverity,
-        EffectiveTranslation, EffectiveTranslationRef, ExtractedMessage, ExtractedPluralMessage,
+        CompileCatalogOptions, CompileSelectedCatalogArtifactOptions, CompiledCatalogIdIndex,
+        CompiledKeyStrategy, CompiledTranslation, DiagnosticSeverity, EffectiveTranslation,
+        EffectiveTranslationRef, ExtractedMessage, ExtractedPluralMessage,
         ExtractedSingularMessage, ObsoleteStrategy, ParseCatalogOptions, PluralEncoding,
         PluralSource, SourceExtractedMessage, TranslationShape, UpdateCatalogFileOptions,
         UpdateCatalogOptions, cached_icu_plural_categories_for, compile_catalog_artifact,
-        compiled_key_for, parse_catalog, update_catalog, update_catalog_file,
+        compile_catalog_artifact_selected, compiled_key_for, parse_catalog, update_catalog,
+        update_catalog_file,
     };
     use crate::parse_po;
     use std::collections::{BTreeMap, HashMap};
@@ -3285,6 +3507,220 @@ mod tests {
         )
         .expect_err("strict invalid icu should fail");
         assert!(matches!(error, ApiError::Unsupported(_)));
+    }
+
+    #[test]
+    fn compiled_catalog_id_index_indexes_non_obsolete_compiled_ids() {
+        let requested = normalized_catalog(
+            concat!(
+                "msgid \"Hello\"\n",
+                "msgstr \"Hallo\"\n\n",
+                "#~ msgid \"Obsolete\"\n",
+                "#~ msgstr \"Alt\"\n",
+            ),
+            Some("de"),
+            PluralEncoding::Icu,
+        );
+        let source = normalized_catalog(
+            "msgid \"Hello\"\nmsgstr \"Hello\"\n",
+            Some("en"),
+            PluralEncoding::Icu,
+        );
+
+        let index =
+            CompiledCatalogIdIndex::new(&[&requested, &source], CompiledKeyStrategy::FerrocatV1)
+                .expect("compiled id index");
+
+        let key = compiled_key_for(
+            CompiledKeyStrategy::FerrocatV1,
+            &CatalogMessageKey::new("Hello", None),
+        );
+        let obsolete_key = compiled_key_for(
+            CompiledKeyStrategy::FerrocatV1,
+            &CatalogMessageKey::new("Obsolete", None),
+        );
+
+        assert_eq!(index.len(), 1);
+        assert!(index.contains_id(&key));
+        assert_eq!(
+            index.get(&key),
+            Some(&CatalogMessageKey::new("Hello", None))
+        );
+        assert!(!index.contains_id(&obsolete_key));
+    }
+
+    #[test]
+    fn compiled_catalog_id_index_reports_compiled_key_collisions() {
+        let requested = normalized_catalog(
+            concat!(
+                "msgid \"Hello\"\n",
+                "msgstr \"Hallo\"\n\n",
+                "msgctxt \"menu\"\n",
+                "msgid \"Save\"\n",
+                "msgstr \"Speichern\"\n",
+            ),
+            Some("de"),
+            PluralEncoding::Icu,
+        );
+
+        let error = CompiledCatalogIdIndex::new_with_key_generator(
+            &[&requested],
+            CompiledKeyStrategy::FerrocatV1,
+            |_, _| "fc1_collision".to_owned(),
+        )
+        .expect_err("collision");
+
+        match error {
+            ApiError::Conflict(message) => {
+                assert!(message.contains("collision"));
+            }
+            other => panic!("unexpected error: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn compile_catalog_artifact_selected_returns_only_requested_ids() {
+        let source = normalized_catalog(
+            concat!(
+                "msgid \"Hello\"\n",
+                "msgstr \"Hello\"\n\n",
+                "msgid \"Bye\"\n",
+                "msgstr \"Bye\"\n",
+            ),
+            Some("en"),
+            PluralEncoding::Icu,
+        );
+        let requested = normalized_catalog(
+            concat!(
+                "msgid \"Hello\"\n",
+                "msgstr \"Hallo\"\n\n",
+                "msgid \"Bye\"\n",
+                "msgstr \"Tschuess\"\n",
+            ),
+            Some("de"),
+            PluralEncoding::Icu,
+        );
+
+        let index =
+            CompiledCatalogIdIndex::new(&[&requested, &source], CompiledKeyStrategy::FerrocatV1)
+                .expect("compiled id index");
+        let hello_id = compiled_key_for(
+            CompiledKeyStrategy::FerrocatV1,
+            &CatalogMessageKey::new("Hello", None),
+        );
+        let bye_id = compiled_key_for(
+            CompiledKeyStrategy::FerrocatV1,
+            &CatalogMessageKey::new("Bye", None),
+        );
+
+        let artifact = compile_catalog_artifact_selected(
+            &[&requested, &source],
+            &index,
+            &CompileSelectedCatalogArtifactOptions {
+                requested_locale: "de".to_owned(),
+                source_locale: "en".to_owned(),
+                compiled_ids: vec![hello_id.clone(), hello_id.clone()],
+                ..CompileSelectedCatalogArtifactOptions::default()
+            },
+        )
+        .expect("compile selected artifact");
+
+        assert_eq!(artifact.messages.len(), 1);
+        assert_eq!(
+            artifact.messages.get(&hello_id).map(String::as_str),
+            Some("Hallo")
+        );
+        assert!(!artifact.messages.contains_key(&bye_id));
+        assert!(artifact.missing.is_empty());
+    }
+
+    #[test]
+    fn compile_catalog_artifact_selected_reports_unknown_compiled_ids() {
+        let source = normalized_catalog(
+            "msgid \"Hello\"\nmsgstr \"Hello\"\n",
+            Some("en"),
+            PluralEncoding::Icu,
+        );
+        let requested = normalized_catalog(
+            "msgid \"Hello\"\nmsgstr \"Hallo\"\n",
+            Some("de"),
+            PluralEncoding::Icu,
+        );
+
+        let index =
+            CompiledCatalogIdIndex::new(&[&requested, &source], CompiledKeyStrategy::FerrocatV1)
+                .expect("compiled id index");
+        let error = compile_catalog_artifact_selected(
+            &[&requested, &source],
+            &index,
+            &CompileSelectedCatalogArtifactOptions {
+                requested_locale: "de".to_owned(),
+                source_locale: "en".to_owned(),
+                compiled_ids: vec!["missing-id".to_owned()],
+                ..CompileSelectedCatalogArtifactOptions::default()
+            },
+        )
+        .expect_err("unknown compiled id");
+
+        assert!(matches!(error, ApiError::InvalidArguments(_)));
+    }
+
+    #[test]
+    fn compile_catalog_artifact_selected_preserves_fallback_and_validation_semantics() {
+        let source = normalized_catalog(
+            concat!(
+                "msgid \"Hello\"\n",
+                "msgstr \"\"\n\n",
+                "msgid \"Broken\"\n",
+                "msgstr \"Broken\"\n",
+            ),
+            Some("en"),
+            PluralEncoding::Gettext,
+        );
+        let requested = normalized_catalog(
+            concat!(
+                "msgid \"Hello\"\n",
+                "msgstr \"\"\n\n",
+                "msgid \"Broken\"\n",
+                "msgstr \"{unclosed\"\n",
+            ),
+            Some("de"),
+            PluralEncoding::Gettext,
+        );
+
+        let index =
+            CompiledCatalogIdIndex::new(&[&requested, &source], CompiledKeyStrategy::FerrocatV1)
+                .expect("compiled id index");
+        let hello_id = compiled_key_for(
+            CompiledKeyStrategy::FerrocatV1,
+            &CatalogMessageKey::new("Hello", None),
+        );
+        let broken_id = compiled_key_for(
+            CompiledKeyStrategy::FerrocatV1,
+            &CatalogMessageKey::new("Broken", None),
+        );
+
+        let artifact = compile_catalog_artifact_selected(
+            &[&requested, &source],
+            &index,
+            &CompileSelectedCatalogArtifactOptions {
+                requested_locale: "de".to_owned(),
+                source_locale: "en".to_owned(),
+                source_fallback: true,
+                compiled_ids: vec![hello_id.clone(), broken_id.clone()],
+                ..CompileSelectedCatalogArtifactOptions::default()
+            },
+        )
+        .expect("compile selected artifact");
+
+        assert_eq!(
+            artifact.messages.get(&hello_id).map(String::as_str),
+            Some("Hello")
+        );
+        assert_eq!(artifact.missing.len(), 1);
+        assert_eq!(artifact.missing[0].key, hello_id);
+        assert_eq!(artifact.diagnostics.len(), 1);
+        assert_eq!(artifact.diagnostics[0].key, broken_id);
     }
 
     #[test]

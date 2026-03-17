@@ -15,5 +15,6 @@ Use this crate when you want the PO-specific surface directly:
 - `merge_catalog` for lightweight gettext-style merges
 - `parse_catalog`, `update_catalog`, and `NormalizedParsedCatalog::compile` for higher-level catalog workflows
 - `compile_catalog_artifact` for requested-locale runtime artifacts with fallback resolution and missing reports
+- `compile_catalog_artifact_selected` for selected compiled-ID subsets of those runtime artifacts
 
 If you want the umbrella dependency instead, use [`ferrocat`](https://docs.rs/ferrocat).

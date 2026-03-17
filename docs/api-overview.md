@@ -20,6 +20,7 @@ This page is a lightweight guide for choosing the right function before there is
 | Build keyed lookup/helpers on top of a parsed catalog | `ParsedCatalog::into_normalized_view` |
 | Compile a normalized catalog into runtime lookup entries | `NormalizedParsedCatalog::compile` |
 | Compile a requested-locale runtime artifact with fallbacks and missing reports | `compile_catalog_artifact` |
+| Compile only a selected subset of compiled runtime IDs | `compile_catalog_artifact_selected` |
 | Perform a full in-memory catalog update | `update_catalog` |
 | Perform a full catalog update and write the result to disk only when changed | `update_catalog_file` |
 | Parse ICU MessageFormat into a structural AST | `parse_icu` |
@@ -128,6 +129,19 @@ Important semantics:
 - plural messages are emitted as final ICU plural strings using the preserved plural variable
 - invalid final ICU strings become diagnostics by default and can become hard errors in strict mode
 
+### `compile_catalog_artifact_selected`
+
+Use this when a host adapter already knows the exact compiled runtime IDs it needs and wants only that slice of a requested-locale artifact.
+
+This is the narrower companion to `compile_catalog_artifact`:
+
+- build or reuse a `CompiledCatalogIdIndex`
+- pass only the selected compiled IDs
+- keep the same fallback, missing, and ICU-validation semantics
+- return the same `CompiledCatalogArtifact` shape, but filtered to the requested subset
+
+Choose this when a bundler/plugin layer has already mapped modules or chunks to the exact message IDs they require.
+
 ### `update_catalog`
 
 Use this for the full high-level catalog update path in memory.
@@ -183,4 +197,5 @@ Use this after `parse_icu` when you want the variable names referenced by the me
 - full app-level catalog maintenance: `update_catalog` or `update_catalog_file`
 - parsed catalog consumption with keyed accessors: `parse_catalog` + `into_normalized_view`
 - locale-specific runtime artifact generation: `compile_catalog_artifact`
+- selected locale artifact generation by compiled ID: `compile_catalog_artifact_selected`
 - ICU analysis: `parse_icu`

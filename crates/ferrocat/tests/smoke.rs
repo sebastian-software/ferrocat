@@ -1,8 +1,10 @@
 use ferrocat::{
-    CatalogMessageKey, CatalogUpdateInput, CompileCatalogArtifactOptions, EffectiveTranslation,
-    EffectiveTranslationRef, MergeExtractedMessage, ParseCatalogOptions, SerializeOptions,
-    SourceExtractedMessage, compile_catalog_artifact, has_select_ordinal, merge_catalog,
-    parse_catalog, parse_icu, parse_po, stringify_po,
+    CatalogMessageKey, CatalogUpdateInput, CompileCatalogArtifactOptions,
+    CompileSelectedCatalogArtifactOptions, CompiledCatalogIdIndex, CompiledKeyStrategy,
+    EffectiveTranslation, EffectiveTranslationRef, MergeExtractedMessage, ParseCatalogOptions,
+    SerializeOptions, SourceExtractedMessage, compile_catalog_artifact,
+    compile_catalog_artifact_selected, has_select_ordinal, merge_catalog, parse_catalog, parse_icu,
+    parse_po, stringify_po,
 };
 
 #[test]
@@ -77,4 +79,20 @@ msgstr "world"
     )
     .expect("compile artifact");
     assert_eq!(artifact.messages.len(), 1);
+
+    let index =
+        CompiledCatalogIdIndex::new(&[&normalized, &source], CompiledKeyStrategy::FerrocatV1)
+            .expect("compiled id index");
+    let selected_artifact = compile_catalog_artifact_selected(
+        &[&normalized, &source],
+        &index,
+        &CompileSelectedCatalogArtifactOptions {
+            requested_locale: "de".to_owned(),
+            source_locale: "en".to_owned(),
+            compiled_ids: index.iter().map(|(id, _)| id.to_owned()).collect(),
+            ..CompileSelectedCatalogArtifactOptions::default()
+        },
+    )
+    .expect("compile selected artifact");
+    assert_eq!(selected_artifact.messages.len(), 1);
 }

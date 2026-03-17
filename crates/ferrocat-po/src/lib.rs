@@ -20,7 +20,8 @@
 //!
 //! ```rust
 //! use ferrocat_po::{
-//!     CompileCatalogArtifactOptions, ParseCatalogOptions, compile_catalog_artifact,
+//!     CompileCatalogArtifactOptions, CompileSelectedCatalogArtifactOptions,
+//!     CompiledCatalogIdIndex, ParseCatalogOptions, compile_catalog_artifact_selected,
 //!     parse_catalog,
 //! };
 //!
@@ -38,12 +39,15 @@
 //!     ..ParseCatalogOptions::default()
 //! })?
 //! .into_normalized_view()?;
-//! let compiled = compile_catalog_artifact(
+//! let index = CompiledCatalogIdIndex::new(&[&requested, &source], ferrocat_po::CompiledKeyStrategy::FerrocatV1)?;
+//! let compiled = compile_catalog_artifact_selected(
 //!     &[&requested, &source],
-//!     &CompileCatalogArtifactOptions {
+//!     &index,
+//!     &CompileSelectedCatalogArtifactOptions {
 //!         requested_locale: "de".to_owned(),
 //!         source_locale: "en".to_owned(),
-//!         ..CompileCatalogArtifactOptions::default()
+//!         compiled_ids: index.iter().map(|(id, _)| id.to_owned()).collect(),
+//!         ..CompileSelectedCatalogArtifactOptions::default()
 //!     },
 //! )?;
 //!
@@ -62,14 +66,15 @@ mod text;
 pub use api::{
     ApiError, CatalogMessage, CatalogMessageExtra, CatalogMessageKey, CatalogOrigin, CatalogStats,
     CatalogUpdateInput, CatalogUpdateResult, CompileCatalogArtifactOptions, CompileCatalogOptions,
-    CompiledCatalog, CompiledCatalogArtifact, CompiledCatalogDiagnostic,
-    CompiledCatalogMissingMessage, CompiledKeyStrategy, CompiledMessage, CompiledTranslation,
-    Diagnostic, DiagnosticSeverity, EffectiveTranslation, EffectiveTranslationRef,
-    ExtractedMessage, ExtractedPluralMessage, ExtractedSingularMessage, NormalizedParsedCatalog,
-    ObsoleteStrategy, OrderBy, ParseCatalogOptions, ParsedCatalog, PlaceholderCommentMode,
-    PluralEncoding, PluralSource, SourceExtractedMessage, TranslationShape,
-    UpdateCatalogFileOptions, UpdateCatalogOptions, compile_catalog_artifact, parse_catalog,
-    update_catalog, update_catalog_file,
+    CompileSelectedCatalogArtifactOptions, CompiledCatalog, CompiledCatalogArtifact,
+    CompiledCatalogDiagnostic, CompiledCatalogIdIndex, CompiledCatalogMissingMessage,
+    CompiledKeyStrategy, CompiledMessage, CompiledTranslation, Diagnostic, DiagnosticSeverity,
+    EffectiveTranslation, EffectiveTranslationRef, ExtractedMessage, ExtractedPluralMessage,
+    ExtractedSingularMessage, NormalizedParsedCatalog, ObsoleteStrategy, OrderBy,
+    ParseCatalogOptions, ParsedCatalog, PlaceholderCommentMode, PluralEncoding, PluralSource,
+    SourceExtractedMessage, TranslationShape, UpdateCatalogFileOptions, UpdateCatalogOptions,
+    compile_catalog_artifact, compile_catalog_artifact_selected, parse_catalog, update_catalog,
+    update_catalog_file,
 };
 pub use borrowed::{
     BorrowedHeader, BorrowedMsgStr, BorrowedPoFile, BorrowedPoItem, parse_po_borrowed,
