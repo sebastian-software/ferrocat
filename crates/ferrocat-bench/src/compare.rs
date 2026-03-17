@@ -229,7 +229,7 @@ fn execute_scenario(
             prepared.run_internal_update_catalog(iterations, capture_artifacts)
         }
         "ferrocat-parse-icu" => prepared.run_internal_parse_icu(iterations, capture_artifacts),
-        "pofile" | "formatjs-icu-parser" | "messageformat-parser" => {
+        "pofile" | "pofile-ts" | "formatjs-icu-parser" | "messageformat-parser" => {
             prepared.run_node_adapter(workspace, scenario, iterations, capture_artifacts)
         }
         "polib" => prepared.run_python_adapter(workspace, scenario, iterations, capture_artifacts),

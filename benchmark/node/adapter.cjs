@@ -2,7 +2,9 @@
 
 const fs = require('node:fs');
 const crypto = require('node:crypto');
+const path = require('node:path');
 const PO = require('pofile');
+const pofileTs = require('pofile-ts');
 const formatjsParser = require('@formatjs/icu-messageformat-parser');
 const messageformatParser = require('@messageformat/parser');
 
@@ -23,6 +25,14 @@ function canonicalize(value) {
 function digest(value) {
   const rendered = JSON.stringify(canonicalize(value));
   return crypto.createHash('sha256').update(rendered).digest('hex');
+}
+
+function packageVersion(name) {
+  if (name === 'pofile-ts') {
+    const packageJsonPath = path.join(path.dirname(require.resolve('pofile-ts')), '..', 'package.json');
+    return JSON.parse(fs.readFileSync(packageJsonPath, 'utf8')).version;
+  }
+  return require(`${name}/package.json`).version;
 }
 
 function normalizePoSummary(parsed) {
@@ -350,6 +360,49 @@ function runPofile(request) {
   });
 }
 
+function runPofileTs(request) {
+  const input = fs.readFileSync(request.po_input_path, 'utf8');
+  const toolVersion = `pofile-ts@${packageVersion('pofile-ts')}`;
+
+  if (request.operation === 'parse') {
+    let summary = normalizePoSummary(pofileTs.parsePo(input));
+    const start = process.hrtime.bigint();
+    for (let i = 0; i < request.iterations; i += 1) {
+      summary = normalizePoSummary(pofileTs.parsePo(input));
+    }
+    const elapsed = process.hrtime.bigint() - start;
+    return successResponse(request, {
+      semantic_digest: digest(summary),
+      elapsed_ns: Number(elapsed),
+      bytes_processed: Buffer.byteLength(input, 'utf8') * request.iterations,
+      items_processed: summary.items.length * request.iterations,
+      tool_version: toolVersion,
+      po_summary: request.capture_artifacts ? summary : null
+    });
+  }
+
+  const parsed = pofileTs.parsePo(input);
+  let rendered = '';
+  const start = process.hrtime.bigint();
+  for (let i = 0; i < request.iterations; i += 1) {
+    rendered = pofileTs.stringifyPo(parsed);
+  }
+  const elapsed = process.hrtime.bigint() - start;
+  const reparsed = pofileTs.parsePo(rendered);
+  const summary = normalizePoSummary(reparsed);
+  if (request.capture_artifacts && request.po_output_path) {
+    fs.writeFileSync(request.po_output_path, rendered, 'utf8');
+  }
+  return successResponse(request, {
+    semantic_digest: digest(summary),
+    elapsed_ns: Number(elapsed),
+    bytes_processed: Buffer.byteLength(rendered, 'utf8') * request.iterations,
+    items_processed: summary.items.length * request.iterations,
+    tool_version: toolVersion,
+    po_output_path: request.capture_artifacts ? request.po_output_path : null
+  });
+}
+
 function runFormatjs(request) {
   const messages = JSON.parse(fs.readFileSync(request.icu_messages_path, 'utf8'));
   const toolVersion = `@formatjs/icu-messageformat-parser@${require('@formatjs/icu-messageformat-parser/package.json').version}`;
@@ -397,7 +450,8 @@ function runMessageformat(request) {
 function run() {
   if (process.argv.includes('--check')) {
     const versions = [
-      `pofile@${require('pofile/package.json').version}`,
+      `pofile@${packageVersion('pofile')}`,
+      `pofile-ts@${packageVersion('pofile-ts')}`,
       `@formatjs/icu-messageformat-parser@${require('@formatjs/icu-messageformat-parser/package.json').version}`,
       `@messageformat/parser@${require('@messageformat/parser/package.json').version}`
     ];
@@ -410,6 +464,9 @@ function run() {
   switch (request.implementation) {
     case 'pofile':
       result = runPofile(request);
+      break;
+    case 'pofile-ts':
+      result = runPofileTs(request);
       break;
     case 'formatjs-icu-parser':
       result = runFormatjs(request);
