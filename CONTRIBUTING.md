@@ -25,6 +25,8 @@ cargo clippy --workspace --all-targets --all-features -- -D warnings
 
 This repository uses Conventional Commits.
 
+This is also a release requirement for this repo: `release-please` relies on Conventional Commit prefixes to decide when to open and update release PRs.
+
 Use the format:
 
 ```text
@@ -45,3 +47,4 @@ Guidelines:
 - keep the summary imperative and concise
 - add a scope when it clarifies the affected area
 - prefer one logical change per commit
+- verify the final commit subjects before push if you rewrote history or used an automated agent
