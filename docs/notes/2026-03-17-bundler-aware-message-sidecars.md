@@ -173,6 +173,51 @@ Likely Palamedes or host-adapter responsibilities:
 - emitting sidecars and manifests in bundler output
 - dev-server protocol and runtime chunk/sidecar loading
 
+## Current Ferrocat Status
+
+The original shape described in this note is no longer purely hypothetical.
+Ferrocat now already exposes the core build-time primitives a host adapter would
+need to prototype chunk-addressable locale sidecars.
+
+Available today:
+
+- `compile_catalog_artifact` for full requested-locale host-neutral runtime
+  artifacts with fallback resolution, missing reports, and final ICU strings
+- `CompiledCatalogIdIndex` for deterministic `compiled_id -> source_key`
+  indexing across one or more normalized catalogs
+- `compile_catalog_artifact_selected` for compiling only a selected subset of
+  compiled runtime IDs into a locale artifact slice
+- `compile_catalog_artifact_selected_report` for the same selected compile flow
+  with structured reporting of unknown or unavailable compiled IDs
+- `CompiledCatalogIdIndex::describe_compiled_ids` for lightweight metadata about
+  requested compiled IDs, including available locales and singular vs plural
+  shape
+- `CompiledCatalogIdIndex::as_btreemap` and `into_btreemap` for exporting the
+  ordered compiled-ID mapping into host-side caches or manifests
+
+This means the chunk-based ideal is already reachable at build time:
+
+1. a host adapter collects `compiled_id`s per module or final chunk
+2. Ferrocat builds or reuses a `CompiledCatalogIdIndex`
+3. the host adapter calls `compile_catalog_artifact_selected` per
+   `(chunk, locale)` pair
+4. the result is emitted as a locale-specific sidecar payload
+
+What remains outside Ferrocat is mostly orchestration rather than missing
+catalog semantics:
+
+- module-to-ID collection in macros or build plugins
+- aggregation from modules into final bundler chunks
+- manifest generation and sidecar emission format
+- runtime registration/loading behavior
+- dev-server hot reload protocol
+
+One later optimization track still intentionally remains out of scope for now:
+borrowed or lazy subset compilation that avoids fully materializing normalized
+catalogs before compiling a selected ID subset. That may become interesting for
+very large catalogs, but it is not required for the first chunk-sidecar
+prototype.
+
 ## Non-Goals
 
 This note is not proposing:
