@@ -151,7 +151,7 @@ pub enum MsgStr {
 impl MsgStr {
     /// Returns `true` when no translation values are present.
     #[must_use]
-    pub fn is_empty(&self) -> bool {
+    pub const fn is_empty(&self) -> bool {
         matches!(self, Self::None)
     }
 
@@ -185,9 +185,8 @@ impl MsgStr {
     #[must_use]
     pub fn get(&self, index: usize) -> Option<&str> {
         match self {
-            Self::None => None,
             Self::Singular(value) if index == 0 => Some(value.as_str()),
-            Self::Singular(_) => None,
+            Self::None | Self::Singular(_) => None,
             Self::Plural(values) => values.get(index).map(String::as_str),
         }
     }
@@ -229,6 +228,15 @@ impl From<Vec<String>> for MsgStr {
     }
 }
 
+impl<'a> IntoIterator for &'a MsgStr {
+    type Item = &'a String;
+    type IntoIter = MsgStrIter<'a>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.iter()
+    }
+}
+
 impl Index<usize> for MsgStr {
     type Output = String;
 
@@ -254,19 +262,19 @@ enum MsgStrIterInner<'a> {
 }
 
 impl<'a> MsgStrIter<'a> {
-    fn empty() -> Self {
+    const fn empty() -> Self {
         Self {
             inner: MsgStrIterInner::Empty,
         }
     }
 
-    fn single(value: &'a String) -> Self {
+    const fn single(value: &'a String) -> Self {
         Self {
             inner: MsgStrIterInner::Single(Some(value)),
         }
     }
 
-    fn many(iter: std::slice::Iter<'a, String>) -> Self {
+    const fn many(iter: std::slice::Iter<'a, String>) -> Self {
         Self {
             inner: MsgStrIterInner::Many(iter),
         }

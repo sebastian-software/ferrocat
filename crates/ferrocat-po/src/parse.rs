@@ -1,6 +1,8 @@
 use std::borrow::Cow;
 use std::str;
 
+use memchr::memchr_iter;
+
 use crate::scan::{
     CommentKind, Keyword, LineKind, LineScanner, classify_line, parse_plural_index,
     split_once_byte, trim_ascii,
@@ -161,7 +163,7 @@ pub fn parse_po(input: &str) -> Result<PoFile, ParseError> {
         )?;
     }
 
-    finish_item(&mut state, &mut file, &mut current_nplurals)?;
+    finish_item(&mut state, &mut file, &mut current_nplurals);
 
     Ok(file)
 }
@@ -183,7 +185,8 @@ fn parse_line(
             Ok(())
         }
         LineKind::Comment(kind) => {
-            parse_comment_line(line.trimmed, kind, state, file, current_nplurals)
+            parse_comment_line(line.trimmed, kind, state, file, current_nplurals);
+            Ok(())
         }
         LineKind::Keyword(keyword) => parse_keyword_line(
             line.trimmed,
@@ -203,12 +206,12 @@ fn parse_comment_line(
     state: &mut ParserState,
     file: &mut PoFile,
     current_nplurals: &mut usize,
-) -> Result<(), ParseError> {
-    finish_item(state, file, current_nplurals)?;
+) {
+    finish_item(state, file, current_nplurals);
 
     match kind {
         CommentKind::Reference => {
-            let reference_line = trimmed_str(&line_bytes[2..])?;
+            let reference_line = trimmed_str(&line_bytes[2..]);
             state.item.references.extend(
                 split_reference_comment(reference_line)
                     .into_iter()
@@ -216,29 +219,27 @@ fn parse_comment_line(
             );
         }
         CommentKind::Flags => {
-            for flag in trimmed_str(&line_bytes[2..])?.split(',') {
+            for flag in trimmed_str(&line_bytes[2..]).split(',') {
                 state.item.flags.push(flag.trim().to_owned());
             }
         }
         CommentKind::Extracted => state
             .item
             .extracted_comments
-            .push(trimmed_string(&line_bytes[2..])?),
+            .push(trimmed_string(&line_bytes[2..])),
         CommentKind::Metadata => {
             let trimmed = trim_ascii(&line_bytes[2..]);
             if let Some((key_bytes, value_bytes)) = split_once_byte(trimmed, b':') {
-                let key = trimmed_str(key_bytes)?;
+                let key = trimmed_str(key_bytes);
                 if !key.is_empty() {
-                    let value = trimmed_str(value_bytes)?;
+                    let value = trimmed_str(value_bytes);
                     state.item.metadata.push((key.to_owned(), value.to_owned()));
                 }
             }
         }
-        CommentKind::Translator => state.item.comments.push(trimmed_string(&line_bytes[1..])?),
+        CommentKind::Translator => state.item.comments.push(trimmed_string(&line_bytes[1..])),
         CommentKind::Other => {}
     }
-
-    Ok(())
 }
 
 fn parse_keyword_line(
@@ -258,7 +259,7 @@ fn parse_keyword_line(
             state.has_keyword = true;
         }
         Keyword::Id => {
-            finish_item(state, file, current_nplurals)?;
+            finish_item(state, file, current_nplurals);
             state.obsolete_line_count += usize::from(obsolete);
             state.item.msgid = extract_quoted_bytes_cow(line_bytes)?.into_owned();
             state.context = Some(Context::Id);
@@ -278,7 +279,7 @@ fn parse_keyword_line(
             state.has_keyword = true;
         }
         Keyword::Ctxt => {
-            finish_item(state, file, current_nplurals)?;
+            finish_item(state, file, current_nplurals);
             state.obsolete_line_count += usize::from(obsolete);
             state.item.msgctxt = Some(extract_quoted_bytes_cow(line_bytes)?.into_owned());
             state.context = Some(Context::Ctxt);
@@ -318,17 +319,13 @@ fn append_continuation(
     Ok(())
 }
 
-fn finish_item(
-    state: &mut ParserState,
-    file: &mut PoFile,
-    current_nplurals: &mut usize,
-) -> Result<(), ParseError> {
+fn finish_item(state: &mut ParserState, file: &mut PoFile, current_nplurals: &mut usize) {
     if !state.has_keyword {
-        return Ok(());
+        return;
     }
 
     if state.item.msgid.is_empty() && !is_header_state(state) {
-        return Ok(());
+        return;
     }
 
     if state.obsolete_line_count >= state.content_line_count && state.content_line_count > 0 {
@@ -338,10 +335,10 @@ fn finish_item(
     if is_header_state(state) && file.headers.is_empty() && file.items.is_empty() {
         file.comments = core::mem::take(&mut state.item.comments);
         file.extracted_comments = core::mem::take(&mut state.item.extracted_comments);
-        parse_headers(state.header_msgstr(), &mut file.headers)?;
+        parse_headers(state.header_msgstr(), &mut file.headers);
         *current_nplurals = parse_nplurals(&file.headers).unwrap_or(2);
         state.reset(*current_nplurals);
-        return Ok(());
+        return;
     }
 
     state.materialize_msgstr();
@@ -358,7 +355,6 @@ fn finish_item(
     state.item.nplurals = *current_nplurals;
     file.items.push(core::mem::take(&mut state.item));
     state.reset_after_take(*current_nplurals);
-    Ok(())
 }
 
 fn is_header_state(state: &ParserState) -> bool {
@@ -368,20 +364,18 @@ fn is_header_state(state: &ParserState) -> bool {
         && !state.msgstr.is_empty()
 }
 
-fn parse_headers(raw: &str, out: &mut Vec<Header>) -> Result<(), ParseError> {
+fn parse_headers(raw: &str, out: &mut Vec<Header>) {
     let bytes = raw.as_bytes();
-    out.reserve(bytes.iter().filter(|byte| **byte == b'\n').count() + 1);
+    out.reserve(memchr_iter(b'\n', bytes).count() + 1);
 
     for line in LineScanner::new(bytes) {
         if let Some((key_bytes, value_bytes)) = split_once_byte(line.trimmed, b':') {
             out.push(Header {
-                key: trimmed_string(key_bytes)?,
-                value: trimmed_string(value_bytes)?,
+                key: trimmed_string(key_bytes),
+                value: trimmed_string(value_bytes),
             });
         }
     }
-
-    Ok(())
 }
 
 fn parse_nplurals(headers: &[Header]) -> Option<usize> {
@@ -400,7 +394,7 @@ fn parse_nplurals(headers: &[Header]) -> Option<usize> {
         let trimmed = trim_ascii(part);
         if let Some((key, value)) = split_once_byte(trimmed, b'=')
             && trim_ascii(key) == b"nplurals"
-            && let Ok(value) = bytes_to_str(trim_ascii(value))
+            && let value = bytes_to_str(trim_ascii(value))
             && let Ok(parsed) = value.parse::<usize>()
         {
             return Some(parsed);
@@ -411,18 +405,18 @@ fn parse_nplurals(headers: &[Header]) -> Option<usize> {
     None
 }
 
-fn bytes_to_str(bytes: &[u8]) -> Result<&str, ParseError> {
+const fn bytes_to_str(bytes: &[u8]) -> &str {
     // Parser slices are always derived from an input `&str` and cut only on
     // ASCII boundaries such as quotes, comments, colons and newlines.
-    Ok(unsafe { str::from_utf8_unchecked(bytes) })
+    unsafe { str::from_utf8_unchecked(bytes) }
 }
 
-fn trimmed_str(bytes: &[u8]) -> Result<&str, ParseError> {
+fn trimmed_str(bytes: &[u8]) -> &str {
     bytes_to_str(trim_ascii(bytes))
 }
 
-fn trimmed_string(bytes: &[u8]) -> Result<String, ParseError> {
-    Ok(trimmed_str(bytes)?.to_owned())
+fn trimmed_string(bytes: &[u8]) -> String {
+    trimmed_str(bytes).to_owned()
 }
 
 #[cfg(test)]

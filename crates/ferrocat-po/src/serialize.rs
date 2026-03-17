@@ -3,6 +3,7 @@ use crate::text::{escape_string_into, escape_string_into_with_first_escape};
 use crate::{PoFile, PoItem, SerializeOptions};
 
 /// Serializes a [`PoFile`] back into gettext PO text.
+#[must_use]
 pub fn stringify_po(file: &PoFile, options: &SerializeOptions) -> String {
     let mut out = String::with_capacity(estimate_capacity(file));
     let mut scratch = String::new();
@@ -176,12 +177,7 @@ fn write_item(out: &mut String, scratch: &mut String, item: &PoItem, options: &S
     }
 }
 
-pub(crate) fn write_prefixed_line(
-    out: &mut String,
-    obsolete_prefix: &str,
-    prefix: &str,
-    value: &str,
-) {
+pub fn write_prefixed_line(out: &mut String, obsolete_prefix: &str, prefix: &str, value: &str) {
     out.push_str(obsolete_prefix);
     out.push_str(prefix);
     if !value.is_empty() {
@@ -191,7 +187,7 @@ pub(crate) fn write_prefixed_line(
     out.push('\n');
 }
 
-pub(crate) fn write_keyword(
+pub fn write_keyword(
     out: &mut String,
     scratch: &mut String,
     obsolete_prefix: &str,
@@ -255,10 +251,10 @@ fn try_write_simple_keyword(
 }
 
 fn keyword_prefix_len(keyword: &str, index: Option<usize>) -> usize {
-    match index {
-        Some(value) => keyword.len() + digits(value) + 3,
-        None => keyword.len() + 1,
-    }
+    index.map_or_else(
+        || keyword.len() + 1,
+        |value| keyword.len() + digits(value) + 3,
+    )
 }
 
 fn push_keyword_prefix(out: &mut String, keyword: &str, index: Option<usize>) {
@@ -280,7 +276,8 @@ fn push_usize(out: &mut String, mut value: usize) {
     let mut buf = [0u8; 20];
     let mut len = 0usize;
     while value > 0 {
-        buf[len] = b'0' + (value % 10) as u8;
+        let digit = u8::try_from(value % 10).expect("single decimal digit fits in u8");
+        buf[len] = b'0' + digit;
         len += 1;
         value /= 10;
     }
@@ -289,7 +286,7 @@ fn push_usize(out: &mut String, mut value: usize) {
     }
 }
 
-fn digits(mut value: usize) -> usize {
+const fn digits(mut value: usize) -> usize {
     let mut count = 1usize;
     while value >= 10 {
         value /= 10;
@@ -337,14 +334,14 @@ fn write_complex_keyword(
     let use_compact = options.compact_multiline
         && text.split('\n').next().unwrap_or_default() != ""
         && !requires_folding;
-    let mut wrote_first_value_line = false;
-
-    if !use_compact {
+    let mut wrote_first_value_line = if use_compact {
+        false
+    } else {
         out.push_str(obsolete_prefix);
         push_keyword_prefix(out, keyword, index);
         out.push_str("\"\"\n");
-        wrote_first_value_line = true;
-    }
+        true
+    };
 
     for (part, has_next) in parts {
         scratch.clear();
@@ -372,12 +369,10 @@ fn write_complex_keyword(
 }
 
 fn parts_with_has_next(input: &str) -> impl Iterator<Item = (&str, bool)> {
-    input
-        .split_inclusive('\n')
-        .map(|part| match part.strip_suffix('\n') {
-            Some(stripped) => (stripped, true),
-            None => (part, false),
-        })
+    input.split_inclusive('\n').map(|part| {
+        part.strip_suffix('\n')
+            .map_or((part, false), |stripped| (stripped, true))
+    })
 }
 
 fn write_folded_segments(

@@ -166,12 +166,11 @@ impl<'a> Iterator for LineScanner<'a> {
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
         while !self.finished {
-            let next_newline = match self.newlines.next() {
-                Some(index) => index,
-                None => {
-                    self.finished = true;
-                    self.bytes.len()
-                }
+            let next_newline = if let Some(index) = self.newlines.next() {
+                index
+            } else {
+                self.finished = true;
+                self.bytes.len()
             };
             if self.finished && self.offset == self.bytes.len() {
                 return None;

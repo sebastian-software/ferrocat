@@ -4,6 +4,7 @@ use crate::ParseError;
 use crate::scan::{find_byte, find_escapable_byte, find_quoted_bounds, has_byte};
 
 /// Escapes a PO string literal payload.
+#[must_use]
 pub fn escape_string(input: &str) -> String {
     let bytes = input.as_bytes();
     let Some(first_escape) = find_escapable_byte(bytes) else {
@@ -17,7 +18,7 @@ pub fn escape_string(input: &str) -> String {
     out
 }
 
-pub(crate) fn escape_string_into(out: &mut String, input: &str) {
+pub fn escape_string_into(out: &mut String, input: &str) {
     let bytes = input.as_bytes();
     let Some(first_escape) = find_escapable_byte(bytes) else {
         out.push_str(input);
@@ -27,7 +28,7 @@ pub(crate) fn escape_string_into(out: &mut String, input: &str) {
     escape_string_into_known(out, input, first_escape);
 }
 
-pub(crate) fn escape_string_into_with_first_escape(
+pub fn escape_string_into_with_first_escape(
     out: &mut String,
     input: &str,
     first_escape: Option<usize>,
@@ -55,12 +56,11 @@ pub fn unescape_string(input: &str) -> Result<String, ParseError> {
     let mut index = 0;
 
     while index < bytes.len() {
-        let next_escape = match find_byte(b'\\', &bytes[index..]) {
-            Some(relative) => index + relative,
-            None => {
-                out.extend_from_slice(&bytes[index..]);
-                break;
-            }
+        let next_escape = if let Some(relative) = find_byte(b'\\', &bytes[index..]) {
+            index + relative
+        } else {
+            out.extend_from_slice(&bytes[index..]);
+            break;
         };
 
         out.extend_from_slice(&bytes[index..next_escape]);
@@ -127,11 +127,11 @@ pub fn unescape_string(input: &str) -> Result<String, ParseError> {
 /// # Errors
 ///
 /// Returns [`ParseError`] when the quoted content is malformed.
-pub fn extract_quoted_cow<'a>(line: &'a str) -> Result<Cow<'a, str>, ParseError> {
+pub fn extract_quoted_cow(line: &str) -> Result<Cow<'_, str>, ParseError> {
     extract_quoted_bytes_cow(line.as_bytes())
 }
 
-pub(crate) fn extract_quoted_bytes_cow<'a>(line: &'a [u8]) -> Result<Cow<'a, str>, ParseError> {
+pub fn extract_quoted_bytes_cow(line: &[u8]) -> Result<Cow<'_, str>, ParseError> {
     let Some((start, end)) = find_quoted_bounds(line) else {
         return Ok(Cow::Borrowed(""));
     };
@@ -139,10 +139,10 @@ pub(crate) fn extract_quoted_bytes_cow<'a>(line: &'a [u8]) -> Result<Cow<'a, str
     let raw = &line[start..end];
     validate_quoted_content(raw)?;
     if !has_byte(b'\\', raw) {
-        return Ok(Cow::Borrowed(bytes_to_str(raw)?));
+        return Ok(Cow::Borrowed(bytes_to_str(raw)));
     }
 
-    Ok(Cow::Owned(unescape_string(bytes_to_str(raw)?)?))
+    Ok(Cow::Owned(unescape_string(bytes_to_str(raw))?))
 }
 
 /// Extracts and unescapes the first quoted PO string from `line`.
@@ -154,7 +154,7 @@ pub fn extract_quoted(line: &str) -> Result<String, ParseError> {
     Ok(extract_quoted_bytes_cow(line.as_bytes())?.into_owned())
 }
 
-pub(crate) fn split_reference_comment<'a>(input: &'a str) -> Vec<Cow<'a, str>> {
+pub fn split_reference_comment(input: &str) -> Vec<Cow<'_, str>> {
     let trimmed = input.trim();
     if trimmed.is_empty() {
         return vec![Cow::Borrowed("")];
@@ -210,7 +210,7 @@ pub(crate) fn split_reference_comment<'a>(input: &'a str) -> Vec<Cow<'a, str>> {
     vec![Cow::Borrowed(trimmed)]
 }
 
-pub(crate) fn validate_quoted_content(raw: &[u8]) -> Result<(), ParseError> {
+pub fn validate_quoted_content(raw: &[u8]) -> Result<(), ParseError> {
     let mut trailing_backslashes = 0usize;
 
     for &byte in raw {
@@ -285,10 +285,10 @@ fn push_char_bytes(out: &mut Vec<u8>, ch: char) {
     out.extend_from_slice(ch.encode_utf8(&mut buf).as_bytes());
 }
 
-fn bytes_to_str(bytes: &[u8]) -> Result<&str, ParseError> {
+const fn bytes_to_str(bytes: &[u8]) -> &str {
     // All byte slices handled here originate from valid `&str` inputs and are
     // only split on ASCII delimiter bytes such as quotes and backslashes.
-    Ok(unsafe { std::str::from_utf8_unchecked(bytes) })
+    unsafe { std::str::from_utf8_unchecked(bytes) }
 }
 
 fn normalize_reference_token(input: &str) -> Cow<'_, str> {
