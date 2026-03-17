@@ -1,6 +1,7 @@
 use std::borrow::Cow;
 use std::collections::{BTreeMap, BTreeSet};
 use std::env;
+#[cfg(target_os = "macos")]
 use std::ffi::CString;
 use std::ffi::{OsStr, OsString};
 use std::fs;
