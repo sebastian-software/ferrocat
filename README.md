@@ -71,15 +71,22 @@ let updated = merge_catalog(
 )?;
 ```
 
-## Current Highlights
+## API Overview
 
-- owned parse via `parse_po`
-- borrowed parse via `parse_po_borrowed`
-- serialization via `stringify_po`
-- merge workflow via `merge_catalog`
-- high-level catalog APIs via `parse_catalog`, `update_catalog`, and `update_catalog_file`
-- ICU parsing via `parse_icu` plus helpers such as `extract_variables`
-- conservative gettext compatibility with diagnostics where ambiguity matters
+The current public surface falls into three practical layers:
+
+| Layer | Functions | Use when you want to... |
+|---|---|---|
+| PO core | `parse_po`, `parse_po_borrowed`, `stringify_po` | parse and write classic `.po` files directly |
+| Catalog workflows | `merge_catalog` | do the lean gettext-style merge step against fresh extracted messages |
+| Catalog workflows | `parse_catalog` | read a `.po` file into the higher-level canonical catalog model |
+| Catalog workflows | `update_catalog` | run the full in-memory catalog update flow with headers, plurals, sorting, and diagnostics |
+| Catalog workflows | `update_catalog_file` | run the same full update flow directly against a file on disk |
+| ICU | `parse_icu`, `validate_icu`, `extract_variables` | parse or inspect ICU MessageFormat structure |
+
+See [docs/api-overview.md](docs/api-overview.md) for the fuller "what should I use when?" guide.
+
+Across all of these layers, `ferrocat` keeps a conservative gettext-compatibility stance and surfaces diagnostics where ambiguity matters.
 
 The borrowed parser exists because real PO workflows are often read-heavy and transformation-heavy. In those paths, avoiding unnecessary allocation is the difference between a pleasant API and a scalable one.
 
@@ -156,15 +163,15 @@ The raw value remains the primary benchmark number. The adjusted value is a seco
 
 Column labels:
 
-- `ferrocat` and `ferrocat-borrowed`: native Rust implementations from this repo
+- `ferrocat (Rust)`: native Rust implementations from this repo
 - `pofile (Node.js)`: the JavaScript/Node gettext parser package
 - `polib (Python)`: the Python gettext library
-- `msgcat` and `msgmerge` (`GNU gettext` CLI, C ecosystem): command-line tools from the classic gettext toolchain
+- `GNU gettext (C)`: command-line tools from the classic gettext toolchain
 - `—`: not part of that official comparison group
 
 ### Parse throughput
 
-| Fixture | `ferrocat (Rust)` | `ferrocat-borrowed (Rust)` | `pofile (Node.js)` | `polib (Python)` |
+| Fixture | `ferrocat (Rust)<br>parse_po` | `ferrocat (Rust)<br>parse_po_borrowed` | `pofile (Node.js)<br>parse` | `polib (Python)<br>parse` |
 |---|---:|---:|---:|---:|
 | `gettext-ui-de-10000` | **1.37M** | — | 11.8k | 59.3k |
 | `gettext-saas-fr-10000` | **1.34M** | 1.27M | — | — |
@@ -172,7 +179,7 @@ Column labels:
 
 ### Stringify throughput
 
-| Fixture | `ferrocat (Rust)` | `pofile (Node.js)` | `polib (Python)` | `msgcat (GNU gettext CLI)` |
+| Fixture | `ferrocat (Rust)<br>stringify_po` | `pofile (Node.js)<br>serialize` | `polib (Python)<br>serialize` | `GNU gettext (C)<br>msgcat` |
 |---|---:|---:|---:|---:|
 | `gettext-ui-de-10000` | **6.08M** | 686k | 99.8k | 29.6k |
 | `gettext-saas-fr-10000` | **5.94M** | — | — | 30.9k |
@@ -180,11 +187,21 @@ Column labels:
 
 Workflow snapshot from [benchmark/results/gettext-official-v1-first-run.json](benchmark/results/gettext-official-v1-first-run.json):
 
-### Workflow throughput
+### Basic Catalog Merge throughput
 
-| Fixture | `merge_catalog (Rust)` | `msgmerge (GNU gettext CLI)` | `update_catalog (Rust)` | `msgmerge (GNU gettext CLI)` |
-|---|---:|---:|---:|---:|
-| `gettext-ui-de-10000` | **1.84M** | 26.3k | **341k** | 26.0k |
+`merge_catalog` is the leaner gettext-style merge step. `msgmerge` is the nearest GNU gettext baseline for that workflow.
+
+| Fixture | `ferrocat (Rust)<br>merge_catalog` | `GNU gettext (C)<br>msgmerge` |
+|---|---:|---:|
+| `gettext-ui-de-10000` | **1.84M** | 26.3k |
+
+### Full Catalog Update throughput
+
+`update_catalog` is the higher-level end-to-end catalog update flow. We still compare it to `msgmerge` as the closest classic gettext workflow baseline, but it is a broader `ferrocat` operation than the lean `merge_catalog` step above.
+
+| Fixture | `ferrocat (Rust)<br>update_catalog` | `GNU gettext (C)<br>msgmerge` |
+|---|---:|---:|
+| `gettext-ui-de-10000` | **341k** | 26.0k |
 
 The broader `gettext-compat-v1` and `gettext-workflows-v1` reports are still useful when you want more detail, but the table above is now aligned with the smaller official benchmark profile.
 
@@ -197,6 +214,7 @@ cargo instruments --no-open -t "Time Profiler" --bin ferrocat-bench -- parse mix
 ## Project Docs
 
 - [docs/conformance.md](docs/conformance.md)
+- [docs/api-overview.md](docs/api-overview.md)
 - [docs/performance-history.md](docs/performance-history.md)
 - [docs/benchmarking.md](docs/benchmarking.md)
 - [docs/benchmark-fixtures.md](docs/benchmark-fixtures.md)
