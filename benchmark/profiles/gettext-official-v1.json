@@ -3,6 +3,7 @@
   "minimum_sample_millis": 250,
   "scenarios": [
     { "id": "po-parse/gettext-ui-de-10000/ferrocat", "comparison_group": "po-parse/gettext-ui-de-10000", "workload": "po-parse", "operation": "parse", "fixture": "gettext-ui-de-10000", "implementation": "ferrocat-parse", "warmup_runs": 2, "measured_runs": 10 },
+    { "id": "po-parse/gettext-ui-de-10000/ferrocat-borrowed", "comparison_group": "po-parse/gettext-ui-de-10000", "workload": "po-parse", "operation": "parse", "fixture": "gettext-ui-de-10000", "implementation": "ferrocat-parse-borrowed", "warmup_runs": 2, "measured_runs": 10 },
     { "id": "po-parse/gettext-ui-de-10000/polib", "comparison_group": "po-parse/gettext-ui-de-10000", "workload": "po-parse", "operation": "parse", "fixture": "gettext-ui-de-10000", "implementation": "polib", "warmup_runs": 2, "measured_runs": 10 },
     { "id": "po-parse/gettext-ui-de-10000/pofile", "comparison_group": "po-parse/gettext-ui-de-10000", "workload": "po-parse", "operation": "parse", "fixture": "gettext-ui-de-10000", "implementation": "pofile", "warmup_runs": 2, "measured_runs": 10 },
     { "id": "po-parse/gettext-ui-de-10000/pofile-ts", "comparison_group": "po-parse/gettext-ui-de-10000", "workload": "po-parse", "operation": "parse", "fixture": "gettext-ui-de-10000", "implementation": "pofile-ts", "warmup_runs": 2, "measured_runs": 10 },

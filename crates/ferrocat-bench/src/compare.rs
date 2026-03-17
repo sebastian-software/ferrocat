@@ -1931,6 +1931,14 @@ fn detect_cpu_model(path_override: Option<&OsStr>) -> String {
                 return value.to_owned();
             }
         }
+        if let Ok(output) =
+            run_command_capture_with_path("uname", &["-m"], &workspace, path_override)
+        {
+            let value = output.stdout.trim();
+            if !value.is_empty() {
+                return value.to_owned();
+            }
+        }
     }
     if let Ok(output) =
         run_command_capture_with_path("lscpu", &[] as &[&str], &workspace, path_override)
@@ -1942,6 +1950,12 @@ fn detect_cpu_model(path_override: Option<&OsStr>) -> String {
                     return trimmed.to_owned();
                 }
             }
+        }
+    }
+    if let Ok(output) = run_command_capture_with_path("uname", &["-m"], &workspace, path_override) {
+        let value = output.stdout.trim();
+        if !value.is_empty() {
+            return value.to_owned();
         }
     }
     "unknown-cpu".to_owned()
@@ -2542,6 +2556,15 @@ mod tests {
         let workspace = workspace_root().expect("workspace");
         let profile = BenchmarkProfile::load(&workspace, "gettext-official-v1").expect("profile");
         assert_eq!(profile.name, "gettext-official-v1");
+        assert!(!profile.scenarios.is_empty());
+    }
+
+    #[test]
+    fn profile_loads_gettext_official_quick_v1() {
+        let workspace = workspace_root().expect("workspace");
+        let profile =
+            BenchmarkProfile::load(&workspace, "gettext-official-quick-v1").expect("profile");
+        assert_eq!(profile.name, "gettext-official-quick-v1");
         assert!(!profile.scenarios.is_empty());
     }
 
