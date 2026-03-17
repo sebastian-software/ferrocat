@@ -71,6 +71,8 @@ This is the closest `ferrocat` equivalent to the core "merge updated template/me
 
 Choose `merge_catalog` when you want the leaner, more direct merge operation and already have data in classic gettext-like shapes.
 
+In practice this is the "fast path" workflow API: it stays close to classic PO merge behavior and avoids the extra canonical catalog projection and post-processing done by `update_catalog`.
+
 ### `parse_catalog`
 
 Use this when you want more than raw PO syntax. It projects a PO file into `ferrocat`'s higher-level catalog model, including plural handling, diagnostics, and optional ICU-aware interpretation.
@@ -91,6 +93,8 @@ This goes beyond a raw merge. It can:
 - sort and export the final PO file
 
 Choose `update_catalog` when you want a complete update operation rather than just the lower-level merge step.
+
+Compared with `merge_catalog`, this is the "full semantics" path. It is the better fit when catalog correctness and consistency matter more than taking the shortest merge route, for example in release pipelines or when you want predictable headers, ordering, plural handling, and diagnostics.
 
 ### `update_catalog_file`
 

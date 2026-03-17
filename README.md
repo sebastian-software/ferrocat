@@ -200,7 +200,14 @@ Workflow snapshot from [benchmark/results/gettext-official-v1-with-gettext-parse
 
 ### Basic Catalog Merge throughput
 
-`merge_catalog` is the leaner gettext-style merge step. `msgmerge` is the nearest GNU gettext baseline for that workflow.
+`merge_catalog` is the leaner gettext-style merge step. It works like a fast-path merge:
+
+- keep matching translations
+- add new entries
+- mark removed entries as obsolete
+- preserve the classic PO shape instead of re-projecting through the higher-level catalog model
+
+`msgmerge` is the nearest GNU gettext baseline for that workflow.
 
 | Fixture | ferrocat (Rust)<br>`merge_catalog` | GNU gettext (C)<br>`msgmerge` |
 |---|---:|---:|
@@ -208,7 +215,16 @@ Workflow snapshot from [benchmark/results/gettext-official-v1-with-gettext-parse
 
 ### Full Catalog Update throughput
 
-`update_catalog` is the higher-level end-to-end catalog update flow. We still compare it to `msgmerge` as the closest classic gettext workflow baseline, but it is a broader `ferrocat` operation than the lean `merge_catalog` step above.
+`update_catalog` is the higher-level end-to-end catalog update flow. It does more work than the lean `merge_catalog` step:
+
+- parse the existing catalog into `ferrocat`'s canonical catalog model
+- merge extracted messages into that model
+- apply locale and plural handling
+- apply header defaults
+- keep and emit diagnostics
+- sort and export the final PO file
+
+We still compare it to `msgmerge` as the closest classic gettext workflow baseline, but this comparison should be read as: `ferrocat`'s broader high-level update flow versus the nearest classic gettext tool.
 
 | Fixture | ferrocat (Rust)<br>`update_catalog` | GNU gettext (C)<br>`msgmerge` |
 |---|---:|---:|
@@ -219,6 +235,21 @@ The broader `gettext-compat-v1` and `gettext-workflows-v1` reports are still use
 Workflow ecosystem snapshot from [benchmark/results/gettext-workflows-ecosystem-v1-first-run.json](benchmark/results/gettext-workflows-ecosystem-v1-first-run.json):
 
 `pofile`, `pofile-ts`, and `polib` now also run as reconstructed `msgmerge`-style pipelines: parse existing `.po`, merge against the generated `.pot`, then serialize again. This is intentionally a workflow comparison, not just a raw parser benchmark.
+
+Those reconstructed external workflows currently do the lean merge behavior:
+
+- parse existing `.po`
+- parse generated `.pot`
+- match entries by context + `msgid` + `msgid_plural`
+- keep existing translations where the key still matches
+- create empty translations for new entries
+- mark unmatched old entries as obsolete
+- serialize the result back to `.po`
+
+They do **not** currently try to reproduce the full `update_catalog` feature set such as canonical catalog projection, header-default completion, diagnostic collection, or the higher-level export rules. So the fair reading is:
+
+- `merge_catalog` versus classic/reconstructed merge workflows
+- `update_catalog` versus those same workflows, with the important note that `update_catalog` is doing broader app-level catalog maintenance work
 
 `gettext-parser` is not part of this workflow table yet. Its current PO compile/parse model is fine for parse/stringify benchmarking, but it does not preserve obsolete entries in a way that makes a `msgmerge`-style workflow semantically fair.
 
