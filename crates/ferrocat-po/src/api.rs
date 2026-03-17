@@ -228,6 +228,13 @@ impl CompileSelectedCatalogArtifactOptions {
     }
 }
 
+/// High-level translation kind associated with a compiled runtime ID.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CompiledCatalogTranslationKind {
+    Singular,
+    Plural,
+}
+
 /// A compiled runtime message keyed by a derived lookup key.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CompiledMessage {
@@ -276,6 +283,39 @@ impl CompiledCatalog {
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct CompiledCatalogIdIndex {
     ids: BTreeMap<String, CatalogMessageKey>,
+}
+
+/// Metadata describing one compiled runtime ID for a specific catalog set.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CompiledCatalogIdDescription {
+    /// Stable runtime ID derived from the source identity.
+    pub compiled_id: String,
+    /// Original gettext identity preserved for diagnostics and tooling.
+    pub source_key: CatalogMessageKey,
+    /// Locales from the provided catalog set that contain this non-obsolete message.
+    pub available_locales: Vec<String>,
+    /// Whether the message is singular or plural in the provided catalog set.
+    pub translation_kind: CompiledCatalogTranslationKind,
+}
+
+/// Report returned by [`CompiledCatalogIdIndex::describe_compiled_ids`].
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct DescribeCompiledIdsReport {
+    /// Metadata for requested IDs that were known to the index and present in the provided catalogs.
+    pub described: Vec<CompiledCatalogIdDescription>,
+    /// Requested compiled IDs that were not known to the index at all.
+    pub unknown_compiled_ids: Vec<String>,
+    /// Requested compiled IDs that were known to the index but not present in the provided catalogs.
+    pub unavailable_compiled_ids: Vec<CompiledCatalogUnavailableId>,
+}
+
+/// Known compiled runtime ID that was not present in the provided catalog set.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CompiledCatalogUnavailableId {
+    /// Stable runtime ID derived from the source identity.
+    pub compiled_id: String,
+    /// Original gettext identity preserved for diagnostics and tooling.
+    pub source_key: CatalogMessageKey,
 }
 
 impl CompiledCatalogIdIndex {
@@ -356,6 +396,83 @@ impl CompiledCatalogIdIndex {
         self.ids
             .iter()
             .map(|(compiled_id, source_key)| (compiled_id.as_str(), source_key))
+    }
+
+    /// Returns the underlying ordered compiled-ID map by reference.
+    #[must_use]
+    pub fn as_btreemap(&self) -> &BTreeMap<String, CatalogMessageKey> {
+        &self.ids
+    }
+
+    /// Consumes the index and returns the underlying ordered compiled-ID map.
+    #[must_use]
+    pub fn into_btreemap(self) -> BTreeMap<String, CatalogMessageKey> {
+        self.ids
+    }
+
+    /// Describes selected compiled IDs against a provided catalog set.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ApiError::InvalidArguments`] when a provided catalog does not declare
+    /// a locale, or [`ApiError::Conflict`] when the same compiled ID maps to different
+    /// translation kinds across the provided catalogs.
+    pub fn describe_compiled_ids(
+        &self,
+        catalogs: &[&NormalizedParsedCatalog],
+        compiled_ids: &[String],
+    ) -> Result<DescribeCompiledIdsReport, ApiError> {
+        let locales = describe_compiled_id_catalogs(catalogs)?;
+        let mut report = DescribeCompiledIdsReport::default();
+
+        for compiled_id in BTreeSet::from_iter(compiled_ids.iter().cloned()) {
+            let Some(source_key) = self.get(&compiled_id).cloned() else {
+                report.unknown_compiled_ids.push(compiled_id);
+                continue;
+            };
+
+            let mut available_locales = Vec::new();
+            let mut translation_kind = None;
+
+            for (locale, catalog) in &locales {
+                let Some(message) = catalog.get(&source_key) else {
+                    continue;
+                };
+                if message.obsolete {
+                    continue;
+                }
+                let next_kind = compiled_catalog_translation_kind_for_message(message);
+                if let Some(existing_kind) = translation_kind {
+                    if existing_kind != next_kind {
+                        return Err(ApiError::Conflict(format!(
+                            "compiled ID {:?} resolves to inconsistent translation shapes across the provided catalogs",
+                            compiled_id
+                        )));
+                    }
+                } else {
+                    translation_kind = Some(next_kind);
+                }
+                available_locales.push(locale.clone());
+            }
+
+            if let Some(translation_kind) = translation_kind {
+                report.described.push(CompiledCatalogIdDescription {
+                    compiled_id,
+                    source_key,
+                    available_locales,
+                    translation_kind,
+                });
+            } else {
+                report
+                    .unavailable_compiled_ids
+                    .push(CompiledCatalogUnavailableId {
+                        compiled_id,
+                        source_key,
+                    });
+            }
+        }
+
+        Ok(report)
     }
 }
 
@@ -2310,6 +2427,47 @@ fn public_message_from_canonical(message: CanonicalMessage) -> CatalogMessage {
     }
 }
 
+fn describe_compiled_id_catalogs<'a>(
+    catalogs: &[&'a NormalizedParsedCatalog],
+) -> Result<BTreeMap<String, &'a NormalizedParsedCatalog>, ApiError> {
+    let mut locales = BTreeMap::<String, &NormalizedParsedCatalog>::new();
+
+    for catalog in catalogs {
+        let locale = catalog
+            .parsed_catalog()
+            .locale
+            .as_deref()
+            .ok_or_else(|| {
+                ApiError::InvalidArguments(
+                    "describe_compiled_ids requires every catalog to declare a locale".to_owned(),
+                )
+            })?
+            .trim()
+            .to_owned();
+        if locale.is_empty() {
+            return Err(ApiError::InvalidArguments(
+                "describe_compiled_ids does not accept empty catalog locales".to_owned(),
+            ));
+        }
+        if locales.insert(locale.clone(), *catalog).is_some() {
+            return Err(ApiError::InvalidArguments(format!(
+                "describe_compiled_ids received duplicate catalog locale {locale:?}"
+            )));
+        }
+    }
+
+    Ok(locales)
+}
+
+fn compiled_catalog_translation_kind_for_message(
+    message: &CatalogMessage,
+) -> CompiledCatalogTranslationKind {
+    match &message.translation {
+        TranslationShape::Singular { .. } => CompiledCatalogTranslationKind::Singular,
+        TranslationShape::Plural { .. } => CompiledCatalogTranslationKind::Plural,
+    }
+}
+
 fn prepare_compiled_catalog_artifact_catalogs<'a>(
     catalogs: &[&'a NormalizedParsedCatalog],
     requested_locale: &str,
@@ -2960,13 +3118,13 @@ mod tests {
     use super::{
         ApiError, CatalogMessageKey, CatalogUpdateInput, CompileCatalogArtifactOptions,
         CompileCatalogOptions, CompileSelectedCatalogArtifactOptions, CompiledCatalogIdIndex,
-        CompiledKeyStrategy, CompiledTranslation, DiagnosticSeverity, EffectiveTranslation,
-        EffectiveTranslationRef, ExtractedMessage, ExtractedPluralMessage,
-        ExtractedSingularMessage, ObsoleteStrategy, ParseCatalogOptions, PluralEncoding,
-        PluralSource, SourceExtractedMessage, TranslationShape, UpdateCatalogFileOptions,
-        UpdateCatalogOptions, cached_icu_plural_categories_for, compile_catalog_artifact,
-        compile_catalog_artifact_selected, compiled_key_for, parse_catalog, update_catalog,
-        update_catalog_file,
+        CompiledCatalogTranslationKind, CompiledKeyStrategy, CompiledTranslation,
+        DiagnosticSeverity, EffectiveTranslation, EffectiveTranslationRef, ExtractedMessage,
+        ExtractedPluralMessage, ExtractedSingularMessage, ObsoleteStrategy, ParseCatalogOptions,
+        PluralEncoding, PluralSource, SourceExtractedMessage, TranslationShape,
+        UpdateCatalogFileOptions, UpdateCatalogOptions, cached_icu_plural_categories_for,
+        compile_catalog_artifact, compile_catalog_artifact_selected, compiled_key_for,
+        parse_catalog, update_catalog, update_catalog_file,
     };
     use crate::parse_po;
     use std::collections::{BTreeMap, HashMap};
@@ -3576,6 +3734,131 @@ mod tests {
             }
             other => panic!("unexpected error: {other:?}"),
         }
+    }
+
+    #[test]
+    fn compiled_catalog_id_index_exports_btreemap_views() {
+        let requested = normalized_catalog(
+            "msgid \"Hello\"\nmsgstr \"Hallo\"\n",
+            Some("de"),
+            PluralEncoding::Icu,
+        );
+
+        let index = CompiledCatalogIdIndex::new(&[&requested], CompiledKeyStrategy::FerrocatV1)
+            .expect("compiled id index");
+        let key = compiled_key_for(
+            CompiledKeyStrategy::FerrocatV1,
+            &CatalogMessageKey::new("Hello", None),
+        );
+
+        assert_eq!(
+            index.as_btreemap().get(&key),
+            Some(&CatalogMessageKey::new("Hello", None))
+        );
+
+        let owned = index.into_btreemap();
+        assert_eq!(
+            owned.get(&key),
+            Some(&CatalogMessageKey::new("Hello", None))
+        );
+    }
+
+    #[test]
+    fn compiled_catalog_id_index_describes_known_ids() {
+        let source = normalized_catalog(
+            "msgid \"Hello\"\nmsgstr \"Hello\"\n",
+            Some("en"),
+            PluralEncoding::Icu,
+        );
+        let requested = normalized_catalog(
+            "msgid \"Hello\"\nmsgstr \"Hallo\"\n",
+            Some("de"),
+            PluralEncoding::Icu,
+        );
+
+        let index =
+            CompiledCatalogIdIndex::new(&[&requested, &source], CompiledKeyStrategy::FerrocatV1)
+                .expect("compiled id index");
+        let hello_id = compiled_key_for(
+            CompiledKeyStrategy::FerrocatV1,
+            &CatalogMessageKey::new("Hello", None),
+        );
+
+        let report = index
+            .describe_compiled_ids(&[&requested, &source], std::slice::from_ref(&hello_id))
+            .expect("describe compiled ids");
+
+        assert!(report.unknown_compiled_ids.is_empty());
+        assert!(report.unavailable_compiled_ids.is_empty());
+        assert_eq!(report.described.len(), 1);
+        assert_eq!(report.described[0].compiled_id, hello_id);
+        assert_eq!(
+            report.described[0].source_key,
+            CatalogMessageKey::new("Hello", None)
+        );
+        assert_eq!(
+            report.described[0].available_locales,
+            vec!["de".to_owned(), "en".to_owned()]
+        );
+        assert_eq!(
+            report.described[0].translation_kind,
+            CompiledCatalogTranslationKind::Singular
+        );
+    }
+
+    #[test]
+    fn compiled_catalog_id_index_describes_unknown_and_unavailable_ids() {
+        let source = normalized_catalog(
+            concat!(
+                "msgid \"Hello\"\n",
+                "msgstr \"Hello\"\n\n",
+                "msgid \"SourceOnly\"\n",
+                "msgstr \"SourceOnly\"\n",
+            ),
+            Some("en"),
+            PluralEncoding::Icu,
+        );
+        let requested = normalized_catalog(
+            "msgid \"Hello\"\nmsgstr \"Hallo\"\n",
+            Some("de"),
+            PluralEncoding::Icu,
+        );
+
+        let index =
+            CompiledCatalogIdIndex::new(&[&requested, &source], CompiledKeyStrategy::FerrocatV1)
+                .expect("compiled id index");
+        let hello_id = compiled_key_for(
+            CompiledKeyStrategy::FerrocatV1,
+            &CatalogMessageKey::new("Hello", None),
+        );
+        let source_only_id = compiled_key_for(
+            CompiledKeyStrategy::FerrocatV1,
+            &CatalogMessageKey::new("SourceOnly", None),
+        );
+
+        let report = index
+            .describe_compiled_ids(
+                &[&requested],
+                &[
+                    hello_id.clone(),
+                    source_only_id.clone(),
+                    "missing-id".to_owned(),
+                ],
+            )
+            .expect("describe compiled ids");
+
+        assert_eq!(report.described.len(), 1);
+        assert_eq!(report.described[0].compiled_id, hello_id);
+        assert_eq!(report.unknown_compiled_ids, vec!["missing-id".to_owned()]);
+        assert_eq!(report.unavailable_compiled_ids.len(), 1);
+        assert_eq!(
+            report.unavailable_compiled_ids[0].compiled_id,
+            source_only_id
+        );
+        assert_eq!(
+            report.unavailable_compiled_ids[0].source_key,
+            CatalogMessageKey::new("SourceOnly", None)
+        );
     }
 
     #[test]

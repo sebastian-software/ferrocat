@@ -142,6 +142,22 @@ This is the narrower companion to `compile_catalog_artifact`:
 
 Choose this when a bundler/plugin layer has already mapped modules or chunks to the exact message IDs they require.
 
+### `CompiledCatalogIdIndex`
+
+Use this when you need stable compiled-ID metadata without compiling message payloads immediately.
+
+Useful helpers now include:
+
+- `iter` for deterministic compiled-ID traversal
+- `as_btreemap` / `into_btreemap` when another tool wants the raw ordered mapping
+- `describe_compiled_ids` to ask which requested IDs are known, available in a given catalog set, and whether they are singular or plural
+
+`describe_compiled_ids` returns a structured report:
+
+- `described` for IDs that are known to the index and present in the provided catalog set
+- `unknown_compiled_ids` for IDs that do not exist in the index at all
+- `unavailable_compiled_ids` for IDs that are known to the index but not present in the provided catalog set
+
 ### `update_catalog`
 
 Use this for the full high-level catalog update path in memory.
