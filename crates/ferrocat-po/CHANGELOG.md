@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.6.0](https://github.com/sebastian-software/ferrocat/compare/ferrocat-po-v0.5.2...ferrocat-po-v0.6.0) (2026-03-17)
+
+
+### Features
+
+* add compiled catalog runtime API ([f59a3da](https://github.com/sebastian-software/ferrocat/commit/f59a3dacb6a94088cf8536f5053882b939af36a7))
+
+
+### Bug Fixes
+
+* harden Rust APIs and expand public docs ([3cec26c](https://github.com/sebastian-software/ferrocat/commit/3cec26c426766b77b544497500d4eaf2c5815e0c))
+* **rust:** tighten public API docs and idioms ([dcffdd1](https://github.com/sebastian-software/ferrocat/commit/dcffdd1436e5d0060e1671017660a18c6a204aa0))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * ferrocat-icu bumped from 0.5.2 to 0.6.0
+
 ## [0.5.2](https://github.com/sebastian-software/ferrocat/compare/ferrocat-po-v0.5.1...ferrocat-po-v0.5.2) (2026-03-17)
 
 
