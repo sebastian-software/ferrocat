@@ -1,6 +1,7 @@
 use std::borrow::Cow;
 use std::collections::{BTreeMap, BTreeSet};
 use std::env;
+use std::ffi::CString;
 use std::ffi::{OsStr, OsString};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -31,6 +32,7 @@ pub fn run_verify_benchmark_env() -> Result<(), String> {
     let detected = BenchmarkEnvironment::detect(&workspace, None)?;
 
     println!("benchmark-root: {}", workspace.display());
+    println!("system: {}", detected.system_label);
     println!("rustc: {}", detected.rustc_version);
     println!("node: {}", detected.node_version);
     println!(
@@ -43,9 +45,13 @@ pub fn run_verify_benchmark_env() -> Result<(), String> {
     println!("node-packages: {}", detected.node_adapter_version);
     println!("python-packages: {}", detected.python_adapter_version);
     println!("git-sha: {}", detected.git_sha);
-    println!("host: {}", detected.host_identifier);
     println!("os: {}", detected.os);
     println!("cpu: {}", detected.cpu_model);
+    println!(
+        "memory: {} ({} bytes)",
+        format_memory_label(detected.memory_bytes),
+        detected.memory_bytes
+    );
     Ok(())
 }
 
@@ -1746,9 +1752,10 @@ enum ExecutionArtifact {
 #[derive(Debug, Serialize)]
 struct EnvironmentMetadata {
     git_sha: String,
-    host_identifier: String,
+    system_label: String,
     os: String,
     cpu_model: String,
+    memory_bytes: u64,
     rustc_version: String,
     node_version: String,
     python_version: String,
@@ -1761,9 +1768,10 @@ struct EnvironmentMetadata {
 #[derive(Debug)]
 struct BenchmarkEnvironment {
     git_sha: String,
-    host_identifier: String,
+    system_label: String,
     os: String,
     cpu_model: String,
+    memory_bytes: u64,
     rustc_version: String,
     node_version: String,
     python_version: String,
@@ -1778,6 +1786,9 @@ impl BenchmarkEnvironment {
     fn detect(workspace: &Path, path_override: Option<&OsStr>) -> Result<Self, String> {
         let mut errors = Vec::new();
         let python_program = preferred_python_program(workspace);
+        let os = format!("{}-{}", env::consts::OS, env::consts::ARCH);
+        let cpu_model = detect_cpu_model(path_override);
+        let memory_bytes = detect_memory_bytes(path_override);
 
         let rustc_version =
             match read_command_version_with_path("rustc", &["--version"], path_override) {
@@ -1872,9 +1883,10 @@ impl BenchmarkEnvironment {
 
         Ok(Self {
             git_sha: read_git_sha(workspace),
-            host_identifier: detect_host_identifier(path_override),
-            os: format!("{}-{}", env::consts::OS, env::consts::ARCH),
-            cpu_model: detect_cpu_model(path_override),
+            system_label: build_system_label(&cpu_model, memory_bytes),
+            os,
+            cpu_model,
+            memory_bytes,
             rustc_version,
             node_version,
             python_version,
@@ -1889,9 +1901,10 @@ impl BenchmarkEnvironment {
     fn metadata(&self) -> EnvironmentMetadata {
         EnvironmentMetadata {
             git_sha: self.git_sha.clone(),
-            host_identifier: self.host_identifier.clone(),
+            system_label: self.system_label.clone(),
             os: self.os.clone(),
             cpu_model: self.cpu_model.clone(),
+            memory_bytes: self.memory_bytes,
             rustc_version: self.rustc_version.clone(),
             node_version: self.node_version.clone(),
             python_version: self.python_version.clone(),
@@ -1910,35 +1923,11 @@ fn read_git_sha(workspace: &Path) -> String {
     }
 }
 
-fn detect_host_identifier(path_override: Option<&OsStr>) -> String {
-    if let Ok(hostname) = env::var("HOSTNAME") {
-        if !hostname.trim().is_empty() {
-            return hostname;
-        }
-    }
-    run_command_capture_with_path(
-        "hostname",
-        &[] as &[&str],
-        &workspace_root().unwrap_or_else(|_| PathBuf::from(".")),
-        path_override,
-    )
-    .map(|output| output.stdout.trim().to_owned())
-    .unwrap_or_else(|_| "unknown-host".to_owned())
-}
-
 fn detect_cpu_model(path_override: Option<&OsStr>) -> String {
     let workspace = workspace_root().unwrap_or_else(|_| PathBuf::from("."));
     if env::consts::OS == "macos" {
-        if let Ok(output) = run_command_capture_with_path(
-            "sysctl",
-            &["-n", "machdep.cpu.brand_string"],
-            &workspace,
-            path_override,
-        ) {
-            let value = output.stdout.trim();
-            if !value.is_empty() {
-                return value.to_owned();
-            }
+        if let Some(value) = read_macos_sysctl_string("machdep.cpu.brand_string") {
+            return value;
         }
         if let Ok(output) =
             run_command_capture_with_path("uname", &["-m"], &workspace, path_override)
@@ -1968,6 +1957,166 @@ fn detect_cpu_model(path_override: Option<&OsStr>) -> String {
         }
     }
     "unknown-cpu".to_owned()
+}
+
+fn detect_memory_bytes(path_override: Option<&OsStr>) -> u64 {
+    let workspace = workspace_root().unwrap_or_else(|_| PathBuf::from("."));
+    if env::consts::OS == "macos" {
+        if let Some(bytes) = read_macos_sysctl_u64("hw.memsize") {
+            return bytes;
+        }
+    }
+    if env::consts::OS == "linux" {
+        if let Ok(meminfo) = fs::read_to_string("/proc/meminfo") {
+            for line in meminfo.lines() {
+                if let Some(value) = line.strip_prefix("MemTotal:") {
+                    let kb = value
+                        .split_whitespace()
+                        .next()
+                        .and_then(|raw| raw.parse::<u64>().ok());
+                    if let Some(kb) = kb {
+                        return kb.saturating_mul(1024);
+                    }
+                }
+            }
+        }
+    }
+    if env::consts::OS == "windows" {
+        if let Ok(output) = run_command_capture_with_path(
+            "powershell",
+            &[
+                "-NoProfile",
+                "-Command",
+                "(Get-CimInstance Win32_ComputerSystem).TotalPhysicalMemory",
+            ],
+            &workspace,
+            path_override,
+        ) {
+            if let Ok(bytes) = output.stdout.trim().parse::<u64>() {
+                return bytes;
+            }
+        }
+    }
+    0
+}
+
+fn build_system_label(cpu_model: &str, memory_bytes: u64) -> String {
+    build_system_label_with_os(cpu_model, memory_bytes, &human_os_label())
+}
+
+fn build_system_label_with_os(cpu_model: &str, memory_bytes: u64, os: &str) -> String {
+    let cpu = if cpu_model.trim().is_empty() {
+        "Unknown CPU"
+    } else {
+        cpu_model.trim()
+    };
+    if memory_bytes == 0 {
+        return format!("{cpu} ({os})");
+    }
+    format!("{cpu} ({}, {os})", format_memory_label(memory_bytes))
+}
+
+fn human_os_label() -> String {
+    let os = match env::consts::OS {
+        "macos" => "macOS",
+        "windows" => "Windows",
+        "linux" => "Linux",
+        other => other,
+    };
+    let arch = match env::consts::ARCH {
+        "aarch64" => "arm64",
+        other => other,
+    };
+    format!("{os} {arch}")
+}
+
+fn format_memory_label(memory_bytes: u64) -> String {
+    if memory_bytes == 0 {
+        return "unknown RAM".to_owned();
+    }
+
+    let gib = memory_bytes as f64 / 1024_f64.powi(3);
+    let rounded = gib.round();
+    if (gib - rounded).abs() < 0.05 {
+        format!("{rounded:.0} GB RAM")
+    } else {
+        format!("{gib:.1} GB RAM")
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn read_macos_sysctl_string(name: &str) -> Option<String> {
+    let name = CString::new(name).ok()?;
+    let mut len = 0usize;
+    // SAFETY: `name` is a valid NUL-terminated C string, the first call asks macOS
+    // for the required buffer size, and the second call writes into an owned buffer
+    // of that exact size.
+    unsafe {
+        if libc::sysctlbyname(
+            name.as_ptr(),
+            std::ptr::null_mut(),
+            &mut len,
+            std::ptr::null_mut(),
+            0,
+        ) != 0
+            || len == 0
+        {
+            return None;
+        }
+
+        let mut buffer = vec![0u8; len];
+        if libc::sysctlbyname(
+            name.as_ptr(),
+            buffer.as_mut_ptr().cast(),
+            &mut len,
+            std::ptr::null_mut(),
+            0,
+        ) != 0
+        {
+            return None;
+        }
+
+        if len > 0 {
+            buffer.truncate(len.saturating_sub(1));
+        }
+        String::from_utf8(buffer)
+            .ok()
+            .map(|value| value.trim().to_owned())
+            .filter(|value| !value.is_empty())
+    }
+}
+
+#[cfg(not(target_os = "macos"))]
+fn read_macos_sysctl_string(_name: &str) -> Option<String> {
+    None
+}
+
+#[cfg(target_os = "macos")]
+fn read_macos_sysctl_u64(name: &str) -> Option<u64> {
+    let name = CString::new(name).ok()?;
+    let mut value = 0u64;
+    let mut len = std::mem::size_of::<u64>();
+    // SAFETY: `name` is a valid NUL-terminated C string and `value` points to a
+    // properly sized writable `u64` buffer for `sysctlbyname`.
+    unsafe {
+        if libc::sysctlbyname(
+            name.as_ptr(),
+            (&mut value as *mut u64).cast(),
+            &mut len,
+            std::ptr::null_mut(),
+            0,
+        ) != 0
+            || len != std::mem::size_of::<u64>()
+        {
+            return None;
+        }
+    }
+    Some(value)
+}
+
+#[cfg(not(target_os = "macos"))]
+fn read_macos_sysctl_u64(_name: &str) -> Option<u64> {
+    None
 }
 
 fn read_command_version(program: &str, args: &[&str]) -> Result<String, String> {
@@ -2765,9 +2914,10 @@ mod tests {
         };
         let environment = BenchmarkEnvironment {
             git_sha: "test-sha".to_owned(),
-            host_identifier: "test-host".to_owned(),
+            system_label: "Test CPU (16 GB RAM, TestOS arm64)".to_owned(),
             os: "test-os".to_owned(),
             cpu_model: "test-cpu".to_owned(),
+            memory_bytes: 16 * 1024 * 1024 * 1024,
             rustc_version: "rustc test".to_owned(),
             node_version: "node test".to_owned(),
             python_version: "python test".to_owned(),
@@ -2784,6 +2934,22 @@ mod tests {
         assert_eq!(
             report.scenarios[0].semantic_digest,
             report.scenarios[1].semantic_digest
+        );
+    }
+
+    #[test]
+    fn format_memory_label_uses_clean_gigabyte_counts() {
+        assert_eq!(
+            format_memory_label(32 * 1024 * 1024 * 1024),
+            "32 GB RAM"
+        );
+    }
+
+    #[test]
+    fn build_system_label_combines_cpu_memory_and_os() {
+        assert_eq!(
+            build_system_label_with_os("Apple M1 Pro", 32 * 1024 * 1024 * 1024, "macOS arm64"),
+            "Apple M1 Pro (32 GB RAM, macOS arm64)"
         );
     }
 

@@ -115,6 +115,7 @@ dependencies = [
  "ferrocat-conformance",
  "ferrocat-icu",
  "ferrocat-po",
+ "libc",
  "serde",
  "serde_json",
  "sha2",

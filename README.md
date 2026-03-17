@@ -176,9 +176,9 @@ Current official gettext snapshot from [benchmark/results/gettext-official-v1-wi
 
 Environment snapshot for that report:
 
-| Host | OS | CPU | Rust | Node.js | Python | GNU gettext |
-|---|---|---|---|---|---|---|
-| `MacBook-Pro-von-Sebastian.local` | `macos-aarch64` | `arm64` | `rustc 1.94.0` | `v24.14.0` | `3.9.6` | `gettext-tools 1.0` |
+| System | Rust | Node.js | Python | GNU gettext |
+|---|---|---|---|---|
+| `Apple M1 Pro (32 GB RAM, macOS arm64)` | `rustc 1.94.0` | `v24.14.0` | `3.9.6` | `gettext-tools 1.0` |
 
 The important number is throughput, not `median-ms`. The compare runner calibrates each sample to roughly the same wall-clock duration, so `median-ms` is mainly useful inside one scenario run. For cross-tool reading, compare `items/s`.
 

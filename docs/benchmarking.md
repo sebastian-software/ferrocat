@@ -179,12 +179,13 @@ This is intentional. The official profile is meant to answer the small, understa
 
 When you share benchmark results from the external suite, include the environment block from the JSON report together with the throughput table. At minimum, keep these fields visible:
 
-- `host_identifier`
+- `system_label`
 - `os`
 - `cpu_model`
+- `memory_bytes`
 - `rustc_version`
 - `node_version`
 - `python_version`
 - `msgcat_version` / `msgmerge_version` when GNU gettext numbers are shown
 
-This keeps published numbers tied to the machine and toolchain they were measured on.
+This keeps published numbers tied to the machine and toolchain they were measured on without exposing private hostnames.
