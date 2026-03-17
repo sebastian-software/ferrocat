@@ -150,7 +150,7 @@ The smallest official benchmark profile is `gettext-official-v1`: one conservati
 
 For workflow-style benchmarking there is now also a separate `gettext-workflows-v1` profile, which compares `merge_catalog` and `update_catalog` against a conservative `msgmerge` baseline on the `gettext-ui-de-*` corpus.
 
-Current official gettext snapshot from [benchmark/results/gettext-official-v1-with-pofile-ts.json](benchmark/results/gettext-official-v1-with-pofile-ts.json):
+Current official gettext snapshot from [benchmark/results/gettext-official-v1-with-gettext-parser.json](benchmark/results/gettext-official-v1-with-gettext-parser.json):
 
 The important number is throughput, not `median-ms`. The compare runner calibrates each sample to roughly the same wall-clock duration, so `median-ms` is mainly useful inside one scenario run. For cross-tool reading, compare `items/s`.
 
@@ -165,6 +165,7 @@ Column labels:
 
 - `ferrocat (Rust)`: native Rust implementations from this repo
 - `pofile-ts (Node.js)`: the TypeScript rewrite / optimized successor in the same ecosystem
+- `gettext-parser (Node.js)`: the long-standing Node gettext parser/compiler package
 - `pofile (Node.js)`: the JavaScript/Node gettext parser package
 - `polib (Python)`: the Python gettext library
 - `GNU gettext (C)`: command-line tools from the classic gettext toolchain
@@ -172,21 +173,21 @@ Column labels:
 
 ### Parse throughput
 
-| Fixture | ferrocat (Rust)<br>`parse_po` | ferrocat (Rust)<br>`parse_po_borrowed` | pofile-ts (Node.js)<br>`parsePo` | pofile (Node.js)<br>`parse` | polib (Python)<br>`parse` |
-|---|---:|---:|---:|---:|---:|
-| UI strings (DE, 10k)<br>(`gettext-ui-de-10000`) | **1.34M** | — | 571k | 11.6k | 58.8k |
-| SaaS strings (FR, 10k)<br>(`gettext-saas-fr-10000`) | 1.32M | **1.58M** | 520k | 8.4k | 58.0k |
-| Commerce strings (PL, 10k)<br>(`gettext-commerce-pl-10000`) | 1.30M | **1.64M** | 566k | 7.8k | 59.3k |
+| Fixture | ferrocat (Rust)<br>`parse_po` | ferrocat (Rust)<br>`parse_po_borrowed` | pofile-ts (Node.js)<br>`parsePo` | gettext-parser (Node.js)<br>`po.parse` | pofile (Node.js)<br>`parse` | polib (Python)<br>`parse` |
+|---|---:|---:|---:|---:|---:|---:|
+| UI strings (DE, 10k)<br>(`gettext-ui-de-10000`) | **1.34M** | — | 578k | 103k | 9.0k | 58.7k |
+| SaaS strings (FR, 10k)<br>(`gettext-saas-fr-10000`) | 1.31M | **1.58M** | 551k | 109k | 8.4k | 57.9k |
+| Commerce strings (PL, 10k)<br>(`gettext-commerce-pl-10000`) | 1.30M | **1.63M** | 582k | 107k | 7.8k | 59.6k |
 
 ### Stringify throughput
 
-| Fixture | ferrocat (Rust)<br>`stringify_po` | pofile-ts (Node.js)<br>`stringifyPo` | pofile (Node.js)<br>`serialize` | polib (Python)<br>`serialize` | GNU gettext (C)<br>`msgcat` |
-|---|---:|---:|---:|---:|---:|
-| UI strings (DE, 10k)<br>(`gettext-ui-de-10000`) | **6.02M** | 1.25M | 605k | 99.8k | 29.8k |
-| SaaS strings (FR, 10k)<br>(`gettext-saas-fr-10000`) | **5.95M** | 1.22M | 656k | 113k | 31.0k |
-| Commerce strings (PL, 10k)<br>(`gettext-commerce-pl-10000`) | **6.29M** | 1.34M | 608k | 111k | 29.2k |
+| Fixture | ferrocat (Rust)<br>`stringify_po` | pofile-ts (Node.js)<br>`stringifyPo` | gettext-parser (Node.js)<br>`po.compile` | pofile (Node.js)<br>`serialize` | polib (Python)<br>`serialize` | GNU gettext (C)<br>`msgcat` |
+|---|---:|---:|---:|---:|---:|---:|
+| UI strings (DE, 10k)<br>(`gettext-ui-de-10000`) | **6.14M** | 1.27M | 195k | 557k | 100k | 29.9k |
+| SaaS strings (FR, 10k)<br>(`gettext-saas-fr-10000`) | **6.04M** | 1.04M | 247k | 654k | 113k | 31.1k |
+| Commerce strings (PL, 10k)<br>(`gettext-commerce-pl-10000`) | **6.43M** | 1.11M | 226k | 615k | 112k | 29.4k |
 
-Workflow snapshot from [benchmark/results/gettext-official-v1-with-pofile-ts.json](benchmark/results/gettext-official-v1-with-pofile-ts.json):
+Workflow snapshot from [benchmark/results/gettext-official-v1-with-gettext-parser.json](benchmark/results/gettext-official-v1-with-gettext-parser.json):
 
 ### Basic Catalog Merge throughput
 
@@ -194,7 +195,7 @@ Workflow snapshot from [benchmark/results/gettext-official-v1-with-pofile-ts.jso
 
 | Fixture | ferrocat (Rust)<br>`merge_catalog` | GNU gettext (C)<br>`msgmerge` |
 |---|---:|---:|
-| UI strings (DE, 10k)<br>(`gettext-ui-de-10000`) | **1.82M** | 26.2k |
+| UI strings (DE, 10k)<br>(`gettext-ui-de-10000`) | **1.83M** | 26.3k |
 
 ### Full Catalog Update throughput
 
@@ -202,7 +203,7 @@ Workflow snapshot from [benchmark/results/gettext-official-v1-with-pofile-ts.jso
 
 | Fixture | ferrocat (Rust)<br>`update_catalog` | GNU gettext (C)<br>`msgmerge` |
 |---|---:|---:|
-| UI strings (DE, 10k)<br>(`gettext-ui-de-10000`) | **343k** | 26.1k |
+| UI strings (DE, 10k)<br>(`gettext-ui-de-10000`) | **340k** | 26.3k |
 
 The broader `gettext-compat-v1` and `gettext-workflows-v1` reports are still useful when you want more detail, but the table above is now aligned with the smaller official benchmark profile.
 
