@@ -293,7 +293,7 @@ For quicker day-to-day checks there is also `gettext-official-quick-v1`. It keep
 
 For workflow-style benchmarking there is now also a separate `gettext-workflows-v1` profile, which compares `merge_catalog` against a conservative `msgmerge` baseline on the `gettext-ui-de-*` corpus.
 
-Current official gettext snapshot from [benchmark/results/gettext-official-v1-with-gettext-parser-and-borrowed-de.json](benchmark/results/gettext-official-v1-with-gettext-parser-and-borrowed-de.json):
+Current official gettext snapshot from [benchmark/results/gettext-official-v1-ed87944.json](benchmark/results/gettext-official-v1-ed87944.json):
 
 Environment snapshot for that report:
 
@@ -324,17 +324,17 @@ Column labels:
 
 | Fixture | ferrocat (Rust)<br>`parse_po` | ferrocat (Rust)<br>`parse_po_borrowed` | pofile-ts (Node.js)<br>`parsePo` | gettext-parser (Node.js)<br>`po.parse` | pofile (Node.js)<br>`parse` | polib (Python)<br>`parse` |
 |---|---:|---:|---:|---:|---:|---:|
-| UI strings (DE, 10k)<br>(`gettext-ui-de-10000`) | 1.33M | **1.63M** | 561k | 96.1k | 9.4k | 58.6k |
-| SaaS strings (FR, 10k)<br>(`gettext-saas-fr-10000`) | 1.31M | **1.56M** | 548k | 108k | 8.4k | 57.6k |
-| Commerce strings (PL, 10k)<br>(`gettext-commerce-pl-10000`) | 1.30M | **1.60M** | 591k | 101k | 7.7k | 59.4k |
+| UI strings (DE, 10k)<br>(`gettext-ui-de-10000`) | 1.32M | **1.65M** | 577k | 103k | 9.2k | 59.3k |
+| SaaS strings (FR, 10k)<br>(`gettext-saas-fr-10000`) | 1.30M | **1.60M** | 565k | 113k | 8.5k | 58.3k |
+| Commerce strings (PL, 10k)<br>(`gettext-commerce-pl-10000`) | 1.28M | **1.64M** | 592k | 106k | 7.8k | 59.5k |
 
 ### Stringify throughput
 
 | Fixture | ferrocat (Rust)<br>`stringify_po` | pofile-ts (Node.js)<br>`stringifyPo` | gettext-parser (Node.js)<br>`po.compile` | pofile (Node.js)<br>`serialize` | polib (Python)<br>`serialize` | GNU gettext (C)<br>`msgcat` |
 |---|---:|---:|---:|---:|---:|---:|
-| UI strings (DE, 10k)<br>(`gettext-ui-de-10000`) | **6.05M** | 1.25M | 195k | 650k | 99.6k | 29.8k |
-| SaaS strings (FR, 10k)<br>(`gettext-saas-fr-10000`) | **6.00M** | 1.02M | 244k | 654k | 113k | 31.0k |
-| Commerce strings (PL, 10k)<br>(`gettext-commerce-pl-10000`) | **6.34M** | 1.09M | 226k | 496k | 111k | 29.3k |
+| UI strings (DE, 10k)<br>(`gettext-ui-de-10000`) | **6.16M** | 1.30M | 195k | 564k | 99.6k | 29.8k |
+| SaaS strings (FR, 10k)<br>(`gettext-saas-fr-10000`) | **6.09M** | 1.05M | 243k | 649k | 113k | 30.9k |
+| Commerce strings (PL, 10k)<br>(`gettext-commerce-pl-10000`) | **6.47M** | 1.11M | 220k | 609k | 112k | 29.3k |
 
 `merge_catalog` is the leaner gettext-style merge step. It works like a fast-path merge:
 
