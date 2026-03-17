@@ -150,7 +150,7 @@ The smallest official benchmark profile is `gettext-official-v1`: one conservati
 
 For workflow-style benchmarking there is now also a separate `gettext-workflows-v1` profile, which compares `merge_catalog` and `update_catalog` against a conservative `msgmerge` baseline on the `gettext-ui-de-*` corpus.
 
-Current official gettext snapshot from [benchmark/results/gettext-official-v1-first-run.json](benchmark/results/gettext-official-v1-first-run.json):
+Current official gettext snapshot from [benchmark/results/gettext-official-v1-after-borrowed-fix.json](benchmark/results/gettext-official-v1-after-borrowed-fix.json):
 
 The important number is throughput, not `median-ms`. The compare runner calibrates each sample to roughly the same wall-clock duration, so `median-ms` is mainly useful inside one scenario run. For cross-tool reading, compare `items/s`.
 
@@ -173,19 +173,19 @@ Column labels:
 
 | Fixture | ferrocat (Rust)<br>`parse_po` | ferrocat (Rust)<br>`parse_po_borrowed` | pofile (Node.js)<br>`parse` | polib (Python)<br>`parse` |
 |---|---:|---:|---:|---:|
-| UI strings (DE, 10k)<br>(`gettext-ui-de-10000`) | **1.37M** | — | 11.8k | 59.3k |
-| SaaS strings (FR, 10k)<br>(`gettext-saas-fr-10000`) | **1.34M** | 1.27M | — | — |
-| Commerce strings (PL, 10k)<br>(`gettext-commerce-pl-10000`) | **1.31M** | 1.27M | — | — |
+| UI strings (DE, 10k)<br>(`gettext-ui-de-10000`) | **1.35M** | — | 11.8k | 59.5k |
+| SaaS strings (FR, 10k)<br>(`gettext-saas-fr-10000`) | 1.32M | **1.57M** | — | — |
+| Commerce strings (PL, 10k)<br>(`gettext-commerce-pl-10000`) | 1.29M | **1.62M** | — | — |
 
 ### Stringify throughput
 
 | Fixture | ferrocat (Rust)<br>`stringify_po` | pofile (Node.js)<br>`serialize` | polib (Python)<br>`serialize` | GNU gettext (C)<br>`msgcat` |
 |---|---:|---:|---:|---:|
-| UI strings (DE, 10k)<br>(`gettext-ui-de-10000`) | **6.08M** | 686k | 99.8k | 29.6k |
-| SaaS strings (FR, 10k)<br>(`gettext-saas-fr-10000`) | **5.94M** | — | — | 30.9k |
-| Commerce strings (PL, 10k)<br>(`gettext-commerce-pl-10000`) | **6.31M** | — | — | 29.3k |
+| UI strings (DE, 10k)<br>(`gettext-ui-de-10000`) | **5.98M** | 680k | 98.9k | 29.5k |
+| SaaS strings (FR, 10k)<br>(`gettext-saas-fr-10000`) | **5.89M** | — | — | 30.7k |
+| Commerce strings (PL, 10k)<br>(`gettext-commerce-pl-10000`) | **6.28M** | — | — | 29.3k |
 
-Workflow snapshot from [benchmark/results/gettext-official-v1-first-run.json](benchmark/results/gettext-official-v1-first-run.json):
+Workflow snapshot from [benchmark/results/gettext-official-v1-after-borrowed-fix.json](benchmark/results/gettext-official-v1-after-borrowed-fix.json):
 
 ### Basic Catalog Merge throughput
 
@@ -193,7 +193,7 @@ Workflow snapshot from [benchmark/results/gettext-official-v1-first-run.json](be
 
 | Fixture | ferrocat (Rust)<br>`merge_catalog` | GNU gettext (C)<br>`msgmerge` |
 |---|---:|---:|
-| UI strings (DE, 10k)<br>(`gettext-ui-de-10000`) | **1.84M** | 26.3k |
+| UI strings (DE, 10k)<br>(`gettext-ui-de-10000`) | **1.81M** | 26.3k |
 
 ### Full Catalog Update throughput
 
@@ -201,7 +201,7 @@ Workflow snapshot from [benchmark/results/gettext-official-v1-first-run.json](be
 
 | Fixture | ferrocat (Rust)<br>`update_catalog` | GNU gettext (C)<br>`msgmerge` |
 |---|---:|---:|
-| UI strings (DE, 10k)<br>(`gettext-ui-de-10000`) | **341k** | 26.0k |
+| UI strings (DE, 10k)<br>(`gettext-ui-de-10000`) | **334k** | 25.9k |
 
 The broader `gettext-compat-v1` and `gettext-workflows-v1` reports are still useful when you want more detail, but the table above is now aligned with the smaller official benchmark profile.
 
