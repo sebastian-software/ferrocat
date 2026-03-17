@@ -121,7 +121,7 @@ Use this when you want more fixture variety than the slim official profile provi
 
 External baselines currently wired:
 
-- `polib` and `pofile` on the conservative primary corpus: `gettext-ui-de-10000`
+- `polib`, `pofile`, and `pofile-ts` on the classic gettext parse/stringify corpora: `gettext-ui-de-10000`, `gettext-saas-fr-10000`, `gettext-commerce-pl-10000`
 - `msgcat` on stringify comparisons
 - `msgmerge` on the conservative workflow corpus
 - `ferrocat` internal owned vs borrowed parse baselines on `fr` and `pl`
