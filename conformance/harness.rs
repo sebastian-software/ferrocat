@@ -40,19 +40,17 @@ pub struct EvaluationSummary {
 
 pub fn evaluate_all_cases() -> Result<Vec<CaseEvaluation>, String> {
     let manifests = load_all_manifests().map_err(|error| error.to_string())?;
-    evaluate_manifests(&manifests)
+    Ok(evaluate_manifests(&manifests))
 }
 
-pub fn evaluate_manifests(
-    manifests: &[ConformanceManifest],
-) -> Result<Vec<CaseEvaluation>, String> {
+pub fn evaluate_manifests(manifests: &[ConformanceManifest]) -> Vec<CaseEvaluation> {
     let mut evaluations = Vec::new();
     for manifest in manifests {
         for case in &manifest.cases {
-            evaluations.push(evaluate_case(manifest, case)?);
+            evaluations.push(evaluate_case(manifest, case));
         }
     }
-    Ok(evaluations)
+    evaluations
 }
 
 pub fn summarize_evaluations(evaluations: &[CaseEvaluation]) -> EvaluationSummary {
@@ -77,7 +75,7 @@ pub fn evaluate_suite(suite: &str) -> Result<Vec<CaseEvaluation>, String> {
         .into_iter()
         .filter(|manifest| manifest.suite == suite)
         .collect::<Vec<_>>();
-    evaluate_manifests(&filtered)
+    Ok(evaluate_manifests(&filtered))
 }
 
 pub fn failure_messages(evaluations: &[CaseEvaluation]) -> Vec<String> {
@@ -93,12 +91,9 @@ pub fn failure_messages(evaluations: &[CaseEvaluation]) -> Vec<String> {
         .collect()
 }
 
-fn evaluate_case(
-    manifest: &ConformanceManifest,
-    case: &ConformanceCase,
-) -> Result<CaseEvaluation, String> {
+fn evaluate_case(manifest: &ConformanceManifest, case: &ConformanceCase) -> CaseEvaluation {
     if case.expectation == Expectation::KnownGap {
-        return Ok(CaseEvaluation {
+        return CaseEvaluation {
             suite: manifest.suite.clone(),
             capability: case.capability.clone(),
             case_id: case.id.clone(),
@@ -108,7 +103,7 @@ fn evaluate_case(
                 .notes
                 .clone()
                 .unwrap_or_else(|| "classified as known gap".to_owned()),
-        });
+        };
     }
 
     let detail_result = match case.runner.as_str() {
@@ -126,18 +121,17 @@ fn evaluate_case(
         Ok(detail) if detail.is_empty() => {
             (EvaluationStatus::Matched, "matched expectation".to_owned())
         }
-        Ok(detail) => (EvaluationStatus::Failed, detail),
-        Err(detail) => (EvaluationStatus::Failed, detail),
+        Ok(detail) | Err(detail) => (EvaluationStatus::Failed, detail),
     };
 
-    Ok(CaseEvaluation {
+    CaseEvaluation {
         suite: manifest.suite.clone(),
         capability: case.capability.clone(),
         case_id: case.id.clone(),
         expectation: case.expectation.clone(),
         status,
         detail,
-    })
+    }
 }
 
 fn evaluate_po_parse(case: &ConformanceCase) -> Result<String, String> {
@@ -392,8 +386,7 @@ fn compare_po_parse(
             .map(|header| header.value.as_str());
         if actual != Some(value.as_str()) {
             return Err(format!(
-                "header {key:?} mismatch: expected {:?}, got {:?}",
-                value, actual
+                "header {key:?} mismatch: expected {value:?}, got {actual:?}"
             ));
         }
     }
@@ -466,6 +459,10 @@ fn compare_po_item(actual: &PoItem, expected: &PoItemExpected) -> Result<(), Str
     Ok(())
 }
 
+#[expect(
+    clippy::too_many_lines,
+    reason = "Conformance expectations are intentionally checked in one linear routine for auditability."
+)]
 fn compare_icu_parse(nodes: &[IcuNode], expected: &IcuParseExpected) -> Result<String, String> {
     if let Some(count) = expected.top_level_count {
         if nodes.len() != count {
@@ -489,8 +486,7 @@ fn compare_icu_parse(nodes: &[IcuNode], expected: &IcuParseExpected) -> Result<S
             Some(IcuNode::Literal(actual)) if actual == expected_literal => {}
             other => {
                 return Err(format!(
-                    "first literal mismatch: expected {:?}, got {:?}",
-                    expected_literal, other
+                    "first literal mismatch: expected {expected_literal:?}, got {other:?}"
                 ));
             }
         }
@@ -500,8 +496,7 @@ fn compare_icu_parse(nodes: &[IcuNode], expected: &IcuParseExpected) -> Result<S
             Some(IcuNode::Argument { name }) if name == expected_name => {}
             other => {
                 return Err(format!(
-                    "argument name mismatch: expected {:?}, got {:?}",
-                    expected_name, other
+                    "argument name mismatch: expected {expected_name:?}, got {other:?}"
                 ));
             }
         }
@@ -514,16 +509,16 @@ fn compare_icu_parse(nodes: &[IcuNode], expected: &IcuParseExpected) -> Result<S
                 options,
                 ..
             }) => {
-                if plural_kind_name(kind.clone()) != expected_kind {
+                if plural_kind_name(kind) != expected_kind {
                     return Err(format!(
                         "first plural kind mismatch: expected {:?}, got {:?}",
                         expected_kind,
-                        plural_kind_name(kind.clone())
+                        plural_kind_name(kind)
                     ));
                 }
                 if let Some(expected_offset) = expected.first_plural_offset {
                     let expected_offset = u32::try_from(expected_offset)
-                        .map_err(|_| format!("invalid expected offset {}", expected_offset))?;
+                        .map_err(|_| format!("invalid expected offset {expected_offset}"))?;
                     if *offset != expected_offset {
                         return Err(format!(
                             "first plural offset mismatch: expected {expected_offset}, got {offset}"
@@ -539,7 +534,7 @@ fn compare_icu_parse(nodes: &[IcuNode], expected: &IcuParseExpected) -> Result<S
                     }
                 }
             }
-            other => return Err(format!("expected first node to be plural, got {:?}", other)),
+            other => return Err(format!("expected first node to be plural, got {other:?}")),
         }
     }
     if let Some(expected_kind) = &expected.second_plural_kind {
@@ -552,11 +547,11 @@ fn compare_icu_parse(nodes: &[IcuNode], expected: &IcuParseExpected) -> Result<S
             .collect::<Vec<_>>();
         match plurals.get(1) {
             Some((kind, option_count)) => {
-                if plural_kind_name((*kind).clone()) != expected_kind {
+                if plural_kind_name(kind) != expected_kind {
                     return Err(format!(
                         "second plural kind mismatch: expected {:?}, got {:?}",
                         expected_kind,
-                        plural_kind_name((*kind).clone())
+                        plural_kind_name(kind)
                     ));
                 }
                 if let Some(expected_count) = expected.second_plural_option_count {
@@ -621,7 +616,7 @@ fn node_kind(node: &IcuNode) -> String {
     .to_owned()
 }
 
-fn plural_kind_name(kind: IcuPluralKind) -> &'static str {
+const fn plural_kind_name(kind: &IcuPluralKind) -> &'static str {
     match kind {
         IcuPluralKind::Cardinal => "cardinal",
         IcuPluralKind::Ordinal => "ordinal",

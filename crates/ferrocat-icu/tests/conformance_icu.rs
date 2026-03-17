@@ -13,7 +13,9 @@ fn icu_conformance_cases_match_current_expectations() {
             .collect::<Vec<_>>(),
     );
 
-    if !failures.is_empty() {
-        panic!("ICU conformance failures:\n{}", failures.join("\n"));
-    }
+    assert!(
+        failures.is_empty(),
+        "ICU conformance failures:\n{}",
+        failures.join("\n")
+    );
 }

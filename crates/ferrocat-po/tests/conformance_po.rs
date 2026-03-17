@@ -19,7 +19,9 @@ fn po_conformance_cases_match_current_expectations() {
         ));
     }
 
-    if !failures.is_empty() {
-        panic!("PO conformance failures:\n{}", failures.join("\n"));
-    }
+    assert!(
+        failures.is_empty(),
+        "PO conformance failures:\n{}",
+        failures.join("\n")
+    );
 }
