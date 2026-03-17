@@ -12,11 +12,13 @@ pub use ferrocat_icu::{
 };
 pub use ferrocat_po::{
     ApiError, BorrowedHeader, BorrowedMsgStr, BorrowedPoFile, BorrowedPoItem, CatalogMessage,
-    CatalogMessageExtra, CatalogOrigin, CatalogStats, CatalogUpdateResult, Diagnostic,
-    DiagnosticSeverity, ExtractedMessage, ExtractedPluralMessage, ExtractedSingularMessage, Header,
-    MergeExtractedMessage, MsgStr, MsgStrIter, ObsoleteStrategy, OrderBy, ParseCatalogOptions,
-    ParseError, ParsedCatalog, PlaceholderCommentMode, PluralEncoding, PluralSource, PoFile,
-    PoItem, SerializeOptions, TranslationShape, UpdateCatalogFileOptions, UpdateCatalogOptions,
-    escape_string, extract_quoted, extract_quoted_cow, merge_catalog, parse_catalog, parse_po,
-    parse_po_borrowed, stringify_po, unescape_string, update_catalog, update_catalog_file,
+    CatalogMessageExtra, CatalogMessageKey, CatalogOrigin, CatalogStats, CatalogUpdateInput,
+    CatalogUpdateResult, Diagnostic, DiagnosticSeverity, EffectiveTranslation,
+    EffectiveTranslationRef, ExtractedMessage, ExtractedPluralMessage, ExtractedSingularMessage,
+    Header, MergeExtractedMessage, MsgStr, MsgStrIter, NormalizedParsedCatalog, ObsoleteStrategy,
+    OrderBy, ParseCatalogOptions, ParseError, ParsedCatalog, PlaceholderCommentMode,
+    PluralEncoding, PluralSource, PoFile, PoItem, SerializeOptions, SourceExtractedMessage,
+    TranslationShape, UpdateCatalogFileOptions, UpdateCatalogOptions, escape_string,
+    extract_quoted, extract_quoted_cow, merge_catalog, parse_catalog, parse_po, parse_po_borrowed,
+    stringify_po, unescape_string, update_catalog, update_catalog_file,
 };

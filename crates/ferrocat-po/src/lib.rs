@@ -9,10 +9,11 @@ mod serialize;
 mod text;
 
 pub use api::{
-    ApiError, CatalogMessage, CatalogMessageExtra, CatalogOrigin, CatalogStats,
-    CatalogUpdateResult, Diagnostic, DiagnosticSeverity, ExtractedMessage, ExtractedPluralMessage,
-    ExtractedSingularMessage, ObsoleteStrategy, OrderBy, ParseCatalogOptions, ParsedCatalog,
-    PlaceholderCommentMode, PluralEncoding, PluralSource, TranslationShape,
+    ApiError, CatalogMessage, CatalogMessageExtra, CatalogMessageKey, CatalogOrigin, CatalogStats,
+    CatalogUpdateInput, CatalogUpdateResult, Diagnostic, DiagnosticSeverity, EffectiveTranslation,
+    EffectiveTranslationRef, ExtractedMessage, ExtractedPluralMessage, ExtractedSingularMessage,
+    NormalizedParsedCatalog, ObsoleteStrategy, OrderBy, ParseCatalogOptions, ParsedCatalog,
+    PlaceholderCommentMode, PluralEncoding, PluralSource, SourceExtractedMessage, TranslationShape,
     UpdateCatalogFileOptions, UpdateCatalogOptions, parse_catalog, update_catalog,
     update_catalog_file,
 };

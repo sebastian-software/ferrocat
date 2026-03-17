@@ -394,7 +394,7 @@ fn bench_update_catalog(fixture: &MergeFixture, config: BenchConfig) -> Result<(
             let rendered = update_catalog(UpdateCatalogOptions {
                 locale: Some("de".to_owned()),
                 source_locale: "en".to_owned(),
-                extracted: fixture.api_extracted_messages().to_vec(),
+                input: fixture.api_extracted_messages().to_vec().into(),
                 existing: Some(fixture.existing_po().to_owned()),
                 plural_encoding: PluralEncoding::Icu,
                 ..UpdateCatalogOptions::default()
@@ -438,7 +438,7 @@ fn bench_update_catalog_file(fixture: &MergeFixture, config: BenchConfig) -> Res
                 target_path: path.clone(),
                 locale: Some("de".to_owned()),
                 source_locale: "en".to_owned(),
-                extracted: fixture.api_extracted_messages().to_vec(),
+                input: fixture.api_extracted_messages().to_vec().into(),
                 plural_encoding: PluralEncoding::Icu,
                 ..UpdateCatalogFileOptions::default()
             })

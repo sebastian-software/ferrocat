@@ -46,6 +46,39 @@ pub enum ExtractedMessage {
     Plural(ExtractedPluralMessage),
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct SourceExtractedMessage {
+    pub msgid: String,
+    pub msgctxt: Option<String>,
+    pub comments: Vec<String>,
+    pub origin: Vec<CatalogOrigin>,
+    pub placeholders: BTreeMap<String, Vec<String>>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CatalogUpdateInput {
+    Structured(Vec<ExtractedMessage>),
+    SourceFirst(Vec<SourceExtractedMessage>),
+}
+
+impl Default for CatalogUpdateInput {
+    fn default() -> Self {
+        Self::Structured(Vec::new())
+    }
+}
+
+impl From<Vec<ExtractedMessage>> for CatalogUpdateInput {
+    fn from(value: Vec<ExtractedMessage>) -> Self {
+        Self::Structured(value)
+    }
+}
+
+impl From<Vec<SourceExtractedMessage>> for CatalogUpdateInput {
+    fn from(value: Vec<SourceExtractedMessage>) -> Self {
+        Self::SourceFirst(value)
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TranslationShape {
     Singular {
@@ -55,6 +88,18 @@ pub enum TranslationShape {
         source: PluralSource,
         translation: BTreeMap<String, String>,
     },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum EffectiveTranslationRef<'a> {
+    Singular(&'a str),
+    Plural(&'a BTreeMap<String, String>),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum EffectiveTranslation {
+    Singular(String),
+    Plural(BTreeMap<String, String>),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -72,6 +117,77 @@ pub struct CatalogMessage {
     pub origin: Vec<CatalogOrigin>,
     pub obsolete: bool,
     pub extra: Option<CatalogMessageExtra>,
+}
+
+impl CatalogMessage {
+    pub fn key(&self) -> CatalogMessageKey {
+        CatalogMessageKey {
+            msgid: self.msgid.clone(),
+            msgctxt: self.msgctxt.clone(),
+        }
+    }
+
+    pub fn effective_translation(&self) -> EffectiveTranslationRef<'_> {
+        match &self.translation {
+            TranslationShape::Singular { value } => EffectiveTranslationRef::Singular(value),
+            TranslationShape::Plural { translation, .. } => {
+                EffectiveTranslationRef::Plural(translation)
+            }
+        }
+    }
+
+    fn effective_translation_owned(&self) -> EffectiveTranslation {
+        match &self.translation {
+            TranslationShape::Singular { value } => EffectiveTranslation::Singular(value.clone()),
+            TranslationShape::Plural { translation, .. } => {
+                EffectiveTranslation::Plural(translation.clone())
+            }
+        }
+    }
+
+    fn source_fallback_translation(&self, locale: Option<&str>) -> EffectiveTranslation {
+        match &self.translation {
+            TranslationShape::Singular { value } => {
+                if value.is_empty() {
+                    EffectiveTranslation::Singular(self.msgid.clone())
+                } else {
+                    EffectiveTranslation::Singular(value.clone())
+                }
+            }
+            TranslationShape::Plural {
+                source,
+                translation,
+            } => {
+                let profile = PluralProfile::for_locale(locale);
+                let mut effective = profile.materialize_translation(translation);
+                let fallback = profile.source_locale_translation(source);
+                for (category, source_value) in fallback {
+                    let should_fill = effective
+                        .get(&category)
+                        .is_none_or(|value| value.is_empty());
+                    if should_fill {
+                        effective.insert(category, source_value);
+                    }
+                }
+                EffectiveTranslation::Plural(effective)
+            }
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct CatalogMessageKey {
+    pub msgid: String,
+    pub msgctxt: Option<String>,
+}
+
+impl CatalogMessageKey {
+    pub fn new(msgid: impl Into<String>, msgctxt: Option<String>) -> Self {
+        Self {
+            msgid: msgid.into(),
+            msgctxt,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -139,6 +255,87 @@ pub struct ParsedCatalog {
     pub diagnostics: Vec<Diagnostic>,
 }
 
+impl ParsedCatalog {
+    pub fn into_normalized_view(self) -> Result<NormalizedParsedCatalog, ApiError> {
+        NormalizedParsedCatalog::new(self)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NormalizedParsedCatalog {
+    catalog: ParsedCatalog,
+    key_index: BTreeMap<CatalogMessageKey, usize>,
+}
+
+impl NormalizedParsedCatalog {
+    fn new(catalog: ParsedCatalog) -> Result<Self, ApiError> {
+        let mut key_index = BTreeMap::new();
+        for (index, message) in catalog.messages.iter().enumerate() {
+            let key = message.key();
+            if key_index.insert(key.clone(), index).is_some() {
+                return Err(ApiError::Conflict(format!(
+                    "duplicate parsed catalog message for msgid {:?} and context {:?}",
+                    key.msgid, key.msgctxt
+                )));
+            }
+        }
+        Ok(Self { catalog, key_index })
+    }
+
+    pub fn parsed_catalog(&self) -> &ParsedCatalog {
+        &self.catalog
+    }
+
+    pub fn into_parsed_catalog(self) -> ParsedCatalog {
+        self.catalog
+    }
+
+    pub fn get(&self, key: &CatalogMessageKey) -> Option<&CatalogMessage> {
+        self.key_index
+            .get(key)
+            .map(|index| &self.catalog.messages[*index])
+    }
+
+    pub fn contains_key(&self, key: &CatalogMessageKey) -> bool {
+        self.key_index.contains_key(key)
+    }
+
+    pub fn message_count(&self) -> usize {
+        self.catalog.messages.len()
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = (&CatalogMessageKey, &CatalogMessage)> + '_ {
+        self.key_index
+            .iter()
+            .map(|(key, index)| (key, &self.catalog.messages[*index]))
+    }
+
+    pub fn effective_translation(
+        &self,
+        key: &CatalogMessageKey,
+    ) -> Option<EffectiveTranslationRef<'_>> {
+        self.get(key).map(CatalogMessage::effective_translation)
+    }
+
+    pub fn effective_translation_with_source_fallback(
+        &self,
+        key: &CatalogMessageKey,
+        source_locale: &str,
+    ) -> Option<EffectiveTranslation> {
+        let message = self.get(key)?;
+        if self
+            .catalog
+            .locale
+            .as_deref()
+            .is_none_or(|locale| locale == source_locale)
+        {
+            Some(message.source_fallback_translation(self.catalog.locale.as_deref()))
+        } else {
+            Some(message.effective_translation_owned())
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum PluralEncoding {
     #[default]
@@ -177,7 +374,7 @@ impl Default for PlaceholderCommentMode {
 pub struct UpdateCatalogOptions {
     pub locale: Option<String>,
     pub source_locale: String,
-    pub extracted: Vec<ExtractedMessage>,
+    pub input: CatalogUpdateInput,
     pub existing: Option<String>,
     pub plural_encoding: PluralEncoding,
     pub obsolete_strategy: ObsoleteStrategy,
@@ -194,7 +391,7 @@ impl Default for UpdateCatalogOptions {
         Self {
             locale: None,
             source_locale: String::new(),
-            extracted: Vec::new(),
+            input: CatalogUpdateInput::default(),
             existing: None,
             plural_encoding: PluralEncoding::Icu,
             obsolete_strategy: ObsoleteStrategy::Mark,
@@ -213,7 +410,7 @@ pub struct UpdateCatalogFileOptions {
     pub target_path: PathBuf,
     pub locale: Option<String>,
     pub source_locale: String,
-    pub extracted: Vec<ExtractedMessage>,
+    pub input: CatalogUpdateInput,
     pub plural_encoding: PluralEncoding,
     pub obsolete_strategy: ObsoleteStrategy,
     pub overwrite_source_translations: bool,
@@ -230,7 +427,7 @@ impl Default for UpdateCatalogFileOptions {
             target_path: PathBuf::new(),
             locale: None,
             source_locale: String::new(),
-            extracted: Vec::new(),
+            input: CatalogUpdateInput::default(),
             plural_encoding: PluralEncoding::Icu,
             obsolete_strategy: ObsoleteStrategy::Mark,
             overwrite_source_translations: false,
@@ -347,7 +544,10 @@ struct NormalizedMessage {
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum NormalizedKind {
     Singular,
-    Plural(PluralSource),
+    Plural {
+        source: PluralSource,
+        variable: Option<String>,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -492,8 +692,8 @@ pub fn update_catalog(options: UpdateCatalogOptions) -> Result<CatalogUpdateResu
         .clone()
         .or_else(|| existing.locale.clone())
         .or_else(|| existing.headers.get("Language").cloned());
-    let normalized = normalize_extracted(&options.extracted)?;
     let mut diagnostics = existing.diagnostics.clone();
+    let normalized = normalize_update_input(&options.input, &mut diagnostics)?;
     let (mut merged, stats) = merge_catalogs(
         existing,
         &normalized,
@@ -543,7 +743,7 @@ pub fn update_catalog_file(
     let result = update_catalog(UpdateCatalogOptions {
         locale: options.locale,
         source_locale: options.source_locale,
-        extracted: options.extracted,
+        input: options.input,
         existing,
         plural_encoding: options.plural_encoding,
         obsolete_strategy: options.obsolete_strategy,
@@ -593,65 +793,146 @@ fn validate_source_locale(source_locale: &str) -> Result<(), ApiError> {
     Ok(())
 }
 
-fn normalize_extracted(extracted: &[ExtractedMessage]) -> Result<Vec<NormalizedMessage>, ApiError> {
+fn normalize_update_input(
+    input: &CatalogUpdateInput,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> Result<Vec<NormalizedMessage>, ApiError> {
     let mut index = BTreeMap::<(String, Option<String>), usize>::new();
     let mut normalized = Vec::<NormalizedMessage>::new();
 
-    for message in extracted {
-        let (msgid, msgctxt, kind, comments, origins, placeholders) = match message {
-            ExtractedMessage::Singular(message) => (
-                message.msgid.clone(),
-                message.msgctxt.clone(),
-                NormalizedKind::Singular,
-                message.comments.clone(),
-                message.origin.clone(),
-                message.placeholders.clone(),
-            ),
-            ExtractedMessage::Plural(message) => (
-                message.msgid.clone(),
-                message.msgctxt.clone(),
-                NormalizedKind::Plural(message.source.clone()),
-                message.comments.clone(),
-                message.origin.clone(),
-                message.placeholders.clone(),
-            ),
-        };
+    match input {
+        CatalogUpdateInput::Structured(extracted) => {
+            for message in extracted {
+                let (msgid, msgctxt, kind, comments, origins, placeholders) = match message {
+                    ExtractedMessage::Singular(message) => (
+                        message.msgid.clone(),
+                        message.msgctxt.clone(),
+                        NormalizedKind::Singular,
+                        message.comments.clone(),
+                        message.origin.clone(),
+                        message.placeholders.clone(),
+                    ),
+                    ExtractedMessage::Plural(message) => (
+                        message.msgid.clone(),
+                        message.msgctxt.clone(),
+                        NormalizedKind::Plural {
+                            source: message.source.clone(),
+                            variable: None,
+                        },
+                        message.comments.clone(),
+                        message.origin.clone(),
+                        message.placeholders.clone(),
+                    ),
+                };
 
-        if msgid.is_empty() {
-            return Err(ApiError::InvalidArguments(
-                "extracted msgid must not be empty".to_owned(),
-            ));
-        }
-
-        let key = (msgid.clone(), msgctxt.clone());
-        match index.get(&key).copied() {
-            Some(existing_index) => {
-                let existing = &mut normalized[existing_index];
-                if existing.kind != kind {
-                    return Err(ApiError::Conflict(format!(
-                        "conflicting duplicate extracted message for msgid {:?}",
-                        msgid
-                    )));
-                }
-                merge_unique_strings(&mut existing.comments, comments);
-                merge_unique_origins(&mut existing.origins, origins);
-                merge_placeholders(&mut existing.placeholders, placeholders);
+                push_normalized_message(
+                    &mut index,
+                    &mut normalized,
+                    NormalizedMessage {
+                        msgid,
+                        msgctxt,
+                        kind,
+                        comments: dedupe_strings(comments),
+                        origins: dedupe_origins(origins),
+                        placeholders: dedupe_placeholders(placeholders),
+                    },
+                )?;
             }
-            None => {
-                index.insert(key, normalized.len());
-                normalized.push(NormalizedMessage {
-                    msgid,
-                    msgctxt,
-                    kind,
-                    comments: dedupe_strings(comments),
-                    origins: dedupe_origins(origins),
-                    placeholders: dedupe_placeholders(placeholders),
-                });
+        }
+        CatalogUpdateInput::SourceFirst(messages) => {
+            for message in messages {
+                let kind = match project_icu_plural(&message.msgid) {
+                    IcuPluralProjection::Projected(projected) => NormalizedKind::Plural {
+                        source: PluralSource {
+                            one: projected.branches.get("one").cloned(),
+                            other: projected
+                                .branches
+                                .get("other")
+                                .cloned()
+                                .unwrap_or_else(|| message.msgid.clone()),
+                        },
+                        variable: Some(projected.variable),
+                    },
+                    IcuPluralProjection::Unsupported(reason) => {
+                        diagnostics.push(
+                            Diagnostic::new(
+                                DiagnosticSeverity::Warning,
+                                "plural.source_first_fallback",
+                                format!(
+                                    "Could not project source-first ICU plural into catalog plural form: {reason}"
+                                ),
+                            )
+                            .with_identity(&message.msgid, message.msgctxt.as_deref()),
+                        );
+                        NormalizedKind::Singular
+                    }
+                    IcuPluralProjection::Malformed => {
+                        diagnostics.push(
+                            Diagnostic::new(
+                                DiagnosticSeverity::Warning,
+                                "plural.source_first_fallback",
+                                "Could not parse source-first ICU plural safely; keeping the message as singular.",
+                            )
+                            .with_identity(&message.msgid, message.msgctxt.as_deref()),
+                        );
+                        NormalizedKind::Singular
+                    }
+                    IcuPluralProjection::NotPlural => NormalizedKind::Singular,
+                };
+
+                push_normalized_message(
+                    &mut index,
+                    &mut normalized,
+                    NormalizedMessage {
+                        msgid: message.msgid.clone(),
+                        msgctxt: message.msgctxt.clone(),
+                        kind,
+                        comments: dedupe_strings(message.comments.clone()),
+                        origins: dedupe_origins(message.origin.clone()),
+                        placeholders: dedupe_placeholders(message.placeholders.clone()),
+                    },
+                )?;
             }
         }
     }
 
     Ok(normalized)
+}
+
+fn push_normalized_message(
+    index: &mut BTreeMap<(String, Option<String>), usize>,
+    normalized: &mut Vec<NormalizedMessage>,
+    message: NormalizedMessage,
+) -> Result<(), ApiError> {
+    let msgid = message.msgid.clone();
+    let msgctxt = message.msgctxt.clone();
+    if msgid.is_empty() {
+        return Err(ApiError::InvalidArguments(
+            "extracted msgid must not be empty".to_owned(),
+        ));
+    }
+
+    let key = (msgid.clone(), msgctxt.clone());
+    match index.get(&key).copied() {
+        Some(existing_index) => {
+            let existing = &mut normalized[existing_index];
+            if existing.kind != message.kind {
+                return Err(ApiError::Conflict(format!(
+                    "conflicting duplicate extracted message for msgid {:?}",
+                    msgid
+                )));
+            }
+            merge_unique_strings(&mut existing.comments, message.comments);
+            merge_unique_origins(&mut existing.origins, message.origins);
+            merge_placeholders(&mut existing.placeholders, message.placeholders);
+        }
+        None => {
+            index.insert(key, normalized.len());
+            normalized.push(message);
+        }
+    }
+
+    Ok(())
 }
 
 fn merge_catalogs(
@@ -746,7 +1027,7 @@ fn merge_message(
 ) -> CanonicalMessage {
     let plural_profile = match &next.kind {
         NormalizedKind::Singular => None,
-        NormalizedKind::Plural(_) => Some(PluralProfile::for_locale(locale)),
+        NormalizedKind::Plural { .. } => Some(PluralProfile::for_locale(locale)),
     };
 
     let translation = match (&next.kind, previous) {
@@ -756,7 +1037,7 @@ fn merge_message(
         {
             previous.translation.clone()
         }
-        (NormalizedKind::Plural(source), Some(previous))
+        (NormalizedKind::Plural { source, variable }, Some(previous))
             if matches!(previous.translation, CanonicalTranslation::Plural { .. })
                 && !(is_source_locale && overwrite_source_translations) =>
         {
@@ -777,7 +1058,7 @@ fn merge_message(
                     .as_ref()
                     .expect("plural messages require plural profile")
                     .materialize_translation(&previous_map),
-                variable: previous_variable,
+                variable: variable.clone().unwrap_or(previous_variable),
             }
         }
         (NormalizedKind::Singular, _) => CanonicalTranslation::Singular {
@@ -787,9 +1068,10 @@ fn merge_message(
                 String::new()
             },
         },
-        (NormalizedKind::Plural(source), previous) => {
-            let variable = previous
-                .and_then(extract_plural_variable)
+        (NormalizedKind::Plural { source, variable }, previous) => {
+            let variable = variable
+                .clone()
+                .or_else(|| previous.and_then(extract_plural_variable))
                 .or_else(|| derive_plural_variable(&next.placeholders))
                 .unwrap_or_else(|| {
                     diagnostics.push(
@@ -1835,24 +2117,33 @@ fn atomic_write(path: &Path, content: &str) -> Result<(), ApiError> {
 #[cfg(test)]
 mod tests {
     use super::{
-        ApiError, DiagnosticSeverity, ExtractedMessage, ExtractedPluralMessage,
+        ApiError, CatalogMessageKey, CatalogUpdateInput, DiagnosticSeverity, EffectiveTranslation,
+        EffectiveTranslationRef, ExtractedMessage, ExtractedPluralMessage,
         ExtractedSingularMessage, ObsoleteStrategy, ParseCatalogOptions, PluralEncoding,
-        PluralSource, TranslationShape, UpdateCatalogFileOptions, UpdateCatalogOptions,
-        parse_catalog, update_catalog, update_catalog_file,
+        PluralSource, SourceExtractedMessage, TranslationShape, UpdateCatalogFileOptions,
+        UpdateCatalogOptions, parse_catalog, update_catalog, update_catalog_file,
     };
     use crate::parse_po;
     use std::collections::BTreeMap;
     use std::fs;
+
+    fn structured_input(messages: Vec<ExtractedMessage>) -> CatalogUpdateInput {
+        CatalogUpdateInput::Structured(messages)
+    }
+
+    fn source_first_input(messages: Vec<SourceExtractedMessage>) -> CatalogUpdateInput {
+        CatalogUpdateInput::SourceFirst(messages)
+    }
 
     #[test]
     fn update_catalog_creates_new_source_locale_messages() {
         let result = update_catalog(UpdateCatalogOptions {
             source_locale: "en".to_owned(),
             locale: Some("en".to_owned()),
-            extracted: vec![ExtractedMessage::Singular(ExtractedSingularMessage {
+            input: structured_input(vec![ExtractedMessage::Singular(ExtractedSingularMessage {
                 msgid: "Hello".to_owned(),
                 ..ExtractedSingularMessage::default()
-            })],
+            })]),
             ..UpdateCatalogOptions::default()
         })
         .expect("update");
@@ -1873,10 +2164,10 @@ mod tests {
             source_locale: "en".to_owned(),
             locale: Some("de".to_owned()),
             existing: Some(existing.to_owned()),
-            extracted: vec![ExtractedMessage::Singular(ExtractedSingularMessage {
+            input: structured_input(vec![ExtractedMessage::Singular(ExtractedSingularMessage {
                 msgid: "Hello".to_owned(),
                 ..ExtractedSingularMessage::default()
-            })],
+            })]),
             ..UpdateCatalogOptions::default()
         })
         .expect("update");
@@ -1894,10 +2185,10 @@ mod tests {
             locale: Some("en".to_owned()),
             existing: Some(existing.to_owned()),
             overwrite_source_translations: true,
-            extracted: vec![ExtractedMessage::Singular(ExtractedSingularMessage {
+            input: structured_input(vec![ExtractedMessage::Singular(ExtractedSingularMessage {
                 msgid: "Hello".to_owned(),
                 ..ExtractedSingularMessage::default()
-            })],
+            })]),
             ..UpdateCatalogOptions::default()
         })
         .expect("update");
@@ -1915,10 +2206,10 @@ mod tests {
             locale: Some("de".to_owned()),
             existing: Some(existing.to_owned()),
             obsolete_strategy: ObsoleteStrategy::Delete,
-            extracted: vec![ExtractedMessage::Singular(ExtractedSingularMessage {
+            input: structured_input(vec![ExtractedMessage::Singular(ExtractedSingularMessage {
                 msgid: "keep".to_owned(),
                 ..ExtractedSingularMessage::default()
-            })],
+            })]),
             ..UpdateCatalogOptions::default()
         })
         .expect("update");
@@ -1933,7 +2224,7 @@ mod tests {
         let error = update_catalog(UpdateCatalogOptions {
             source_locale: "en".to_owned(),
             locale: Some("en".to_owned()),
-            extracted: vec![
+            input: structured_input(vec![
                 ExtractedMessage::Singular(ExtractedSingularMessage {
                     msgid: "Hello".to_owned(),
                     ..ExtractedSingularMessage::default()
@@ -1946,7 +2237,7 @@ mod tests {
                     },
                     ..ExtractedPluralMessage::default()
                 }),
-            ],
+            ]),
             ..UpdateCatalogOptions::default()
         })
         .expect_err("conflict");
@@ -1959,7 +2250,7 @@ mod tests {
         let result = update_catalog(UpdateCatalogOptions {
             source_locale: "en".to_owned(),
             locale: Some("en".to_owned()),
-            extracted: vec![ExtractedMessage::Plural(ExtractedPluralMessage {
+            input: structured_input(vec![ExtractedMessage::Plural(ExtractedPluralMessage {
                 msgid: "{count, plural, one {# item} other {# items}}".to_owned(),
                 source: PluralSource {
                     one: Some("# item".to_owned()),
@@ -1967,7 +2258,7 @@ mod tests {
                 },
                 placeholders: BTreeMap::from([("count".to_owned(), vec!["count".to_owned()])]),
                 ..ExtractedPluralMessage::default()
-            })],
+            })]),
             ..UpdateCatalogOptions::default()
         })
         .expect("update");
@@ -1975,6 +2266,75 @@ mod tests {
         let parsed = parse_po(&result.content).expect("parse output");
         assert!(parsed.items[0].msgid.contains("{count, plural,"));
         assert!(parsed.items[0].msgid_plural.is_none());
+    }
+
+    #[test]
+    fn source_first_plain_messages_normalize_as_singular() {
+        let result = update_catalog(UpdateCatalogOptions {
+            source_locale: "en".to_owned(),
+            locale: Some("en".to_owned()),
+            input: source_first_input(vec![SourceExtractedMessage {
+                msgid: "Welcome".to_owned(),
+                ..SourceExtractedMessage::default()
+            }]),
+            ..UpdateCatalogOptions::default()
+        })
+        .expect("update");
+
+        let parsed = parse_po(&result.content).expect("parse output");
+        assert_eq!(parsed.items[0].msgid, "Welcome");
+        assert_eq!(parsed.items[0].msgstr[0], "Welcome");
+        assert!(result.diagnostics.is_empty());
+    }
+
+    #[test]
+    fn source_first_simple_icu_plural_projects_into_plural_update() {
+        let result = update_catalog(UpdateCatalogOptions {
+            source_locale: "en".to_owned(),
+            locale: Some("en".to_owned()),
+            input: source_first_input(vec![SourceExtractedMessage {
+                msgid: "{items, plural, one {# file} other {# files}}".to_owned(),
+                placeholders: BTreeMap::from([("items".to_owned(), vec!["items".to_owned()])]),
+                ..SourceExtractedMessage::default()
+            }]),
+            ..UpdateCatalogOptions::default()
+        })
+        .expect("update");
+
+        let parsed = parse_po(&result.content).expect("parse output");
+        assert!(parsed.items[0].msgid.contains("{items, plural,"));
+        assert_eq!(
+            parsed.items[0].msgstr[0],
+            "{items, plural, one {# file} other {# files}}"
+        );
+        assert!(result.diagnostics.is_empty());
+    }
+
+    #[test]
+    fn source_first_unsupported_icu_plural_falls_back_to_singular_with_warning() {
+        let result = update_catalog(UpdateCatalogOptions {
+            source_locale: "en".to_owned(),
+            locale: Some("en".to_owned()),
+            input: source_first_input(vec![SourceExtractedMessage {
+                msgid: "{count, plural, one {{gender, select, male {He has one file} other {They have one file}}} other {{gender, select, male {He has # files} other {They have # files}}}}".to_owned(),
+                ..SourceExtractedMessage::default()
+            }]),
+            ..UpdateCatalogOptions::default()
+        })
+        .expect("update");
+
+        let parsed = parse_po(&result.content).expect("parse output");
+        assert_eq!(
+            parsed.items[0].msgid,
+            "{count, plural, one {{gender, select, male {He has one file} other {They have one file}}} other {{gender, select, male {He has # files} other {They have # files}}}}"
+        );
+        assert_eq!(parsed.items[0].msgstr[0], parsed.items[0].msgid);
+        assert!(
+            result
+                .diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.code == "plural.source_first_fallback")
+        );
     }
 
     #[test]
@@ -2009,6 +2369,120 @@ mod tests {
             }
             other => panic!("expected plural translation, got {other:?}"),
         }
+    }
+
+    #[test]
+    fn normalized_view_indexes_messages_by_key() {
+        let parsed = parse_catalog(ParseCatalogOptions {
+            content: concat!(
+                "msgctxt \"nav\"\n",
+                "msgid \"Home\"\n",
+                "msgstr \"Start\"\n",
+            )
+            .to_owned(),
+            locale: Some("de".to_owned()),
+            source_locale: "en".to_owned(),
+            plural_encoding: PluralEncoding::Gettext,
+            strict: false,
+        })
+        .expect("parse");
+
+        let normalized = parsed.into_normalized_view().expect("normalized view");
+        let key = CatalogMessageKey::new("Home", Some("nav".to_owned()));
+
+        assert!(normalized.contains_key(&key));
+        assert_eq!(normalized.message_count(), 1);
+        assert!(matches!(
+            normalized.effective_translation(&key),
+            Some(EffectiveTranslationRef::Singular("Start"))
+        ));
+        assert_eq!(normalized.iter().count(), 1);
+    }
+
+    #[test]
+    fn normalized_view_rejects_duplicate_keys() {
+        let parsed = parse_catalog(ParseCatalogOptions {
+            content: concat!(
+                "msgid \"Hello\"\n",
+                "msgstr \"Hallo\"\n",
+                "\n",
+                "msgid \"Hello\"\n",
+                "msgstr \"Servus\"\n",
+            )
+            .to_owned(),
+            locale: Some("de".to_owned()),
+            source_locale: "en".to_owned(),
+            plural_encoding: PluralEncoding::Gettext,
+            strict: false,
+        })
+        .expect("parse");
+
+        let error = parsed
+            .into_normalized_view()
+            .expect_err("duplicate keys should fail");
+        assert!(matches!(error, ApiError::Conflict(_)));
+    }
+
+    #[test]
+    fn normalized_view_can_apply_source_locale_fallbacks() {
+        let parsed = parse_catalog(ParseCatalogOptions {
+            content: concat!(
+                "msgid \"book\"\n",
+                "msgid_plural \"books\"\n",
+                "msgstr[0] \"\"\n",
+                "msgstr[1] \"\"\n",
+                "\n",
+                "msgid \"Welcome\"\n",
+                "msgstr \"\"\n",
+            )
+            .to_owned(),
+            locale: Some("en".to_owned()),
+            source_locale: "en".to_owned(),
+            plural_encoding: PluralEncoding::Gettext,
+            strict: false,
+        })
+        .expect("parse");
+
+        let normalized = parsed.into_normalized_view().expect("normalized view");
+        let plural_key = CatalogMessageKey::new("book", None);
+        let singular_key = CatalogMessageKey::new("Welcome", None);
+
+        assert!(matches!(
+            normalized.effective_translation(&singular_key),
+            Some(EffectiveTranslationRef::Singular(""))
+        ));
+        assert_eq!(
+            normalized.effective_translation_with_source_fallback(&singular_key, "en"),
+            Some(EffectiveTranslation::Singular("Welcome".to_owned()))
+        );
+
+        assert_eq!(
+            normalized.effective_translation_with_source_fallback(&plural_key, "en"),
+            Some(EffectiveTranslation::Plural(BTreeMap::from([
+                ("one".to_owned(), "book".to_owned()),
+                ("other".to_owned(), "books".to_owned()),
+            ])))
+        );
+    }
+
+    #[test]
+    fn normalized_view_skips_source_fallback_for_non_source_locale_catalogs() {
+        let parsed = parse_catalog(ParseCatalogOptions {
+            content: concat!("msgid \"Hello\"\n", "msgstr \"\"\n").to_owned(),
+            locale: Some("de".to_owned()),
+            source_locale: "en".to_owned(),
+            plural_encoding: PluralEncoding::Gettext,
+            strict: false,
+        })
+        .expect("parse");
+
+        let normalized = parsed.into_normalized_view().expect("normalized view");
+        let key = CatalogMessageKey::new("Hello", None);
+
+        assert_eq!(
+            normalized.effective_translation_with_source_fallback(&key, "en"),
+            Some(EffectiveTranslation::Singular(String::new()))
+        );
     }
 
     #[test]
@@ -2191,10 +2665,10 @@ mod tests {
             target_path: path.clone(),
             source_locale: "en".to_owned(),
             locale: Some("en".to_owned()),
-            extracted: vec![ExtractedMessage::Singular(ExtractedSingularMessage {
+            input: structured_input(vec![ExtractedMessage::Singular(ExtractedSingularMessage {
                 msgid: "Hello".to_owned(),
                 ..ExtractedSingularMessage::default()
-            })],
+            })]),
             ..UpdateCatalogFileOptions::default()
         })
         .expect("first write");
@@ -2204,10 +2678,10 @@ mod tests {
             target_path: path.clone(),
             source_locale: "en".to_owned(),
             locale: Some("en".to_owned()),
-            extracted: vec![ExtractedMessage::Singular(ExtractedSingularMessage {
+            input: structured_input(vec![ExtractedMessage::Singular(ExtractedSingularMessage {
                 msgid: "Hello".to_owned(),
                 ..ExtractedSingularMessage::default()
-            })],
+            })]),
             ..UpdateCatalogFileOptions::default()
         })
         .expect("second write");
@@ -2223,7 +2697,7 @@ mod tests {
             source_locale: "en".to_owned(),
             locale: Some("de".to_owned()),
             plural_encoding: PluralEncoding::Gettext,
-            extracted: vec![ExtractedMessage::Plural(ExtractedPluralMessage {
+            input: structured_input(vec![ExtractedMessage::Plural(ExtractedPluralMessage {
                 msgid: "books".to_owned(),
                 source: PluralSource {
                     one: Some("book".to_owned()),
@@ -2231,7 +2705,7 @@ mod tests {
                 },
                 placeholders: BTreeMap::from([("count".to_owned(), vec!["count".to_owned()])]),
                 ..ExtractedPluralMessage::default()
-            })],
+            })]),
             ..UpdateCatalogOptions::default()
         })
         .expect("update");
@@ -2248,7 +2722,7 @@ mod tests {
             source_locale: "en".to_owned(),
             locale: Some("fr".to_owned()),
             plural_encoding: PluralEncoding::Gettext,
-            extracted: vec![ExtractedMessage::Plural(ExtractedPluralMessage {
+            input: structured_input(vec![ExtractedMessage::Plural(ExtractedPluralMessage {
                 msgid: "files".to_owned(),
                 source: PluralSource {
                     one: Some("file".to_owned()),
@@ -2256,7 +2730,7 @@ mod tests {
                 },
                 placeholders: BTreeMap::from([("count".to_owned(), vec!["count".to_owned()])]),
                 ..ExtractedPluralMessage::default()
-            })],
+            })]),
             ..UpdateCatalogOptions::default()
         })
         .expect("update");
@@ -2271,10 +2745,10 @@ mod tests {
             source_locale: "en".to_owned(),
             locale: Some("de".to_owned()),
             plural_encoding: PluralEncoding::Gettext,
-            extracted: vec![ExtractedMessage::Singular(ExtractedSingularMessage {
+            input: structured_input(vec![ExtractedMessage::Singular(ExtractedSingularMessage {
                 msgid: "Hello".to_owned(),
                 ..ExtractedSingularMessage::default()
-            })],
+            })]),
             ..UpdateCatalogOptions::default()
         })
         .expect("update");
@@ -2294,10 +2768,10 @@ mod tests {
             source_locale: "en".to_owned(),
             locale: Some("fr".to_owned()),
             plural_encoding: PluralEncoding::Gettext,
-            extracted: vec![ExtractedMessage::Singular(ExtractedSingularMessage {
+            input: structured_input(vec![ExtractedMessage::Singular(ExtractedSingularMessage {
                 msgid: "Bonjour".to_owned(),
                 ..ExtractedSingularMessage::default()
-            })],
+            })]),
             ..UpdateCatalogOptions::default()
         })
         .expect("update");
@@ -2325,10 +2799,10 @@ mod tests {
                 )
                 .to_owned(),
             ),
-            extracted: vec![ExtractedMessage::Singular(ExtractedSingularMessage {
+            input: structured_input(vec![ExtractedMessage::Singular(ExtractedSingularMessage {
                 msgid: "Hello".to_owned(),
                 ..ExtractedSingularMessage::default()
-            })],
+            })]),
             ..UpdateCatalogOptions::default()
         })
         .expect("update");
@@ -2364,10 +2838,10 @@ mod tests {
                 )
                 .to_owned(),
             ),
-            extracted: vec![ExtractedMessage::Singular(ExtractedSingularMessage {
+            input: structured_input(vec![ExtractedMessage::Singular(ExtractedSingularMessage {
                 msgid: "Hello".to_owned(),
                 ..ExtractedSingularMessage::default()
-            })],
+            })]),
             ..UpdateCatalogOptions::default()
         })
         .expect("update");
@@ -2414,7 +2888,7 @@ mod tests {
         let result = update_catalog(UpdateCatalogOptions {
             source_locale: "en".to_owned(),
             locale: Some("de".to_owned()),
-            extracted: vec![ExtractedMessage::Plural(ExtractedPluralMessage {
+            input: structured_input(vec![ExtractedMessage::Plural(ExtractedPluralMessage {
                 msgid: "Developers".to_owned(),
                 source: PluralSource {
                     one: Some("Developer".to_owned()),
@@ -2422,7 +2896,7 @@ mod tests {
                 },
                 placeholders,
                 ..ExtractedPluralMessage::default()
-            })],
+            })]),
             ..UpdateCatalogOptions::default()
         })
         .expect("update");

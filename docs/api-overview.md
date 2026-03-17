@@ -17,6 +17,7 @@ This page is a lightweight guide for choosing the right function before there is
 | Turn a `PoFile` back into `.po` text | `stringify_po` |
 | Merge fresh extracted gettext messages into an existing `.po` file | `merge_catalog` |
 | Read a `.po` file into the higher-level canonical catalog model | `parse_catalog` |
+| Build keyed lookup/helpers on top of a parsed catalog | `ParsedCatalog::into_normalized_view` |
 | Perform a full in-memory catalog update | `update_catalog` |
 | Perform a full catalog update and write the result to disk only when changed | `update_catalog_file` |
 | Parse ICU MessageFormat into a structural AST | `parse_icu` |
@@ -79,6 +80,8 @@ Use this when you want more than raw PO syntax. It projects a PO file into `ferr
 
 Choose this when your application wants semantic catalog data rather than just PO syntax nodes.
 
+`parse_catalog` intentionally stays as the neutral parse step. If you want keyed lookups or effective-translation helpers, build a richer view explicitly with `ParsedCatalog::into_normalized_view()`.
+
 ### `update_catalog`
 
 Use this for the full high-level catalog update path in memory.
@@ -86,7 +89,7 @@ Use this for the full high-level catalog update path in memory.
 This goes beyond a raw merge. It can:
 
 - parse an existing catalog into the canonical model
-- merge extracted messages
+- merge extracted messages from either structured catalog input (`CatalogUpdateInput::Structured`) or source-first messages (`CatalogUpdateInput::SourceFirst`)
 - handle locale/plural logic
 - apply header defaults
 - preserve or report diagnostics
@@ -103,6 +106,8 @@ Use this when you want the same high-level behavior as `update_catalog`, but aga
 It reads the current file if present, runs the full update, and only writes back when the result actually changed.
 
 Choose this for CLI tools, task runners, or build/dev pipelines that work directly on catalog files on disk.
+
+Like `update_catalog`, it accepts `CatalogUpdateInput`, so source-string-first tooling can hand off plural projection and catalog-shaping to Ferrocat instead of pre-projecting everything into `ExtractedMessage`.
 
 ## ICU MessageFormat
 
@@ -130,4 +135,5 @@ Use this after `parse_icu` when you want the variable names referenced by the me
 - hot-path PO inspection: `parse_po_borrowed`
 - classic gettext merge step: `merge_catalog`
 - full app-level catalog maintenance: `update_catalog` or `update_catalog_file`
+- parsed catalog consumption with keyed accessors: `parse_catalog` + `into_normalized_view`
 - ICU analysis: `parse_icu`
