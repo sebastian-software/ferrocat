@@ -724,12 +724,13 @@ impl BenchSample {
     fn new(elapsed: Duration, iterations: usize, bytes_per_iteration: usize) -> Self {
         let seconds = elapsed.as_secs_f64();
         let iter_per_sec = if seconds > 0.0 {
-            iterations as f64 / seconds
+            f64_from_usize(iterations) / seconds
         } else {
             f64::INFINITY
         };
         let mib_per_sec = if seconds > 0.0 {
-            (bytes_per_iteration as f64 * iterations as f64) / (1024.0 * 1024.0 * seconds)
+            (f64_from_usize(bytes_per_iteration) * f64_from_usize(iterations))
+                / (1024.0 * 1024.0 * seconds)
         } else {
             f64::INFINITY
         };
@@ -761,4 +762,12 @@ fn summarize(samples: &[BenchSample]) -> BenchSummary {
         min_iter_per_sec,
         max_iter_per_sec,
     }
+}
+
+#[expect(
+    clippy::cast_precision_loss,
+    reason = "Benchmark throughput output is an approximate display metric."
+)]
+const fn f64_from_usize(value: usize) -> f64 {
+    value as f64
 }

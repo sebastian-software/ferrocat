@@ -5,6 +5,7 @@ use std::env;
 use std::ffi::CString;
 use std::ffi::{OsStr, OsString};
 use std::fs;
+use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::Instant;
@@ -97,7 +98,7 @@ pub fn run_compare_command(
             scenario.id,
             scenario.implementation,
             scenario.fixture,
-            scenario.statistics.median_elapsed_ns as f64 / 1_000_000.0,
+            nanos_to_millis(scenario.statistics.median_elapsed_ns),
             scenario.statistics.coefficient_of_variation * 100.0,
             scenario.statistics.relative_span_percent,
             scenario.statistics.noisy,
@@ -108,6 +109,10 @@ pub fn run_compare_command(
     Ok(())
 }
 
+#[expect(
+    clippy::too_many_lines,
+    reason = "Benchmark scheduling is kept in one routine so execution order and validation stay easy to audit."
+)]
 fn run_profile(
     workspace: &Path,
     environment: &BenchmarkEnvironment,
@@ -261,7 +266,7 @@ fn run_profile(
                     .map(|baseline| baseline.label.clone()),
                 statistics,
                 samples: samples
-                    .into_iter()
+                    .iter()
                     .map(ScenarioSampleReport::from_execution)
                     .collect(),
             });
@@ -376,7 +381,7 @@ impl BenchmarkProfile {
                 path.display()
             )
         })?;
-        let profile: BenchmarkProfile = serde_json::from_str(&content).map_err(|error| {
+        let profile: Self = serde_json::from_str(&content).map_err(|error| {
             format!(
                 "failed to parse benchmark profile {}: {error}",
                 path.display()
@@ -399,7 +404,7 @@ impl BenchmarkProfile {
     }
 }
 
-fn default_minimum_sample_millis() -> u64 {
+const fn default_minimum_sample_millis() -> u64 {
     DEFAULT_MIN_SAMPLE_MILLIS
 }
 
@@ -420,7 +425,7 @@ struct BenchmarkScenario {
 struct PreparedScenario {
     operation: String,
     fixture: String,
-    _tempdir: TempDir,
+    tempdir: TempDir,
     po_input_path: Option<PathBuf>,
     icu_messages_path: Option<PathBuf>,
     existing_po_path: Option<PathBuf>,
@@ -447,6 +452,10 @@ struct ScenarioExecutionPlan {
 }
 
 impl PreparedScenario {
+    #[expect(
+        clippy::too_many_lines,
+        reason = "Scenario preparation is intentionally centralized so fixture setup remains deterministic."
+    )]
     fn prepare(workspace: &Path, scenarios: &[BenchmarkScenario]) -> Result<Self, String> {
         let Some(first) = scenarios.first() else {
             return Err("cannot prepare empty benchmark scenario group".to_owned());
@@ -480,7 +489,7 @@ impl PreparedScenario {
                 Ok(Self {
                     operation: first.operation.clone(),
                     fixture: first.fixture.clone(),
-                    _tempdir: tempdir,
+                    tempdir,
                     po_input_path: Some(input_path),
                     icu_messages_path: None,
                     existing_po_path: None,
@@ -520,7 +529,7 @@ impl PreparedScenario {
                 Ok(Self {
                     operation: first.operation.clone(),
                     fixture: first.fixture.clone(),
-                    _tempdir: tempdir,
+                    tempdir,
                     po_input_path: None,
                     icu_messages_path: None,
                     existing_po_path: Some(existing_po_path),
@@ -546,7 +555,7 @@ impl PreparedScenario {
                 Ok(Self {
                     operation: first.operation.clone(),
                     fixture: first.fixture.clone(),
-                    _tempdir: tempdir,
+                    tempdir,
                     po_input_path: None,
                     icu_messages_path: Some(messages_path),
                     existing_po_path: None,
@@ -585,7 +594,7 @@ impl PreparedScenario {
                     prepared: Self {
                         operation: scenario.operation.clone(),
                         fixture: format!("cli-baseline-msgcat-{}", scenario.fixture),
-                        _tempdir: tempdir,
+                        tempdir,
                         po_input_path: Some(input_path),
                         icu_messages_path: None,
                         existing_po_path: None,
@@ -627,7 +636,7 @@ impl PreparedScenario {
                     prepared: Self {
                         operation: scenario.operation.clone(),
                         fixture: format!("cli-baseline-msgmerge-{}", scenario.fixture),
-                        _tempdir: tempdir,
+                        tempdir,
                         po_input_path: None,
                         icu_messages_path: None,
                         existing_po_path: Some(existing_po_path),
@@ -910,7 +919,7 @@ impl PreparedScenario {
         iterations: usize,
         capture_artifacts: bool,
     ) -> Result<ExecutionResult, String> {
-        let request = self.adapter_request(scenario, iterations, capture_artifacts)?;
+        let request = self.adapter_request(scenario, iterations, capture_artifacts);
         let script = workspace.join("benchmark").join("node").join("adapter.cjs");
         run_external_adapter(
             "node",
@@ -927,7 +936,7 @@ impl PreparedScenario {
         iterations: usize,
         capture_artifacts: bool,
     ) -> Result<ExecutionResult, String> {
-        let request = self.adapter_request(scenario, iterations, capture_artifacts)?;
+        let request = self.adapter_request(scenario, iterations, capture_artifacts);
         let script = workspace
             .join("benchmark")
             .join("python")
@@ -946,7 +955,7 @@ impl PreparedScenario {
             .po_input_path
             .as_ref()
             .ok_or_else(|| "msgcat requires PO input path".to_owned())?;
-        let capture_path = self._tempdir.path().join("msgcat-output.po");
+        let capture_path = self.tempdir.path().join("msgcat-output.po");
         let start = Instant::now();
         let mut last_stdout = Vec::new();
         let mut bytes_processed = 0usize;
@@ -1013,7 +1022,7 @@ impl PreparedScenario {
             .pot_path
             .as_ref()
             .ok_or_else(|| "msgmerge requires a POT template path".to_owned())?;
-        let capture_path = self._tempdir.path().join("msgmerge-output.po");
+        let capture_path = self.tempdir.path().join("msgmerge-output.po");
         let start = Instant::now();
         let mut last_stdout = Vec::new();
         let mut bytes_processed = 0usize;
@@ -1076,8 +1085,8 @@ impl PreparedScenario {
         scenario: &BenchmarkScenario,
         iterations: usize,
         capture_artifacts: bool,
-    ) -> Result<AdapterRequest, String> {
-        Ok(AdapterRequest {
+    ) -> AdapterRequest {
+        AdapterRequest {
             scenario_id: scenario.id.clone(),
             implementation: scenario.implementation.clone(),
             workload: scenario.workload.clone(),
@@ -1102,13 +1111,13 @@ impl PreparedScenario {
                 .as_ref()
                 .map(|path| path.to_string_lossy().into_owned()),
             po_output_path: capture_artifacts.then(|| {
-                self._tempdir
+                self.tempdir
                     .path()
                     .join(format!("{}-output.po", scenario.implementation))
                     .to_string_lossy()
                     .into_owned()
             }),
-        })
+        }
     }
 }
 
@@ -1273,7 +1282,6 @@ fn fixture_locale(name: &str) -> Option<String> {
 
 fn fixture_locale_metadata(locale: &str) -> (&'static str, &'static str) {
     match locale {
-        "de" => ("de", "nplurals=2; plural=(n != 1);"),
         "fr" => ("fr", "nplurals=2; plural=(n > 1);"),
         "pl" => (
             "pl",
@@ -1614,12 +1622,14 @@ struct ScenarioSampleReport {
 }
 
 impl ScenarioSampleReport {
-    fn from_execution(sample: ExecutionResult) -> Self {
+    fn from_execution(sample: &ExecutionResult) -> Self {
         let elapsed_seconds = nanos_to_seconds(sample.elapsed_ns);
-        let units = sample
-            .items_processed
-            .or(sample.messages_processed)
-            .unwrap_or(0) as f64;
+        let units = f64_from_u64(
+            sample
+                .items_processed
+                .or(sample.messages_processed)
+                .unwrap_or(0),
+        );
         let adjusted_elapsed_ns = sample.adjusted_elapsed_ns();
         let adjusted_seconds = adjusted_elapsed_ns.map(nanos_to_seconds);
         Self {
@@ -1661,6 +1671,10 @@ struct ScenarioStatistics {
 }
 
 impl ScenarioStatistics {
+    #[expect(
+        clippy::too_many_lines,
+        reason = "Benchmark statistics are computed together so the report contract stays easy to verify."
+    )]
     fn from_samples(samples: &[ExecutionResult]) -> Self {
         let mut elapsed = samples
             .iter()
@@ -1670,15 +1684,19 @@ impl ScenarioStatistics {
         let median_elapsed_ns = elapsed[elapsed.len() / 2];
         let min_elapsed_ns = *elapsed.first().unwrap_or(&0);
         let max_elapsed_ns = *elapsed.last().unwrap_or(&0);
-        let mean = elapsed.iter().map(|value| *value as f64).sum::<f64>() / elapsed.len() as f64;
+        let mean = elapsed
+            .iter()
+            .map(|value| f64_from_u128(*value))
+            .sum::<f64>()
+            / f64_from_usize(elapsed.len());
         let variance = elapsed
             .iter()
             .map(|value| {
-                let delta = *value as f64 - mean;
+                let delta = f64_from_u128(*value) - mean;
                 delta * delta
             })
             .sum::<f64>()
-            / elapsed.len() as f64;
+            / f64_from_usize(elapsed.len());
         let median_absolute_deviation_ns = elapsed
             .iter()
             .map(|value| value.abs_diff(median_elapsed_ns))
@@ -1694,7 +1712,8 @@ impl ScenarioStatistics {
         let relative_span_percent = if median_elapsed_ns == 0 {
             0.0
         } else {
-            ((max_elapsed_ns - min_elapsed_ns) as f64 / median_elapsed_ns as f64) * 100.0
+            (f64_from_u128(max_elapsed_ns - min_elapsed_ns) / f64_from_u128(median_elapsed_ns))
+                * 100.0
         };
 
         let mut sample_reports = samples
@@ -1704,10 +1723,12 @@ impl ScenarioStatistics {
                 (
                     throughput_mib(sample.bytes_processed, seconds),
                     throughput_units(
-                        sample
-                            .items_processed
-                            .or(sample.messages_processed)
-                            .unwrap_or(0) as f64,
+                        f64_from_u64(
+                            sample
+                                .items_processed
+                                .or(sample.messages_processed)
+                                .unwrap_or(0),
+                        ),
                         seconds,
                     ),
                 )
@@ -1716,13 +1737,11 @@ impl ScenarioStatistics {
         sample_reports.sort_by(|left, right| left.0.total_cmp(&right.0));
         let median_mib_per_sec = sample_reports
             .get(sample_reports.len() / 2)
-            .map(|entry| entry.0)
-            .unwrap_or(0.0);
+            .map_or(0.0, |entry| entry.0);
         sample_reports.sort_by(|left, right| left.1.total_cmp(&right.1));
         let median_units_per_sec = sample_reports
             .get(sample_reports.len() / 2)
-            .map(|entry| entry.1)
-            .unwrap_or(0.0);
+            .map_or(0.0, |entry| entry.1);
 
         let baseline_elapsed = samples
             .iter()
@@ -1743,10 +1762,12 @@ impl ScenarioStatistics {
                 Some((
                     throughput_mib(sample.bytes_processed, seconds),
                     throughput_units(
-                        sample
-                            .items_processed
-                            .or(sample.messages_processed)
-                            .unwrap_or(0) as f64,
+                        f64_from_u64(
+                            sample
+                                .items_processed
+                                .or(sample.messages_processed)
+                                .unwrap_or(0),
+                        ),
                         seconds,
                     ),
                 ))
@@ -1818,14 +1839,18 @@ fn round_robin_schedule(run_counts: &[usize]) -> Vec<usize> {
 }
 
 fn nanos_to_seconds(value: u128) -> f64 {
-    value as f64 / 1_000_000_000.0
+    f64_from_u128(value) / 1_000_000_000.0
+}
+
+fn nanos_to_millis(value: u128) -> f64 {
+    f64_from_u128(value) / 1_000_000.0
 }
 
 fn throughput_mib(bytes: u64, seconds: f64) -> f64 {
     if seconds <= 0.0 {
         return f64::INFINITY;
     }
-    bytes as f64 / (1024.0 * 1024.0 * seconds)
+    f64_from_u64(bytes) / (1024.0 * 1024.0 * seconds)
 }
 
 fn throughput_units(units: f64, seconds: f64) -> f64 {
@@ -1833,6 +1858,30 @@ fn throughput_units(units: f64, seconds: f64) -> f64 {
         return f64::INFINITY;
     }
     units / seconds
+}
+
+#[expect(
+    clippy::cast_precision_loss,
+    reason = "Benchmark summaries intentionally use approximate floating-point display values."
+)]
+const fn f64_from_u128(value: u128) -> f64 {
+    value as f64
+}
+
+#[expect(
+    clippy::cast_precision_loss,
+    reason = "Benchmark summaries intentionally use approximate floating-point display values."
+)]
+const fn f64_from_u64(value: u64) -> f64 {
+    value as f64
+}
+
+#[expect(
+    clippy::cast_precision_loss,
+    reason = "Benchmark summaries intentionally use approximate floating-point display values."
+)]
+const fn f64_from_usize(value: usize) -> f64 {
+    value as f64
 }
 
 #[derive(Debug, Clone)]
@@ -1896,6 +1945,10 @@ struct BenchmarkEnvironment {
 }
 
 impl BenchmarkEnvironment {
+    #[expect(
+        clippy::too_many_lines,
+        reason = "Environment detection keeps all external tool probes together for maintainability."
+    )]
     fn detect(workspace: &Path, path_override: Option<&OsStr>) -> Result<Self, String> {
         let mut errors = Vec::new();
         let python_program = preferred_python_program(workspace);
@@ -2148,7 +2201,7 @@ fn format_memory_label(memory_bytes: u64) -> String {
         return "unknown RAM".to_owned();
     }
 
-    let gib = memory_bytes as f64 / 1024_f64.powi(3);
+    let gib = f64_from_u64(memory_bytes) / 1024_f64.powi(3);
     let rounded = gib.round();
     if (gib - rounded).abs() < 0.05 {
         format!("{rounded:.0} GB RAM")
@@ -2168,7 +2221,7 @@ fn read_macos_sysctl_string(name: &str) -> Option<String> {
         if libc::sysctlbyname(
             name.as_ptr(),
             std::ptr::null_mut(),
-            &mut len,
+            &raw mut len,
             std::ptr::null_mut(),
             0,
         ) != 0
@@ -2181,7 +2234,7 @@ fn read_macos_sysctl_string(name: &str) -> Option<String> {
         if libc::sysctlbyname(
             name.as_ptr(),
             buffer.as_mut_ptr().cast(),
-            &mut len,
+            &raw mut len,
             std::ptr::null_mut(),
             0,
         ) != 0
@@ -2214,8 +2267,8 @@ fn read_macos_sysctl_u64(name: &str) -> Option<u64> {
     unsafe {
         if libc::sysctlbyname(
             name.as_ptr(),
-            (&mut value as *mut u64).cast(),
-            &mut len,
+            (&raw mut value).cast(),
+            &raw mut len,
             std::ptr::null_mut(),
             0,
         ) != 0
@@ -2393,7 +2446,6 @@ fn run_external_adapter(
     let Some(mut stdin) = child.stdin.take() else {
         return Err(format!("failed to open stdin for {program_label}"));
     };
-    use std::io::Write;
     stdin
         .write_all(&input)
         .map_err(|error| format!("failed to write adapter request: {error}"))?;

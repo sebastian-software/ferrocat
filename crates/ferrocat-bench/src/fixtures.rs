@@ -1,5 +1,6 @@
 use std::borrow::Cow;
 use std::collections::BTreeMap;
+use std::fmt::Write as _;
 
 use ferrocat_po::{
     CatalogOrigin, ExtractedMessage, ExtractedPluralMessage, ExtractedSingularMessage,
@@ -87,7 +88,7 @@ impl MergeFixture {
         self.name.as_ref()
     }
 
-    pub fn kind(&self) -> &str {
+    pub const fn kind(&self) -> &str {
         self.kind
     }
 
@@ -99,7 +100,7 @@ impl MergeFixture {
         &self.extracted_messages
     }
 
-    pub fn existing_entries(&self) -> usize {
+    pub const fn existing_entries(&self) -> usize {
         self.existing_entries
     }
 
@@ -117,7 +118,7 @@ impl Fixture {
         self.name.as_ref()
     }
 
-    pub fn kind(&self) -> &str {
+    pub const fn kind(&self) -> &str {
         self.kind
     }
 
@@ -125,7 +126,7 @@ impl Fixture {
         self.content.as_ref()
     }
 
-    pub fn stats(&self) -> FixtureStats {
+    pub const fn stats(&self) -> FixtureStats {
         self.stats
     }
 }
@@ -135,7 +136,7 @@ impl IcuFixture {
         self.name.as_ref()
     }
 
-    pub fn kind(&self) -> &str {
+    pub const fn kind(&self) -> &str {
         self.kind
     }
 
@@ -147,7 +148,7 @@ impl IcuFixture {
         self.messages.len()
     }
 
-    pub fn total_bytes(&self) -> usize {
+    pub const fn total_bytes(&self) -> usize {
         self.total_bytes
     }
 }
@@ -253,7 +254,7 @@ fn generated_icu_fixture(kind: IcuFixtureKind, entries: usize) -> IcuFixture {
     let messages = (0..entries)
         .map(|index| build_icu_message(kind, index))
         .collect::<Vec<_>>();
-    let total_bytes = messages.iter().map(|message| message.len()).sum();
+    let total_bytes = messages.iter().map(String::len).sum();
 
     IcuFixture {
         name: Cow::Owned(format!("{}-{entries}", icu_fixture_kind_name(kind))),
@@ -287,6 +288,10 @@ fn generated_gettext_merge_fixture(
     )
 }
 
+#[expect(
+    clippy::too_many_lines,
+    reason = "Fixture generation is kept contiguous so benchmark corpus structure stays easy to audit."
+)]
 fn merge_fixture_from_existing(
     name: String,
     kind: &'static str,
@@ -318,7 +323,7 @@ fn merge_fixture_from_existing(
         let msgid_plural = item.msgid_plural.clone();
 
         extracted_messages.push(MergeExtractedMessage {
-            msgctxt: msgctxt.clone().map(Cow::Owned),
+            msgctxt: msgctxt.as_ref().map(|context| Cow::Owned(context.clone())),
             msgid: Cow::Owned(msgid.clone()),
             msgid_plural: msgid_plural.clone().map(Cow::Owned),
             references: vec![Cow::Owned(reference.clone())],
@@ -344,7 +349,7 @@ fn merge_fixture_from_existing(
                 },
                 comments: extracted_comment.into_iter().collect(),
                 origin: vec![parse_origin(&reference)],
-                placeholders: Default::default(),
+                placeholders: BTreeMap::default(),
             })
         } else {
             ExtractedMessage::Singular(ExtractedSingularMessage {
@@ -352,7 +357,7 @@ fn merge_fixture_from_existing(
                 msgctxt,
                 comments: extracted_comment.into_iter().collect(),
                 origin: vec![parse_origin(&reference)],
-                placeholders: Default::default(),
+                placeholders: BTreeMap::default(),
             })
         });
     }
@@ -361,9 +366,9 @@ fn merge_fixture_from_existing(
         let message_index = parsed.items.len() + index;
         let msgctxt =
             (message_index % 9 == 0).then(|| format!("merge-context-{}", message_index % 5));
-        let msgid = format!("Merged message {}", message_index);
+        let msgid = format!("Merged message {message_index}");
         let msgid_plural =
-            (message_index % 8 == 0).then(|| format!("Merged messages {}", message_index));
+            (message_index % 8 == 0).then(|| format!("Merged messages {message_index}"));
         let reference = format!(
             "src/new_merge_{:04}.rs:{}",
             message_index,
@@ -372,7 +377,7 @@ fn merge_fixture_from_existing(
         let extracted_comment = (message_index % 6 == 0).then(|| "newly extracted".to_owned());
 
         extracted_messages.push(MergeExtractedMessage {
-            msgctxt: msgctxt.clone().map(Cow::Owned),
+            msgctxt: msgctxt.as_ref().map(|context| Cow::Owned(context.clone())),
             msgid: Cow::Owned(msgid.clone()),
             msgid_plural: msgid_plural.clone().map(Cow::Owned),
             references: vec![Cow::Owned(reference.clone())],
@@ -398,7 +403,7 @@ fn merge_fixture_from_existing(
                 },
                 comments: extracted_comment.into_iter().collect(),
                 origin: vec![parse_origin(&reference)],
-                placeholders: Default::default(),
+                placeholders: BTreeMap::default(),
             })
         } else {
             ExtractedMessage::Singular(ExtractedSingularMessage {
@@ -406,7 +411,7 @@ fn merge_fixture_from_existing(
                 msgctxt,
                 comments: extracted_comment.into_iter().collect(),
                 origin: vec![parse_origin(&reference)],
-                placeholders: Default::default(),
+                placeholders: BTreeMap::default(),
             })
         });
     }
@@ -473,7 +478,7 @@ fn generated_catalog_icu_fixture(kind: CatalogIcuFixtureKind, entries: usize) ->
     }
 }
 
-fn icu_fixture_kind_name(kind: IcuFixtureKind) -> &'static str {
+const fn icu_fixture_kind_name(kind: IcuFixtureKind) -> &'static str {
     match kind {
         IcuFixtureKind::Literal => "icu-literal",
         IcuFixtureKind::Args => "icu-args",
@@ -573,7 +578,7 @@ fn gettext_locale_profile(id: &str) -> Option<GettextLocaleProfile> {
     }
 }
 
-fn gettext_family_name(family: GettextFixtureFamily) -> &'static str {
+const fn gettext_family_name(family: GettextFixtureFamily) -> &'static str {
     match family {
         GettextFixtureFamily::Ui => "ui",
         GettextFixtureFamily::Commerce => "commerce",
@@ -592,10 +597,10 @@ fn build_gettext_fixture(
     out.push_str("msgid \"\"\n");
     out.push_str("msgstr \"\"\n");
     out.push_str("\"Project-Id-Version: ferrocat gettext compat benchmark\\n\"\n");
-    out.push_str(&format!("\"Language: {}\\n\"\n", locale.language));
+    let _ = writeln!(out, "\"Language: {}\\n\"", locale.language);
     out.push_str("\"Content-Type: text/plain; charset=UTF-8\\n\"\n");
     out.push_str("\"Content-Transfer-Encoding: 8bit\\n\"\n");
-    out.push_str(&format!("\"Plural-Forms: {}\\n\"\n\n", locale.plural_forms));
+    let _ = writeln!(out, "\"Plural-Forms: {}\\n\"\n", locale.plural_forms);
 
     for index in 0..entries {
         let shape = gettext_feature_shape(family, index);
@@ -673,6 +678,10 @@ fn build_gettext_fixture(
     out
 }
 
+#[expect(
+    clippy::struct_excessive_bools,
+    reason = "Synthetic fixture features are easiest to tune as independent benchmark toggles."
+)]
 #[derive(Clone, Copy)]
 struct GettextFeatureShape {
     is_plural: bool,
@@ -686,7 +695,7 @@ struct GettextFeatureShape {
     has_c_format: bool,
 }
 
-fn gettext_feature_shape(family: GettextFixtureFamily, index: usize) -> GettextFeatureShape {
+const fn gettext_feature_shape(family: GettextFixtureFamily, index: usize) -> GettextFeatureShape {
     let plural_mod = match family {
         GettextFixtureFamily::Ui => 8,
         GettextFixtureFamily::Commerce => 4,
@@ -995,7 +1004,7 @@ fn gettext_reference_line(family: GettextFixtureFamily, index: usize) -> String 
     format!("#: {path}:{}", (index % 180) + 1)
 }
 
-fn gettext_translator_comment(
+const fn gettext_translator_comment(
     family: GettextFixtureFamily,
     index: usize,
     is_plural: bool,
@@ -1016,7 +1025,7 @@ fn gettext_translator_comment(
     }
 }
 
-fn gettext_extracted_comment(
+const fn gettext_extracted_comment(
     family: GettextFixtureFamily,
     index: usize,
     is_plural: bool,
@@ -1059,7 +1068,7 @@ fn icu_top_level_plural(variable: &str, one: &str, other: &str) -> String {
     out
 }
 
-fn catalog_icu_flavor(kind: CatalogIcuFixtureKind, index: usize) -> CatalogIcuFlavor {
+const fn catalog_icu_flavor(kind: CatalogIcuFixtureKind, index: usize) -> CatalogIcuFlavor {
     match kind {
         CatalogIcuFixtureKind::Light => {
             if index % 12 == 0 {
@@ -1103,6 +1112,10 @@ enum CatalogIcuFlavor {
     OffsetUnsupported,
 }
 
+#[expect(
+    clippy::too_many_lines,
+    reason = "The generated catalog ICU flavors are intentionally kept in one place for corpus traceability."
+)]
 fn build_catalog_icu_entry(
     flavor: CatalogIcuFlavor,
     index: usize,
@@ -1131,7 +1144,7 @@ fn build_catalog_icu_entry(
                 placeholders,
             });
             let merge = MergeExtractedMessage {
-                msgctxt: msgctxt.clone().map(Cow::Owned),
+                msgctxt: msgctxt.map(Cow::Owned),
                 msgid: Cow::Owned(msgid.clone()),
                 msgid_plural: None,
                 references: merge_reference,
@@ -1157,7 +1170,7 @@ fn build_catalog_icu_entry(
                 placeholders,
             });
             let merge = MergeExtractedMessage {
-                msgctxt: msgctxt.clone().map(Cow::Owned),
+                msgctxt: msgctxt.map(Cow::Owned),
                 msgid: Cow::Owned(msgid.clone()),
                 msgid_plural: None,
                 references: merge_reference,
@@ -1229,7 +1242,7 @@ fn build_catalog_icu_entry(
                 placeholders,
             });
             let merge = MergeExtractedMessage {
-                msgctxt: msgctxt.clone().map(Cow::Owned),
+                msgctxt: msgctxt.map(Cow::Owned),
                 msgid: Cow::Owned(msgid.clone()),
                 msgid_plural: None,
                 references: merge_reference,
@@ -1252,7 +1265,7 @@ fn build_catalog_icu_entry(
                 placeholders,
             });
             let merge = MergeExtractedMessage {
-                msgctxt: msgctxt.clone().map(Cow::Owned),
+                msgctxt: msgctxt.map(Cow::Owned),
                 msgid: Cow::Owned(msgid.clone()),
                 msgid_plural: None,
                 references: merge_reference,
@@ -1275,7 +1288,7 @@ fn build_catalog_icu_entry(
                 placeholders,
             });
             let merge = MergeExtractedMessage {
-                msgctxt: msgctxt.clone().map(Cow::Owned),
+                msgctxt: msgctxt.map(Cow::Owned),
                 msgid: Cow::Owned(msgid.clone()),
                 msgid_plural: None,
                 references: merge_reference,
@@ -1297,7 +1310,7 @@ fn build_catalog_icu_entry(
                 placeholders,
             });
             let merge = MergeExtractedMessage {
-                msgctxt: msgctxt.clone().map(Cow::Owned),
+                msgctxt: msgctxt.map(Cow::Owned),
                 msgid: Cow::Owned(msgid.clone()),
                 msgid_plural: None,
                 references: merge_reference,
