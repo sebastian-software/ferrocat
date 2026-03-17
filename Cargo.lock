@@ -102,7 +102,7 @@ checksum = "37909eebbb50d72f9059c3b6d82c0463f2ff062c9e95845c43a6c9c0355411be"
 
 [[package]]
 name = "ferrocat"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "ferrocat-icu",
  "ferrocat-po",
@@ -110,7 +110,7 @@ dependencies = [
 
 [[package]]
 name = "ferrocat-bench"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "ferrocat-conformance",
  "ferrocat-icu",
@@ -125,18 +125,18 @@ dependencies = [
 
 [[package]]
 name = "ferrocat-conformance"
-version = "0.3.0"
+version = "0.4.0"
 
 [[package]]
 name = "ferrocat-icu"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "ferrocat-conformance",
 ]
 
 [[package]]
 name = "ferrocat-po"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "ferrocat-conformance",
  "ferrocat-icu",

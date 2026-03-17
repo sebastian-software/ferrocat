@@ -1,6 +1,6 @@
 [package]
 name = "ferrocat-po"
-version = "0.3.0"
+version = "0.4.0"
 edition.workspace = true
 homepage.workspace = true
 license.workspace = true
@@ -15,7 +15,7 @@ categories = ["internationalization", "localization", "parser-implementations"]
 path = "src/lib.rs"
 
 [dependencies]
-ferrocat-icu = { version = "0.3.0", path = "../ferrocat-icu" }
+ferrocat-icu = { version = "0.4.0", path = "../ferrocat-icu" }
 icu_locale = "2.1.1"
 icu_plurals = { version = "2.1.1", features = ["compiled_data"] }
 memchr = "2.7.6"
