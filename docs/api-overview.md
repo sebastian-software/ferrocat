@@ -19,6 +19,8 @@ This page is a lightweight guide for choosing the right function before there is
 | Read a `.po` file into the higher-level canonical catalog model | `parse_catalog` |
 | Build keyed lookup/helpers on top of a parsed catalog | `ParsedCatalog::into_normalized_view` |
 | Compile a normalized catalog into runtime lookup entries | `NormalizedParsedCatalog::compile` |
+| Compile a requested-locale runtime artifact with fallbacks and missing reports | `compile_catalog_artifact` |
+| Compile only a selected subset of compiled runtime IDs | `compile_catalog_artifact_selected` |
 | Perform a full in-memory catalog update | `update_catalog` |
 | Perform a full catalog update and write the result to disk only when changed | `update_catalog_file` |
 | Parse ICU MessageFormat into a structural AST | `parse_icu` |
@@ -103,6 +105,59 @@ The built-in `CompiledKeyStrategy::FerrocatV1` contract is intentionally compact
 - no visible version prefix in the emitted key
 - hard compile failure on collisions
 
+### `compile_catalog_artifact`
+
+Use this when you want the final host-neutral runtime artifact for one requested locale rather than one catalog's typed lookup payload.
+
+This sits one step above `NormalizedParsedCatalog::compile`:
+
+- start from one or more normalized catalogs
+- choose a requested locale and source locale
+- optionally provide a fallback chain
+- compile a final `key -> ICU string` runtime map
+- collect missing-message records for non-source locales
+- validate the final runtime strings as ICU messages
+
+Choose this when your downstream tooling needs locale resolution semantics centralized in Ferrocat instead of rebuilding them in a host adapter.
+
+Important semantics:
+
+- only non-obsolete messages participate in artifact compilation
+- empty non-source translations are treated as unresolved and can fall through to the fallback chain
+- source fallback is explicit for non-source locale compilation
+- source-locale compilation always materializes empty source values from source text
+- plural messages are emitted as final ICU plural strings using the preserved plural variable
+- invalid final ICU strings become diagnostics by default and can become hard errors in strict mode
+
+### `compile_catalog_artifact_selected`
+
+Use this when a host adapter already knows the exact compiled runtime IDs it needs and wants only that slice of a requested-locale artifact.
+
+This is the narrower companion to `compile_catalog_artifact`:
+
+- build or reuse a `CompiledCatalogIdIndex`
+- pass only the selected compiled IDs
+- keep the same fallback, missing, and ICU-validation semantics
+- return the same `CompiledCatalogArtifact` shape, but filtered to the requested subset
+
+Choose this when a bundler/plugin layer has already mapped modules or chunks to the exact message IDs they require.
+
+### `CompiledCatalogIdIndex`
+
+Use this when you need stable compiled-ID metadata without compiling message payloads immediately.
+
+Useful helpers now include:
+
+- `iter` for deterministic compiled-ID traversal
+- `as_btreemap` / `into_btreemap` when another tool wants the raw ordered mapping
+- `describe_compiled_ids` to ask which requested IDs are known, available in a given catalog set, and whether they are singular or plural
+
+`describe_compiled_ids` returns a structured report:
+
+- `described` for IDs that are known to the index and present in the provided catalog set
+- `unknown_compiled_ids` for IDs that do not exist in the index at all
+- `unavailable_compiled_ids` for IDs that are known to the index but not present in the provided catalog set
+
 ### `update_catalog`
 
 Use this for the full high-level catalog update path in memory.
@@ -157,4 +212,6 @@ Use this after `parse_icu` when you want the variable names referenced by the me
 - classic gettext merge step: `merge_catalog`
 - full app-level catalog maintenance: `update_catalog` or `update_catalog_file`
 - parsed catalog consumption with keyed accessors: `parse_catalog` + `into_normalized_view`
+- locale-specific runtime artifact generation: `compile_catalog_artifact`
+- selected locale artifact generation by compiled ID: `compile_catalog_artifact_selected`
 - ICU analysis: `parse_icu`
