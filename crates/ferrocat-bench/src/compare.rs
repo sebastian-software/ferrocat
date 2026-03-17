@@ -27,6 +27,9 @@ use crate::fixtures::{
 
 const INTERNAL_TOOL_VERSION: &str = concat!("ferrocat@", env!("CARGO_PKG_VERSION"));
 const DEFAULT_MIN_SAMPLE_MILLIS: u64 = 250;
+const CALIBRATION_PROBE_RUNS: usize = 3;
+const NOISE_CV_WARNING_THRESHOLD: f64 = 0.05;
+const NOISE_RELATIVE_SPAN_WARNING_THRESHOLD: f64 = 10.0;
 
 pub fn run_verify_benchmark_env() -> Result<(), String> {
     let workspace = workspace_root()?;
@@ -90,11 +93,14 @@ pub fn run_compare_command(
     println!("scenarios: {}", report.scenarios.len());
     for scenario in &report.scenarios {
         println!(
-            "scenario: {} implementation={} fixture={} median-ms={:.3} samples={}",
+            "scenario: {} implementation={} fixture={} median-ms={:.3} cv={:.2}% span={:.2}% noisy={} samples={}",
             scenario.id,
             scenario.implementation,
             scenario.fixture,
             scenario.statistics.median_elapsed_ns as f64 / 1_000_000.0,
+            scenario.statistics.coefficient_of_variation * 100.0,
+            scenario.statistics.relative_span_percent,
+            scenario.statistics.noisy,
             scenario.samples.len()
         );
     }
@@ -119,6 +125,7 @@ fn run_profile(
     for scenarios in grouped.into_values() {
         let prepared = PreparedScenario::prepare(workspace, &scenarios)?;
         let mut expected_digest = None::<String>;
+        let mut plans = Vec::with_capacity(scenarios.len());
 
         for scenario in scenarios {
             let validation = execute_scenario(workspace, &prepared, &scenario, 1, true)?;
@@ -141,65 +148,115 @@ fn run_profile(
                 _ => {}
             }
 
+            let mut calibration_elapsed_ns = Vec::with_capacity(CALIBRATION_PROBE_RUNS);
+            calibration_elapsed_ns.push(validation.elapsed_ns);
+            for _ in 1..CALIBRATION_PROBE_RUNS {
+                let probe = execute_scenario(workspace, &prepared, &scenario, 1, false)?;
+                if probe.reported_digest != validated_digest {
+                    return Err(format!(
+                        "calibration digest mismatch for scenario {}: expected {}, got {}",
+                        scenario.id, validated_digest, probe.reported_digest
+                    ));
+                }
+                calibration_elapsed_ns.push(probe.elapsed_ns);
+            }
+
             let iterations = calibrate_iterations(
                 scenario
                     .minimum_sample_millis
                     .unwrap_or(profile.minimum_sample_millis),
-                validation.elapsed_ns,
+                &calibration_elapsed_ns,
             );
             let cli_baseline = PreparedScenario::prepare_cli_baseline(workspace, &scenario)?;
+            plans.push(ScenarioExecutionPlan {
+                scenario,
+                tool_version: validation.tool_version,
+                validated_digest,
+                iterations,
+                cli_baseline,
+            });
+        }
 
-            for _ in 0..scenario.warmup_runs {
-                let warmup = execute_scenario(workspace, &prepared, &scenario, iterations, false)?;
-                if warmup.reported_digest != validated_digest {
-                    return Err(format!(
-                        "warmup digest mismatch for scenario {}: expected {}, got {}",
-                        scenario.id, validated_digest, warmup.reported_digest
-                    ));
-                }
-                if let Some(baseline) = &cli_baseline {
-                    execute_scenario(workspace, &baseline.prepared, &scenario, iterations, false)?;
-                }
+        for index in round_robin_schedule(
+            &plans
+                .iter()
+                .map(|plan| plan.scenario.warmup_runs)
+                .collect::<Vec<_>>(),
+        ) {
+            let plan = &plans[index];
+            let warmup =
+                execute_scenario(workspace, &prepared, &plan.scenario, plan.iterations, false)?;
+            if warmup.reported_digest != plan.validated_digest {
+                return Err(format!(
+                    "warmup digest mismatch for scenario {}: expected {}, got {}",
+                    plan.scenario.id, plan.validated_digest, warmup.reported_digest
+                ));
             }
-
-            let mut samples = Vec::with_capacity(scenario.measured_runs);
-            for _ in 0..scenario.measured_runs {
-                let mut sample =
-                    execute_scenario(workspace, &prepared, &scenario, iterations, false)?;
-                if sample.reported_digest != validated_digest {
-                    return Err(format!(
-                        "measured digest mismatch for scenario {}: expected {}, got {}",
-                        scenario.id, validated_digest, sample.reported_digest
-                    ));
-                }
-                if let Some(baseline) = &cli_baseline {
-                    let baseline_sample = execute_scenario(
-                        workspace,
-                        &baseline.prepared,
-                        &scenario,
-                        iterations,
-                        false,
-                    )?;
-                    sample.baseline_elapsed_ns = Some(baseline_sample.elapsed_ns);
-                }
-                samples.push(sample);
+            if let Some(baseline) = &plan.cli_baseline {
+                execute_scenario(
+                    workspace,
+                    &baseline.prepared,
+                    &plan.scenario,
+                    plan.iterations,
+                    false,
+                )?;
             }
+        }
 
+        let mut samples_by_plan = plans
+            .iter()
+            .map(|plan| Vec::with_capacity(plan.scenario.measured_runs))
+            .collect::<Vec<_>>();
+        for index in round_robin_schedule(
+            &plans
+                .iter()
+                .map(|plan| plan.scenario.measured_runs)
+                .collect::<Vec<_>>(),
+        ) {
+            let plan = &plans[index];
+            let mut sample =
+                execute_scenario(workspace, &prepared, &plan.scenario, plan.iterations, false)?;
+            if sample.reported_digest != plan.validated_digest {
+                return Err(format!(
+                    "measured digest mismatch for scenario {}: expected {}, got {}",
+                    plan.scenario.id, plan.validated_digest, sample.reported_digest
+                ));
+            }
+            if let Some(baseline) = &plan.cli_baseline {
+                let baseline_sample = execute_scenario(
+                    workspace,
+                    &baseline.prepared,
+                    &plan.scenario,
+                    plan.iterations,
+                    false,
+                )?;
+                sample.baseline_elapsed_ns = Some(baseline_sample.elapsed_ns);
+            }
+            samples_by_plan[index].push(sample);
+        }
+
+        for (plan, samples) in plans.into_iter().zip(samples_by_plan.into_iter()) {
             let statistics = ScenarioStatistics::from_samples(&samples);
             reports.push(ScenarioReport {
-                id: scenario.id.clone(),
-                comparison_group: scenario.comparison_group.clone(),
-                workload: scenario.workload.clone(),
-                operation: scenario.operation.clone(),
-                fixture: scenario.fixture.clone(),
-                implementation: scenario.implementation.clone(),
-                tool_version: validation.tool_version,
-                iterations_per_sample: iterations,
-                warmup_runs: scenario.warmup_runs,
-                measured_runs: scenario.measured_runs,
-                semantic_digest: validated_digest,
-                baseline_strategy: cli_baseline.as_ref().map(|_| "empty-cli-run".to_owned()),
-                baseline_fixture: cli_baseline.as_ref().map(|baseline| baseline.label.clone()),
+                id: plan.scenario.id.clone(),
+                comparison_group: plan.scenario.comparison_group.clone(),
+                workload: plan.scenario.workload.clone(),
+                operation: plan.scenario.operation.clone(),
+                fixture: plan.scenario.fixture.clone(),
+                implementation: plan.scenario.implementation.clone(),
+                tool_version: plan.tool_version,
+                iterations_per_sample: plan.iterations,
+                warmup_runs: plan.scenario.warmup_runs,
+                measured_runs: plan.scenario.measured_runs,
+                semantic_digest: plan.validated_digest,
+                baseline_strategy: plan
+                    .cli_baseline
+                    .as_ref()
+                    .map(|_| "empty-cli-run".to_owned()),
+                baseline_fixture: plan
+                    .cli_baseline
+                    .as_ref()
+                    .map(|baseline| baseline.label.clone()),
                 statistics,
                 samples: samples
                     .into_iter()
@@ -250,7 +307,10 @@ fn execute_scenario(
     }
 }
 
-fn calibrate_iterations(minimum_sample_millis: u64, single_elapsed_ns: u128) -> usize {
+fn calibrate_iterations(minimum_sample_millis: u64, probe_elapsed_ns: &[u128]) -> usize {
+    let Some(single_elapsed_ns) = median_u128(probe_elapsed_ns.to_vec()) else {
+        return 1;
+    };
     if single_elapsed_ns == 0 {
         return 1;
     }
@@ -373,6 +433,15 @@ struct PreparedScenario {
 struct CliBaselineScenario {
     label: String,
     prepared: PreparedScenario,
+}
+
+#[derive(Debug)]
+struct ScenarioExecutionPlan {
+    scenario: BenchmarkScenario,
+    tool_version: String,
+    validated_digest: String,
+    iterations: usize,
+    cli_baseline: Option<CliBaselineScenario>,
 }
 
 impl PreparedScenario {
@@ -1573,9 +1642,14 @@ impl ScenarioSampleReport {
 #[derive(Debug, Serialize)]
 struct ScenarioStatistics {
     median_elapsed_ns: u128,
+    mean_elapsed_ns: f64,
     min_elapsed_ns: u128,
     max_elapsed_ns: u128,
     stddev_elapsed_ns: f64,
+    median_absolute_deviation_ns: u128,
+    coefficient_of_variation: f64,
+    relative_span_percent: f64,
+    noisy: bool,
     median_mib_per_sec: f64,
     median_units_per_sec: f64,
     median_baseline_elapsed_ns: Option<u128>,
@@ -1603,6 +1677,23 @@ impl ScenarioStatistics {
             })
             .sum::<f64>()
             / elapsed.len() as f64;
+        let median_absolute_deviation_ns = elapsed
+            .iter()
+            .map(|value| value.abs_diff(median_elapsed_ns))
+            .collect::<Vec<_>>();
+        let median_absolute_deviation_ns =
+            median_u128(median_absolute_deviation_ns).unwrap_or_default();
+        let stddev_elapsed_ns = variance.sqrt();
+        let coefficient_of_variation = if mean <= f64::EPSILON {
+            0.0
+        } else {
+            stddev_elapsed_ns / mean
+        };
+        let relative_span_percent = if median_elapsed_ns == 0 {
+            0.0
+        } else {
+            ((max_elapsed_ns - min_elapsed_ns) as f64 / median_elapsed_ns as f64) * 100.0
+        };
 
         let mut sample_reports = samples
             .iter()
@@ -1676,9 +1767,15 @@ impl ScenarioStatistics {
 
         Self {
             median_elapsed_ns,
+            mean_elapsed_ns: mean,
             min_elapsed_ns,
             max_elapsed_ns,
-            stddev_elapsed_ns: variance.sqrt(),
+            stddev_elapsed_ns,
+            median_absolute_deviation_ns,
+            coefficient_of_variation,
+            relative_span_percent,
+            noisy: coefficient_of_variation > NOISE_CV_WARNING_THRESHOLD
+                || relative_span_percent > NOISE_RELATIVE_SPAN_WARNING_THRESHOLD,
             median_mib_per_sec,
             median_units_per_sec,
             median_baseline_elapsed_ns,
@@ -1703,6 +1800,19 @@ fn median_f64(mut values: Vec<f64>) -> Option<f64> {
     }
     values.sort_by(f64::total_cmp);
     values.get(values.len() / 2).copied()
+}
+
+fn round_robin_schedule(run_counts: &[usize]) -> Vec<usize> {
+    let mut schedule = Vec::new();
+    let max_runs = run_counts.iter().copied().max().unwrap_or(0);
+    for round in 0..max_runs {
+        for (index, run_count) in run_counts.iter().copied().enumerate() {
+            if round < run_count {
+                schedule.push(index);
+            }
+        }
+    }
+    schedule
 }
 
 fn nanos_to_seconds(value: u128) -> f64 {
@@ -2795,7 +2905,24 @@ mod tests {
         assert_eq!(stats.median_elapsed_ns, 20);
         assert_eq!(stats.min_elapsed_ns, 10);
         assert_eq!(stats.max_elapsed_ns, 30);
+        assert_eq!(stats.median_absolute_deviation_ns, 10);
+        assert!(stats.mean_elapsed_ns > 0.0);
         assert!(stats.stddev_elapsed_ns > 0.0);
+        assert!(stats.coefficient_of_variation > 0.0);
+        assert!(stats.relative_span_percent > 0.0);
+        assert!(stats.noisy);
+    }
+
+    #[test]
+    fn round_robin_schedule_interleaves_scenarios_by_round() {
+        assert_eq!(round_robin_schedule(&[2, 1, 3]), vec![0, 1, 2, 0, 2, 2]);
+    }
+
+    #[test]
+    fn calibrate_iterations_uses_median_probe_elapsed() {
+        let iterations = calibrate_iterations(250, &[10_000_000, 20_000_000, 90_000_000]);
+
+        assert_eq!(iterations, 13);
     }
 
     #[test]

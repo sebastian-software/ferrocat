@@ -1,11 +1,11 @@
 {
   "name": "gettext-workflows-v1",
-  "minimum_sample_millis": 250,
+  "minimum_sample_millis": 1500,
   "scenarios": [
-    { "id": "po-merge/gettext-ui-de-1000/ferrocat", "comparison_group": "po-merge/gettext-ui-de-1000", "workload": "po-merge-update", "operation": "merge", "fixture": "gettext-ui-de-1000", "implementation": "ferrocat-merge", "warmup_runs": 2, "measured_runs": 5 },
-    { "id": "po-merge/gettext-ui-de-1000/msgmerge", "comparison_group": "po-merge/gettext-ui-de-1000", "workload": "po-merge-update", "operation": "merge", "fixture": "gettext-ui-de-1000", "implementation": "msgmerge", "warmup_runs": 2, "measured_runs": 5 },
+    { "id": "po-merge/gettext-ui-de-1000/ferrocat", "comparison_group": "po-merge/gettext-ui-de-1000", "workload": "po-merge-update", "operation": "merge", "fixture": "gettext-ui-de-1000", "implementation": "ferrocat-merge", "warmup_runs": 3, "measured_runs": 8 },
+    { "id": "po-merge/gettext-ui-de-1000/msgmerge", "comparison_group": "po-merge/gettext-ui-de-1000", "workload": "po-merge-update", "operation": "merge", "fixture": "gettext-ui-de-1000", "implementation": "msgmerge", "warmup_runs": 3, "measured_runs": 8 },
 
-    { "id": "po-merge/gettext-ui-de-10000/ferrocat", "comparison_group": "po-merge/gettext-ui-de-10000", "workload": "po-merge-update", "operation": "merge", "fixture": "gettext-ui-de-10000", "implementation": "ferrocat-merge", "warmup_runs": 2, "measured_runs": 5 },
-    { "id": "po-merge/gettext-ui-de-10000/msgmerge", "comparison_group": "po-merge/gettext-ui-de-10000", "workload": "po-merge-update", "operation": "merge", "fixture": "gettext-ui-de-10000", "implementation": "msgmerge", "warmup_runs": 2, "measured_runs": 5 }
+    { "id": "po-merge/gettext-ui-de-10000/ferrocat", "comparison_group": "po-merge/gettext-ui-de-10000", "workload": "po-merge-update", "operation": "merge", "fixture": "gettext-ui-de-10000", "implementation": "ferrocat-merge", "warmup_runs": 3, "measured_runs": 8 },
+    { "id": "po-merge/gettext-ui-de-10000/msgmerge", "comparison_group": "po-merge/gettext-ui-de-10000", "workload": "po-merge-update", "operation": "merge", "fixture": "gettext-ui-de-10000", "implementation": "msgmerge", "warmup_runs": 3, "measured_runs": 8 }
   ]
 }
