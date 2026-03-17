@@ -766,7 +766,7 @@ impl PreparedScenario {
             let updated = update_catalog(UpdateCatalogOptions {
                 locale: locale.clone(),
                 source_locale: "en".to_owned(),
-                extracted: fixture.api_messages.clone(),
+                input: fixture.api_messages.clone().into(),
                 existing: Some(fixture.existing_po.clone()),
                 plural_encoding,
                 ..UpdateCatalogOptions::default()
