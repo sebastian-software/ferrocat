@@ -2494,6 +2494,14 @@ mod tests {
     }
 
     #[test]
+    fn profile_loads_gettext_official_v1() {
+        let workspace = workspace_root().expect("workspace");
+        let profile = BenchmarkProfile::load(&workspace, "gettext-official-v1").expect("profile");
+        assert_eq!(profile.name, "gettext-official-v1");
+        assert!(!profile.scenarios.is_empty());
+    }
+
+    #[test]
     fn profile_loads_gettext_workflows_v1() {
         let workspace = workspace_root().expect("workspace");
         let profile = BenchmarkProfile::load(&workspace, "gettext-workflows-v1").expect("profile");

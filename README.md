@@ -132,18 +132,18 @@ cargo run --release -p ferrocat-bench -- merge mixed-10000 100
 cargo run -p ferrocat-bench -- describe mixed-1000
 cargo run -p ferrocat-bench -- describe gettext-ui-de-1000
 cargo run -p ferrocat-bench -- verify-benchmark-env
-cargo run --release -p ferrocat-bench -- compare gettext-compat-v1 --out benchmark/results/gettext-compat-v1.json
+cargo run --release -p ferrocat-bench -- compare gettext-official-v1 --out benchmark/results/gettext-official-v1.json
 ```
 
 Historical benchmark results live in [docs/performance-history.md](docs/performance-history.md).
 
 The manual external comparison suite, including the official gettext-only benchmark profile and reference-host rules, is documented in [docs/benchmarking.md](docs/benchmarking.md).
 
-The official `gettext-compat-v1` profile uses a conservative support matrix: `polib` and `pofile` are only included where the generated classic gettext corpus validates to the same normalized semantics, while broader plural-heavy scenarios are still benchmarked via `ferrocat` and GNU gettext tooling.
+The smallest official benchmark profile is `gettext-official-v1`: one conservative main locale (`de`), one second normal locale (`fr`), one more complex plural locale (`pl`), and one representative larger corpus size per scenario. Broader profiles still exist for deeper analysis, but the main benchmark story now stays intentionally small.
 
 For workflow-style benchmarking there is now also a separate `gettext-workflows-v1` profile, which compares `merge_catalog` and `update_catalog` against a conservative `msgmerge` baseline on the `gettext-ui-de-*` corpus.
 
-Current external gettext snapshot from [benchmark/results/gettext-compat-v1-first-run.json](benchmark/results/gettext-compat-v1-first-run.json):
+Current extended gettext snapshot from [benchmark/results/gettext-compat-v1-first-run.json](benchmark/results/gettext-compat-v1-first-run.json):
 
 The important number is throughput, not `median-ms`. The compare runner calibrates each sample to roughly the same wall-clock duration, so `median-ms` is mainly useful inside one scenario run. For cross-tool reading, compare `items/s`.
 

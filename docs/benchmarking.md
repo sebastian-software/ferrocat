@@ -45,14 +45,21 @@ This checks the required executables and adapter packages and prints the detecte
 
 ## Benchmark Profiles
 
+- `gettext-official-v1`
+  - the smallest official benchmark profile
+  - intentionally benchmark-focused rather than test-focused
+  - one conservative primary locale: `de`
+  - one second normal locale: `fr`
+  - one more complex plural locale: `pl`
+  - one representative large corpus size per scenario
 - `gettext-compat-v1`
-  - official external benchmark suite
-  - gettext-only realistic fixtures with mixed plural-rule locales
-  - uses a conservative support matrix across `polib`, `pofile`, and `msgcat`
+  - extended external benchmark suite
+  - broader gettext-only matrix with additional locale/family coverage
+  - useful when you want more detail than the slim official profile
 - `gettext-workflows-v1`
-  - official external workflow suite for classic gettext merge/update paths
-  - currently compares `merge_catalog` and `update_catalog` against `msgmerge`
-  - intentionally limited to the conservative `gettext-ui-de-*` corpus where semantics match
+  - focused workflow suite for classic gettext merge/update paths
+  - compares `merge_catalog` and `update_catalog` against `msgmerge`
+  - kept separate from the slim official profile so workflow tuning does not dominate the main benchmark story
 - `serious-v1`
   - advanced/internal benchmark suite
   - mixed and ICU-heavy workloads
@@ -60,10 +67,10 @@ This checks the required executables and adapter packages and prints the detecte
 
 ## Run The Official Gettext Suite
 
-Use the checked-in `gettext-compat-v1` profile and write the report outside the internal performance history:
+Use the checked-in `gettext-official-v1` profile and write the report outside the internal performance history:
 
 ```bash
-cargo run --release -p ferrocat-bench -- compare gettext-compat-v1 --out benchmark/results/gettext-compat-v1-$(date +%Y%m%d-%H%M%S).json
+cargo run --release -p ferrocat-bench -- compare gettext-official-v1 --out benchmark/results/gettext-official-v1-$(date +%Y%m%d-%H%M%S).json
 ```
 
 The compare command:
@@ -92,24 +99,31 @@ That profile covers:
 - `merge_catalog` versus `msgmerge`
 - `update_catalog` versus a `msgmerge`-style external workflow baseline
 
+For the broader compatibility/detail suite:
+
+```bash
+cargo run --release -p ferrocat-bench -- compare gettext-compat-v1 --out benchmark/results/gettext-compat-v1-$(date +%Y%m%d-%H%M%S).json
+```
+
+Use this when you want more fixture variety than the slim official profile provides.
+
 ## Result Storage
 
 - Internal microbenchmark history stays in `docs/performance-history.md`
 - External comparison reports should be written under `benchmark/results/`
 - Do not copy external compare results into the internal performance history tables
 
-## Current `gettext-compat-v1` Coverage
+## Current `gettext-official-v1` Shape
 
-- `gettext-ui-de-*`
-- `gettext-commerce-pl-*`
-- `gettext-saas-fr-*`
-- `gettext-content-ar-*`
+- `gettext-ui-de-10000`
+- `gettext-saas-fr-10000`
+- `gettext-commerce-pl-10000`
 
 External baselines currently wired:
 
-- `polib` and `pofile` on the most conservative parse/stringify corpus: `gettext-ui-de-*`
-- `msgcat` on the broader gettext stringify corpora, including plural-heavier locales
-- `msgmerge` on the conservative gettext workflow corpus for merge/update comparisons
-- `ferrocat` internal owned vs borrowed parse baselines across the wider locale mix
+- `polib` and `pofile` on the conservative primary corpus: `gettext-ui-de-10000`
+- `msgcat` on stringify comparisons
+- `msgmerge` on the conservative workflow corpus
+- `ferrocat` internal owned vs borrowed parse baselines on `fr` and `pl`
 
-This is intentional. The fixture families are all classic gettext, but the official matrix only includes a tool where the pre-validation step confirms the same normalized semantics. The advanced `mixed-*` and ICU-heavy corpora remain separate from the official gettext comparison track.
+This is intentional. The official profile is meant to answer the small, understandable benchmark question first. The broader `gettext-compat-v1` profile is still available when you want more detail, and the advanced `mixed-*` / ICU-heavy corpora remain separate from the official gettext comparison track.
