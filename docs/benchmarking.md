@@ -66,6 +66,11 @@ This checks the required executables and adapter packages and prints the detecte
   - focused workflow suite for classic gettext merge/update paths
   - compares `merge_catalog` and `update_catalog` against `msgmerge`
   - kept separate from the slim official profile so workflow tuning does not dominate the main benchmark story
+- `gettext-workflows-ecosystem-v1`
+  - extended workflow suite for classic gettext merge/update paths
+  - compares `merge_catalog` and `update_catalog` against `msgmerge`, `pofile`, `pofile-ts`, and `polib`
+  - external library numbers are measured as reconstructed parse -> merge -> serialize pipelines
+  - useful when you want workflow numbers across the broader gettext ecosystem
 - `serious-v1`
   - advanced/internal benchmark suite
   - mixed and ICU-heavy workloads
@@ -119,6 +124,20 @@ That profile covers:
 - `merge_catalog` versus `msgmerge`
 - `update_catalog` versus a `msgmerge`-style external workflow baseline
 
+For the broader workflow ecosystem suite:
+
+```bash
+cargo run --release -p ferrocat-bench -- compare gettext-workflows-ecosystem-v1 --out benchmark/results/gettext-workflows-ecosystem-v1-$(date +%Y%m%d-%H%M%S).json
+```
+
+That profile extends the workflow comparison with:
+
+- `pofile`
+- `pofile-ts`
+- `polib`
+
+These are measured as fair reconstructed workflows using each library's parse and stringify APIs around the same extracted-message merge step.
+
 For the broader compatibility/detail suite:
 
 ```bash
@@ -145,6 +164,12 @@ External baselines currently wired:
 - `msgcat` on stringify comparisons
 - `msgmerge` on the conservative workflow corpus
 - `ferrocat` internal owned vs borrowed parse baselines on `de`, `fr`, and `pl`
+
+Workflow-only baselines currently wired:
+
+- `pofile`, `pofile-ts`, and `polib` on `gettext-workflows-ecosystem-v1`
+- each measured as parse -> merge -> serialize pipelines on `gettext-ui-de-1000` and `gettext-ui-de-10000`
+- `gettext-parser` is intentionally excluded from workflow benchmarking for now because its PO compile/parse path does not preserve obsolete entries in a way that is semantically fair for `msgmerge`-style workflows
 
 This is intentional. The official profile is meant to answer the small, understandable benchmark question first. The broader `gettext-compat-v1` profile is still available when you want more detail, and the advanced `mixed-*` / ICU-heavy corpora remain separate from the official gettext comparison track.
 

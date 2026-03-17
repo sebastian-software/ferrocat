@@ -216,6 +216,26 @@ Workflow snapshot from [benchmark/results/gettext-official-v1-with-gettext-parse
 
 The broader `gettext-compat-v1` and `gettext-workflows-v1` reports are still useful when you want more detail, but the table above is now aligned with the smaller official benchmark profile. If you publish or quote benchmark numbers, include the report's environment block so the device and toolchain are visible alongside the throughput table.
 
+Workflow ecosystem snapshot from [benchmark/results/gettext-workflows-ecosystem-v1-first-run.json](benchmark/results/gettext-workflows-ecosystem-v1-first-run.json):
+
+`pofile`, `pofile-ts`, and `polib` now also run as reconstructed `msgmerge`-style pipelines: parse existing `.po`, merge against the generated `.pot`, then serialize again. This is intentionally a workflow comparison, not just a raw parser benchmark.
+
+`gettext-parser` is not part of this workflow table yet. Its current PO compile/parse model is fine for parse/stringify benchmarking, but it does not preserve obsolete entries in a way that makes a `msgmerge`-style workflow semantically fair.
+
+### Basic Catalog Merge throughput (ecosystem)
+
+| Fixture | ferrocat (Rust)<br>`merge_catalog` | pofile-ts (Node.js)<br>`parsePo` + merge + `stringifyPo` | pofile (Node.js)<br>`parse` + merge + `serialize` | GNU gettext (C)<br>`msgmerge` | polib (Python)<br>`pofile` + merge + `str()` |
+|---|---:|---:|---:|---:|---:|
+| UI strings (DE, 1k)<br>(`gettext-ui-de-1000`) | **1.98M** | 169k | 79.8k | 23.0k | 18.1k |
+| UI strings (DE, 10k)<br>(`gettext-ui-de-10000`) | **1.82M** | 156k | 2.7k | 26.2k | 17.9k |
+
+### Full Catalog Update throughput (ecosystem)
+
+| Fixture | ferrocat (Rust)<br>`update_catalog` | pofile-ts (Node.js)<br>`parsePo` + merge + `stringifyPo` | pofile (Node.js)<br>`parse` + merge + `serialize` | GNU gettext (C)<br>`msgmerge` | polib (Python)<br>`pofile` + merge + `str()` |
+|---|---:|---:|---:|---:|---:|
+| UI strings (DE, 1k)<br>(`gettext-ui-de-1000`) | **396k** | 168k | 78.6k | 22.5k | 18.0k |
+| UI strings (DE, 10k)<br>(`gettext-ui-de-10000`) | **345k** | 154k | 2.6k | 26.0k | 18.0k |
+
 For profiling on macOS:
 
 ```bash
