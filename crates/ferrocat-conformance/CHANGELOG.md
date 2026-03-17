@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.0](https://github.com/sebastian-software/ferrocat/compare/ferrocat-conformance-v0.5.2...ferrocat-conformance-v0.6.0) (2026-03-17)
+
+
+### Miscellaneous Chores
+
+* **ferrocat-conformance:** Synchronize ferrocat versions
+
 ## [0.5.2](https://github.com/sebastian-software/ferrocat/compare/ferrocat-conformance-v0.5.1...ferrocat-conformance-v0.5.2) (2026-03-17)
 
 

@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.6.0](https://github.com/sebastian-software/ferrocat/compare/ferrocat-icu-v0.5.2...ferrocat-icu-v0.6.0) (2026-03-17)
+
+
+### Bug Fixes
+
+* harden Rust APIs and expand public docs ([3cec26c](https://github.com/sebastian-software/ferrocat/commit/3cec26c426766b77b544497500d4eaf2c5815e0c))
+* **rust:** tighten public API docs and idioms ([dcffdd1](https://github.com/sebastian-software/ferrocat/commit/dcffdd1436e5d0060e1671017660a18c6a204aa0))
+
 ## [0.5.2](https://github.com/sebastian-software/ferrocat/compare/ferrocat-icu-v0.5.1...ferrocat-icu-v0.5.2) (2026-03-17)
 
 
