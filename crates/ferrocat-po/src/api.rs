@@ -9,12 +9,14 @@ use ferrocat_icu::{IcuMessage, IcuNode, IcuPluralKind, parse_icu};
 use icu_locale::Locale;
 use icu_plurals::{PluralCategory, PluralRules};
 
+/// File and line information for an extracted message origin.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct CatalogOrigin {
     pub file: String,
     pub line: Option<u32>,
 }
 
+/// Structured singular message input used by catalog update operations.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct ExtractedSingularMessage {
     pub msgid: String,
@@ -24,12 +26,14 @@ pub struct ExtractedSingularMessage {
     pub placeholders: BTreeMap<String, Vec<String>>,
 }
 
+/// Source-side plural forms for structured catalog messages.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct PluralSource {
     pub one: Option<String>,
     pub other: String,
 }
 
+/// Structured plural message input used by catalog update operations.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct ExtractedPluralMessage {
     pub msgid: String,
@@ -40,12 +44,14 @@ pub struct ExtractedPluralMessage {
     pub placeholders: BTreeMap<String, Vec<String>>,
 }
 
+/// Structured extractor input accepted by [`update_catalog`] and [`update_catalog_file`].
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ExtractedMessage {
     Singular(ExtractedSingularMessage),
     Plural(ExtractedPluralMessage),
 }
 
+/// Source-first extractor input that lets `ferrocat` infer plural structure.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct SourceExtractedMessage {
     pub msgid: String,
@@ -55,6 +61,7 @@ pub struct SourceExtractedMessage {
     pub placeholders: BTreeMap<String, Vec<String>>,
 }
 
+/// Input payload accepted by catalog update operations.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CatalogUpdateInput {
     Structured(Vec<ExtractedMessage>),
@@ -79,6 +86,7 @@ impl From<Vec<SourceExtractedMessage>> for CatalogUpdateInput {
     }
 }
 
+/// Public translation shape returned from parsed catalogs.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TranslationShape {
     Singular {
@@ -90,24 +98,28 @@ pub enum TranslationShape {
     },
 }
 
+/// Borrowed view over a message translation.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum EffectiveTranslationRef<'a> {
     Singular(&'a str),
     Plural(&'a BTreeMap<String, String>),
 }
 
+/// Owned translation value materialized from a parsed catalog.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum EffectiveTranslation {
     Singular(String),
     Plural(BTreeMap<String, String>),
 }
 
+/// Extra translator-facing metadata preserved on a catalog message.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct CatalogMessageExtra {
     pub translator_comments: Vec<String>,
     pub flags: Vec<String>,
 }
 
+/// Public message representation returned by [`parse_catalog`].
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CatalogMessage {
     pub msgid: String,
@@ -120,6 +132,7 @@ pub struct CatalogMessage {
 }
 
 impl CatalogMessage {
+    /// Returns the lookup key for this message.
     pub fn key(&self) -> CatalogMessageKey {
         CatalogMessageKey {
             msgid: self.msgid.clone(),
@@ -127,6 +140,7 @@ impl CatalogMessage {
         }
     }
 
+    /// Returns the effective translation without source-locale fallback.
     pub fn effective_translation(&self) -> EffectiveTranslationRef<'_> {
         match &self.translation {
             TranslationShape::Singular { value } => EffectiveTranslationRef::Singular(value),
@@ -175,6 +189,7 @@ impl CatalogMessage {
     }
 }
 
+/// Stable lookup key for catalog messages.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct CatalogMessageKey {
     pub msgid: String,
@@ -182,6 +197,7 @@ pub struct CatalogMessageKey {
 }
 
 impl CatalogMessageKey {
+    /// Creates a message key from `msgid` and optional context.
     pub fn new(msgid: impl Into<String>, msgctxt: Option<String>) -> Self {
         Self {
             msgid: msgid.into(),
@@ -190,6 +206,7 @@ impl CatalogMessageKey {
     }
 }
 
+/// Severity level attached to a [`Diagnostic`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DiagnosticSeverity {
     Info,
@@ -197,6 +214,7 @@ pub enum DiagnosticSeverity {
     Error,
 }
 
+/// Non-fatal issue collected while parsing or updating catalogs.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Diagnostic {
     pub severity: DiagnosticSeverity,
@@ -228,6 +246,7 @@ impl Diagnostic {
     }
 }
 
+/// Basic counters describing an update operation.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct CatalogStats {
     pub total: usize,
@@ -238,6 +257,7 @@ pub struct CatalogStats {
     pub obsolete_removed: usize,
 }
 
+/// Result returned by catalog update operations.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CatalogUpdateResult {
     pub content: String,
@@ -247,6 +267,7 @@ pub struct CatalogUpdateResult {
     pub diagnostics: Vec<Diagnostic>,
 }
 
+/// Parsed catalog plus diagnostics and normalized headers.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ParsedCatalog {
     pub locale: Option<String>,
@@ -256,11 +277,13 @@ pub struct ParsedCatalog {
 }
 
 impl ParsedCatalog {
+    /// Builds a lookup-oriented view that rejects duplicate message keys.
     pub fn into_normalized_view(self) -> Result<NormalizedParsedCatalog, ApiError> {
         NormalizedParsedCatalog::new(self)
     }
 }
 
+/// Parsed catalog with fast key-based lookup helpers.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NormalizedParsedCatalog {
     catalog: ParsedCatalog,
@@ -282,34 +305,41 @@ impl NormalizedParsedCatalog {
         Ok(Self { catalog, key_index })
     }
 
+    /// Returns the underlying parsed catalog.
     pub fn parsed_catalog(&self) -> &ParsedCatalog {
         &self.catalog
     }
 
+    /// Consumes the normalized view and returns the underlying parsed catalog.
     pub fn into_parsed_catalog(self) -> ParsedCatalog {
         self.catalog
     }
 
+    /// Returns a message by key.
     pub fn get(&self, key: &CatalogMessageKey) -> Option<&CatalogMessage> {
         self.key_index
             .get(key)
             .map(|index| &self.catalog.messages[*index])
     }
 
+    /// Returns `true` if a message for `key` exists.
     pub fn contains_key(&self, key: &CatalogMessageKey) -> bool {
         self.key_index.contains_key(key)
     }
 
+    /// Returns the number of indexed messages.
     pub fn message_count(&self) -> usize {
         self.catalog.messages.len()
     }
 
+    /// Iterates over all indexed messages in key order.
     pub fn iter(&self) -> impl Iterator<Item = (&CatalogMessageKey, &CatalogMessage)> + '_ {
         self.key_index
             .iter()
             .map(|(key, index)| (key, &self.catalog.messages[*index]))
     }
 
+    /// Returns the effective translation for `key`, if present.
     pub fn effective_translation(
         &self,
         key: &CatalogMessageKey,
@@ -317,6 +347,8 @@ impl NormalizedParsedCatalog {
         self.get(key).map(CatalogMessage::effective_translation)
     }
 
+    /// Returns the effective translation and fills empty source-locale values
+    /// from the source text when appropriate.
     pub fn effective_translation_with_source_fallback(
         &self,
         key: &CatalogMessageKey,
@@ -336,6 +368,7 @@ impl NormalizedParsedCatalog {
     }
 }
 
+/// Encoding used for plural messages in PO files.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum PluralEncoding {
     #[default]
@@ -343,6 +376,7 @@ pub enum PluralEncoding {
     Gettext,
 }
 
+/// Strategy used for messages that disappear from the extracted input.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum ObsoleteStrategy {
     #[default]
@@ -351,6 +385,7 @@ pub enum ObsoleteStrategy {
     Keep,
 }
 
+/// Sort order used when writing output catalogs.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum OrderBy {
     #[default]
@@ -358,6 +393,7 @@ pub enum OrderBy {
     Origin,
 }
 
+/// Controls whether placeholder hints are emitted as extracted comments.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PlaceholderCommentMode {
     Disabled,
@@ -370,6 +406,7 @@ impl Default for PlaceholderCommentMode {
     }
 }
 
+/// Options for in-memory catalog updates.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct UpdateCatalogOptions {
     pub locale: Option<String>,
@@ -405,6 +442,7 @@ impl Default for UpdateCatalogOptions {
     }
 }
 
+/// Options for updating a catalog file on disk.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct UpdateCatalogFileOptions {
     pub target_path: PathBuf,
@@ -440,6 +478,7 @@ impl Default for UpdateCatalogFileOptions {
     }
 }
 
+/// Options for parsing a PO catalog into the higher-level message model.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ParseCatalogOptions {
     pub content: String,
@@ -461,6 +500,7 @@ impl Default for ParseCatalogOptions {
     }
 }
 
+/// Error returned by catalog parsing and update APIs.
 #[derive(Debug)]
 pub enum ApiError {
     Parse(ParseError),
@@ -570,6 +610,8 @@ struct ParsedPluralFormsHeader {
     plural: Option<String>,
 }
 
+type PluralCategoryCache = Mutex<HashMap<String, Option<Vec<String>>>>;
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct PluralProfile {
     categories: Vec<String>,
@@ -665,6 +707,12 @@ impl PluralProfile {
     }
 }
 
+/// Merges extracted messages into an existing catalog and returns updated PO content.
+///
+/// # Errors
+///
+/// Returns [`ApiError`] when the source locale is missing, the existing PO file
+/// cannot be parsed, or the requested plural encoding cannot be represented safely.
 pub fn update_catalog(options: UpdateCatalogOptions) -> Result<CatalogUpdateResult, ApiError> {
     validate_source_locale(&options.source_locale)?;
 
@@ -724,6 +772,13 @@ pub fn update_catalog(options: UpdateCatalogOptions) -> Result<CatalogUpdateResu
     })
 }
 
+/// Updates a PO catalog on disk and only writes the file when the rendered
+/// output changes.
+///
+/// # Errors
+///
+/// Returns [`ApiError`] when the input is invalid, when the existing file
+/// cannot be read or parsed, or when the updated content cannot be written.
 pub fn update_catalog_file(
     options: UpdateCatalogFileOptions,
 ) -> Result<CatalogUpdateResult, ApiError> {
@@ -762,6 +817,13 @@ pub fn update_catalog_file(
     Ok(result)
 }
 
+/// Parses PO content into the higher-level catalog representation used by
+/// `ferrocat`'s catalog APIs.
+///
+/// # Errors
+///
+/// Returns [`ApiError`] when the PO content cannot be parsed, the source
+/// locale is missing, or strict ICU projection fails.
 pub fn parse_catalog(options: ParseCatalogOptions) -> Result<ParsedCatalog, ApiError> {
     validate_source_locale(&options.source_locale)?;
     let catalog = parse_catalog_to_internal(
@@ -1025,41 +1087,12 @@ fn merge_message(
     overwrite_source_translations: bool,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> CanonicalMessage {
-    let plural_profile = match &next.kind {
-        NormalizedKind::Singular => None,
-        NormalizedKind::Plural { .. } => Some(PluralProfile::for_locale(locale)),
-    };
-
     let translation = match (&next.kind, previous) {
         (NormalizedKind::Singular, Some(previous))
             if matches!(previous.translation, CanonicalTranslation::Singular { .. })
                 && !(is_source_locale && overwrite_source_translations) =>
         {
             previous.translation.clone()
-        }
-        (NormalizedKind::Plural { source, variable }, Some(previous))
-            if matches!(previous.translation, CanonicalTranslation::Plural { .. })
-                && !(is_source_locale && overwrite_source_translations) =>
-        {
-            let previous_variable = match &previous.translation {
-                CanonicalTranslation::Plural { variable, .. } => variable.clone(),
-                _ => unreachable!(),
-            };
-            let previous_map = match &previous.translation {
-                CanonicalTranslation::Plural {
-                    translation_by_category,
-                    ..
-                } => translation_by_category.clone(),
-                _ => unreachable!(),
-            };
-            CanonicalTranslation::Plural {
-                source: source.clone(),
-                translation_by_category: plural_profile
-                    .as_ref()
-                    .expect("plural messages require plural profile")
-                    .materialize_translation(&previous_map),
-                variable: variable.clone().unwrap_or(previous_variable),
-            }
         }
         (NormalizedKind::Singular, _) => CanonicalTranslation::Singular {
             value: if is_source_locale {
@@ -1069,36 +1102,56 @@ fn merge_message(
             },
         },
         (NormalizedKind::Plural { source, variable }, previous) => {
-            let variable = variable
-                .clone()
-                .or_else(|| previous.and_then(extract_plural_variable))
-                .or_else(|| derive_plural_variable(&next.placeholders))
-                .unwrap_or_else(|| {
-                    diagnostics.push(
-                        Diagnostic::new(
-                            DiagnosticSeverity::Warning,
-                            "plural.assumed_variable",
-                            "Unable to determine plural placeholder name, assuming \"count\".",
-                        )
-                        .with_identity(&next.msgid, next.msgctxt.as_deref()),
-                    );
-                    "count".to_owned()
-                });
+            let plural_profile = PluralProfile::for_locale(locale);
 
-            CanonicalTranslation::Plural {
-                source: source.clone(),
-                translation_by_category: if is_source_locale {
-                    plural_profile
-                        .as_ref()
-                        .expect("plural messages require plural profile")
-                        .source_locale_translation(source)
-                } else {
-                    plural_profile
-                        .as_ref()
-                        .expect("plural messages require plural profile")
-                        .empty_translation()
-                },
-                variable,
+            match previous {
+                Some(previous)
+                    if matches!(previous.translation, CanonicalTranslation::Plural { .. })
+                        && !(is_source_locale && overwrite_source_translations) =>
+                {
+                    match &previous.translation {
+                        CanonicalTranslation::Plural {
+                            translation_by_category,
+                            variable: previous_variable,
+                            ..
+                        } => CanonicalTranslation::Plural {
+                            source: source.clone(),
+                            translation_by_category: plural_profile
+                                .materialize_translation(translation_by_category),
+                            variable: variable
+                                .as_deref()
+                                .map_or_else(|| previous_variable.clone(), str::to_owned),
+                        },
+                        CanonicalTranslation::Singular { .. } => unreachable!(),
+                    }
+                }
+                _ => {
+                    let variable = variable
+                        .clone()
+                        .or_else(|| previous.and_then(extract_plural_variable))
+                        .or_else(|| derive_plural_variable(&next.placeholders))
+                        .unwrap_or_else(|| {
+                            diagnostics.push(
+                                Diagnostic::new(
+                                    DiagnosticSeverity::Warning,
+                                    "plural.assumed_variable",
+                                    "Unable to determine plural placeholder name, assuming \"count\".",
+                                )
+                                .with_identity(&next.msgid, next.msgctxt.as_deref()),
+                            );
+                            "count".to_owned()
+                        });
+
+                    CanonicalTranslation::Plural {
+                        source: source.clone(),
+                        translation_by_category: if is_source_locale {
+                            plural_profile.source_locale_translation(source)
+                        } else {
+                            plural_profile.empty_translation()
+                        },
+                        variable,
+                    }
+                }
             }
         }
     };
@@ -1259,27 +1312,63 @@ fn export_message_to_po(
     locale: Option<&str>,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> Result<PoItem, ApiError> {
-    let plural_profile = match &message.translation {
+    match &message.translation {
+        CanonicalTranslation::Singular { value } => {
+            let mut item = base_po_item(message, options, 1);
+            item.msgid = message.msgid.clone();
+            item.msgstr = MsgStr::from(value.clone());
+            Ok(item)
+        }
         CanonicalTranslation::Plural {
+            source,
             translation_by_category,
-            ..
-        } => Some(PluralProfile::for_translation(
-            locale,
-            translation_by_category,
-        )),
-        CanonicalTranslation::Singular { .. } => None,
-    };
-    let nplurals = match &message.translation {
-        CanonicalTranslation::Plural {
-            translation_by_category,
-            ..
-        } => plural_profile
-            .as_ref()
-            .expect("plural messages require plural profile")
-            .nplurals()
-            .max(translation_by_category.len().max(1)),
-        CanonicalTranslation::Singular { .. } => 1,
-    };
+            variable,
+        } => {
+            let plural_profile = PluralProfile::for_translation(locale, translation_by_category);
+            let nplurals = plural_profile
+                .nplurals()
+                .max(translation_by_category.len().max(1));
+            let mut item = base_po_item(message, options, nplurals);
+
+            match options.plural_encoding {
+                PluralEncoding::Icu => {
+                    item.msgid = synthesize_icu_plural(variable, &plural_source_branches(source));
+                    item.msgstr =
+                        MsgStr::from(synthesize_icu_plural(variable, translation_by_category));
+                }
+                PluralEncoding::Gettext => {
+                    if !translation_by_category.contains_key("other") {
+                        diagnostics.push(
+                            Diagnostic::new(
+                                DiagnosticSeverity::Error,
+                                "plural.unsupported_gettext_export",
+                                "Plural translation is missing the required \"other\" category.",
+                            )
+                            .with_identity(&message.msgid, message.msgctxt.as_deref()),
+                        );
+                        return Err(ApiError::Unsupported(
+                            "plural translation is missing the required \"other\" category"
+                                .to_owned(),
+                        ));
+                    }
+                    item.msgid = source.one.clone().unwrap_or_else(|| source.other.clone());
+                    item.msgid_plural = Some(source.other.clone());
+                    item.msgstr =
+                        MsgStr::from(plural_profile.gettext_values(translation_by_category));
+                    item.nplurals = plural_profile.nplurals();
+                }
+            }
+
+            Ok(item)
+        }
+    }
+}
+
+fn base_po_item(
+    message: &CanonicalMessage,
+    options: &UpdateCatalogOptions,
+    nplurals: usize,
+) -> PoItem {
     let mut item = PoItem::new(nplurals);
     item.msgctxt = message.msgctxt.clone();
     item.comments = message.translator_comments.clone();
@@ -1309,60 +1398,7 @@ fn export_message_to_po(
     } else {
         Vec::new()
     };
-
-    match (&message.translation, options.plural_encoding) {
-        (CanonicalTranslation::Singular { value }, _) => {
-            item.msgid = message.msgid.clone();
-            item.msgstr = MsgStr::from(value.clone());
-        }
-        (
-            CanonicalTranslation::Plural {
-                source,
-                translation_by_category,
-                variable,
-            },
-            PluralEncoding::Icu,
-        ) => {
-            item.msgid = synthesize_icu_plural(variable, &plural_source_branches(source));
-            item.msgstr = MsgStr::from(synthesize_icu_plural(variable, translation_by_category));
-        }
-        (
-            CanonicalTranslation::Plural {
-                source,
-                translation_by_category,
-                ..
-            },
-            PluralEncoding::Gettext,
-        ) => {
-            if !translation_by_category.contains_key("other") {
-                diagnostics.push(
-                    Diagnostic::new(
-                        DiagnosticSeverity::Error,
-                        "plural.unsupported_gettext_export",
-                        "Plural translation is missing the required \"other\" category.",
-                    )
-                    .with_identity(&message.msgid, message.msgctxt.as_deref()),
-                );
-                return Err(ApiError::Unsupported(
-                    "plural translation is missing the required \"other\" category".to_owned(),
-                ));
-            }
-            item.msgid = source.one.clone().unwrap_or_else(|| source.other.clone());
-            item.msgid_plural = Some(source.other.clone());
-            item.msgstr = MsgStr::from(
-                plural_profile
-                    .as_ref()
-                    .expect("plural messages require plural profile")
-                    .gettext_values(translation_by_category),
-            );
-            item.nplurals = plural_profile
-                .as_ref()
-                .expect("plural messages require plural profile")
-                .nplurals();
-        }
-    }
-
-    Ok(item)
+    item
 }
 
 fn plural_source_branches(source: &PluralSource) -> BTreeMap<String, String> {
@@ -1731,20 +1767,25 @@ fn public_message_from_canonical(message: CanonicalMessage) -> CatalogMessage {
 }
 
 fn icu_plural_categories_for(locale: &str) -> Option<Vec<String>> {
-    static CACHE: OnceLock<Mutex<HashMap<String, Option<Vec<String>>>>> = OnceLock::new();
+    static CACHE: OnceLock<PluralCategoryCache> = OnceLock::new();
 
+    cached_icu_plural_categories_for(locale, CACHE.get_or_init(|| Mutex::new(HashMap::new())))
+}
+
+fn cached_icu_plural_categories_for(
+    locale: &str,
+    cache: &PluralCategoryCache,
+) -> Option<Vec<String>> {
     let normalized = normalize_plural_locale(locale);
     if normalized.is_empty() {
         return None;
     }
 
-    let cache = CACHE.get_or_init(|| Mutex::new(HashMap::new()));
-    if let Some(cached) = cache
-        .lock()
-        .expect("plural category cache mutex poisoned")
-        .get(&normalized)
-        .cloned()
-    {
+    let cached = match cache.lock() {
+        Ok(guard) => guard.get(&normalized).cloned(),
+        Err(poisoned) => poisoned.into_inner().get(&normalized).cloned(),
+    };
+    if let Some(cached) = cached {
         return cached;
     }
 
@@ -1760,10 +1801,14 @@ fn icu_plural_categories_for(locale: &str) -> Option<Vec<String>> {
                 .collect::<Vec<_>>()
         });
 
-    cache
-        .lock()
-        .expect("plural category cache mutex poisoned")
-        .insert(normalized, resolved.clone());
+    match cache.lock() {
+        Ok(mut guard) => {
+            guard.insert(normalized, resolved.clone());
+        }
+        Err(poisoned) => {
+            poisoned.into_inner().insert(normalized, resolved.clone());
+        }
+    }
 
     resolved
 }
@@ -2121,11 +2166,13 @@ mod tests {
         EffectiveTranslationRef, ExtractedMessage, ExtractedPluralMessage,
         ExtractedSingularMessage, ObsoleteStrategy, ParseCatalogOptions, PluralEncoding,
         PluralSource, SourceExtractedMessage, TranslationShape, UpdateCatalogFileOptions,
-        UpdateCatalogOptions, parse_catalog, update_catalog, update_catalog_file,
+        UpdateCatalogOptions, cached_icu_plural_categories_for, parse_catalog, update_catalog,
+        update_catalog_file,
     };
     use crate::parse_po;
-    use std::collections::BTreeMap;
+    use std::collections::{BTreeMap, HashMap};
     use std::fs;
+    use std::sync::Mutex;
 
     fn structured_input(messages: Vec<ExtractedMessage>) -> CatalogUpdateInput {
         CatalogUpdateInput::Structured(messages)
@@ -2911,5 +2958,50 @@ mod tests {
             diagnostic.severity,
             DiagnosticSeverity::Warning | DiagnosticSeverity::Error | DiagnosticSeverity::Info
         )));
+    }
+
+    #[test]
+    fn cached_icu_plural_categories_reads_poisoned_cache_entries() {
+        let cache = Mutex::new(HashMap::new());
+        let _ = std::panic::catch_unwind(|| {
+            let mut guard = cache.lock().expect("lock");
+            guard.insert(
+                "fr".to_owned(),
+                Some(vec![
+                    "one".to_owned(),
+                    "many".to_owned(),
+                    "other".to_owned(),
+                ]),
+            );
+            panic!("poison cache");
+        });
+
+        let categories = cached_icu_plural_categories_for("fr", &cache);
+        assert_eq!(
+            categories,
+            Some(vec![
+                "one".to_owned(),
+                "many".to_owned(),
+                "other".to_owned()
+            ])
+        );
+    }
+
+    #[test]
+    fn cached_icu_plural_categories_computes_with_poisoned_cache() {
+        let cache = Mutex::new(HashMap::new());
+        let _ = std::panic::catch_unwind(|| {
+            let _guard = cache.lock().expect("lock");
+            panic!("poison cache");
+        });
+
+        let categories = cached_icu_plural_categories_for("de", &cache);
+        assert!(categories.is_some());
+        assert!(
+            categories
+                .expect("categories")
+                .iter()
+                .any(|category| category == "other")
+        );
     }
 }

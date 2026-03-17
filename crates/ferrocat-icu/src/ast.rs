@@ -1,20 +1,24 @@
+/// Parsed ICU message.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct IcuMessage {
     pub nodes: Vec<IcuNode>,
 }
 
+/// Distinguishes cardinal and ordinal plural forms.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum IcuPluralKind {
     Cardinal,
     Ordinal,
 }
 
+/// A selector branch inside a plural or select expression.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct IcuOption {
     pub selector: String,
     pub value: Vec<IcuNode>,
 }
 
+/// AST node emitted by the ICU parser.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum IcuNode {
     Literal(String),

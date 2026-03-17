@@ -1,4 +1,21 @@
 //! Performance-first PO parsing and serialization.
+//!
+//! The crate exposes both owned and borrowed parsers for gettext PO files,
+//! plus helpers for serialization and higher-level catalog update workflows.
+//!
+//! # Examples
+//!
+//! ```rust
+//! use ferrocat_po::{PoFile, SerializeOptions, parse_po, stringify_po};
+//!
+//! let input = "msgid \"Hello\"\nmsgstr \"Hallo\"\n";
+//! let file = parse_po(input)?;
+//! assert_eq!(file.items[0].msgid, "Hello");
+//!
+//! let output = stringify_po(&file, &SerializeOptions::default());
+//! assert!(output.contains("msgid \"Hello\""));
+//! # Ok::<(), ferrocat_po::ParseError>(())
+//! ```
 
 mod api;
 mod borrowed;
@@ -27,6 +44,7 @@ pub use text::{escape_string, extract_quoted, extract_quoted_cow, unescape_strin
 
 use core::{fmt, ops::Index};
 
+/// An owned PO document.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct PoFile {
     pub comments: Vec<String>,
@@ -35,12 +53,14 @@ pub struct PoFile {
     pub items: Vec<PoItem>,
 }
 
+/// A single header entry from the PO header block.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct Header {
     pub key: String,
     pub value: String,
 }
 
+/// A single gettext message entry.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct PoItem {
     pub msgid: String,
@@ -57,6 +77,7 @@ pub struct PoItem {
 }
 
 impl PoItem {
+    /// Creates an empty message entry with space for `nplurals` plural slots.
     pub fn new(nplurals: usize) -> Self {
         Self {
             nplurals,
@@ -79,6 +100,7 @@ impl PoItem {
     }
 }
 
+/// Message translation payload for a PO item.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub enum MsgStr {
     #[default]
@@ -88,10 +110,12 @@ pub enum MsgStr {
 }
 
 impl MsgStr {
+    /// Returns `true` when no translation values are present.
     pub fn is_empty(&self) -> bool {
         matches!(self, Self::None)
     }
 
+    /// Returns the number of translation values present.
     pub fn len(&self) -> usize {
         match self {
             Self::None => 0,
@@ -100,6 +124,7 @@ impl MsgStr {
         }
     }
 
+    /// Returns the first translation value, if present.
     pub fn first(&self) -> Option<&String> {
         match self {
             Self::None => None,
@@ -108,10 +133,22 @@ impl MsgStr {
         }
     }
 
+    /// Returns the first translation value as `&str`, if present.
     pub fn first_str(&self) -> Option<&str> {
         self.first().map(String::as_str)
     }
 
+    /// Returns the translation at `index` without panicking.
+    pub fn get(&self, index: usize) -> Option<&str> {
+        match self {
+            Self::None => None,
+            Self::Singular(value) if index == 0 => Some(value.as_str()),
+            Self::Singular(_) => None,
+            Self::Plural(values) => values.get(index).map(String::as_str),
+        }
+    }
+
+    /// Iterates over all translation values in order.
     pub fn iter(&self) -> MsgStrIter<'_> {
         match self {
             Self::None => MsgStrIter::empty(),
@@ -120,6 +157,7 @@ impl MsgStr {
         }
     }
 
+    /// Converts the translation payload into an owned vector.
     pub fn into_vec(self) -> Vec<String> {
         match self {
             Self::None => Vec::new(),
@@ -158,6 +196,7 @@ impl Index<usize> for MsgStr {
     }
 }
 
+/// Iterator over [`MsgStr`] values.
 pub struct MsgStrIter<'a> {
     inner: MsgStrIterInner<'a>,
 }
@@ -200,6 +239,7 @@ impl<'a> Iterator for MsgStrIter<'a> {
     }
 }
 
+/// Options controlling PO serialization.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SerializeOptions {
     pub fold_length: usize,
@@ -215,12 +255,14 @@ impl Default for SerializeOptions {
     }
 }
 
+/// Error returned when parsing or unescaping PO content fails.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ParseError {
     message: String,
 }
 
 impl ParseError {
+    /// Creates a new parse error with the provided message.
     pub fn new(message: impl Into<String>) -> Self {
         Self {
             message: message.into(),
@@ -235,3 +277,32 @@ impl fmt::Display for ParseError {
 }
 
 impl std::error::Error for ParseError {}
+
+#[cfg(test)]
+mod tests {
+    use super::MsgStr;
+
+    #[test]
+    fn msgstr_get_returns_none_for_empty_values() {
+        let msgstr = MsgStr::None;
+
+        assert_eq!(msgstr.get(0), None);
+    }
+
+    #[test]
+    fn msgstr_get_returns_singular_value_at_zero() {
+        let msgstr = MsgStr::from("Hallo".to_owned());
+
+        assert_eq!(msgstr.get(0), Some("Hallo"));
+        assert_eq!(msgstr.get(1), None);
+    }
+
+    #[test]
+    fn msgstr_get_returns_plural_values_by_index() {
+        let msgstr = MsgStr::from(vec!["eins".to_owned(), "viele".to_owned()]);
+
+        assert_eq!(msgstr.get(0), Some("eins"));
+        assert_eq!(msgstr.get(1), Some("viele"));
+        assert_eq!(msgstr.get(2), None);
+    }
+}

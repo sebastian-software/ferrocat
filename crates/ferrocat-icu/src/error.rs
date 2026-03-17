@@ -1,10 +1,12 @@
 use core::fmt;
 
+/// High-level classification of ICU parse failures.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum IcuErrorKind {
     SyntaxError,
 }
 
+/// Byte offset plus line/column location inside the original input.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct IcuPosition {
     pub offset: usize,
@@ -12,6 +14,7 @@ pub struct IcuPosition {
     pub column: usize,
 }
 
+/// Error returned when parsing ICU messages fails.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct IcuParseError {
     pub kind: IcuErrorKind,
@@ -20,6 +23,7 @@ pub struct IcuParseError {
 }
 
 impl IcuParseError {
+    /// Creates a syntax error at `offset` within `input`.
     pub fn syntax(message: impl Into<String>, input: &str, offset: usize) -> Self {
         Self {
             kind: IcuErrorKind::SyntaxError,

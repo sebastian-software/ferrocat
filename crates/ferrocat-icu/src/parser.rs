@@ -1,6 +1,7 @@
 use crate::ast::{IcuMessage, IcuNode, IcuOption, IcuPluralKind};
 use crate::error::IcuParseError;
 
+/// Options controlling ICU parsing behavior.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct IcuParserOptions {
     pub ignore_tag: bool,
@@ -16,10 +17,20 @@ impl Default for IcuParserOptions {
     }
 }
 
+/// Parses ICU MessageFormat input with the default parser options.
+///
+/// # Errors
+///
+/// Returns [`IcuParseError`] when the input is malformed.
 pub fn parse_icu(input: &str) -> Result<IcuMessage, IcuParseError> {
     parse_icu_with_options(input, &IcuParserOptions::default())
 }
 
+/// Parses ICU MessageFormat input with explicit parser options.
+///
+/// # Errors
+///
+/// Returns [`IcuParseError`] when the input is malformed.
 pub fn parse_icu_with_options(
     input: &str,
     options: &IcuParserOptions,

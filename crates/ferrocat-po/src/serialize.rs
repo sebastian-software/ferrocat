@@ -2,6 +2,7 @@ use crate::scan::find_escapable_byte;
 use crate::text::{escape_string_into, escape_string_into_with_first_escape};
 use crate::{PoFile, PoItem, SerializeOptions};
 
+/// Serializes a [`PoFile`] back into gettext PO text.
 pub fn stringify_po(file: &PoFile, options: &SerializeOptions) -> String {
     let mut out = String::with_capacity(estimate_capacity(file));
     let mut scratch = String::new();

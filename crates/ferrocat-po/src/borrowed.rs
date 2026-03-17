@@ -8,6 +8,8 @@ use crate::scan::{
 use crate::text::{extract_quoted_bytes_cow, split_reference_comment};
 use crate::{Header, MsgStr, ParseError, PoFile, PoItem};
 
+/// Borrowed PO document that reuses slices from the original input whenever
+/// possible.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct BorrowedPoFile<'a> {
     pub comments: Vec<Cow<'a, str>>,
@@ -17,6 +19,7 @@ pub struct BorrowedPoFile<'a> {
 }
 
 impl<'a> BorrowedPoFile<'a> {
+    /// Converts the borrowed document into the owned [`PoFile`] representation.
     pub fn into_owned(self) -> PoFile {
         PoFile {
             comments: self.comments.into_iter().map(Cow::into_owned).collect(),
@@ -39,6 +42,7 @@ impl<'a> BorrowedPoFile<'a> {
     }
 }
 
+/// Borrowed header entry from the PO header block.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct BorrowedHeader<'a> {
     pub key: Cow<'a, str>,
@@ -46,6 +50,7 @@ pub struct BorrowedHeader<'a> {
 }
 
 impl<'a> BorrowedHeader<'a> {
+    /// Converts the borrowed header into an owned [`Header`].
     pub fn into_owned(self) -> Header {
         Header {
             key: self.key.into_owned(),
@@ -54,6 +59,7 @@ impl<'a> BorrowedHeader<'a> {
     }
 }
 
+/// Borrowed gettext message entry.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct BorrowedPoItem<'a> {
     pub msgid: Cow<'a, str>,
@@ -102,6 +108,7 @@ impl<'a> BorrowedPoItem<'a> {
     }
 }
 
+/// Borrowed translation payload for a PO item.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub enum BorrowedMsgStr<'a> {
     #[default]
@@ -239,6 +246,14 @@ struct BorrowedLine<'a> {
     obsolete: bool,
 }
 
+/// Parses PO content into a borrowed representation.
+///
+/// This parser keeps references into `input` for fields that do not need
+/// unescaping, which reduces allocations compared with [`crate::parse_po`].
+///
+/// # Errors
+///
+/// Returns [`ParseError`] when the input is not valid PO syntax.
 pub fn parse_po_borrowed<'a>(input: &'a str) -> Result<BorrowedPoFile<'a>, ParseError> {
     let input = input.strip_prefix('\u{feff}').unwrap_or(input);
     if input.as_bytes().contains(&b'\r') {

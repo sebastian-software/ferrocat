@@ -126,6 +126,14 @@ struct BorrowedLine<'a> {
     obsolete: bool,
 }
 
+/// Parses PO content into the owned [`PoFile`] representation.
+///
+/// Line endings are normalized before parsing, and the UTF-8 BOM is ignored
+/// when present.
+///
+/// # Errors
+///
+/// Returns [`ParseError`] when the input is not valid PO syntax.
 pub fn parse_po(input: &str) -> Result<PoFile, ParseError> {
     let input = strip_utf8_bom(input);
     let normalized;

@@ -2,10 +2,12 @@ use std::collections::BTreeSet;
 
 use crate::ast::{IcuMessage, IcuNode, IcuOption, IcuPluralKind};
 
+/// Validates ICU MessageFormat input without returning the parsed AST.
 pub fn validate_icu(input: &str) -> Result<(), crate::IcuParseError> {
     crate::parse_icu(input).map(|_| ())
 }
 
+/// Extracts variable names in first-seen order.
 pub fn extract_variables(message: &IcuMessage) -> Vec<String> {
     let mut out = Vec::new();
     let mut seen = BTreeSet::new();
@@ -17,6 +19,7 @@ pub fn extract_variables(message: &IcuMessage) -> Vec<String> {
     out
 }
 
+/// Returns `true` when the message contains a cardinal plural expression.
 pub fn has_plural(message: &IcuMessage) -> bool {
     any_nodes(&message.nodes, &|node| {
         matches!(
@@ -29,12 +32,14 @@ pub fn has_plural(message: &IcuMessage) -> bool {
     })
 }
 
+/// Returns `true` when the message contains a select expression.
 pub fn has_select(message: &IcuMessage) -> bool {
     any_nodes(&message.nodes, &|node| {
         matches!(node, IcuNode::Select { .. })
     })
 }
 
+/// Returns `true` when the message contains an ordinal plural expression.
 pub fn has_selectordinal(message: &IcuMessage) -> bool {
     any_nodes(&message.nodes, &|node| {
         matches!(
@@ -47,6 +52,7 @@ pub fn has_selectordinal(message: &IcuMessage) -> bool {
     })
 }
 
+/// Returns `true` when the message contains rich-text style tags.
 pub fn has_tag(message: &IcuMessage) -> bool {
     any_nodes(&message.nodes, &|node| matches!(node, IcuNode::Tag { .. }))
 }

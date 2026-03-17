@@ -3,6 +3,7 @@ use std::borrow::Cow;
 use crate::ParseError;
 use crate::scan::{find_byte, find_escapable_byte, find_quoted_bounds, has_byte};
 
+/// Escapes a PO string literal payload.
 pub fn escape_string(input: &str) -> String {
     let bytes = input.as_bytes();
     let Some(first_escape) = find_escapable_byte(bytes) else {
@@ -39,6 +40,11 @@ pub(crate) fn escape_string_into_with_first_escape(
     escape_string_into_known(out, input, first_escape);
 }
 
+/// Unescapes a PO string literal payload.
+///
+/// # Errors
+///
+/// Returns [`ParseError`] when the escape sequence is malformed.
 pub fn unescape_string(input: &str) -> Result<String, ParseError> {
     let bytes = input.as_bytes();
     if !has_byte(b'\\', bytes) {
@@ -115,6 +121,12 @@ pub fn unescape_string(input: &str) -> Result<String, ParseError> {
     Ok(unsafe { String::from_utf8_unchecked(out) })
 }
 
+/// Extracts and unescapes the first quoted PO string from `line`, borrowing
+/// from the input when no escapes are present.
+///
+/// # Errors
+///
+/// Returns [`ParseError`] when the quoted content is malformed.
 pub fn extract_quoted_cow<'a>(line: &'a str) -> Result<Cow<'a, str>, ParseError> {
     extract_quoted_bytes_cow(line.as_bytes())
 }
@@ -133,6 +145,11 @@ pub(crate) fn extract_quoted_bytes_cow<'a>(line: &'a [u8]) -> Result<Cow<'a, str
     Ok(Cow::Owned(unescape_string(bytes_to_str(raw)?)?))
 }
 
+/// Extracts and unescapes the first quoted PO string from `line`.
+///
+/// # Errors
+///
+/// Returns [`ParseError`] when the quoted content is malformed.
 pub fn extract_quoted(line: &str) -> Result<String, ParseError> {
     Ok(extract_quoted_bytes_cow(line.as_bytes())?.into_owned())
 }

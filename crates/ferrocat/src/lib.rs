@@ -3,6 +3,19 @@
 //! This crate re-exports the primary API surface from the lower-level
 //! `ferrocat-po` and `ferrocat-icu` crates so application code can depend on a
 //! single package.
+//!
+//! # Examples
+//!
+//! ```rust
+//! use ferrocat::{parse_icu, parse_po};
+//!
+//! let po = parse_po("msgid \"Hello\"\nmsgstr \"Hallo\"\n")?;
+//! let icu = parse_icu("Hello {name}")?;
+//!
+//! assert_eq!(po.items[0].msgid, "Hello");
+//! assert_eq!(icu.nodes.len(), 2);
+//! # Ok::<(), Box<dyn std::error::Error>>(())
+//! ```
 
 pub use ferrocat_icu::has_selectordinal as has_select_ordinal;
 pub use ferrocat_icu::{

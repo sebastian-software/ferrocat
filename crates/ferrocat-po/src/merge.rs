@@ -9,6 +9,7 @@ use crate::serialize::{write_keyword, write_prefixed_line};
 use crate::text::{escape_string_into, unescape_string, validate_quoted_content};
 use crate::{BorrowedMsgStr, ParseError, SerializeOptions};
 
+/// Borrowed extracted message input for the lightweight merge helper.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct ExtractedMessage<'a> {
     pub msgctxt: Option<Cow<'a, str>>,
@@ -169,6 +170,12 @@ struct MergeLine<'a> {
     obsolete: bool,
 }
 
+/// Merges extracted messages into an existing PO catalog while preserving the
+/// existing translation payload.
+///
+/// # Errors
+///
+/// Returns [`ParseError`] when the existing PO file cannot be parsed.
 pub fn merge_catalog<'a>(
     existing_po: &'a str,
     extracted_messages: &[ExtractedMessage<'a>],

@@ -1,4 +1,14 @@
 //! Compact, performance-oriented ICU MessageFormat parsing primitives.
+//!
+//! # Examples
+//!
+//! ```rust
+//! use ferrocat_icu::{extract_variables, parse_icu};
+//!
+//! let message = parse_icu("Hello {name}, you have {count, plural, one {# item} other {# items}}.")?;
+//! assert_eq!(extract_variables(&message), vec!["name", "count"]);
+//! # Ok::<(), ferrocat_icu::IcuParseError>(())
+//! ```
 
 mod ast;
 mod error;
