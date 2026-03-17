@@ -22,11 +22,20 @@ def digest(value):
     return hashlib.sha256(rendered.encode("utf-8")).hexdigest()
 
 
+def should_keep_header(key, value):
+    return value != "" and key not in {
+        "MIME-Version",
+        "X-Generator",
+        "Content-Type",
+        "Content-Transfer-Encoding",
+    }
+
+
 def normalize_po_summary(parsed):
     headers = []
     for key, value in parsed.metadata.items():
         value = str(value)
-        if value == "":
+        if not should_keep_header(str(key), value):
             continue
         headers.append({"key": str(key), "value": value})
     headers.sort(key=lambda entry: (entry["key"], entry["value"]))

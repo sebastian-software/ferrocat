@@ -229,7 +229,11 @@ fn execute_scenario(
             prepared.run_internal_update_catalog(iterations, capture_artifacts)
         }
         "ferrocat-parse-icu" => prepared.run_internal_parse_icu(iterations, capture_artifacts),
-        "pofile" | "pofile-ts" | "formatjs-icu-parser" | "messageformat-parser" => {
+        "pofile"
+        | "pofile-ts"
+        | "gettext-parser"
+        | "formatjs-icu-parser"
+        | "messageformat-parser" => {
             prepared.run_node_adapter(workspace, scenario, iterations, capture_artifacts)
         }
         "polib" => prepared.run_python_adapter(workspace, scenario, iterations, capture_artifacts),
@@ -1272,15 +1276,21 @@ impl PoSemanticSummary {
     }
 
     fn normalized(mut self) -> Self {
-        self.headers.retain(|header| {
-            !header.value.is_empty()
-                && !matches!(header.key.as_str(), "MIME-Version" | "X-Generator")
-        });
+        self.headers
+            .retain(|header| should_keep_benchmark_header(&header.key, &header.value));
         self.headers.sort();
         self.items.iter_mut().for_each(PoItemSummary::normalize);
         self.items.sort();
         self
     }
+}
+
+fn should_keep_benchmark_header(key: &str, value: &str) -> bool {
+    !value.is_empty()
+        && !matches!(
+            key,
+            "MIME-Version" | "X-Generator" | "Content-Type" | "Content-Transfer-Encoding"
+        )
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]

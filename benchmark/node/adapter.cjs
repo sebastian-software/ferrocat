@@ -3,6 +3,7 @@
 const fs = require('node:fs');
 const crypto = require('node:crypto');
 const path = require('node:path');
+const gettextParser = require('gettext-parser');
 const PO = require('pofile');
 const pofileTs = require('pofile-ts');
 const formatjsParser = require('@formatjs/icu-messageformat-parser');
@@ -27,6 +28,15 @@ function digest(value) {
   return crypto.createHash('sha256').update(rendered).digest('hex');
 }
 
+function shouldKeepHeader(key, value) {
+  return value !== '' && ![
+    'MIME-Version',
+    'X-Generator',
+    'Content-Type',
+    'Content-Transfer-Encoding'
+  ].includes(key);
+}
+
 function packageVersion(name) {
   if (name === 'pofile-ts') {
     const packageJsonPath = path.join(path.dirname(require.resolve('pofile-ts')), '..', 'package.json');
@@ -40,7 +50,7 @@ function normalizePoSummary(parsed) {
   const rawHeaders = parsed.headers || {};
   for (const key of Object.keys(rawHeaders)) {
     const value = String(rawHeaders[key]);
-    if (value === '') {
+    if (!shouldKeepHeader(key, value)) {
       continue;
     }
     headers.push({ key, value });
@@ -62,6 +72,39 @@ function normalizePoSummary(parsed) {
       obsolete: Boolean(item.obsolete)
     };
   });
+  items.sort(comparePoItems);
+
+  return { headers, items };
+}
+
+function normalizeGettextParserSummary(parsed) {
+  const headers = [];
+  const rawHeaders = parsed.headers || {};
+  for (const key of Object.keys(rawHeaders)) {
+    const value = String(rawHeaders[key]);
+    if (!shouldKeepHeader(key, value)) {
+      continue;
+    }
+    headers.push({ key, value });
+  }
+  headers.sort((a, b) => (a.key === b.key ? a.value.localeCompare(b.value) : a.key.localeCompare(b.key)));
+
+  const items = [];
+  const translations = parsed.translations || {};
+  for (const [contextKey, contextItems] of Object.entries(translations)) {
+    for (const [msgidKey, item] of Object.entries(contextItems || {})) {
+      if (contextKey === '' && msgidKey === '') {
+        continue;
+      }
+      items.push({
+        msgctxt: item.msgctxt || null,
+        msgid: String(item.msgid || ''),
+        msgid_plural: item.msgid_plural || null,
+        msgstr: Array.isArray(item.msgstr) ? item.msgstr.map((entry) => String(entry)) : [],
+        obsolete: Boolean(item.obsolete)
+      });
+    }
+  }
   items.sort(comparePoItems);
 
   return { headers, items };
@@ -403,6 +446,48 @@ function runPofileTs(request) {
   });
 }
 
+function runGettextParser(request) {
+  const input = fs.readFileSync(request.po_input_path);
+  const toolVersion = `gettext-parser@${packageVersion('gettext-parser')}`;
+
+  if (request.operation === 'parse') {
+    let summary = normalizeGettextParserSummary(gettextParser.po.parse(input));
+    const start = process.hrtime.bigint();
+    for (let i = 0; i < request.iterations; i += 1) {
+      summary = normalizeGettextParserSummary(gettextParser.po.parse(input));
+    }
+    const elapsed = process.hrtime.bigint() - start;
+    return successResponse(request, {
+      semantic_digest: digest(summary),
+      elapsed_ns: Number(elapsed),
+      bytes_processed: input.byteLength * request.iterations,
+      items_processed: summary.items.length * request.iterations,
+      tool_version: toolVersion,
+      po_summary: request.capture_artifacts ? summary : null
+    });
+  }
+
+  const parsed = gettextParser.po.parse(input);
+  let rendered = Buffer.alloc(0);
+  const start = process.hrtime.bigint();
+  for (let i = 0; i < request.iterations; i += 1) {
+    rendered = gettextParser.po.compile(parsed);
+  }
+  const elapsed = process.hrtime.bigint() - start;
+  const summary = normalizeGettextParserSummary(gettextParser.po.parse(rendered));
+  if (request.capture_artifacts && request.po_output_path) {
+    fs.writeFileSync(request.po_output_path, rendered);
+  }
+  return successResponse(request, {
+    semantic_digest: digest(summary),
+    elapsed_ns: Number(elapsed),
+    bytes_processed: rendered.byteLength * request.iterations,
+    items_processed: summary.items.length * request.iterations,
+    tool_version: toolVersion,
+    po_output_path: request.capture_artifacts ? request.po_output_path : null
+  });
+}
+
 function runFormatjs(request) {
   const messages = JSON.parse(fs.readFileSync(request.icu_messages_path, 'utf8'));
   const toolVersion = `@formatjs/icu-messageformat-parser@${require('@formatjs/icu-messageformat-parser/package.json').version}`;
@@ -452,6 +537,7 @@ function run() {
     const versions = [
       `pofile@${packageVersion('pofile')}`,
       `pofile-ts@${packageVersion('pofile-ts')}`,
+      `gettext-parser@${packageVersion('gettext-parser')}`,
       `@formatjs/icu-messageformat-parser@${require('@formatjs/icu-messageformat-parser/package.json').version}`,
       `@messageformat/parser@${require('@messageformat/parser/package.json').version}`
     ];
@@ -467,6 +553,9 @@ function run() {
       break;
     case 'pofile-ts':
       result = runPofileTs(request);
+      break;
+    case 'gettext-parser':
+      result = runGettextParser(request);
       break;
     case 'formatjs-icu-parser':
       result = runFormatjs(request);
