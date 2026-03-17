@@ -1,7 +1,7 @@
 {
-  "crates/ferrocat": "0.5.1",
-  "crates/ferrocat-po": "0.5.1",
-  "crates/ferrocat-icu": "0.5.1",
-  "crates/ferrocat-conformance": "0.5.1",
-  "crates/ferrocat-bench": "0.5.1"
+  "crates/ferrocat": "0.6.0",
+  "crates/ferrocat-po": "0.6.0",
+  "crates/ferrocat-icu": "0.6.0",
+  "crates/ferrocat-conformance": "0.6.0",
+  "crates/ferrocat-bench": "0.6.0"
 }
