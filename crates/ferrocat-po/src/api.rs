@@ -962,6 +962,10 @@ impl PluralProfile {
 ///
 /// Returns [`ApiError`] when the source locale is missing, the existing PO file
 /// cannot be parsed, or the requested plural encoding cannot be represented safely.
+#[expect(
+    clippy::needless_pass_by_value,
+    reason = "Public API takes owned option structs so callers can build and move them ergonomically."
+)]
 pub fn update_catalog(options: UpdateCatalogOptions) -> Result<CatalogUpdateResult, ApiError> {
     validate_source_locale(&options.source_locale)?;
 
@@ -1000,7 +1004,7 @@ pub fn update_catalog(options: UpdateCatalogOptions) -> Result<CatalogUpdateResu
         options.obsolete_strategy,
         &mut diagnostics,
     );
-    merged.locale = locale.clone();
+    merged.locale.clone_from(&locale);
     apply_header_defaults(
         &mut merged.headers,
         locale.as_deref(),
@@ -1073,6 +1077,10 @@ pub fn update_catalog_file(
 ///
 /// Returns [`ApiError`] when the PO content cannot be parsed, the source
 /// locale is missing, or strict ICU projection fails.
+#[expect(
+    clippy::needless_pass_by_value,
+    reason = "Public API takes owned option structs so callers can build and move them ergonomically."
+)]
 pub fn parse_catalog(options: ParseCatalogOptions) -> Result<ParsedCatalog, ApiError> {
     validate_source_locale(&options.source_locale)?;
     let catalog = parse_catalog_to_internal(
@@ -1427,7 +1435,7 @@ fn merge_message(
 
 fn materialize_plural_categories(
     categories: &[String],
-    translation: BTreeMap<String, String>,
+    translation: &BTreeMap<String, String>,
 ) -> BTreeMap<String, String> {
     categories
         .iter()
@@ -1738,6 +1746,10 @@ fn parse_catalog_to_internal(
     })
 }
 
+#[expect(
+    clippy::too_many_lines,
+    reason = "PO import keeps singular/plural projection and diagnostics in one place to preserve parser semantics."
+)]
 fn import_message_from_po(
     item: PoItem,
     locale: Option<&str>,
@@ -1795,7 +1807,7 @@ fn import_message_from_po(
                                 },
                                 translation_by_category: materialize_plural_categories(
                                     &sorted_plural_keys(&translated_plural.branches),
-                                    translated_plural.branches,
+                                    &translated_plural.branches,
                                 ),
                                 variable: source_plural.variable,
                             }

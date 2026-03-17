@@ -13,7 +13,8 @@ pub enum Expectation {
 }
 
 impl Expectation {
-    pub fn as_str(&self) -> &'static str {
+    #[must_use]
+    pub const fn as_str(&self) -> &'static str {
         match self {
             Self::Pass => "pass",
             Self::Reject => "reject",
@@ -22,6 +23,7 @@ impl Expectation {
     }
 }
 
+#[must_use]
 #[derive(Debug, Clone)]
 pub struct ConformanceManifest {
     pub suite: String,
@@ -62,6 +64,7 @@ impl ConformanceManifest {
     }
 }
 
+#[must_use]
 #[derive(Debug, Clone)]
 pub struct ConformanceCase {
     pub id: String,
@@ -136,12 +139,12 @@ impl ConformanceCase {
         self
     }
 
-    pub fn with_fold_length(mut self, fold_length: usize) -> Self {
+    pub const fn with_fold_length(mut self, fold_length: usize) -> Self {
         self.fold_length = Some(fold_length);
         self
     }
 
-    pub fn with_compact_multiline(mut self, compact_multiline: bool) -> Self {
+    pub const fn with_compact_multiline(mut self, compact_multiline: bool) -> Self {
         self.compact_multiline = Some(compact_multiline);
         self
     }
@@ -156,15 +159,22 @@ impl ConformanceCase {
         self
     }
 
-    pub fn with_item_start_index(mut self, item_start_index: usize) -> Self {
+    pub const fn with_item_start_index(mut self, item_start_index: usize) -> Self {
         self.item_start_index = Some(item_start_index);
         self
     }
 
+    #[must_use]
     pub fn expected_fixture_path(&self) -> Option<&str> {
         self.expected.as_deref()
     }
 
+    /// Returns the inline expected artifact for this case.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ConformanceError`] when the case points at a fixture instead of
+    /// carrying an inline artifact.
     pub fn expected_artifact(&self) -> Result<ExpectedArtifact, ConformanceError> {
         self.expected_inline.clone().ok_or_else(|| {
             ConformanceError::new(format!("case {} is missing expected artifact", self.id))
@@ -260,6 +270,7 @@ pub fn strings<const N: usize>(values: [&str; N]) -> Vec<String> {
     values.into_iter().map(str::to_owned).collect()
 }
 
+#[must_use]
 pub fn headers<const N: usize>(pairs: [(&str, &str); N]) -> BTreeMap<String, String> {
     pairs
         .into_iter()
@@ -267,6 +278,13 @@ pub fn headers<const N: usize>(pairs: [(&str, &str); N]) -> BTreeMap<String, Str
         .collect()
 }
 
+/// Returns the repository root for this workspace checkout.
+///
+/// # Panics
+///
+/// Panics if the crate is compiled from a layout that is no longer nested
+/// under the expected workspace directory structure.
+#[must_use]
 pub fn workspace_root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
         .parent()
@@ -276,18 +294,31 @@ pub fn workspace_root() -> PathBuf {
         .to_path_buf()
 }
 
+#[must_use]
 pub fn conformance_root() -> PathBuf {
     workspace_root().join("conformance")
 }
 
+#[must_use]
 pub fn fixture_dir() -> PathBuf {
     conformance_root().join("fixtures")
 }
 
+/// Loads all built-in conformance manifests shipped by the crate.
+///
+/// # Errors
+///
+/// This currently never fails, but the `Result` keeps the call site aligned
+/// with future manifest loading that may become fallible.
 pub fn load_all_manifests() -> Result<Vec<ConformanceManifest>, ConformanceError> {
     Ok(cases::all_manifests())
 }
 
+/// Reads a fixture file from the checked-in conformance fixture directory.
+///
+/// # Errors
+///
+/// Returns [`ConformanceError`] when the fixture cannot be read from disk.
 pub fn read_fixture_text(path: &str) -> Result<String, ConformanceError> {
     let full_path = fixture_dir().join(path);
     fs::read_to_string(&full_path)

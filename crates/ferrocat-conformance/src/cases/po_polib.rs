@@ -18,6 +18,10 @@ pub fn manifest() -> ConformanceManifest {
     ])
 }
 
+#[expect(
+    clippy::too_many_lines,
+    reason = "Conformance fixtures are kept as one contiguous source list for traceability."
+)]
 fn cases() -> Vec<ConformanceCase> {
     vec![
         roundtrip_case("polib.comment_ordering_roundtrip", "polib/comment_ordering.po")

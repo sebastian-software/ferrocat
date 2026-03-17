@@ -22,7 +22,7 @@ pub struct BorrowedPoFile<'a> {
     pub items: Vec<BorrowedPoItem<'a>>,
 }
 
-impl<'a> BorrowedPoFile<'a> {
+impl BorrowedPoFile<'_> {
     /// Converts the borrowed document into the owned [`PoFile`] representation.
     #[must_use]
     pub fn into_owned(self) -> PoFile {
@@ -56,7 +56,7 @@ pub struct BorrowedHeader<'a> {
     pub value: Cow<'a, str>,
 }
 
-impl<'a> BorrowedHeader<'a> {
+impl BorrowedHeader<'_> {
     /// Converts the borrowed header into an owned [`Header`].
     #[must_use]
     pub fn into_owned(self) -> Header {
@@ -94,7 +94,7 @@ pub struct BorrowedPoItem<'a> {
     pub nplurals: usize,
 }
 
-impl<'a> BorrowedPoItem<'a> {
+impl BorrowedPoItem<'_> {
     fn new(nplurals: usize) -> Self {
         Self {
             nplurals,
@@ -141,8 +141,8 @@ pub enum BorrowedMsgStr<'a> {
     Plural(Vec<Cow<'a, str>>),
 }
 
-impl<'a> BorrowedMsgStr<'a> {
-    fn is_empty(&self) -> bool {
+impl BorrowedMsgStr<'_> {
+    const fn is_empty(&self) -> bool {
         matches!(self, Self::None)
     }
 
@@ -280,7 +280,7 @@ struct BorrowedLine<'a> {
 /// # Errors
 ///
 /// Returns [`ParseError`] when the input is not valid PO syntax.
-pub fn parse_po_borrowed<'a>(input: &'a str) -> Result<BorrowedPoFile<'a>, ParseError> {
+pub fn parse_po_borrowed(input: &str) -> Result<BorrowedPoFile<'_>, ParseError> {
     let input = input.strip_prefix('\u{feff}').unwrap_or(input);
     if input.as_bytes().contains(&b'\r') {
         return Err(ParseError::new(
@@ -305,7 +305,7 @@ pub fn parse_po_borrowed<'a>(input: &'a str) -> Result<BorrowedPoFile<'a>, Parse
         )?;
     }
 
-    finish_item(&mut state, &mut file, &mut current_nplurals)?;
+    finish_item(&mut state, &mut file, &mut current_nplurals);
 
     Ok(file)
 }
@@ -322,7 +322,8 @@ fn parse_line<'a>(
             Ok(())
         }
         LineKind::Comment(kind) => {
-            parse_comment_line(line.trimmed, kind, state, file, current_nplurals)
+            parse_comment_line(line.trimmed, kind, state, file, current_nplurals);
+            Ok(())
         }
         LineKind::Keyword(keyword) => parse_keyword_line(
             line.trimmed,
@@ -342,41 +343,39 @@ fn parse_comment_line<'a>(
     state: &mut ParserState<'a>,
     file: &mut BorrowedPoFile<'a>,
     current_nplurals: &mut usize,
-) -> Result<(), ParseError> {
-    finish_item(state, file, current_nplurals)?;
+) {
+    finish_item(state, file, current_nplurals);
 
     match kind {
         CommentKind::Reference => {
-            let reference_line = trimmed_str(&line_bytes[2..])?;
+            let reference_line = trimmed_str(&line_bytes[2..]);
             state
                 .item
                 .references
                 .extend(split_reference_comment(reference_line));
         }
         CommentKind::Flags => {
-            for flag in trimmed_str(&line_bytes[2..])?.split(',') {
+            for flag in trimmed_str(&line_bytes[2..]).split(',') {
                 state.item.flags.push(Cow::Borrowed(flag.trim()));
             }
         }
         CommentKind::Extracted => state
             .item
             .extracted_comments
-            .push(trimmed_cow(&line_bytes[2..])?),
+            .push(trimmed_cow(&line_bytes[2..])),
         CommentKind::Metadata => {
             let trimmed = trim_ascii(&line_bytes[2..]);
             if let Some((key_bytes, value_bytes)) = split_once_byte(trimmed, b':') {
-                let key = trimmed_cow(key_bytes)?;
+                let key = trimmed_cow(key_bytes);
                 if !key.is_empty() {
-                    let value = trimmed_cow(value_bytes)?;
+                    let value = trimmed_cow(value_bytes);
                     state.item.metadata.push((key, value));
                 }
             }
         }
-        CommentKind::Translator => state.item.comments.push(trimmed_cow(&line_bytes[1..])?),
+        CommentKind::Translator => state.item.comments.push(trimmed_cow(&line_bytes[1..])),
         CommentKind::Other => {}
     }
-
-    Ok(())
 }
 
 fn parse_keyword_line<'a>(
@@ -396,7 +395,7 @@ fn parse_keyword_line<'a>(
             state.has_keyword = true;
         }
         Keyword::Id => {
-            finish_item(state, file, current_nplurals)?;
+            finish_item(state, file, current_nplurals);
             state.obsolete_line_count += usize::from(obsolete);
             state.item.msgid = extract_quoted_bytes_cow(line_bytes)?;
             state.context = Some(Context::Id);
@@ -418,7 +417,7 @@ fn parse_keyword_line<'a>(
             state.has_keyword = true;
         }
         Keyword::Ctxt => {
-            finish_item(state, file, current_nplurals)?;
+            finish_item(state, file, current_nplurals);
             state.obsolete_line_count += usize::from(obsolete);
             state.item.msgctxt = Some(extract_quoted_bytes_cow(line_bytes)?);
             state.context = Some(Context::Ctxt);
@@ -467,13 +466,13 @@ fn finish_item<'a>(
     state: &mut ParserState<'a>,
     file: &mut BorrowedPoFile<'a>,
     current_nplurals: &mut usize,
-) -> Result<(), ParseError> {
+) {
     if !state.has_keyword {
-        return Ok(());
+        return;
     }
 
     if state.item.msgid.is_empty() && !is_header_state(state) {
-        return Ok(());
+        return;
     }
 
     if state.obsolete_line_count >= state.content_line_count && state.content_line_count > 0 {
@@ -486,7 +485,7 @@ fn finish_item<'a>(
         file.headers = std::mem::take(&mut state.header_entries);
         *current_nplurals = parse_nplurals(&file.headers).unwrap_or(2);
         state.reset(*current_nplurals);
-        return Ok(());
+        return;
     }
 
     state.materialize_msgstr();
@@ -507,7 +506,6 @@ fn finish_item<'a>(
     state.item.nplurals = *current_nplurals;
     file.items.push(std::mem::take(&mut state.item));
     state.reset(*current_nplurals);
-    Ok(())
 }
 
 fn is_header_state(state: &ParserState<'_>) -> bool {
@@ -524,29 +522,27 @@ fn is_header_candidate(state: &ParserState<'_>) -> bool {
         && state.plural_index == 0
 }
 
-fn parse_header_fragment<'a>(line_bytes: &'a [u8]) -> Result<Vec<BorrowedHeader<'a>>, ParseError> {
+fn parse_header_fragment(line_bytes: &[u8]) -> Result<Vec<BorrowedHeader<'_>>, ParseError> {
     let Some((start, end)) = find_quoted_bounds(line_bytes) else {
         return Ok(Vec::new());
     };
     let raw = &line_bytes[start..end];
 
     if header_fragment_is_borrowable(raw) {
-        return parse_header_fragment_borrowed(raw);
+        return Ok(parse_header_fragment_borrowed(raw));
     }
 
     parse_header_fragment_owned(line_bytes)
 }
 
-fn parse_header_fragment_borrowed<'a>(
-    raw: &'a [u8],
-) -> Result<Vec<BorrowedHeader<'a>>, ParseError> {
+fn parse_header_fragment_borrowed(raw: &[u8]) -> Vec<BorrowedHeader<'_>> {
     let mut headers = Vec::new();
     let mut start = 0usize;
     let mut index = 0usize;
 
     while index < raw.len() {
         if raw[index] == b'\\' && raw.get(index + 1) == Some(&b'n') {
-            push_borrowed_header_segment(&raw[start..index], &mut headers)?;
+            push_borrowed_header_segment(&raw[start..index], &mut headers);
             index += 2;
             start = index;
             continue;
@@ -554,29 +550,23 @@ fn parse_header_fragment_borrowed<'a>(
         index += 1;
     }
 
-    push_borrowed_header_segment(&raw[start..], &mut headers)?;
-    Ok(headers)
+    push_borrowed_header_segment(&raw[start..], &mut headers);
+    headers
 }
 
-fn push_borrowed_header_segment<'a>(
-    segment: &'a [u8],
-    out: &mut Vec<BorrowedHeader<'a>>,
-) -> Result<(), ParseError> {
+fn push_borrowed_header_segment<'a>(segment: &'a [u8], out: &mut Vec<BorrowedHeader<'a>>) {
     if segment.is_empty() {
-        return Ok(());
+        return;
     }
     if let Some((key_bytes, value_bytes)) = split_once_byte(segment, b':') {
         out.push(BorrowedHeader {
-            key: trimmed_cow(key_bytes)?,
-            value: trimmed_cow(value_bytes)?,
+            key: trimmed_cow(key_bytes),
+            value: trimmed_cow(value_bytes),
         });
     }
-    Ok(())
 }
 
-fn parse_header_fragment_owned<'a>(
-    line_bytes: &'a [u8],
-) -> Result<Vec<BorrowedHeader<'a>>, ParseError> {
+fn parse_header_fragment_owned(line_bytes: &[u8]) -> Result<Vec<BorrowedHeader<'_>>, ParseError> {
     let decoded = extract_quoted_bytes_cow(line_bytes)?;
     let mut headers = Vec::new();
     for segment in decoded.split('\n') {
@@ -624,7 +614,7 @@ fn parse_nplurals(headers: &[BorrowedHeader<'_>]) -> Option<usize> {
         let trimmed = trim_ascii(part);
         if let Some((key, value)) = split_once_byte(trimmed, b'=')
             && trim_ascii(key) == b"nplurals"
-            && let Ok(value) = bytes_to_str(trim_ascii(value))
+            && let value = bytes_to_str(trim_ascii(value))
             && let Ok(parsed) = value.parse::<usize>()
         {
             return Some(parsed);
@@ -635,16 +625,16 @@ fn parse_nplurals(headers: &[BorrowedHeader<'_>]) -> Option<usize> {
     None
 }
 
-fn bytes_to_str(bytes: &[u8]) -> Result<&str, ParseError> {
-    Ok(unsafe { str::from_utf8_unchecked(bytes) })
+const fn bytes_to_str(bytes: &[u8]) -> &str {
+    unsafe { str::from_utf8_unchecked(bytes) }
 }
 
-fn trimmed_str(bytes: &[u8]) -> Result<&str, ParseError> {
+fn trimmed_str(bytes: &[u8]) -> &str {
     bytes_to_str(trim_ascii(bytes))
 }
 
-fn trimmed_cow<'a>(bytes: &'a [u8]) -> Result<Cow<'a, str>, ParseError> {
-    Ok(Cow::Borrowed(trimmed_str(bytes)?))
+fn trimmed_cow(bytes: &[u8]) -> Cow<'_, str> {
+    Cow::Borrowed(trimmed_str(bytes))
 }
 
 #[cfg(test)]
