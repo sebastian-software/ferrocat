@@ -143,7 +143,7 @@ The smallest official benchmark profile is `gettext-official-v1`: one conservati
 
 For workflow-style benchmarking there is now also a separate `gettext-workflows-v1` profile, which compares `merge_catalog` and `update_catalog` against a conservative `msgmerge` baseline on the `gettext-ui-de-*` corpus.
 
-Current extended gettext snapshot from [benchmark/results/gettext-compat-v1-first-run.json](benchmark/results/gettext-compat-v1-first-run.json):
+Current official gettext snapshot from [benchmark/results/gettext-official-v1-first-run.json](benchmark/results/gettext-official-v1-first-run.json):
 
 The important number is throughput, not `median-ms`. The compare runner calibrates each sample to roughly the same wall-clock duration, so `median-ms` is mainly useful inside one scenario run. For cross-tool reading, compare `items/s`.
 
@@ -166,38 +166,27 @@ Column labels:
 
 | Fixture | `ferrocat (Rust)` | `ferrocat-borrowed (Rust)` | `pofile (Node.js)` | `polib (Python)` |
 |---|---:|---:|---:|---:|
-| `gettext-ui-de-1000` | **1.47M** | 1.41M | 266k | 59k |
-| `gettext-ui-de-10000` | **1.36M** | 1.30M | 11.9k | 59k |
-| `gettext-saas-fr-1000` | **1.41M** | 1.35M | — | — |
-| `gettext-saas-fr-10000` | **1.33M** | 1.28M | — | — |
-| `gettext-commerce-pl-1000` | **1.39M** | 1.36M | — | — |
+| `gettext-ui-de-10000` | **1.37M** | — | 11.8k | 59.3k |
+| `gettext-saas-fr-10000` | **1.34M** | 1.27M | — | — |
 | `gettext-commerce-pl-10000` | **1.31M** | 1.27M | — | — |
-| `gettext-content-ar-1000` | **1.19M** | 1.17M | — | — |
-| `gettext-content-ar-10000` | **1.11M** | 1.08M | — | — |
 
 ### Stringify throughput
 
 | Fixture | `ferrocat (Rust)` | `pofile (Node.js)` | `polib (Python)` | `msgcat (GNU gettext CLI)` |
 |---|---:|---:|---:|---:|
-| `gettext-ui-de-1000` | **6.38M** | 730k | 100k | 25k |
-| `gettext-ui-de-10000` | **6.02M** | 679k | 99k | 30k |
-| `gettext-saas-fr-1000` | **6.32M** | — | — | 25.8k |
-| `gettext-saas-fr-10000` | **5.93M** | — | — | 30.9k |
-| `gettext-commerce-pl-1000` | **6.82M** | — | — | 24.6k |
-| `gettext-commerce-pl-10000` | **6.37M** | — | — | 29.2k |
-| `gettext-content-ar-1000` | **4.92M** | — | — | 20.4k |
-| `gettext-content-ar-10000` | **4.64M** | — | — | 23.4k |
+| `gettext-ui-de-10000` | **6.08M** | 686k | 99.8k | 29.6k |
+| `gettext-saas-fr-10000` | **5.94M** | — | — | 30.9k |
+| `gettext-commerce-pl-10000` | **6.31M** | — | — | 29.3k |
 
-Workflow snapshot from [benchmark/results/gettext-workflows-v1-first-run.json](benchmark/results/gettext-workflows-v1-first-run.json):
+Workflow snapshot from [benchmark/results/gettext-official-v1-first-run.json](benchmark/results/gettext-official-v1-first-run.json):
 
 ### Workflow throughput
 
 | Fixture | `merge_catalog (Rust)` | `msgmerge (GNU gettext CLI)` | `update_catalog (Rust)` | `msgmerge (GNU gettext CLI)` |
 |---|---:|---:|---:|---:|
-| `gettext-ui-de-1000` | **1.96M** | 22.7k | **395k** | 22.6k |
-| `gettext-ui-de-10000` | **1.80M** | 26.2k | **341k** | 25.8k |
+| `gettext-ui-de-10000` | **1.84M** | 26.3k | **341k** | 26.0k |
 
-So the first official gettext benchmark does not show `pofile` as the overall winner. `pofile` is very quick on some calibrated sample medians, but once you normalize by work done per sample, `ferrocat` is currently fastest in every official comparison group of this run.
+The broader `gettext-compat-v1` and `gettext-workflows-v1` reports are still useful when you want more detail, but the table above is now aligned with the smaller official benchmark profile.
 
 For profiling on macOS:
 
