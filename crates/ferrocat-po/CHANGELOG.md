@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.5.1](https://github.com/sebastian-software/ferrocat/compare/ferrocat-po-v0.5.0...ferrocat-po-v0.5.1) (2026-03-17)
+
+
+### Bug Fixes
+
+* trigger build ([fc674b8](https://github.com/sebastian-software/ferrocat/commit/fc674b859b4483459892279a9ebc8aa191ab4da4))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * ferrocat-icu bumped from 0.5.0 to 0.5.1
+
 ## [0.5.0](https://github.com/sebastian-software/ferrocat/compare/ferrocat-po-v0.4.0...ferrocat-po-v0.5.0) (2026-03-17)
 
 
