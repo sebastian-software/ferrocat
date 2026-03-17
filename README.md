@@ -171,19 +171,19 @@ Column labels:
 
 ### Parse throughput
 
-| Fixture | `ferrocat (Rust)<br>parse_po` | `ferrocat (Rust)<br>parse_po_borrowed` | `pofile (Node.js)<br>parse` | `polib (Python)<br>parse` |
+| Fixture | ferrocat (Rust)<br>`parse_po` | ferrocat (Rust)<br>`parse_po_borrowed` | pofile (Node.js)<br>`parse` | polib (Python)<br>`parse` |
 |---|---:|---:|---:|---:|
-| `gettext-ui-de-10000` | **1.37M** | — | 11.8k | 59.3k |
-| `gettext-saas-fr-10000` | **1.34M** | 1.27M | — | — |
-| `gettext-commerce-pl-10000` | **1.31M** | 1.27M | — | — |
+| UI strings (DE, 10k)<br>(`gettext-ui-de-10000`) | **1.37M** | — | 11.8k | 59.3k |
+| SaaS strings (FR, 10k)<br>(`gettext-saas-fr-10000`) | **1.34M** | 1.27M | — | — |
+| Commerce strings (PL, 10k)<br>(`gettext-commerce-pl-10000`) | **1.31M** | 1.27M | — | — |
 
 ### Stringify throughput
 
-| Fixture | `ferrocat (Rust)<br>stringify_po` | `pofile (Node.js)<br>serialize` | `polib (Python)<br>serialize` | `GNU gettext (C)<br>msgcat` |
+| Fixture | ferrocat (Rust)<br>`stringify_po` | pofile (Node.js)<br>`serialize` | polib (Python)<br>`serialize` | GNU gettext (C)<br>`msgcat` |
 |---|---:|---:|---:|---:|
-| `gettext-ui-de-10000` | **6.08M** | 686k | 99.8k | 29.6k |
-| `gettext-saas-fr-10000` | **5.94M** | — | — | 30.9k |
-| `gettext-commerce-pl-10000` | **6.31M** | — | — | 29.3k |
+| UI strings (DE, 10k)<br>(`gettext-ui-de-10000`) | **6.08M** | 686k | 99.8k | 29.6k |
+| SaaS strings (FR, 10k)<br>(`gettext-saas-fr-10000`) | **5.94M** | — | — | 30.9k |
+| Commerce strings (PL, 10k)<br>(`gettext-commerce-pl-10000`) | **6.31M** | — | — | 29.3k |
 
 Workflow snapshot from [benchmark/results/gettext-official-v1-first-run.json](benchmark/results/gettext-official-v1-first-run.json):
 
@@ -191,17 +191,17 @@ Workflow snapshot from [benchmark/results/gettext-official-v1-first-run.json](be
 
 `merge_catalog` is the leaner gettext-style merge step. `msgmerge` is the nearest GNU gettext baseline for that workflow.
 
-| Fixture | `ferrocat (Rust)<br>merge_catalog` | `GNU gettext (C)<br>msgmerge` |
+| Fixture | ferrocat (Rust)<br>`merge_catalog` | GNU gettext (C)<br>`msgmerge` |
 |---|---:|---:|
-| `gettext-ui-de-10000` | **1.84M** | 26.3k |
+| UI strings (DE, 10k)<br>(`gettext-ui-de-10000`) | **1.84M** | 26.3k |
 
 ### Full Catalog Update throughput
 
 `update_catalog` is the higher-level end-to-end catalog update flow. We still compare it to `msgmerge` as the closest classic gettext workflow baseline, but it is a broader `ferrocat` operation than the lean `merge_catalog` step above.
 
-| Fixture | `ferrocat (Rust)<br>update_catalog` | `GNU gettext (C)<br>msgmerge` |
+| Fixture | ferrocat (Rust)<br>`update_catalog` | GNU gettext (C)<br>`msgmerge` |
 |---|---:|---:|
-| `gettext-ui-de-10000` | **341k** | 26.0k |
+| UI strings (DE, 10k)<br>(`gettext-ui-de-10000`) | **341k** | 26.0k |
 
 The broader `gettext-compat-v1` and `gettext-workflows-v1` reports are still useful when you want more detail, but the table above is now aligned with the smaller official benchmark profile.
 
