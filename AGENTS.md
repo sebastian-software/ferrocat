@@ -31,9 +31,11 @@ Examples:
 - For this repo, that usually means updating the relevant Rust docs plus `README.md` or `docs/api-overview.md`.
 - If the change introduces a durable behavioral contract, format, or compatibility rule, add or update an ADR.
 - Prefer explicit options and safe defaults over implicit fallback behavior when silent fallback could hide user mistakes.
+- For Rust work in this repo, use the available Rust-focused skills and follow idiomatic Rust best practices instead of treating the code as generic text.
 
 ## Performance And Benchmarking
 
+- Keep benchmark impact in mind for changes to parsing, serialization, merge flows, catalog APIs, and benchmark harness code.
 - Treat benchmark harness changes as product changes: validate them with before/after measurements, not just code inspection.
 - When benchmark stability is the concern, prefer reporting noise metrics such as variation or span instead of relying only on one median number.
 
