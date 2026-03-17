@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.2](https://github.com/sebastian-software/ferrocat/compare/ferrocat-conformance-v0.5.1...ferrocat-conformance-v0.5.2) (2026-03-17)
+
+
+### Bug Fixes
+
+* trigger build ([682508b](https://github.com/sebastian-software/ferrocat/commit/682508b0cabf1f31ddbcfe6d2c76687600531eb4))
+
 ## [0.5.1](https://github.com/sebastian-software/ferrocat/compare/ferrocat-conformance-v0.5.0...ferrocat-conformance-v0.5.1) (2026-03-17)
 
 
