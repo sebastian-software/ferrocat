@@ -360,12 +360,81 @@ function successResponse(base, extra) {
   };
 }
 
+function itemKey(item) {
+  return `${item.msgctxt ?? ''}\u0004${item.msgid ?? ''}\u0004${item.msgid_plural ?? ''}`;
+}
+
+function mergeMsgstr(templateItem, existingItem) {
+  if (templateItem.msgid_plural) {
+    const templateValues = Array.isArray(templateItem.msgstr) ? templateItem.msgstr : [];
+    const existingValues = existingItem && Array.isArray(existingItem.msgstr)
+      ? existingItem.msgstr.map((value) => String(value))
+      : [];
+    const targetLength = Math.max(
+      templateValues.length,
+      existingValues.length,
+      templateItem.nplurals || 0,
+      existingItem?.nplurals || 0,
+      1
+    );
+    const out = [];
+    for (let index = 0; index < targetLength; index += 1) {
+      out.push(existingValues[index] ?? templateValues[index] ?? '');
+    }
+    return out;
+  }
+
+  const existingValue = existingItem && Array.isArray(existingItem.msgstr)
+    ? String(existingItem.msgstr[0] ?? '')
+    : '';
+  return [existingValue];
+}
+
+function mergePoLikeCatalog(existingDoc, templateDoc) {
+  const existingActiveByKey = new Map();
+  for (const item of existingDoc.items || []) {
+    if (!item || item.obsolete || !item.msgid) {
+      continue;
+    }
+    existingActiveByKey.set(itemKey(item), item);
+  }
+
+  const templateKeys = new Set();
+  const mergedItems = [];
+  for (const item of templateDoc.items || []) {
+    if (!item || !item.msgid) {
+      continue;
+    }
+    const key = itemKey(item);
+    templateKeys.add(key);
+    const existingItem = existingActiveByKey.get(key);
+    item.obsolete = false;
+    item.msgstr = mergeMsgstr(item, existingItem);
+    mergedItems.push(item);
+  }
+
+  const obsoleteItems = [];
+  for (const item of existingDoc.items || []) {
+    if (!item || item.obsolete || !item.msgid) {
+      continue;
+    }
+    if (templateKeys.has(itemKey(item))) {
+      continue;
+    }
+    item.obsolete = true;
+    obsoleteItems.push(item);
+  }
+
+  existingDoc.items = mergedItems.concat(obsoleteItems);
+  return existingDoc;
+}
+
 function runPofile(request) {
-  const input = fs.readFileSync(request.po_input_path, 'utf8');
-  const parsed = PO.parse(input);
   const toolVersion = `pofile@${require('pofile/package.json').version}`;
 
   if (request.operation === 'parse') {
+    const input = fs.readFileSync(request.po_input_path, 'utf8');
+    const parsed = PO.parse(input);
     let summary = normalizePoSummary(parsed);
     const start = process.hrtime.bigint();
     for (let i = 0; i < request.iterations; i += 1) {
@@ -382,6 +451,33 @@ function runPofile(request) {
     });
   }
 
+  if (request.operation === 'merge' || request.operation === 'update-catalog') {
+    const existingInput = fs.readFileSync(request.existing_po_path, 'utf8');
+    const templateInput = fs.readFileSync(request.pot_path, 'utf8');
+    let rendered = '';
+    let summary = null;
+    const start = process.hrtime.bigint();
+    for (let i = 0; i < request.iterations; i += 1) {
+      const merged = mergePoLikeCatalog(PO.parse(existingInput), PO.parse(templateInput));
+      rendered = merged.toString();
+      summary = normalizePoSummary(PO.parse(rendered));
+    }
+    const elapsed = process.hrtime.bigint() - start;
+    if (request.capture_artifacts && request.po_output_path) {
+      fs.writeFileSync(request.po_output_path, rendered, 'utf8');
+    }
+    return successResponse(request, {
+      semantic_digest: digest(summary),
+      elapsed_ns: Number(elapsed),
+      bytes_processed: Buffer.byteLength(rendered, 'utf8') * request.iterations,
+      items_processed: summary.items.length * request.iterations,
+      tool_version: toolVersion,
+      po_output_path: request.capture_artifacts ? request.po_output_path : null
+    });
+  }
+
+  const input = fs.readFileSync(request.po_input_path, 'utf8');
+  const parsed = PO.parse(input);
   let rendered = '';
   const start = process.hrtime.bigint();
   for (let i = 0; i < request.iterations; i += 1) {
@@ -404,10 +500,10 @@ function runPofile(request) {
 }
 
 function runPofileTs(request) {
-  const input = fs.readFileSync(request.po_input_path, 'utf8');
   const toolVersion = `pofile-ts@${packageVersion('pofile-ts')}`;
 
   if (request.operation === 'parse') {
+    const input = fs.readFileSync(request.po_input_path, 'utf8');
     let summary = normalizePoSummary(pofileTs.parsePo(input));
     const start = process.hrtime.bigint();
     for (let i = 0; i < request.iterations; i += 1) {
@@ -424,6 +520,35 @@ function runPofileTs(request) {
     });
   }
 
+  if (request.operation === 'merge' || request.operation === 'update-catalog') {
+    const existingInput = fs.readFileSync(request.existing_po_path, 'utf8');
+    const templateInput = fs.readFileSync(request.pot_path, 'utf8');
+    let rendered = '';
+    let summary = null;
+    const start = process.hrtime.bigint();
+    for (let i = 0; i < request.iterations; i += 1) {
+      const merged = mergePoLikeCatalog(
+        pofileTs.parsePo(existingInput),
+        pofileTs.parsePo(templateInput)
+      );
+      rendered = pofileTs.stringifyPo(merged);
+      summary = normalizePoSummary(pofileTs.parsePo(rendered));
+    }
+    const elapsed = process.hrtime.bigint() - start;
+    if (request.capture_artifacts && request.po_output_path) {
+      fs.writeFileSync(request.po_output_path, rendered, 'utf8');
+    }
+    return successResponse(request, {
+      semantic_digest: digest(summary),
+      elapsed_ns: Number(elapsed),
+      bytes_processed: Buffer.byteLength(rendered, 'utf8') * request.iterations,
+      items_processed: summary.items.length * request.iterations,
+      tool_version: toolVersion,
+      po_output_path: request.capture_artifacts ? request.po_output_path : null
+    });
+  }
+
+  const input = fs.readFileSync(request.po_input_path, 'utf8');
   const parsed = pofileTs.parsePo(input);
   let rendered = '';
   const start = process.hrtime.bigint();
