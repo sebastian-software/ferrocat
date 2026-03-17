@@ -1,5 +1,8 @@
 # ferrocat
 
+[![crates.io](https://img.shields.io/crates/v/ferrocat.svg)](https://crates.io/crates/ferrocat)
+[![docs.rs](https://img.shields.io/docsrs/ferrocat)](https://docs.rs/ferrocat)
+[![CI](https://github.com/sebastian-software/ferrocat/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/sebastian-software/ferrocat/actions/workflows/ci.yml)
 [![codecov](https://codecov.io/github/sebastian-software/ferrocat/graph/badge.svg?branch=main)](https://app.codecov.io/github/sebastian-software/ferrocat)
 
 `ferrocat` is a modern, performance-first toolkit for the translation formats that serious localization workflows still rely on: gettext PO files today, with a clear path toward richer ICU-aware workflows tomorrow.
@@ -31,6 +34,12 @@ The public entry point is the `ferrocat` crate. It re-exports the stable Rust su
 - `ferrocat-conformance`: workspace-only upstream-derived conformance fixtures
 
 If you want a narrower dependency, `ferrocat-po` and `ferrocat-icu` remain publishable secondary crates.
+
+## Compatibility Policy
+
+- **MSRV:** `ferrocat` currently targets Rust `1.85`.
+- **Semver:** the public API is treated seriously, but the project is still pre-`1.0`. Minor releases may still contain carefully documented breaking changes when the API contract needs to improve.
+- **Docs surface:** published crates aim to keep README examples, rustdoc examples, and repository docs aligned.
 
 ## Why `ferrocat` Exists
 
@@ -143,6 +152,23 @@ Current key contract:
 
 The goal is to give downstream runtimes small, reproducible lookup keys without turning the library into a code generator. If you need JS/TS/Rust module generation, `CompiledCatalog` is the intended handoff point.
 
+## Project Status
+
+`ferrocat` is an actively developed pre-`1.0` Rust project.
+
+Current strengths:
+
+- high-performance PO parsing, serialization, and merge/update workflows
+- ICU `MessageFormat` parsing with structural helpers
+- normalized catalog APIs plus a first runtime compilation layer
+- conformance and benchmark infrastructure treated as product features, not afterthoughts
+
+Current roadmap themes:
+
+- deeper runtime/catalog workflows on top of the compiled catalog layer
+- broader cross-ecosystem tooling and bindings
+- continued conformance growth and benchmark publication discipline
+
 ## Conformance
 
 `ferrocat` includes a hermetic, source-attributed conformance snapshot under [`conformance`](conformance).
@@ -181,6 +207,16 @@ cargo coverage-lcov
 The coverage setup focuses on `ferrocat`, `ferrocat-po`, and `ferrocat-icu`, while excluding the workspace-only benchmark and conformance crates.
 
 See [docs/test-coverage.md](docs/test-coverage.md) for local setup, Codecov wiring, and artifact locations.
+
+## Open Source And Community
+
+- [Contributing guide](CONTRIBUTING.md)
+- [Security policy](SECURITY.md)
+- [Code of Conduct](CODE_OF_CONDUCT.md)
+- [ADR index](docs/adr/README.md)
+- [Release verification checklist](docs/release-verification.md)
+
+If you are evaluating `ferrocat` for production, the most relevant repo signals are the published docs.rs pages, the conformance snapshot, and the benchmark methodology documentation. If you want to contribute, the issue templates, Conventional Commit rules, and Rust verification commands are already wired for that workflow.
 
 ## Benchmarks And Profiling
 

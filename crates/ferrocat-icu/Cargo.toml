@@ -8,6 +8,7 @@ repository.workspace = true
 rust-version.workspace = true
 description = "Compact, Rust-native ICU MessageFormat parsing primitives for ferrocat."
 documentation = "https://docs.rs/ferrocat-icu"
+readme = "README.md"
 keywords = ["ferrocat", "icu", "messageformat", "i18n", "parser"]
 categories = ["internationalization", "localization", "parser-implementations"]
 

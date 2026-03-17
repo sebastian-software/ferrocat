@@ -20,13 +20,20 @@ This checklist verifies a real Rust-only `ferrocat` release after the publish wo
 - In a clean scratch project, run `cargo add ferrocat`.
 - Build a tiny smoke example that calls `parse_po` and `parse_icu` through the umbrella crate.
 - Confirm docs.rs builds for `ferrocat` and that the README example still matches the published surface.
+- Confirm the crate READMEs published for `ferrocat`, `ferrocat-po`, and `ferrocat-icu` still describe the current public surface accurately.
 
-## 4. Record outcome
+## 4. Confirm repository metadata surface
+
+- Confirm `LICENSE`, `SECURITY.md`, and `CODE_OF_CONDUCT.md` are still present and match the current maintenance posture.
+- Confirm issue templates and the pull request template still reflect the current contributor workflow.
+- Confirm README badge links still point at the current crates.io, docs.rs, CI, and coverage surfaces.
+
+## 5. Record outcome
 
 - If the release is good, record the workflow URL and version in the relevant status or changelog notes.
 - If publishing failed partway through, capture the exact crate, version, and workflow URL before retrying so the next release does not repeat the same blind spot.
 
-## 5. Rollback guidance
+## 6. Rollback guidance
 
 - If only the GitHub release failed, fix the workflow cause and rerun from the release commit.
 - If `ferrocat-icu` or `ferrocat-po` published but `ferrocat` failed, do not delete tags. Cut a follow-up release with the fix and let Release Please advance the version.

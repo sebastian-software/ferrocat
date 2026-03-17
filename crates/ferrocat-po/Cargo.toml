@@ -8,6 +8,7 @@ repository.workspace = true
 rust-version.workspace = true
 description = "Performance-first PO parsing, serialization, and catalog update primitives for ferrocat."
 documentation = "https://docs.rs/ferrocat-po"
+readme = "README.md"
 keywords = ["ferrocat", "gettext", "po", "i18n", "parser"]
 categories = ["internationalization", "localization", "parser-implementations"]
 
