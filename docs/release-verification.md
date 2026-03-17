@@ -11,8 +11,8 @@ This checklist verifies a real Rust-only `ferrocat` release after the publish wo
 
 - Check crates.io for `ferrocat-icu`, `ferrocat-po`, and `ferrocat`.
 - Confirm the published crates resolved to the same release version.
-- Confirm all workspace crates are aligned through `workspace.package.version` and `version.workspace = true`.
-- Confirm the shared `workspace.dependencies` entries for the `ferrocat*` crates also point at that same version.
+- Confirm the workspace-only crates in the repo are also version-aligned with the published crates.
+- Confirm internal `ferrocat*` path dependencies in the crate manifests were updated to matching versions where applicable.
 - Confirm the GitHub release tag matches the published version created by Release Please.
 
 ## 3. Confirm install and docs surface

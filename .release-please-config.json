@@ -14,7 +14,9 @@
       "components": [
         "ferrocat",
         "ferrocat-po",
-        "ferrocat-icu"
+        "ferrocat-icu",
+        "ferrocat-conformance",
+        "ferrocat-bench"
       ]
     }
   ],
@@ -22,39 +24,7 @@
     "crates/ferrocat": {
       "release-type": "rust",
       "package-name": "ferrocat",
-      "component": "ferrocat",
-      "extra-files": [
-        {
-          "type": "toml",
-          "path": "Cargo.toml",
-          "jsonpath": "$.workspace.package.version"
-        },
-        {
-          "type": "toml",
-          "path": "Cargo.toml",
-          "jsonpath": "$.workspace.dependencies[\"ferrocat\"].version"
-        },
-        {
-          "type": "toml",
-          "path": "Cargo.toml",
-          "jsonpath": "$.workspace.dependencies[\"ferrocat-po\"].version"
-        },
-        {
-          "type": "toml",
-          "path": "Cargo.toml",
-          "jsonpath": "$.workspace.dependencies[\"ferrocat-icu\"].version"
-        },
-        {
-          "type": "toml",
-          "path": "Cargo.toml",
-          "jsonpath": "$.workspace.dependencies[\"ferrocat-conformance\"].version"
-        },
-        {
-          "type": "toml",
-          "path": "Cargo.toml",
-          "jsonpath": "$.workspace.dependencies[\"ferrocat-bench\"].version"
-        }
-      ]
+      "component": "ferrocat"
     },
     "crates/ferrocat-po": {
       "release-type": "rust",
@@ -65,6 +35,16 @@
       "release-type": "rust",
       "package-name": "ferrocat-icu",
       "component": "ferrocat-icu"
+    },
+    "crates/ferrocat-conformance": {
+      "release-type": "rust",
+      "package-name": "ferrocat-conformance",
+      "component": "ferrocat-conformance"
+    },
+    "crates/ferrocat-bench": {
+      "release-type": "rust",
+      "package-name": "ferrocat-bench",
+      "component": "ferrocat-bench"
     }
   }
 }
