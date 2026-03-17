@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.7.0](https://github.com/sebastian-software/ferrocat/compare/ferrocat-v0.6.0...ferrocat-v0.7.0) (2026-03-17)
+
+
+### Features
+
+* **catalog:** add compiled catalog artifact API ([26486d2](https://github.com/sebastian-software/ferrocat/commit/26486d2d520523e335cb8a8796b57818b7b1bb99))
+* **catalog:** add compiled id metadata helpers ([0a7cef0](https://github.com/sebastian-software/ferrocat/commit/0a7cef052cf918dfe362cd79575922121fce78fa))
+* **catalog:** add selected-key artifact compilation ([30fd036](https://github.com/sebastian-software/ferrocat/commit/30fd036f05f433aa529f92c57941be7187608d76))
+* **catalog:** add selected-key compiled catalog primitives ([355dd46](https://github.com/sebastian-software/ferrocat/commit/355dd46e7b05da81698de61c46dfc2a25bb2f394))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * ferrocat-icu bumped from 0.6.0 to 0.7.0
+    * ferrocat-po bumped from 0.6.0 to 0.7.0
+
 ## [0.6.0](https://github.com/sebastian-software/ferrocat/compare/ferrocat-v0.5.2...ferrocat-v0.6.0) (2026-03-17)
 
 
