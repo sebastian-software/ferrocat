@@ -2,7 +2,25 @@
 
 [![codecov](https://codecov.io/github/sebastian-software/ferrocat/graph/badge.svg?branch=main)](https://app.codecov.io/github/sebastian-software/ferrocat)
 
-`ferrocat` is a Rust-first gettext and ICU toolkit built around predictable performance, explicit crate boundaries, and source-attributed compatibility coverage.
+`ferrocat` is a modern, performance-first toolkit for the translation formats that serious localization workflows still rely on: gettext PO files today, with a clear path toward richer ICU-aware workflows tomorrow.
+
+If your mental model for translations starts with JSON files, `ferrocat` is the bridge back to what a lot of real-world i18n systems have used for decades: PO-based catalogs, gettext-style workflows, translator-friendly metadata, and tooling that has to be both fast and trustworthy.
+
+`ferrocat` brings that world into a Rust-native architecture with explicit crate boundaries, source-attributed conformance coverage, and performance work grounded in borrowing, byte-oriented hot paths, and profiling instead of wishful thinking.
+
+## Why People Get Excited About `ferrocat`
+
+- **It speaks the real language of translation workflows.** PO files are still a durable standard across gettext-based pipelines, translator tooling, comments, references, contexts, and plural handling. `ferrocat` is built for that reality, not just for toy key-value dictionaries.
+- **The performance story has reasons behind it.** The fast path is shaped by Rust-native design decisions: owned and borrowed APIs, byte-oriented scanning, explicit crate boundaries, and repeated profiling work to remove avoidable allocation and parsing overhead.
+- **It aims for trust, not just speed.** Conformance is tied back to independently maintained upstream behavior instead of vague compatibility claims.
+- **It is built for migration, not lock-in.** At the high level, `ferrocat` treats ICU-style structure as the long-term semantic model while keeping gettext as the compatibility bridge many teams still need today.
+- **It starts in Rust, but it does not stop there.** The core is being shaped so future Node.js/N-API and other bindings can sit on top of a stable engine instead of re-implementing the same translation logic per ecosystem.
+
+## Installation
+
+```bash
+cargo add ferrocat
+```
 
 The public entry point is the `ferrocat` crate. It re-exports the stable Rust surface from the lower-level workspace crates:
 
@@ -12,31 +30,26 @@ The public entry point is the `ferrocat` crate. It re-exports the stable Rust su
 - `ferrocat-bench`: workspace-only benchmark harness
 - `ferrocat-conformance`: workspace-only upstream-derived conformance fixtures
 
-## Installation
-
-```bash
-cargo add ferrocat
-```
-
 If you want a narrower dependency, `ferrocat-po` and `ferrocat-icu` remain publishable secondary crates.
 
-## Why `ferrocat`
+## Why `ferrocat` Exists
 
-Most PO tooling still makes at least one uncomfortable tradeoff:
+Many teams end up choosing between two unsatisfying extremes:
 
-- compatibility with legacy gettext workflows comes first, modern semantics second
-- convenience wins over predictable allocation behavior and hot-path efficiency
-- tests exist, but they are not tied back to independently maintained upstream suites
+- translation data in simple app-local formats that are easy to start with, but weak once real localization workflows show up
+- legacy PO tooling that preserves old workflows, but carries historical performance and API tradeoffs forward
+- libraries with tests, but without strong evidence that their edge-case behavior matches the upstream ecosystems people already depend on
 
-`ferrocat` aims to be stronger on all three axes:
+`ferrocat` exists to close that gap. It aims to give you the things people actually want at the same time:
 
 - Rust-native implementation instead of line-by-line translation
-- performance-first parser and serializer architecture
+- performance-first parser, serializer, and merge architecture
 - compatibility measured against real upstream behavior
+- a cleaner long-term semantic center for ICU-aware catalog work
 
-At the catalog layer, `ferrocat` treats ICU-style structure as the long-term semantic model and gettext as the compatibility bridge.
+That last point matters because gettext is still everywhere, but many teams want something better than being trapped forever in legacy shapes. At the catalog layer, `ferrocat` treats ICU-style structure as the long-term semantic model and gettext as the compatibility bridge.
 
-## Example
+## Quick Start
 
 ```rust
 use ferrocat::{SerializeOptions, parse_po, stringify_po};
@@ -71,9 +84,11 @@ let updated = merge_catalog(
 )?;
 ```
 
+If that matches what you are building, this repo is worth trying now and worth watching as the cross-ecosystem story grows.
+
 ## API Overview
 
-The current public surface falls into three practical layers:
+The current public surface falls into three practical layers, depending on whether you want raw PO access, higher-level catalog workflows, or ICU parsing:
 
 | Layer | Functions | Use when you want to... |
 |---|---|---|
@@ -93,6 +108,8 @@ The borrowed parser exists because real PO workflows are often read-heavy and tr
 ## Conformance
 
 `ferrocat` includes a hermetic, source-attributed conformance snapshot under [`conformance`](conformance).
+
+This is part of the core product story: compatibility should be demonstrated against real upstream suites, not hand-waved.
 
 As of 2026-03-16, the current scoreboard is:
 
@@ -128,6 +145,8 @@ The coverage setup focuses on `ferrocat`, `ferrocat-po`, and `ferrocat-icu`, whi
 See [docs/test-coverage.md](docs/test-coverage.md) for local setup, Codecov wiring, and artifact locations.
 
 ## Benchmarks And Profiling
+
+The benchmark section exists to support the main claim, not replace it: `ferrocat` is fast because the library was designed and profiled for predictable hot-path behavior.
 
 Useful benchmark commands:
 
@@ -247,6 +266,14 @@ For profiling on macOS:
 ```bash
 cargo instruments --no-open -t "Time Profiler" --bin ferrocat-bench -- parse mixed-10000 2000
 ```
+
+## Future Direction
+
+Today `ferrocat` is a Rust-first library. The broader goal is bigger than that: a fast, trustworthy translation core that can power multiple ecosystems from one implementation.
+
+That is why the architecture already keeps future Node.js/N-API-friendly boundaries in mind. The Rust crate is the first delivery vehicle, not the final limit of the project.
+
+If this direction matches what you want from translation tooling, try the crate today and star or watch the repo to follow the broader ecosystem story as it expands.
 
 ## Project Docs
 
