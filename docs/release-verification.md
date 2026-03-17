@@ -4,8 +4,8 @@ This checklist verifies a real Rust-only `ferrocat` release after the publish wo
 
 ## 1. Confirm automation state
 
-- Open the latest `Release Please` run and confirm it updated or closed the expected release PR cleanly.
-- Open the corresponding `Publish` run and confirm both the `create-releases` job and the `publish-rust` job completed successfully.
+- Open the latest `Publish` run and confirm the `release-please` job updated or closed the expected release PR cleanly.
+- For merged release PRs, confirm the same `Publish` run also completed the `publish-rust` job successfully.
 
 ## 2. Confirm workspace versions
 
