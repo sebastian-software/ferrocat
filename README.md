@@ -140,6 +140,7 @@ cargo run -p ferrocat-bench -- describe mixed-1000
 cargo run -p ferrocat-bench -- describe gettext-ui-de-1000
 cargo run -p ferrocat-bench -- verify-benchmark-env
 cargo run --release -p ferrocat-bench -- compare gettext-official-v1 --out benchmark/results/gettext-official-v1.json
+cargo run --release -p ferrocat-bench -- compare gettext-official-quick-v1 --out benchmark/results/gettext-official-quick-v1.json
 ```
 
 Historical benchmark results live in [docs/performance-history.md](docs/performance-history.md).
@@ -148,9 +149,17 @@ The manual external comparison suite, including the official gettext-only benchm
 
 The smallest official benchmark profile is `gettext-official-v1`: one conservative main locale (`de`), one second normal locale (`fr`), one more complex plural locale (`pl`), and one representative larger corpus size per scenario. Broader profiles still exist for deeper analysis, but the main benchmark story now stays intentionally small.
 
+For quicker day-to-day checks there is also `gettext-official-quick-v1`. It keeps the same fixture and tool matrix, but uses fewer warmups, fewer measured samples, and a lower minimum sample duration. That makes it useful as a fast regression check while `gettext-official-v1` stays the publication-grade profile.
+
 For workflow-style benchmarking there is now also a separate `gettext-workflows-v1` profile, which compares `merge_catalog` and `update_catalog` against a conservative `msgmerge` baseline on the `gettext-ui-de-*` corpus.
 
-Current official gettext snapshot from [benchmark/results/gettext-official-v1-with-gettext-parser.json](benchmark/results/gettext-official-v1-with-gettext-parser.json):
+Current official gettext snapshot from [benchmark/results/gettext-official-v1-with-gettext-parser-and-borrowed-de.json](benchmark/results/gettext-official-v1-with-gettext-parser-and-borrowed-de.json):
+
+Environment snapshot for that report:
+
+| Host | OS | CPU | Rust | Node.js | Python | GNU gettext |
+|---|---|---|---|---|---|---|
+| `MacBook-Pro-von-Sebastian.local` | `macos-aarch64` | `arm64` | `rustc 1.94.0` | `v24.14.0` | `3.9.6` | `gettext-tools 1.0` |
 
 The important number is throughput, not `median-ms`. The compare runner calibrates each sample to roughly the same wall-clock duration, so `median-ms` is mainly useful inside one scenario run. For cross-tool reading, compare `items/s`.
 
@@ -175,19 +184,19 @@ Column labels:
 
 | Fixture | ferrocat (Rust)<br>`parse_po` | ferrocat (Rust)<br>`parse_po_borrowed` | pofile-ts (Node.js)<br>`parsePo` | gettext-parser (Node.js)<br>`po.parse` | pofile (Node.js)<br>`parse` | polib (Python)<br>`parse` |
 |---|---:|---:|---:|---:|---:|---:|
-| UI strings (DE, 10k)<br>(`gettext-ui-de-10000`) | **1.34M** | — | 578k | 103k | 9.0k | 58.7k |
-| SaaS strings (FR, 10k)<br>(`gettext-saas-fr-10000`) | 1.31M | **1.58M** | 551k | 109k | 8.4k | 57.9k |
-| Commerce strings (PL, 10k)<br>(`gettext-commerce-pl-10000`) | 1.30M | **1.63M** | 582k | 107k | 7.8k | 59.6k |
+| UI strings (DE, 10k)<br>(`gettext-ui-de-10000`) | 1.34M | **1.64M** | 562k | 104k | 9.0k | 58.5k |
+| SaaS strings (FR, 10k)<br>(`gettext-saas-fr-10000`) | 1.31M | **1.57M** | 537k | 109k | 8.4k | 56.9k |
+| Commerce strings (PL, 10k)<br>(`gettext-commerce-pl-10000`) | 1.29M | **1.62M** | 578k | 102k | 7.7k | 59.1k |
 
 ### Stringify throughput
 
 | Fixture | ferrocat (Rust)<br>`stringify_po` | pofile-ts (Node.js)<br>`stringifyPo` | gettext-parser (Node.js)<br>`po.compile` | pofile (Node.js)<br>`serialize` | polib (Python)<br>`serialize` | GNU gettext (C)<br>`msgcat` |
 |---|---:|---:|---:|---:|---:|---:|
-| UI strings (DE, 10k)<br>(`gettext-ui-de-10000`) | **6.14M** | 1.27M | 195k | 557k | 100k | 29.9k |
-| SaaS strings (FR, 10k)<br>(`gettext-saas-fr-10000`) | **6.04M** | 1.04M | 247k | 654k | 113k | 31.1k |
-| Commerce strings (PL, 10k)<br>(`gettext-commerce-pl-10000`) | **6.43M** | 1.11M | 226k | 615k | 112k | 29.4k |
+| UI strings (DE, 10k)<br>(`gettext-ui-de-10000`) | **6.04M** | 1.26M | 195k | 552k | 99.5k | 29.9k |
+| SaaS strings (FR, 10k)<br>(`gettext-saas-fr-10000`) | **5.98M** | 997k | 247k | 655k | 113k | 31.0k |
+| Commerce strings (PL, 10k)<br>(`gettext-commerce-pl-10000`) | **6.37M** | 1.05M | 217k | 502k | 112k | 29.3k |
 
-Workflow snapshot from [benchmark/results/gettext-official-v1-with-gettext-parser.json](benchmark/results/gettext-official-v1-with-gettext-parser.json):
+Workflow snapshot from [benchmark/results/gettext-official-v1-with-gettext-parser-and-borrowed-de.json](benchmark/results/gettext-official-v1-with-gettext-parser-and-borrowed-de.json):
 
 ### Basic Catalog Merge throughput
 
@@ -195,7 +204,7 @@ Workflow snapshot from [benchmark/results/gettext-official-v1-with-gettext-parse
 
 | Fixture | ferrocat (Rust)<br>`merge_catalog` | GNU gettext (C)<br>`msgmerge` |
 |---|---:|---:|
-| UI strings (DE, 10k)<br>(`gettext-ui-de-10000`) | **1.83M** | 26.3k |
+| UI strings (DE, 10k)<br>(`gettext-ui-de-10000`) | **1.70M** | 26.1k |
 
 ### Full Catalog Update throughput
 
@@ -203,9 +212,9 @@ Workflow snapshot from [benchmark/results/gettext-official-v1-with-gettext-parse
 
 | Fixture | ferrocat (Rust)<br>`update_catalog` | GNU gettext (C)<br>`msgmerge` |
 |---|---:|---:|
-| UI strings (DE, 10k)<br>(`gettext-ui-de-10000`) | **340k** | 26.3k |
+| UI strings (DE, 10k)<br>(`gettext-ui-de-10000`) | **344k** | 26.3k |
 
-The broader `gettext-compat-v1` and `gettext-workflows-v1` reports are still useful when you want more detail, but the table above is now aligned with the smaller official benchmark profile.
+The broader `gettext-compat-v1` and `gettext-workflows-v1` reports are still useful when you want more detail, but the table above is now aligned with the smaller official benchmark profile. If you publish or quote benchmark numbers, include the report's environment block so the device and toolchain are visible alongside the throughput table.
 
 For profiling on macOS:
 

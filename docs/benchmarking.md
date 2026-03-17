@@ -52,6 +52,12 @@ This checks the required executables and adapter packages and prints the detecte
   - one second normal locale: `fr`
   - one more complex plural locale: `pl`
   - one representative large corpus size per scenario
+- `gettext-official-quick-v1`
+  - the fast companion to `gettext-official-v1`
+  - keeps the same fixture and external-tool matrix
+  - lowers the minimum sample duration
+  - uses fewer warmup and measured runs
+  - useful for local iteration and regression checks, but not the publication-grade profile
 - `gettext-compat-v1`
   - extended external benchmark suite
   - broader gettext-only matrix with additional locale/family coverage
@@ -80,6 +86,20 @@ The compare command:
 - runs 2 warmups per scenario
 - records 10 measured samples per parse/stringify scenario
 - stores raw samples plus aggregated statistics in JSON
+
+For a quicker checkpoint with the same comparison matrix:
+
+```bash
+cargo run --release -p ferrocat-bench -- compare gettext-official-quick-v1 --out benchmark/results/gettext-official-quick-v1-$(date +%Y%m%d-%H%M%S).json
+```
+
+That profile currently uses:
+
+- `minimum_sample_millis: 100`
+- 1 warmup and 3 measured samples for parse/stringify scenarios
+- 1 warmup and 2 measured samples for workflow scenarios
+
+Use it for faster day-to-day checks. Keep `gettext-official-v1` as the primary report for published comparisons.
 
 For GNU gettext CLI scenarios, the report additionally records an `empty-cli-run` baseline using a minimal header-only input. This adds:
 
@@ -124,6 +144,20 @@ External baselines currently wired:
 - `polib`, `pofile`, `pofile-ts`, and `gettext-parser` on the classic gettext parse/stringify corpora: `gettext-ui-de-10000`, `gettext-saas-fr-10000`, `gettext-commerce-pl-10000`
 - `msgcat` on stringify comparisons
 - `msgmerge` on the conservative workflow corpus
-- `ferrocat` internal owned vs borrowed parse baselines on `fr` and `pl`
+- `ferrocat` internal owned vs borrowed parse baselines on `de`, `fr`, and `pl`
 
 This is intentional. The official profile is meant to answer the small, understandable benchmark question first. The broader `gettext-compat-v1` profile is still available when you want more detail, and the advanced `mixed-*` / ICU-heavy corpora remain separate from the official gettext comparison track.
+
+## Reporting Expectations
+
+When you share benchmark results from the external suite, include the environment block from the JSON report together with the throughput table. At minimum, keep these fields visible:
+
+- `host_identifier`
+- `os`
+- `cpu_model`
+- `rustc_version`
+- `node_version`
+- `python_version`
+- `msgcat_version` / `msgmerge_version` when GNU gettext numbers are shown
+
+This keeps published numbers tied to the machine and toolchain they were measured on.
