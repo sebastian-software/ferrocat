@@ -215,26 +215,12 @@ Column labels:
 | SaaS strings (FR, 10k)<br>(`gettext-saas-fr-10000`) | **6.00M** | 1.02M | 244k | 654k | 113k | 31.0k |
 | Commerce strings (PL, 10k)<br>(`gettext-commerce-pl-10000`) | **6.34M** | 1.09M | 226k | 496k | 111k | 29.3k |
 
-Workflow snapshot from [benchmark/results/gettext-official-v1-merge-only-no-fuzzy.json](benchmark/results/gettext-official-v1-merge-only-no-fuzzy.json):
-
-### Basic Catalog Merge throughput
-
 `merge_catalog` is the leaner gettext-style merge step. It works like a fast-path merge:
 
 - keep matching translations
 - add new entries
 - mark removed entries as obsolete
 - preserve the classic PO shape instead of re-projecting through the higher-level catalog model
-
-`msgmerge` is the nearest GNU gettext baseline for that workflow. In the benchmark it runs with `--no-fuzzy-matching`, because `ferrocat` intentionally does not try to preserve old translations for changed source strings via fuzzy heuristics.
-
-| Fixture | ferrocat (Rust)<br>`merge_catalog` | GNU gettext (C)<br>`msgmerge` |
-|---|---:|---:|
-| UI strings (DE, 10k)<br>(`gettext-ui-de-10000`) | **1.81M** | 26.7k |
-
-`update_catalog` still exists as a higher-level API, but it is no longer part of the public cross-tool benchmark table because it does broader catalog-maintenance work and does not have a clean direct equivalent in the external comparison set.
-
-The broader `gettext-compat-v1` and `gettext-workflows-v1` reports are still useful when you want more detail, but the table above is now aligned with the smaller official benchmark profile. If you publish or quote benchmark numbers, include the report's environment block so the device and toolchain are visible alongside the throughput table.
 
 Workflow ecosystem snapshot from [benchmark/results/gettext-workflows-ecosystem-v1-merge-only-no-fuzzy.json](benchmark/results/gettext-workflows-ecosystem-v1-merge-only-no-fuzzy.json):
 
@@ -254,7 +240,13 @@ They do **not** try to reproduce the higher-level `update_catalog` feature set s
 
 `gettext-parser` is not part of this workflow table yet. Its current PO compile/parse model is fine for parse/stringify benchmarking, but it does not preserve obsolete entries in a way that makes a `msgmerge`-style workflow semantically fair.
 
-### Basic Catalog Merge throughput (ecosystem)
+In these lean `msgmerge`-style workflows, `ferrocat` is not just faster than GNU gettext in this comparison set, but also substantially faster than the common Node.js and Python libraries included here.
+
+`update_catalog` still exists as a higher-level API, but it is no longer part of the public cross-tool benchmark table because it does broader catalog-maintenance work and does not have a clean direct equivalent in the external comparison set.
+
+The broader `gettext-compat-v1` and `gettext-workflows-v1` reports are still useful when you want more detail. If you publish or quote benchmark numbers, include the report's environment block so the device and toolchain are visible alongside the throughput table.
+
+### Catalog Merge Throughput Across Ecosystem Tools
 
 | Fixture | ferrocat (Rust)<br>`merge_catalog` | pofile-ts (Node.js)<br>`parsePo` + merge + `stringifyPo` | pofile (Node.js)<br>`parse` + merge + `serialize` | GNU gettext (C)<br>`msgmerge` | polib (Python)<br>`pofile` + merge + `str()` |
 |---|---:|---:|---:|---:|---:|
