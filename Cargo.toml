@@ -16,6 +16,13 @@ repository = "https://github.com/sebastian-software/ferrocat"
 rust-version = "1.85"
 version = "0.2.0"
 
+[workspace.dependencies]
+ferrocat = { version = "0.2.0", path = "crates/ferrocat" }
+ferrocat-po = { version = "0.2.0", path = "crates/ferrocat-po" }
+ferrocat-icu = { version = "0.2.0", path = "crates/ferrocat-icu" }
+ferrocat-conformance = { version = "0.2.0", path = "crates/ferrocat-conformance" }
+ferrocat-bench = { version = "0.2.0", path = "crates/ferrocat-bench" }
+
 [workspace.lints.rust]
 unsafe_op_in_unsafe_fn = "deny"
 

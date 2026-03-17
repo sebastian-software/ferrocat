@@ -2939,10 +2939,7 @@ mod tests {
 
     #[test]
     fn format_memory_label_uses_clean_gigabyte_counts() {
-        assert_eq!(
-            format_memory_label(32 * 1024 * 1024 * 1024),
-            "32 GB RAM"
-        );
+        assert_eq!(format_memory_label(32 * 1024 * 1024 * 1024), "32 GB RAM");
     }
 
     #[test]

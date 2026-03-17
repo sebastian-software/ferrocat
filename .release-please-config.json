@@ -4,7 +4,8 @@
   "plugins": [
     {
       "type": "cargo-workspace",
-      "merge": false
+      "merge": false,
+      "updateAllPackages": true
     },
     {
       "type": "linked-versions",
@@ -21,7 +22,39 @@
     "crates/ferrocat": {
       "release-type": "rust",
       "package-name": "ferrocat",
-      "component": "ferrocat"
+      "component": "ferrocat",
+      "extra-files": [
+        {
+          "type": "toml",
+          "path": "Cargo.toml",
+          "jsonpath": "$.workspace.package.version"
+        },
+        {
+          "type": "toml",
+          "path": "Cargo.toml",
+          "jsonpath": "$.workspace.dependencies[\"ferrocat\"].version"
+        },
+        {
+          "type": "toml",
+          "path": "Cargo.toml",
+          "jsonpath": "$.workspace.dependencies[\"ferrocat-po\"].version"
+        },
+        {
+          "type": "toml",
+          "path": "Cargo.toml",
+          "jsonpath": "$.workspace.dependencies[\"ferrocat-icu\"].version"
+        },
+        {
+          "type": "toml",
+          "path": "Cargo.toml",
+          "jsonpath": "$.workspace.dependencies[\"ferrocat-conformance\"].version"
+        },
+        {
+          "type": "toml",
+          "path": "Cargo.toml",
+          "jsonpath": "$.workspace.dependencies[\"ferrocat-bench\"].version"
+        }
+      ]
     },
     "crates/ferrocat-po": {
       "release-type": "rust",
