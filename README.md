@@ -105,6 +105,7 @@ The current public surface falls into three practical layers, depending on wheth
 | Catalog workflows | `merge_catalog` | do the lean gettext-style merge step against fresh extracted messages |
 | Catalog workflows | `parse_catalog` | read a `.po` file into the higher-level canonical catalog model |
 | Catalog workflows | `NormalizedParsedCatalog::compile` | compile a normalized catalog into runtime lookup entries with stable derived keys |
+| Catalog workflows | `compile_catalog_artifact` | compile one requested-locale runtime artifact with fallback resolution, missing reports, and final ICU strings |
 | Catalog workflows | `update_catalog` | run the full in-memory catalog update flow with headers, plurals, sorting, and diagnostics |
 | Catalog workflows | `update_catalog_file` | run the same full update flow directly against a file on disk |
 | ICU | `parse_icu`, `validate_icu`, `extract_variables` | parse or inspect ICU MessageFormat structure |
@@ -152,6 +153,50 @@ Current key contract:
 
 The goal is to give downstream runtimes small, reproducible lookup keys without turning the library into a code generator. If you need JS/TS/Rust module generation, `CompiledCatalog` is the intended handoff point.
 
+For the next layer up, `ferrocat` also exposes a host-neutral artifact compile step for one requested locale:
+
+```rust
+use ferrocat::{
+    CompileCatalogArtifactOptions, ParseCatalogOptions, compile_catalog_artifact, parse_catalog,
+};
+
+let source = parse_catalog(ParseCatalogOptions {
+    content: "msgid \"Hello\"\nmsgstr \"Hello\"\n".to_owned(),
+    source_locale: "en".to_owned(),
+    locale: Some("en".to_owned()),
+    ..ParseCatalogOptions::default()
+})?
+.into_normalized_view()?;
+let requested = parse_catalog(ParseCatalogOptions {
+    content: "msgid \"Hello\"\nmsgstr \"Hallo\"\n".to_owned(),
+    source_locale: "en".to_owned(),
+    locale: Some("de".to_owned()),
+    ..ParseCatalogOptions::default()
+})?
+.into_normalized_view()?;
+
+let artifact = compile_catalog_artifact(
+    &[&requested, &source],
+    &CompileCatalogArtifactOptions {
+        requested_locale: "de".to_owned(),
+        source_locale: "en".to_owned(),
+        ..CompileCatalogArtifactOptions::default()
+    },
+)?;
+
+assert_eq!(artifact.messages.len(), 1);
+assert!(artifact.missing.is_empty());
+```
+
+This higher-level compile path is meant for runtime/export tooling that wants:
+
+- one requested-locale runtime map keyed by Ferrocat's compiled lookup keys
+- locale fallback resolution before host-specific code generation
+- explicit missing-message reporting for non-source locales
+- final ICU-string validation diagnostics
+
+Use `NormalizedParsedCatalog::compile` when you only want the smaller typed runtime lookup layer for one normalized catalog. Use `compile_catalog_artifact` when you need the fully resolved locale-specific runtime artifact that downstream loaders or bundlers can consume directly.
+
 ## Project Status
 
 `ferrocat` is an actively developed pre-`1.0` Rust project.
@@ -160,7 +205,7 @@ Current strengths:
 
 - high-performance PO parsing, serialization, and merge/update workflows
 - ICU `MessageFormat` parsing with structural helpers
-- normalized catalog APIs plus a first runtime compilation layer
+- normalized catalog APIs plus runtime compilation and requested-locale artifact generation
 - conformance and benchmark infrastructure treated as product features, not afterthoughts
 
 Current roadmap themes:

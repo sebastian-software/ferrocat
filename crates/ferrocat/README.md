@@ -16,7 +16,7 @@ It re-exports the stable Rust API from `ferrocat-po` and `ferrocat-icu`.
 Use it when you want one dependency for:
 
 - PO parsing and serialization
-- catalog normalization, updating, and runtime compilation
+- catalog normalization, updating, runtime compilation, and requested-locale artifact generation
 - ICU `MessageFormat` parsing and inspection
 
 Repository, docs, and contribution guidelines:

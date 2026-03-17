@@ -19,18 +19,35 @@
 //! ```
 //!
 //! ```rust
-//! use ferrocat::{CompileCatalogOptions, ParseCatalogOptions, parse_catalog};
+//! use ferrocat::{
+//!     CompileCatalogArtifactOptions, ParseCatalogOptions, compile_catalog_artifact,
+//!     parse_catalog,
+//! };
 //!
-//! let parsed = parse_catalog(ParseCatalogOptions {
+//! let source = parse_catalog(ParseCatalogOptions {
+//!     content: "msgid \"Hello\"\nmsgstr \"Hello\"\n".to_owned(),
+//!     source_locale: "en".to_owned(),
+//!     locale: Some("en".to_owned()),
+//!     ..ParseCatalogOptions::default()
+//! })?
+//! .into_normalized_view()?;
+//! let requested = parse_catalog(ParseCatalogOptions {
 //!     content: "msgid \"Hello\"\nmsgstr \"Hallo\"\n".to_owned(),
 //!     source_locale: "en".to_owned(),
 //!     locale: Some("de".to_owned()),
 //!     ..ParseCatalogOptions::default()
-//! })?;
-//! let normalized = parsed.into_normalized_view()?;
-//! let compiled = normalized.compile(&CompileCatalogOptions::default())?;
+//! })?
+//! .into_normalized_view()?;
+//! let compiled = compile_catalog_artifact(
+//!     &[&requested, &source],
+//!     &CompileCatalogArtifactOptions {
+//!         requested_locale: "de".to_owned(),
+//!         source_locale: "en".to_owned(),
+//!         ..CompileCatalogArtifactOptions::default()
+//!     },
+//! )?;
 //!
-//! assert_eq!(compiled.len(), 1);
+//! assert_eq!(compiled.messages.len(), 1);
 //! # Ok::<(), Box<dyn std::error::Error>>(())
 //! ```
 
@@ -43,13 +60,15 @@ pub use ferrocat_icu::{
 pub use ferrocat_po::{
     ApiError, BorrowedHeader, BorrowedMsgStr, BorrowedPoFile, BorrowedPoItem, CatalogMessage,
     CatalogMessageExtra, CatalogMessageKey, CatalogOrigin, CatalogStats, CatalogUpdateInput,
-    CatalogUpdateResult, CompileCatalogOptions, CompiledCatalog, CompiledKeyStrategy,
-    CompiledMessage, CompiledTranslation, Diagnostic, DiagnosticSeverity, EffectiveTranslation,
-    EffectiveTranslationRef, ExtractedMessage, ExtractedPluralMessage, ExtractedSingularMessage,
-    Header, MergeExtractedMessage, MsgStr, MsgStrIter, NormalizedParsedCatalog, ObsoleteStrategy,
-    OrderBy, ParseCatalogOptions, ParseError, ParsedCatalog, PlaceholderCommentMode,
-    PluralEncoding, PluralSource, PoFile, PoItem, SerializeOptions, SourceExtractedMessage,
-    TranslationShape, UpdateCatalogFileOptions, UpdateCatalogOptions, escape_string,
-    extract_quoted, extract_quoted_cow, merge_catalog, parse_catalog, parse_po, parse_po_borrowed,
-    stringify_po, unescape_string, update_catalog, update_catalog_file,
+    CatalogUpdateResult, CompileCatalogArtifactOptions, CompileCatalogOptions, CompiledCatalog,
+    CompiledCatalogArtifact, CompiledCatalogDiagnostic, CompiledCatalogMissingMessage,
+    CompiledKeyStrategy, CompiledMessage, CompiledTranslation, Diagnostic, DiagnosticSeverity,
+    EffectiveTranslation, EffectiveTranslationRef, ExtractedMessage, ExtractedPluralMessage,
+    ExtractedSingularMessage, Header, MergeExtractedMessage, MsgStr, MsgStrIter,
+    NormalizedParsedCatalog, ObsoleteStrategy, OrderBy, ParseCatalogOptions, ParseError,
+    ParsedCatalog, PlaceholderCommentMode, PluralEncoding, PluralSource, PoFile, PoItem,
+    SerializeOptions, SourceExtractedMessage, TranslationShape, UpdateCatalogFileOptions,
+    UpdateCatalogOptions, compile_catalog_artifact, escape_string, extract_quoted,
+    extract_quoted_cow, merge_catalog, parse_catalog, parse_po, parse_po_borrowed, stringify_po,
+    unescape_string, update_catalog, update_catalog_file,
 };

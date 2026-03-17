@@ -19,6 +19,7 @@ This page is a lightweight guide for choosing the right function before there is
 | Read a `.po` file into the higher-level canonical catalog model | `parse_catalog` |
 | Build keyed lookup/helpers on top of a parsed catalog | `ParsedCatalog::into_normalized_view` |
 | Compile a normalized catalog into runtime lookup entries | `NormalizedParsedCatalog::compile` |
+| Compile a requested-locale runtime artifact with fallbacks and missing reports | `compile_catalog_artifact` |
 | Perform a full in-memory catalog update | `update_catalog` |
 | Perform a full catalog update and write the result to disk only when changed | `update_catalog_file` |
 | Parse ICU MessageFormat into a structural AST | `parse_icu` |
@@ -103,6 +104,30 @@ The built-in `CompiledKeyStrategy::FerrocatV1` contract is intentionally compact
 - no visible version prefix in the emitted key
 - hard compile failure on collisions
 
+### `compile_catalog_artifact`
+
+Use this when you want the final host-neutral runtime artifact for one requested locale rather than one catalog's typed lookup payload.
+
+This sits one step above `NormalizedParsedCatalog::compile`:
+
+- start from one or more normalized catalogs
+- choose a requested locale and source locale
+- optionally provide a fallback chain
+- compile a final `key -> ICU string` runtime map
+- collect missing-message records for non-source locales
+- validate the final runtime strings as ICU messages
+
+Choose this when your downstream tooling needs locale resolution semantics centralized in Ferrocat instead of rebuilding them in a host adapter.
+
+Important semantics:
+
+- only non-obsolete messages participate in artifact compilation
+- empty non-source translations are treated as unresolved and can fall through to the fallback chain
+- source fallback is explicit for non-source locale compilation
+- source-locale compilation always materializes empty source values from source text
+- plural messages are emitted as final ICU plural strings using the preserved plural variable
+- invalid final ICU strings become diagnostics by default and can become hard errors in strict mode
+
 ### `update_catalog`
 
 Use this for the full high-level catalog update path in memory.
@@ -157,4 +182,5 @@ Use this after `parse_icu` when you want the variable names referenced by the me
 - classic gettext merge step: `merge_catalog`
 - full app-level catalog maintenance: `update_catalog` or `update_catalog_file`
 - parsed catalog consumption with keyed accessors: `parse_catalog` + `into_normalized_view`
+- locale-specific runtime artifact generation: `compile_catalog_artifact`
 - ICU analysis: `parse_icu`

@@ -1,0 +1,87 @@
+# ADR 0010: Add a Locale-Resolved Compiled Catalog Artifact API
+
+- Status: Accepted
+- Date: 2026-03-17
+
+## Context
+
+`ferrocat` already exposes a small runtime-oriented compile step through `NormalizedParsedCatalog::compile`.
+
+That API is intentionally narrow:
+
+- it compiles one normalized catalog at a time
+- it preserves typed singular/plural payloads
+- it derives stable runtime lookup keys
+- it does not resolve locale fallback chains or report requested-locale gaps
+
+Downstream tools such as Palamedes still need an additional step after parsing:
+
+- combine requested, fallback, and source locale catalogs
+- resolve effective runtime messages
+- decide when to fall back to source text
+- report which requested-locale messages were missing
+- validate the final runtime strings as ICU messages
+
+That logic is still catalog semantics, not host-specific code generation policy.
+
+## Decision
+
+`ferrocat` adds a new high-level API: `compile_catalog_artifact`.
+
+This API:
+
+- accepts one or more `NormalizedParsedCatalog` values
+- requires a requested locale and source locale
+- optionally accepts an ordered fallback chain
+- emits a host-neutral runtime artifact with:
+  - final `key -> ICU string` messages
+  - missing-message records for non-source locale compilation
+  - compile diagnostics for invalid final ICU strings
+
+The existing `NormalizedParsedCatalog::compile` API remains supported and unchanged in role.
+
+The two compile layers now have distinct responsibilities:
+
+- `NormalizedParsedCatalog::compile`: small typed runtime lookup for one catalog
+- `compile_catalog_artifact`: locale-resolved runtime artifact for downstream host adapters
+
+Artifact compilation semantics are explicit:
+
+- only non-obsolete messages participate
+- empty non-source translations are treated as unresolved
+- source fallback for non-source locale artifacts is opt-in
+- source-locale artifacts always materialize empty source values from source text
+- plural messages are emitted as final ICU plural strings using the preserved plural variable
+- invalid final ICU strings are diagnostics by default and hard errors in strict mode
+
+`fuzzy` remains passthrough metadata only and has no special runtime-artifact semantics in this first version.
+
+## Consequences
+
+Positive:
+
+- locale fallback semantics move into Ferrocat instead of being duplicated downstream
+- host adapters can stay focused on packaging and code generation
+- missing-message reporting becomes consistent with compile behavior
+- final ICU validation happens at the runtime-artifact boundary where it matters
+
+Negative:
+
+- the high-level catalog API surface grows
+- plural variable information now needs to remain available in the public catalog message shape
+- there are now two runtime-oriented compile APIs to document clearly
+
+## Alternatives Considered
+
+### Expand `NormalizedParsedCatalog::compile`
+
+Rejected because it would blur the boundary between:
+
+- one-catalog typed runtime lookup
+- multi-catalog locale-resolution semantics
+
+Keeping both concerns in one API would make the smaller compile surface harder to explain and harder to preserve as a stable low-level building block.
+
+### Leave locale artifact compilation in downstream tools
+
+Rejected because it keeps effective translation semantics fragmented across projects and increases the chance of drift between parse/update behavior and runtime/export behavior.
