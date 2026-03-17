@@ -9,8 +9,9 @@ use std::time::Instant;
 
 use ferrocat_icu::{IcuMessage, IcuNode, IcuOption, IcuPluralKind, parse_icu};
 use ferrocat_po::{
-    ExtractedMessage, MergeExtractedMessage, MsgStr, PluralEncoding, PoFile, SerializeOptions,
-    UpdateCatalogOptions, merge_catalog, parse_po, parse_po_borrowed, stringify_po, update_catalog,
+    BorrowedMsgStr, BorrowedPoFile, ExtractedMessage, MergeExtractedMessage, MsgStr,
+    PluralEncoding, PoFile, SerializeOptions, UpdateCatalogOptions, merge_catalog, parse_po,
+    parse_po_borrowed, stringify_po, update_catalog,
 };
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -622,7 +623,7 @@ impl PreparedScenario {
             let summary = if borrowed {
                 let parsed = parse_po_borrowed(input)
                     .map_err(|error| format!("borrowed parse failed: {error}"))?;
-                PoSemanticSummary::from_po_file(&parsed.into_owned())
+                PoSemanticSummary::from_borrowed_po_file(&parsed)
             } else {
                 let parsed =
                     parse_po(input).map_err(|error| format!("owned parse failed: {error}"))?;
@@ -1230,6 +1231,39 @@ impl PoSemanticSummary {
                     MsgStr::None => Vec::new(),
                     MsgStr::Singular(value) => vec![value.clone()],
                     MsgStr::Plural(values) => values.clone(),
+                },
+                obsolete: item.obsolete,
+            })
+            .collect::<Vec<_>>();
+        Self { headers, items }.normalized()
+    }
+
+    fn from_borrowed_po_file(file: &BorrowedPoFile<'_>) -> Self {
+        let headers = file
+            .headers
+            .iter()
+            .map(|header| PoHeaderSummary {
+                key: header.key.as_ref().to_owned(),
+                value: header.value.as_ref().to_owned(),
+            })
+            .collect::<Vec<_>>();
+        let items = file
+            .items
+            .iter()
+            .map(|item| PoItemSummary {
+                msgctxt: item.msgctxt.as_ref().map(|value| value.as_ref().to_owned()),
+                msgid: item.msgid.as_ref().to_owned(),
+                msgid_plural: item
+                    .msgid_plural
+                    .as_ref()
+                    .map(|value| value.as_ref().to_owned()),
+                msgstr: match &item.msgstr {
+                    BorrowedMsgStr::None => Vec::new(),
+                    BorrowedMsgStr::Singular(value) => vec![value.as_ref().to_owned()],
+                    BorrowedMsgStr::Plural(values) => values
+                        .iter()
+                        .map(|value| value.as_ref().to_owned())
+                        .collect(),
                 },
                 obsolete: item.obsolete,
             })
@@ -2603,12 +2637,10 @@ mod tests {
         let fixture =
             crate::fixtures::fixture_by_name("gettext-commerce-pl-1000").expect("fixture");
         let owned = ferrocat_po::parse_po(fixture.content()).expect("owned parse");
-        let borrowed = ferrocat_po::parse_po_borrowed(fixture.content())
-            .expect("borrowed parse")
-            .into_owned();
+        let borrowed = ferrocat_po::parse_po_borrowed(fixture.content()).expect("borrowed parse");
 
         let owned_summary = PoSemanticSummary::from_po_file(&owned);
-        let borrowed_summary = PoSemanticSummary::from_po_file(&borrowed);
+        let borrowed_summary = PoSemanticSummary::from_borrowed_po_file(&borrowed);
 
         assert_eq!(
             canonical_json_string(&owned_summary).expect("owned json"),
