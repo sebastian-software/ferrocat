@@ -125,7 +125,7 @@ pub enum CompiledTranslation {
 pub enum CompiledKeyStrategy {
     /// `ferrocat` v1 key format: SHA-256 over a versioned, length-delimited
     /// `msgctxt`/`msgid` payload, truncated to 64 bits and encoded as unpadded
-    /// Base64URL.
+    /// `Base64URL`.
     #[default]
     FerrocatV1,
 }
@@ -170,16 +170,19 @@ pub struct CompiledCatalog {
 
 impl CompiledCatalog {
     /// Returns the compiled message for `key`, if present.
+    #[must_use]
     pub fn get(&self, key: &str) -> Option<&CompiledMessage> {
         self.entries.get(key)
     }
 
     /// Returns the number of compiled entries.
+    #[must_use]
     pub fn len(&self) -> usize {
         self.entries.len()
     }
 
     /// Returns `true` when the compiled catalog has no entries.
+    #[must_use]
     pub fn is_empty(&self) -> bool {
         self.entries.is_empty()
     }
@@ -213,6 +216,7 @@ pub struct CatalogMessage {
 
 impl CatalogMessage {
     /// Returns the lookup key for this message.
+    #[must_use]
     pub fn key(&self) -> CatalogMessageKey {
         CatalogMessageKey {
             msgid: self.msgid.clone(),
@@ -221,6 +225,7 @@ impl CatalogMessage {
     }
 
     /// Returns the effective translation without source-locale fallback.
+    #[must_use]
     pub fn effective_translation(&self) -> EffectiveTranslationRef<'_> {
         match &self.translation {
             TranslationShape::Singular { value } => EffectiveTranslationRef::Singular(value),
@@ -256,9 +261,7 @@ impl CatalogMessage {
                 let mut effective = profile.materialize_translation(translation);
                 let fallback = profile.source_locale_translation(source);
                 for (category, source_value) in fallback {
-                    let should_fill = effective
-                        .get(&category)
-                        .is_none_or(|value| value.is_empty());
+                    let should_fill = effective.get(&category).is_none_or(String::is_empty);
                     if should_fill {
                         effective.insert(category, source_value);
                     }
@@ -278,6 +281,7 @@ pub struct CatalogMessageKey {
 
 impl CatalogMessageKey {
     /// Creates a message key from `msgid` and optional context.
+    #[must_use]
     pub fn new(msgid: impl Into<String>, msgctxt: Option<String>) -> Self {
         Self {
             msgid: msgid.into(),
@@ -358,6 +362,11 @@ pub struct ParsedCatalog {
 
 impl ParsedCatalog {
     /// Builds a lookup-oriented view that rejects duplicate message keys.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ApiError::Conflict`] when the parsed catalog contains
+    /// duplicate `msgid`/`msgctxt` pairs.
     pub fn into_normalized_view(self) -> Result<NormalizedParsedCatalog, ApiError> {
         NormalizedParsedCatalog::new(self)
     }
@@ -386,16 +395,19 @@ impl NormalizedParsedCatalog {
     }
 
     /// Returns the underlying parsed catalog.
-    pub fn parsed_catalog(&self) -> &ParsedCatalog {
+    #[must_use]
+    pub const fn parsed_catalog(&self) -> &ParsedCatalog {
         &self.catalog
     }
 
     /// Consumes the normalized view and returns the underlying parsed catalog.
+    #[must_use]
     pub fn into_parsed_catalog(self) -> ParsedCatalog {
         self.catalog
     }
 
     /// Returns a message by key.
+    #[must_use]
     pub fn get(&self, key: &CatalogMessageKey) -> Option<&CatalogMessage> {
         self.key_index
             .get(key)
@@ -403,11 +415,13 @@ impl NormalizedParsedCatalog {
     }
 
     /// Returns `true` if a message for `key` exists.
+    #[must_use]
     pub fn contains_key(&self, key: &CatalogMessageKey) -> bool {
         self.key_index.contains_key(key)
     }
 
     /// Returns the number of indexed messages.
+    #[must_use]
     pub fn message_count(&self) -> usize {
         self.catalog.messages.len()
     }
@@ -429,6 +443,7 @@ impl NormalizedParsedCatalog {
 
     /// Returns the effective translation and fills empty source-locale values
     /// from the source text when appropriate.
+    #[must_use]
     pub fn effective_translation_with_source_fallback(
         &self,
         key: &CatalogMessageKey,
@@ -453,6 +468,12 @@ impl NormalizedParsedCatalog {
     /// (`msgctxt` + `msgid`) using the selected built-in key strategy.
     /// The default configuration keeps translations as-is without filling
     /// missing values from the source text.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ApiError::InvalidArguments`] when source fallback is enabled
+    /// without a `source_locale`, or [`ApiError::Conflict`] when two source
+    /// messages compile to the same derived key.
     ///
     /// ```rust
     /// use ferrocat_po::{CompileCatalogOptions, ParseCatalogOptions, parse_catalog};
@@ -495,14 +516,15 @@ impl NormalizedParsedCatalog {
         let mut entries = BTreeMap::new();
 
         for (source_key, message) in self.iter() {
-            let translation = if let Some(source_locale) = source_locale {
-                compiled_translation_from_effective(
-                    self.effective_translation_with_source_fallback(source_key, source_locale)
-                        .expect("normalized catalog lookup"),
-                )
-            } else {
-                compiled_translation_from_effective(message.effective_translation_owned())
-            };
+            let translation = source_locale.map_or_else(
+                || compiled_translation_from_effective(message.effective_translation_owned()),
+                |source_locale| {
+                    compiled_translation_from_effective(
+                        self.effective_translation_with_source_fallback(source_key, source_locale)
+                            .expect("normalized catalog lookup"),
+                    )
+                },
+            );
             let compiled_key = key_generator(options.key_strategy, source_key);
             let compiled_message = CompiledMessage {
                 key: compiled_key.clone(),
@@ -693,16 +715,14 @@ fn ferrocat_v1_compiled_key(key: &CatalogMessageKey) -> String {
 }
 
 fn push_compiled_key_component(out: &mut Vec<u8>, value: Option<&str>) {
-    match value {
-        Some(value) => {
-            out.push(1);
-            out.extend_from_slice(&(value.len() as u32).to_be_bytes());
-            out.extend_from_slice(value.as_bytes());
-        }
-        None => {
-            out.push(0);
-            out.extend_from_slice(&0u32.to_be_bytes());
-        }
+    if let Some(value) = value {
+        out.push(1);
+        let value_len = u32::try_from(value.len()).expect("compiled key component exceeds u32");
+        out.extend_from_slice(&value_len.to_be_bytes());
+        out.extend_from_slice(value.as_bytes());
+    } else {
+        out.push(0);
+        out.extend_from_slice(&0u32.to_be_bytes());
     }
 }
 
@@ -712,9 +732,9 @@ fn base64_url_no_pad(bytes: &[u8]) -> String {
     let mut index = 0;
 
     while index + 3 <= bytes.len() {
-        let chunk = ((bytes[index] as u32) << 16)
-            | ((bytes[index + 1] as u32) << 8)
-            | bytes[index + 2] as u32;
+        let chunk = (u32::from(bytes[index]) << 16)
+            | (u32::from(bytes[index + 1]) << 8)
+            | u32::from(bytes[index + 2]);
         out.push(ALPHABET[((chunk >> 18) & 0x3f) as usize] as char);
         out.push(ALPHABET[((chunk >> 12) & 0x3f) as usize] as char);
         out.push(ALPHABET[((chunk >> 6) & 0x3f) as usize] as char);
@@ -724,12 +744,12 @@ fn base64_url_no_pad(bytes: &[u8]) -> String {
 
     match bytes.len() - index {
         1 => {
-            let chunk = (bytes[index] as u32) << 16;
+            let chunk = u32::from(bytes[index]) << 16;
             out.push(ALPHABET[((chunk >> 18) & 0x3f) as usize] as char);
             out.push(ALPHABET[((chunk >> 12) & 0x3f) as usize] as char);
         }
         2 => {
-            let chunk = ((bytes[index] as u32) << 16) | ((bytes[index + 1] as u32) << 8);
+            let chunk = (u32::from(bytes[index]) << 16) | (u32::from(bytes[index + 1]) << 8);
             out.push(ALPHABET[((chunk >> 18) & 0x3f) as usize] as char);
             out.push(ALPHABET[((chunk >> 12) & 0x3f) as usize] as char);
             out.push(ALPHABET[((chunk >> 6) & 0x3f) as usize] as char);
@@ -849,16 +869,16 @@ struct PluralProfile {
 
 impl PluralProfile {
     fn new(locale: Option<&str>, nplurals: Option<usize>) -> Self {
-        let categories = if let Some(locale_categories) = locale.and_then(icu_plural_categories_for)
-        {
-            if nplurals.is_none() || nplurals == Some(locale_categories.len()) {
-                locale_categories
-            } else {
-                fallback_plural_categories(nplurals)
-            }
-        } else {
-            fallback_plural_categories(nplurals)
-        };
+        let categories = locale.and_then(icu_plural_categories_for).map_or_else(
+            || fallback_plural_categories(nplurals),
+            |locale_categories| {
+                if nplurals.is_none() || nplurals == Some(locale_categories.len()) {
+                    locale_categories
+                } else {
+                    fallback_plural_categories(nplurals)
+                }
+            },
+        );
 
         Self { categories }
     }
@@ -906,7 +926,6 @@ impl PluralProfile {
         for category in &self.categories {
             let value = match category.as_str() {
                 "one" => source.one.clone().unwrap_or_else(|| source.other.clone()),
-                "other" => source.other.clone(),
                 _ => source.other.clone(),
             };
             translation.insert(category.clone(), value);
@@ -1204,24 +1223,20 @@ fn push_normalized_message(
         ));
     }
 
-    let key = (msgid.clone(), msgctxt.clone());
-    match index.get(&key).copied() {
-        Some(existing_index) => {
-            let existing = &mut normalized[existing_index];
-            if existing.kind != message.kind {
-                return Err(ApiError::Conflict(format!(
-                    "conflicting duplicate extracted message for msgid {:?}",
-                    msgid
-                )));
-            }
-            merge_unique_strings(&mut existing.comments, message.comments);
-            merge_unique_origins(&mut existing.origins, message.origins);
-            merge_placeholders(&mut existing.placeholders, message.placeholders);
+    let key = (msgid.clone(), msgctxt);
+    if let Some(existing_index) = index.get(&key).copied() {
+        let existing = &mut normalized[existing_index];
+        if existing.kind != message.kind {
+            return Err(ApiError::Conflict(format!(
+                "conflicting duplicate extracted message for msgid {msgid:?}"
+            )));
         }
-        None => {
-            index.insert(key, normalized.len());
-            normalized.push(message);
-        }
+        merge_unique_strings(&mut existing.comments, message.comments);
+        merge_unique_origins(&mut existing.origins, message.origins);
+        merge_placeholders(&mut existing.placeholders, message.placeholders);
+    } else {
+        index.insert(key, normalized.len());
+        normalized.push(message);
     }
 
     Ok(())
@@ -1386,15 +1401,16 @@ fn merge_message(
         }
     };
 
-    let (translator_comments, flags, obsolete) = previous
-        .map(|message| {
+    let (translator_comments, flags, obsolete) = previous.map_or_else(
+        || (Vec::new(), Vec::new(), false),
+        |message| {
             (
                 message.translator_comments.clone(),
                 message.flags.clone(),
                 false,
             )
-        })
-        .unwrap_or_else(|| (Vec::new(), Vec::new(), false));
+        },
+    );
 
     CanonicalMessage {
         msgid: next.msgid.clone(),
@@ -1502,10 +1518,10 @@ fn sort_messages(messages: &mut [CanonicalMessage], order_by: OrderBy) {
 }
 
 fn first_origin_sort_key(origins: &[CatalogOrigin]) -> (String, Option<u32>) {
-    origins
-        .first()
-        .map(|origin| (origin.file.clone(), origin.line))
-        .unwrap_or_else(|| (String::new(), None))
+    origins.first().map_or_else(
+        || (String::new(), None),
+        |origin| (origin.file.clone(), origin.line),
+    )
 }
 
 fn export_catalog_to_po(
@@ -1545,7 +1561,7 @@ fn export_message_to_po(
     match &message.translation {
         CanonicalTranslation::Singular { value } => {
             let mut item = base_po_item(message, options, 1);
-            item.msgid = message.msgid.clone();
+            item.msgid.clone_from(&message.msgid);
             item.msgstr = MsgStr::from(value.clone());
             Ok(item)
         }
@@ -1600,11 +1616,11 @@ fn base_po_item(
     nplurals: usize,
 ) -> PoItem {
     let mut item = PoItem::new(nplurals);
-    item.msgctxt = message.msgctxt.clone();
-    item.comments = message.translator_comments.clone();
-    item.flags = message.flags.clone();
+    item.msgctxt.clone_from(&message.msgctxt);
+    item.comments.clone_from(&message.translator_comments);
+    item.flags.clone_from(&message.flags);
     item.obsolete = message.obsolete;
-    item.extracted_comments = message.comments.clone();
+    item.extracted_comments.clone_from(&message.comments);
     append_placeholder_comments(
         &mut item.extracted_comments,
         &message.placeholders,
@@ -1616,10 +1632,10 @@ fn base_po_item(
             .iter()
             .map(|origin| {
                 if options.include_line_numbers {
-                    match origin.line {
-                        Some(line) => format!("{}:{line}", origin.file),
-                        None => origin.file.clone(),
-                    }
+                    origin.line.map_or_else(
+                        || origin.file.clone(),
+                        |line| format!("{}:{line}", origin.file),
+                    )
                 } else {
                     origin.file.clone()
                 }
@@ -1833,7 +1849,6 @@ fn import_message_from_po(
                         }
                     }
                 }
-                IcuPluralProjection::NotPlural => CanonicalTranslation::Singular { value: msgstr },
                 IcuPluralProjection::Malformed if strict => {
                     return Err(ApiError::Unsupported(
                         "ICU plural parsing failed in strict mode".to_owned(),
@@ -1850,7 +1865,9 @@ fn import_message_from_po(
                     );
                     CanonicalTranslation::Singular { value: msgstr }
                 }
-                IcuPluralProjection::Malformed => CanonicalTranslation::Singular { value: msgstr },
+                IcuPluralProjection::NotPlural | IcuPluralProjection::Malformed => {
+                    CanonicalTranslation::Singular { value: msgstr }
+                }
             }
         } else {
             CanonicalTranslation::Singular { value: msgstr }
@@ -2047,7 +2064,7 @@ fn normalize_plural_locale(locale: &str) -> String {
     locale.trim().replace('_', "-")
 }
 
-fn plural_category_name(category: PluralCategory) -> &'static str {
+const fn plural_category_name(category: PluralCategory) -> &'static str {
     match category {
         PluralCategory::Zero => "zero",
         PluralCategory::One => "one",
@@ -2171,9 +2188,7 @@ fn push_unique_origin(target: &[CatalogOrigin], value: &CatalogOrigin) -> bool {
     } else {
         target
             .iter()
-            .map(|origin| (origin.file.clone(), origin.line))
-            .collect::<BTreeSet<_>>()
-            .contains(&(value.file.clone(), value.line))
+            .any(|origin| origin.file == value.file && origin.line == value.line)
     }
 }
 
@@ -2233,9 +2248,8 @@ fn project_icu_plural(input: &str) -> IcuPluralProjection {
         return IcuPluralProjection::NotPlural;
     }
 
-    let message = match parse_icu(input) {
-        Ok(message) => message,
-        Err(_) => return IcuPluralProjection::Malformed,
+    let Ok(message) = parse_icu(input) else {
+        return IcuPluralProjection::Malformed;
     };
 
     let Some(IcuNode::Plural {
@@ -2312,7 +2326,7 @@ fn render_projectable_icu_node(node: &IcuNode, out: &mut String) -> Result<(), &
         IcuNode::Time { name, style } => render_formatter("time", name, style.as_deref(), out),
         IcuNode::List { name, style } => render_formatter("list", name, style.as_deref(), out),
         IcuNode::Duration { name, style } => {
-            render_formatter("duration", name, style.as_deref(), out)
+            render_formatter("duration", name, style.as_deref(), out);
         }
         IcuNode::Ago { name, style } => render_formatter("ago", name, style.as_deref(), out),
         IcuNode::Name { name, style } => render_formatter("name", name, style.as_deref(), out),

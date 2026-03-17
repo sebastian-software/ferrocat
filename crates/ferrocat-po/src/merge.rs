@@ -12,11 +12,17 @@ use crate::{BorrowedMsgStr, ParseError, SerializeOptions};
 /// Borrowed extracted message input for the lightweight merge helper.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct ExtractedMessage<'a> {
+    /// Optional gettext message context.
     pub msgctxt: Option<Cow<'a, str>>,
+    /// Source message identifier.
     pub msgid: Cow<'a, str>,
+    /// Optional plural source identifier.
     pub msgid_plural: Option<Cow<'a, str>>,
+    /// Source references such as `src/app.rs:10`.
     pub references: Vec<Cow<'a, str>>,
+    /// Extracted translator guidance comments.
     pub extracted_comments: Vec<Cow<'a, str>>,
+    /// Flags such as `fuzzy`.
     pub flags: Vec<Cow<'a, str>>,
 }
 

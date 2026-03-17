@@ -1,3 +1,4 @@
+#![cfg_attr(docsrs, warn(missing_docs, rustdoc::broken_intra_doc_links))]
 //! Performance-first PO parsing and serialization.
 //!
 //! The crate exposes both owned and borrowed parsers for gettext PO files,
@@ -64,37 +65,55 @@ use core::{fmt, ops::Index};
 /// An owned PO document.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct PoFile {
+    /// File-level translator comments that appear before the header block.
     pub comments: Vec<String>,
+    /// File-level extracted comments that appear before the header block.
     pub extracted_comments: Vec<String>,
+    /// Parsed header entries from the leading empty `msgid` block.
     pub headers: Vec<Header>,
+    /// Regular catalog items in source order.
     pub items: Vec<PoItem>,
 }
 
 /// A single header entry from the PO header block.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct Header {
+    /// Header name such as `Language` or `Plural-Forms`.
     pub key: String,
+    /// Header value without the trailing newline.
     pub value: String,
 }
 
 /// A single gettext message entry.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct PoItem {
+    /// Source message identifier.
     pub msgid: String,
+    /// Optional gettext message context.
     pub msgctxt: Option<String>,
+    /// Source references such as `src/app.rs:10`.
     pub references: Vec<String>,
+    /// Optional plural source identifier.
     pub msgid_plural: Option<String>,
+    /// Translation payload for the message.
     pub msgstr: MsgStr,
+    /// Translator comments attached to the item.
     pub comments: Vec<String>,
+    /// Extracted comments attached to the item.
     pub extracted_comments: Vec<String>,
+    /// Flags such as `fuzzy`.
     pub flags: Vec<String>,
+    /// Raw metadata lines that do not fit the dedicated fields.
     pub metadata: Vec<(String, String)>,
+    /// Whether the item is marked obsolete.
     pub obsolete: bool,
+    /// Number of plural slots expected when the item is serialized.
     pub nplurals: usize,
 }
 
 impl PoItem {
     /// Creates an empty message entry with space for `nplurals` plural slots.
+    #[must_use]
     pub fn new(nplurals: usize) -> Self {
         Self {
             nplurals,
@@ -120,19 +139,24 @@ impl PoItem {
 /// Message translation payload for a PO item.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub enum MsgStr {
+    /// No translation values are present.
     #[default]
     None,
+    /// Single translation string.
     Singular(String),
+    /// Plural translation strings indexed by plural slot.
     Plural(Vec<String>),
 }
 
 impl MsgStr {
     /// Returns `true` when no translation values are present.
+    #[must_use]
     pub fn is_empty(&self) -> bool {
         matches!(self, Self::None)
     }
 
     /// Returns the number of translation values present.
+    #[must_use]
     pub fn len(&self) -> usize {
         match self {
             Self::None => 0,
@@ -142,6 +166,7 @@ impl MsgStr {
     }
 
     /// Returns the first translation value, if present.
+    #[must_use]
     pub fn first(&self) -> Option<&String> {
         match self {
             Self::None => None,
@@ -151,11 +176,13 @@ impl MsgStr {
     }
 
     /// Returns the first translation value as `&str`, if present.
+    #[must_use]
     pub fn first_str(&self) -> Option<&str> {
         self.first().map(String::as_str)
     }
 
     /// Returns the translation at `index` without panicking.
+    #[must_use]
     pub fn get(&self, index: usize) -> Option<&str> {
         match self {
             Self::None => None,
@@ -166,6 +193,7 @@ impl MsgStr {
     }
 
     /// Iterates over all translation values in order.
+    #[must_use]
     pub fn iter(&self) -> MsgStrIter<'_> {
         match self {
             Self::None => MsgStrIter::empty(),
@@ -175,6 +203,7 @@ impl MsgStr {
     }
 
     /// Converts the translation payload into an owned vector.
+    #[must_use]
     pub fn into_vec(self) -> Vec<String> {
         match self {
             Self::None => Vec::new(),
@@ -259,7 +288,9 @@ impl<'a> Iterator for MsgStrIter<'a> {
 /// Options controlling PO serialization.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SerializeOptions {
+    /// Preferred soft line-wrap limit for long string literals.
     pub fold_length: usize,
+    /// When `true`, one-line values stay compact instead of always expanding.
     pub compact_multiline: bool,
 }
 
@@ -280,6 +311,7 @@ pub struct ParseError {
 
 impl ParseError {
     /// Creates a new parse error with the provided message.
+    #[must_use]
     pub fn new(message: impl Into<String>) -> Self {
         Self {
             message: message.into(),

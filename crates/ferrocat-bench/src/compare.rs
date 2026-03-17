@@ -113,6 +113,8 @@ fn run_profile(
     environment: &BenchmarkEnvironment,
     profile: &BenchmarkProfile,
 ) -> Result<CompareReport, String> {
+    // Keep runs interleaved within each comparison group so scheduler drift,
+    // caches, and thermal behavior are less likely to bias one implementation.
     let mut grouped = BTreeMap::<String, Vec<BenchmarkScenario>>::new();
     for scenario in &profile.scenarios {
         grouped

@@ -132,7 +132,7 @@ fn parse_bench_config(
     let mut iterations = None;
     let mut runs = 1usize;
     let mut warmup_runs = 0usize;
-    let mut args = args.peekable();
+    let mut args = args;
 
     while let Some(arg) = args.next() {
         match arg.as_str() {
@@ -581,16 +581,14 @@ fn load_assertion_counts() -> Result<std::collections::BTreeMap<String, usize>, 
     let mut counts = std::collections::BTreeMap::new();
     for manifest in manifests {
         for case in manifest.cases {
-            counts.insert(case.id.clone(), count_case_assertions(&case)?);
+            counts.insert(case.id.clone(), count_case_assertions(&case));
         }
     }
     Ok(counts)
 }
 
-fn count_case_assertions(case: &ConformanceCase) -> Result<usize, String> {
+fn count_case_assertions(case: &ConformanceCase) -> usize {
     match case.runner.as_str() {
-        "po_roundtrip" | "po_merge" => Ok(1),
-        "po_reject" => Ok(1),
         "po_parse" => match case.expected_artifact() {
             Ok(ExpectedArtifact::PoParse(expected)) => {
                 let mut count = 0usize;
@@ -598,9 +596,9 @@ fn count_case_assertions(case: &ConformanceCase) -> Result<usize, String> {
                 count += usize::from(expected.header_count.is_some());
                 count += expected.headers.len();
                 count += expected.items.len() * 9;
-                Ok(count.max(1))
+                count.max(1)
             }
-            Ok(_) | Err(_) => Ok(1),
+            Ok(_) | Err(_) => 1,
         },
         "po_plural_header" => match case.expected_artifact() {
             Ok(ExpectedArtifact::PoPluralHeader(expected)) => {
@@ -609,9 +607,9 @@ fn count_case_assertions(case: &ConformanceCase) -> Result<usize, String> {
                     + usize::from(expected.plural_expression.is_some())
                     + usize::from(expected.first_item_msgstr_len.is_some())
                     + usize::from(case.locale.is_some());
-                Ok(count.max(1))
+                count.max(1)
             }
-            Ok(_) | Err(_) => Ok(1),
+            Ok(_) | Err(_) => 1,
         },
         "icu_parse" => match case.expected_artifact() {
             Ok(ExpectedArtifact::IcuParse(expected)) => {
@@ -624,20 +622,18 @@ fn count_case_assertions(case: &ConformanceCase) -> Result<usize, String> {
                     + usize::from(expected.first_plural_option_count.is_some())
                     + usize::from(expected.second_plural_kind.is_some())
                     + usize::from(expected.second_plural_option_count.is_some());
-                Ok(count.max(1))
+                count.max(1)
             }
-            Ok(_) | Err(_) => Ok(1),
+            Ok(_) | Err(_) => 1,
         },
         "icu_reject" => match case.expected_artifact() {
             Ok(ExpectedArtifact::IcuReject(expected)) => {
-                let count = 1
-                    + usize::from(expected.line.is_some())
-                    + usize::from(expected.min_column.is_some());
-                Ok(count)
+                1 + usize::from(expected.line.is_some())
+                    + usize::from(expected.min_column.is_some())
             }
-            Ok(_) | Err(_) => Ok(1),
+            Ok(_) | Err(_) => 1,
         },
-        _ => Ok(1),
+        _ => 1,
     }
 }
 

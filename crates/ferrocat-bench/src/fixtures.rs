@@ -1221,8 +1221,8 @@ fn build_catalog_icu_entry(
                 msgid: msgid.clone(),
                 msgctxt: msgctxt.clone(),
                 source: PluralSource {
-                    one: Some(one.clone()),
-                    other: other.clone(),
+                    one: Some(one),
+                    other,
                 },
                 comments,
                 origin,

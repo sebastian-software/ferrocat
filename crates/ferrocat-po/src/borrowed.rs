@@ -12,14 +12,19 @@ use crate::{Header, MsgStr, ParseError, PoFile, PoItem};
 /// possible.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct BorrowedPoFile<'a> {
+    /// File-level translator comments that appear before the header block.
     pub comments: Vec<Cow<'a, str>>,
+    /// File-level extracted comments that appear before the header block.
     pub extracted_comments: Vec<Cow<'a, str>>,
+    /// Parsed header entries from the leading empty `msgid` block.
     pub headers: Vec<BorrowedHeader<'a>>,
+    /// Regular catalog items in source order.
     pub items: Vec<BorrowedPoItem<'a>>,
 }
 
 impl<'a> BorrowedPoFile<'a> {
     /// Converts the borrowed document into the owned [`PoFile`] representation.
+    #[must_use]
     pub fn into_owned(self) -> PoFile {
         PoFile {
             comments: self.comments.into_iter().map(Cow::into_owned).collect(),
@@ -45,12 +50,15 @@ impl<'a> BorrowedPoFile<'a> {
 /// Borrowed header entry from the PO header block.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct BorrowedHeader<'a> {
+    /// Header name such as `Language` or `Plural-Forms`.
     pub key: Cow<'a, str>,
+    /// Header value without the trailing newline.
     pub value: Cow<'a, str>,
 }
 
 impl<'a> BorrowedHeader<'a> {
     /// Converts the borrowed header into an owned [`Header`].
+    #[must_use]
     pub fn into_owned(self) -> Header {
         Header {
             key: self.key.into_owned(),
@@ -62,16 +70,27 @@ impl<'a> BorrowedHeader<'a> {
 /// Borrowed gettext message entry.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct BorrowedPoItem<'a> {
+    /// Source message identifier.
     pub msgid: Cow<'a, str>,
+    /// Optional gettext message context.
     pub msgctxt: Option<Cow<'a, str>>,
+    /// Source references such as `src/app.rs:10`.
     pub references: Vec<Cow<'a, str>>,
+    /// Optional plural source identifier.
     pub msgid_plural: Option<Cow<'a, str>>,
+    /// Translation payload for the message.
     pub msgstr: BorrowedMsgStr<'a>,
+    /// Translator comments attached to the item.
     pub comments: Vec<Cow<'a, str>>,
+    /// Extracted comments attached to the item.
     pub extracted_comments: Vec<Cow<'a, str>>,
+    /// Flags such as `fuzzy`.
     pub flags: Vec<Cow<'a, str>>,
+    /// Raw metadata lines that do not fit the dedicated fields.
     pub metadata: Vec<(Cow<'a, str>, Cow<'a, str>)>,
+    /// Whether the item is marked obsolete.
     pub obsolete: bool,
+    /// Number of plural slots expected when the item is serialized.
     pub nplurals: usize,
 }
 
@@ -83,6 +102,8 @@ impl<'a> BorrowedPoItem<'a> {
         }
     }
 
+    /// Converts the borrowed item into an owned [`PoItem`].
+    #[must_use]
     pub fn into_owned(self) -> PoItem {
         PoItem {
             msgid: self.msgid.into_owned(),
@@ -111,9 +132,12 @@ impl<'a> BorrowedPoItem<'a> {
 /// Borrowed translation payload for a PO item.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub enum BorrowedMsgStr<'a> {
+    /// No translation values are present.
     #[default]
     None,
+    /// Single translation string.
     Singular(Cow<'a, str>),
+    /// Plural translation strings indexed by plural slot.
     Plural(Vec<Cow<'a, str>>),
 }
 
@@ -130,6 +154,8 @@ impl<'a> BorrowedMsgStr<'a> {
         }
     }
 
+    /// Converts the borrowed payload into an owned [`MsgStr`].
+    #[must_use]
     pub fn into_owned(self) -> MsgStr {
         match self {
             Self::None => MsgStr::None,

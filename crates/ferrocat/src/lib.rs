@@ -1,3 +1,4 @@
+#![cfg_attr(docsrs, warn(missing_docs, rustdoc::broken_intra_doc_links))]
 //! Public Rust entry point for the `ferrocat` workspace.
 //!
 //! This crate re-exports the primary API surface from the lower-level

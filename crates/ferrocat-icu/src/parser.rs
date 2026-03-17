@@ -4,7 +4,9 @@ use crate::error::IcuParseError;
 /// Options controlling ICU parsing behavior.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct IcuParserOptions {
+    /// When `true`, rich-text style tags are treated as plain text.
     pub ignore_tag: bool,
+    /// When `true`, select and plural arguments must include an `other` clause.
     pub requires_other_clause: bool,
 }
 
@@ -17,7 +19,7 @@ impl Default for IcuParserOptions {
     }
 }
 
-/// Parses ICU MessageFormat input with the default parser options.
+/// Parses ICU `MessageFormat` input with the default parser options.
 ///
 /// # Errors
 ///
@@ -26,7 +28,7 @@ pub fn parse_icu(input: &str) -> Result<IcuMessage, IcuParseError> {
     parse_icu_with_options(input, &IcuParserOptions::default())
 }
 
-/// Parses ICU MessageFormat input with explicit parser options.
+/// Parses ICU `MessageFormat` input with explicit parser options.
 ///
 /// # Errors
 ///
@@ -54,7 +56,7 @@ impl<'a> Parser<'a> {
     const OFFSET_PREFIX: &'static [u8] = b"offset:";
     const CLOSE_TAG_PREFIX: &'static [u8] = b"</";
 
-    fn new(input: &'a str, options: &'a IcuParserOptions) -> Self {
+    const fn new(input: &'a str, options: &'a IcuParserOptions) -> Self {
         Self {
             input,
             input_bytes: input.as_bytes(),
@@ -89,15 +91,15 @@ impl<'a> Parser<'a> {
 
             match byte {
                 b'{' => {
-                    self.flush_literal(&mut literal, &mut nodes);
+                    Self::flush_literal(&mut literal, &mut nodes);
                     nodes.push(self.parse_argument(plural_depth)?);
                 }
                 b'<' if !self.options.ignore_tag && self.peek_open_tag() => {
-                    self.flush_literal(&mut literal, &mut nodes);
+                    Self::flush_literal(&mut literal, &mut nodes);
                     nodes.push(self.parse_tag(plural_depth)?);
                 }
                 b'#' if plural_depth > 0 => {
-                    self.flush_literal(&mut literal, &mut nodes);
+                    Self::flush_literal(&mut literal, &mut nodes);
                     self.pos += 1;
                     nodes.push(IcuNode::Pound);
                 }
@@ -106,7 +108,7 @@ impl<'a> Parser<'a> {
             }
         }
 
-        self.flush_literal(&mut literal, &mut nodes);
+        Self::flush_literal(&mut literal, &mut nodes);
         Ok(nodes)
     }
 
@@ -197,7 +199,7 @@ impl<'a> Parser<'a> {
             if self.starts_with_bytes(Self::OFFSET_PREFIX) {
                 self.pos += Self::OFFSET_PREFIX.len();
                 self.skip_whitespace();
-                offset = self.parse_unsigned_int()? as u32;
+                offset = self.parse_unsigned_int()?;
             } else {
                 break;
             }
@@ -360,7 +362,7 @@ impl<'a> Parser<'a> {
         Ok(self.input[start..self.pos].to_owned())
     }
 
-    fn parse_unsigned_int(&mut self) -> Result<usize, IcuParseError> {
+    fn parse_unsigned_int(&mut self) -> Result<u32, IcuParseError> {
         let start = self.pos;
         while let Some(byte) = self.byte_at() {
             if byte.is_ascii_digit() {
@@ -375,7 +377,7 @@ impl<'a> Parser<'a> {
         }
 
         self.input[start..self.pos]
-            .parse::<usize>()
+            .parse::<u32>()
             .map_err(|_| self.error("Invalid integer"))
     }
 
@@ -389,7 +391,7 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn flush_literal(&self, literal: &mut String, nodes: &mut Vec<IcuNode>) {
+    fn flush_literal(literal: &mut String, nodes: &mut Vec<IcuNode>) {
         if !literal.is_empty() {
             nodes.push(IcuNode::Literal(core::mem::take(literal)));
         }
@@ -481,7 +483,7 @@ impl<'a> Parser<'a> {
         self.input_bytes[self.pos..].starts_with(expected)
     }
 
-    fn is_eof(&self) -> bool {
+    const fn is_eof(&self) -> bool {
         self.pos >= self.input.len()
     }
 

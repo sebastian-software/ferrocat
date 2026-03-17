@@ -2,12 +2,17 @@ use std::collections::BTreeSet;
 
 use crate::ast::{IcuMessage, IcuNode, IcuOption, IcuPluralKind};
 
-/// Validates ICU MessageFormat input without returning the parsed AST.
+/// Validates ICU `MessageFormat` input without returning the parsed AST.
+///
+/// # Errors
+///
+/// Returns [`crate::IcuParseError`] when the input is malformed.
 pub fn validate_icu(input: &str) -> Result<(), crate::IcuParseError> {
     crate::parse_icu(input).map(|_| ())
 }
 
 /// Extracts variable names in first-seen order.
+#[must_use]
 pub fn extract_variables(message: &IcuMessage) -> Vec<String> {
     let mut out = Vec::new();
     let mut seen = BTreeSet::new();
@@ -20,6 +25,7 @@ pub fn extract_variables(message: &IcuMessage) -> Vec<String> {
 }
 
 /// Returns `true` when the message contains a cardinal plural expression.
+#[must_use]
 pub fn has_plural(message: &IcuMessage) -> bool {
     any_nodes(&message.nodes, &|node| {
         matches!(
@@ -33,6 +39,7 @@ pub fn has_plural(message: &IcuMessage) -> bool {
 }
 
 /// Returns `true` when the message contains a select expression.
+#[must_use]
 pub fn has_select(message: &IcuMessage) -> bool {
     any_nodes(&message.nodes, &|node| {
         matches!(node, IcuNode::Select { .. })
@@ -40,6 +47,7 @@ pub fn has_select(message: &IcuMessage) -> bool {
 }
 
 /// Returns `true` when the message contains an ordinal plural expression.
+#[must_use]
 pub fn has_selectordinal(message: &IcuMessage) -> bool {
     any_nodes(&message.nodes, &|node| {
         matches!(
@@ -53,6 +61,7 @@ pub fn has_selectordinal(message: &IcuMessage) -> bool {
 }
 
 /// Returns `true` when the message contains rich-text style tags.
+#[must_use]
 pub fn has_tag(message: &IcuMessage) -> bool {
     any_nodes(&message.nodes, &|node| matches!(node, IcuNode::Tag { .. }))
 }
@@ -69,11 +78,7 @@ fn visit_nodes(nodes: &[IcuNode], visitor: &mut impl FnMut(&str)) {
             | IcuNode::Duration { name, .. }
             | IcuNode::Ago { name, .. }
             | IcuNode::Name { name, .. } => visitor(name),
-            IcuNode::Select { name, options } => {
-                visitor(name);
-                visit_options(options, visitor);
-            }
-            IcuNode::Plural { name, options, .. } => {
+            IcuNode::Select { name, options } | IcuNode::Plural { name, options, .. } => {
                 visitor(name);
                 visit_options(options, visitor);
             }

@@ -1,4 +1,5 @@
-//! Compact, performance-oriented ICU MessageFormat parsing primitives.
+#![cfg_attr(docsrs, warn(missing_docs, rustdoc::broken_intra_doc_links))]
+//! Compact, performance-oriented ICU `MessageFormat` parsing primitives.
 //!
 //! # Examples
 //!
