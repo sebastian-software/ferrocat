@@ -1,3 +1,9 @@
+//! Runtime-oriented compilation helpers for normalized catalogs.
+//!
+//! This module sits on the far side of parsing/update work: it turns normalized
+//! catalog messages into stable compiled IDs and final runtime message payloads,
+//! including fallback resolution and optional ICU validation.
+
 use std::collections::{BTreeMap, BTreeSet};
 
 use ferrocat_icu::parse_icu;
@@ -51,6 +57,7 @@ impl NormalizedParsedCatalog {
         self.compile_with_key_generator(options, compiled_key_for)
     }
 
+    /// Shared compile core used by the public API and collision-focused tests.
     pub(super) fn compile_with_key_generator<F>(
         &self,
         options: &CompileCatalogOptions<'_>,
@@ -311,6 +318,10 @@ pub(super) fn compiled_catalog_translation_kind_for_message(
     }
 }
 
+/// Validates and indexes the locale set used by artifact compilation.
+///
+/// This up-front normalization keeps the later artifact loop allocation-light
+/// and lets it assume that requested/source/fallback locales are all present and unique.
 fn prepare_compiled_catalog_artifact_catalogs<'a>(
     catalogs: &[&'a NormalizedParsedCatalog],
     requested_locale: &str,
@@ -393,6 +404,8 @@ fn prepare_compiled_catalog_artifact_catalogs<'a>(
     Ok(locales)
 }
 
+/// Collects every non-obsolete source key that might need to appear in an
+/// artifact compiled from the provided locale set.
 fn collect_compiled_catalog_artifact_source_keys(
     locales: &BTreeMap<String, &NormalizedParsedCatalog>,
 ) -> BTreeSet<CatalogMessageKey> {
@@ -418,6 +431,10 @@ fn compiled_catalog_artifact_catalogs_contain_key(
     })
 }
 
+/// Compiles the final runtime artifact for a known set of source identities.
+///
+/// This is where derived key collision checks, fallback bookkeeping, and final
+/// ICU validation come together before the artifact is returned.
 fn compile_catalog_artifact_from_source_keys<I>(
     locales: &BTreeMap<String, &NormalizedParsedCatalog>,
     source_keys: I,
@@ -483,6 +500,8 @@ where
     Ok(artifact)
 }
 
+/// Resolves one runtime message by trying requested locale, configured
+/// fallbacks, and finally the source locale when allowed.
 fn resolve_compiled_catalog_artifact_message(
     catalogs: &BTreeMap<String, &NormalizedParsedCatalog>,
     source_key: &CatalogMessageKey,
@@ -531,6 +550,11 @@ fn resolve_compiled_catalog_artifact_message(
         })
 }
 
+/// Renders the final runtime string for one message after translation fallback
+/// decisions have already been made.
+///
+/// Plural messages are re-synthesized into ICU strings so runtime consumers see
+/// one uniform message format regardless of the catalog's stored plural encoding.
 fn rendered_compiled_catalog_artifact_message(
     catalog: &NormalizedParsedCatalog,
     source_key: &CatalogMessageKey,
@@ -554,6 +578,8 @@ fn rendered_compiled_catalog_artifact_message(
     }
 }
 
+/// Treats an empty singular string or an all-empty plural map as "missing" for
+/// runtime artifact purposes.
 fn message_has_runtime_translation(message: &CatalogMessage) -> bool {
     match &message.translation {
         TranslationShape::Singular { value } => !value.is_empty(),

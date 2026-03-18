@@ -202,6 +202,11 @@ impl CatalogMessage {
         }
     }
 
+    /// Applies the source-locale fallback semantics used by compilation and
+    /// runtime artifact generation.
+    ///
+    /// Singular messages fall back to `msgid` when empty. Plural messages keep
+    /// their category shape and only fill categories that are missing or empty.
     pub(super) fn source_fallback_translation(&self, locale: Option<&str>) -> EffectiveTranslation {
         match &self.translation {
             TranslationShape::Singular { value } => {
@@ -364,6 +369,7 @@ pub struct NormalizedParsedCatalog {
 }
 
 impl NormalizedParsedCatalog {
+    /// Builds the lookup index once and rejects duplicate gettext identities up front.
     pub(super) fn new(catalog: ParsedCatalog) -> Result<Self, ApiError> {
         let mut key_index = BTreeMap::new();
         for (index, message) in catalog.messages.iter().enumerate() {

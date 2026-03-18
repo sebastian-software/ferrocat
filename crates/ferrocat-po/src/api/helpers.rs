@@ -1,7 +1,15 @@
+//! Small collection helpers used by the catalog API.
+//!
+//! These helpers intentionally keep tiny collections on simple linear scans
+//! before switching to `BTreeSet`-based deduplication. Most comment/origin/
+//! placeholder lists in real catalogs are small, so this avoids needless
+//! allocation on the common path.
+
 use std::collections::{BTreeMap, BTreeSet};
 
 use super::CatalogOrigin;
 
+/// Deduplicates strings while preserving first-seen order.
 pub(super) fn dedupe_strings(values: Vec<String>) -> Vec<String> {
     let mut out = Vec::new();
     for value in values {
@@ -12,6 +20,7 @@ pub(super) fn dedupe_strings(values: Vec<String>) -> Vec<String> {
     out
 }
 
+/// Merges strings into `target` without reordering existing entries.
 pub(super) fn merge_unique_strings(target: &mut Vec<String>, incoming: Vec<String>) {
     if target.len() + incoming.len() < 8 {
         for value in incoming {
@@ -30,6 +39,7 @@ pub(super) fn merge_unique_strings(target: &mut Vec<String>, incoming: Vec<Strin
     }
 }
 
+/// Fast membership check used by the small-vector path above.
 pub(super) fn push_unique_string(target: &[String], value: &str) -> bool {
     if target.len() < 8 {
         target.iter().any(|existing| existing == value)
@@ -42,6 +52,7 @@ pub(super) fn push_unique_string(target: &[String], value: &str) -> bool {
     }
 }
 
+/// Deduplicates origins while preserving first-seen order.
 pub(super) fn dedupe_origins(values: Vec<CatalogOrigin>) -> Vec<CatalogOrigin> {
     let mut out = Vec::new();
     for value in values {
@@ -52,6 +63,7 @@ pub(super) fn dedupe_origins(values: Vec<CatalogOrigin>) -> Vec<CatalogOrigin> {
     out
 }
 
+/// Merges origins into `target` without reordering existing entries.
 pub(super) fn merge_unique_origins(target: &mut Vec<CatalogOrigin>, incoming: Vec<CatalogOrigin>) {
     if target.len() + incoming.len() < 8 {
         for value in incoming {
@@ -73,12 +85,14 @@ pub(super) fn merge_unique_origins(target: &mut Vec<CatalogOrigin>, incoming: Ve
     }
 }
 
+/// Fast membership check used by the small-origin merge path above.
 pub(super) fn push_unique_origin(target: &[CatalogOrigin], value: &CatalogOrigin) -> bool {
     target
         .iter()
         .any(|origin| origin.file == value.file && origin.line == value.line)
 }
 
+/// Deduplicates placeholder example values per placeholder name.
 pub(super) fn dedupe_placeholders(
     placeholders: BTreeMap<String, Vec<String>>,
 ) -> BTreeMap<String, Vec<String>> {
@@ -88,6 +102,7 @@ pub(super) fn dedupe_placeholders(
         .collect()
 }
 
+/// Merges placeholder example values per placeholder name while preserving order.
 pub(super) fn merge_placeholders(
     target: &mut BTreeMap<String, Vec<String>>,
     incoming: BTreeMap<String, Vec<String>>,

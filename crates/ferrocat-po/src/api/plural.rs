@@ -1,3 +1,9 @@
+//! Shared plural and ICU projection helpers for the catalog API.
+//!
+//! The key design goal in this module is conservative interoperability: we use
+//! locale-aware plural categories when they are safe to apply, and otherwise we
+//! fall back to predictable synthetic category sets instead of guessing.
+
 use std::collections::{BTreeMap, HashMap};
 use std::sync::{Mutex, OnceLock};
 
@@ -28,6 +34,11 @@ pub(super) struct PluralProfile {
 }
 
 impl PluralProfile {
+    /// Builds the plural-category profile used for one import/export operation.
+    ///
+    /// Locale-derived categories are preferred when they match the observed
+    /// gettext slot count; otherwise we fall back to a synthetic category list
+    /// so we do not silently mislabel translator-provided slots.
     fn new(locale: Option<&str>, nplurals: Option<usize>) -> Self {
         let categories = locale.and_then(icu_plural_categories_for).map_or_else(
             || fallback_plural_categories(nplurals),
@@ -119,6 +130,10 @@ impl PluralProfile {
     }
 }
 
+/// Materializes a sparse plural category map against an explicit category order.
+///
+/// Missing categories become empty strings so downstream export and fallback
+/// code can treat the map as dense without extra branching.
 pub(super) fn materialize_plural_categories(
     categories: &[String],
     translation: &BTreeMap<String, String>,
@@ -140,6 +155,11 @@ pub(super) fn icu_plural_categories_for(locale: &str) -> Option<Vec<String>> {
     cached_icu_plural_categories_for(locale, CACHE.get_or_init(|| Mutex::new(HashMap::new())))
 }
 
+/// Resolves CLDR cardinal categories for a locale and caches both hits and misses.
+///
+/// The poisoned-lock path intentionally still returns or writes through the
+/// inner map so that one panicking caller does not disable plural-category
+/// caching for the whole process.
 pub(super) fn cached_icu_plural_categories_for(
     locale: &str,
     cache: &PluralCategoryCache,
@@ -196,6 +216,8 @@ const fn plural_category_name(category: PluralCategory) -> &'static str {
     }
 }
 
+/// Produces a deterministic fallback category order when locale-derived CLDR
+/// categories are unavailable or incompatible with the observed slot count.
 pub(super) fn fallback_plural_categories(nplurals: Option<usize>) -> Vec<String> {
     let categories = match nplurals.unwrap_or(2) {
         0 | 1 => vec!["other"],
@@ -209,6 +231,8 @@ pub(super) fn fallback_plural_categories(nplurals: Option<usize>) -> Vec<String>
     categories.into_iter().map(str::to_owned).collect()
 }
 
+/// Keeps plural categories in the canonical CLDR-like order expected by
+/// import/export code and guarantees that `other` is present at the end.
 pub(super) fn sorted_plural_keys(map: &BTreeMap<String, String>) -> Vec<String> {
     let mut keys: Vec<_> = map.keys().cloned().collect();
     keys.sort_by_key(|key| plural_key_rank(key));
@@ -230,6 +254,10 @@ fn plural_key_rank(key: &str) -> usize {
     }
 }
 
+/// Derives the best plural variable candidate from extracted placeholders.
+///
+/// We prefer `count` when present and only infer another name when there is a
+/// single unambiguous named placeholder.
 pub(super) fn derive_plural_variable(
     placeholders: &BTreeMap<String, Vec<String>>,
 ) -> Option<String> {
@@ -249,6 +277,7 @@ pub(super) fn derive_plural_variable(
     }
 }
 
+/// Re-synthesizes a structured plural map into a top-level ICU plural string.
 pub(super) fn synthesize_icu_plural(variable: &str, branches: &BTreeMap<String, String>) -> String {
     let mut out = String::new();
     out.push('{');
@@ -268,6 +297,12 @@ pub(super) fn synthesize_icu_plural(variable: &str, branches: &BTreeMap<String, 
     out
 }
 
+/// Projects the narrow ICU plural subset that Ferrocat can round-trip through
+/// the current catalog plural model.
+///
+/// Unsupported but valid ICU constructs report `Unsupported` so callers can
+/// keep the message as singular with a targeted diagnostic instead of failing
+/// or guessing.
 pub(super) fn project_icu_plural(input: &str) -> IcuPluralProjection {
     if !looks_like_icu_message(input.as_bytes()) {
         return IcuPluralProjection::NotPlural;
@@ -330,6 +365,8 @@ fn only_node(message: &IcuMessage) -> Option<&IcuNode> {
     }
 }
 
+/// Re-renders a projected ICU subtree back into a string while rejecting nested
+/// select/plural constructs that the catalog model cannot represent.
 fn render_projectable_icu_nodes(nodes: &[IcuNode]) -> Result<String, &'static str> {
     let mut out = String::new();
     for node in nodes {
@@ -389,6 +426,8 @@ fn render_formatter(kind: &str, name: &str, style: Option<&str>, out: &mut Strin
     out.push('}');
 }
 
+/// Escapes ICU-sensitive literal characters only when needed, keeping the
+/// common literal path allocation-light.
 fn append_escaped_icu_literal(out: &mut String, value: &str) {
     if !value
         .as_bytes()

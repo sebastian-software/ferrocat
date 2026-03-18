@@ -1,3 +1,10 @@
+//! Internal catalog pipeline for the public `ferrocat-po` catalog API.
+//!
+//! This module owns the higher-level workflow around PO parsing, extracted-message
+//! normalization, merge semantics, and export back to PO. The byte-oriented parser
+//! and serializer hot paths stay elsewhere; this layer is where we preserve
+//! catalog semantics and diagnostics.
+
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 
@@ -226,6 +233,11 @@ pub fn parse_catalog(options: ParseCatalogOptions<'_>) -> Result<ParsedCatalog, 
     })
 }
 
+/// Collapses the accepted extractor input shapes into one merge-oriented form.
+///
+/// The result keeps only the fields that matter for catalog identity and merge
+/// semantics, while also projecting source-first ICU plurals into the same
+/// structured plural representation used by `CatalogUpdateInput::Structured`.
 fn normalize_update_input(
     input: &CatalogUpdateInput,
     diagnostics: &mut Vec<Diagnostic>,
@@ -332,6 +344,11 @@ fn normalize_update_input(
     Ok(normalized)
 }
 
+/// Inserts one normalized message, merging duplicate extractor entries that
+/// refer to the same gettext identity.
+///
+/// Duplicate singular/plural shape mismatches remain a hard error because they
+/// would otherwise make the final catalog shape ambiguous.
 fn push_normalized_message(
     index: &mut BTreeMap<(String, Option<String>), usize>,
     normalized: &mut Vec<NormalizedMessage>,
@@ -364,6 +381,8 @@ fn push_normalized_message(
     Ok(())
 }
 
+/// Applies extracted messages onto an existing canonical catalog and records the
+/// coarse-grained update counters used by the high-level API.
 fn merge_catalogs(
     existing: Catalog,
     normalized: &[NormalizedMessage],
@@ -446,6 +465,10 @@ fn merge_catalogs(
     )
 }
 
+/// Resolves the final canonical message for one gettext identity.
+///
+/// This is the central place where source-locale overwrite rules, plural
+/// variable inference, and locale-aware plural category materialization meet.
 fn merge_message(
     previous: Option<&CanonicalMessage>,
     next: &NormalizedMessage,
@@ -554,6 +577,8 @@ fn extract_plural_variable(message: &CanonicalMessage) -> Option<String> {
     }
 }
 
+/// Fills in the standard catalog headers and only synthesizes `Plural-Forms`
+/// when we have a conservative, locale-safe default.
 fn apply_header_defaults(
     headers: &mut BTreeMap<String, String>,
     locale: Option<&str>,
@@ -631,6 +656,8 @@ fn first_origin_sort_key(origins: &[CatalogOrigin]) -> (String, Option<u32>) {
     )
 }
 
+/// Converts the canonical in-memory catalog back into a `PoFile` while keeping
+/// file-level comments and header order normalized.
 fn export_catalog_to_po(
     catalog: &Catalog,
     options: &UpdateCatalogOptions<'_>,
@@ -659,6 +686,11 @@ fn export_catalog_to_po(
     Ok(file)
 }
 
+/// Renders one canonical message into the chosen PO representation.
+///
+/// Singular messages are straightforward, while plural messages either stay as
+/// a synthesized ICU string or are lowered into gettext slots depending on the
+/// caller-selected `PluralEncoding`.
 fn export_message_to_po(
     message: &CanonicalMessage,
     options: &UpdateCatalogOptions<'_>,
@@ -717,6 +749,7 @@ fn export_message_to_po(
     }
 }
 
+/// Builds the common `PoItem` shell shared by singular and plural export.
 fn base_po_item(
     message: &CanonicalMessage,
     options: &UpdateCatalogOptions<'_>,
@@ -754,6 +787,7 @@ fn base_po_item(
     item
 }
 
+/// Builds the minimal category map needed to re-synthesize a source ICU plural.
 fn plural_source_branches(source: &PluralSource) -> BTreeMap<String, String> {
     let mut map = BTreeMap::new();
     if let Some(one) = &source.one {
@@ -763,6 +797,8 @@ fn plural_source_branches(source: &PluralSource) -> BTreeMap<String, String> {
     map
 }
 
+/// Emits extracted placeholder comments only for numeric placeholders, which
+/// mirrors how gettext tools commonly surface ordered placeholder hints.
 fn append_placeholder_comments(
     comments: &mut Vec<String>,
     placeholders: &BTreeMap<String, Vec<String>>,
@@ -795,6 +831,11 @@ fn normalize_placeholder_value(value: &str) -> String {
     value.replace('\n', " ")
 }
 
+/// Parses PO text into the canonical internal catalog representation used by
+/// both `parse_catalog` and `update_catalog`.
+///
+/// Keeping this internal representation stable lets the public APIs share one
+/// import path before they diverge into normalized lookup or update/export work.
 fn parse_catalog_to_internal(
     content: &str,
     locale_override: Option<&str>,
@@ -849,6 +890,11 @@ fn parse_catalog_to_internal(
     clippy::too_many_lines,
     reason = "PO import keeps singular/plural projection and diagnostics in one place to preserve parser semantics."
 )]
+/// Converts one parsed `PoItem` into the canonical internal message form.
+///
+/// The branching is intentionally centralized here so that gettext plural slot
+/// import, ICU projection, and all associated diagnostics stay in one semantic
+/// decision point.
 fn import_message_from_po(
     item: PoItem,
     locale: Option<&str>,
@@ -998,6 +1044,8 @@ fn import_message_from_po(
     })
 }
 
+/// Splits extractor-style placeholder comments back out of the generic
+/// extracted-comment list during PO import.
 fn split_placeholder_comments(
     extracted_comments: Vec<String>,
 ) -> (Vec<String>, BTreeMap<String, Vec<String>>) {
@@ -1015,12 +1063,14 @@ fn split_placeholder_comments(
     (comments, dedupe_placeholders(placeholders))
 }
 
+/// Parses the internal placeholder comment format emitted by `append_placeholder_comments`.
 fn parse_placeholder_comment(comment: &str) -> Option<(String, String)> {
     let rest = comment.strip_prefix("placeholder {")?;
     let end = rest.find("}: ")?;
     Some((rest[..end].to_owned(), rest[end + 3..].to_owned()))
 }
 
+/// Parses a gettext reference while tolerating plain paths and `path:line`.
 fn parse_origin(reference: &str) -> CatalogOrigin {
     match reference.rsplit_once(':') {
         Some((file, line)) if line.chars().all(|ch| ch.is_ascii_digit()) => CatalogOrigin {
@@ -1034,6 +1084,8 @@ fn parse_origin(reference: &str) -> CatalogOrigin {
     }
 }
 
+/// Extracts the small `Plural-Forms` subset that Ferrocat needs for diagnostics
+/// and gettext-slot interpretation.
 fn parse_plural_forms_from_headers(headers: &BTreeMap<String, String>) -> ParsedPluralFormsHeader {
     let Some(plural_forms) = headers.get("Plural-Forms") else {
         return ParsedPluralFormsHeader::default();
@@ -1058,6 +1110,8 @@ fn parse_plural_forms_from_headers(headers: &BTreeMap<String, String>) -> Parsed
     parsed
 }
 
+/// Validates only the invariants that materially affect Ferrocat's plural
+/// interpretation, keeping the diagnostics focused on actionable mismatches.
 fn validate_plural_forms_header(
     locale: Option<&str>,
     plural_forms: &ParsedPluralFormsHeader,
@@ -1097,6 +1151,7 @@ fn validate_plural_forms_header(
     }
 }
 
+/// Rebuilds the public `CatalogMessage` shape from the canonical internal form.
 fn public_message_from_canonical(message: CanonicalMessage) -> CatalogMessage {
     let translation = match message.translation {
         CanonicalTranslation::Singular { value } => TranslationShape::Singular { value },
