@@ -63,4 +63,78 @@ fn validate_catalog_semantics(
 }
 
 #[cfg(test)]
+mod unit_tests {
+    use super::{
+        ApiError, CatalogSemantics, CatalogStorageFormat, PluralEncoding,
+        validate_catalog_semantics, validate_source_locale,
+    };
+
+    #[test]
+    fn validate_source_locale_rejects_empty_values() {
+        assert!(validate_source_locale("en").is_ok());
+        assert!(validate_source_locale(" en ").is_ok());
+        assert!(matches!(
+            validate_source_locale(" \n\t "),
+            Err(ApiError::InvalidArguments(message)) if message.contains("must not be empty")
+        ));
+    }
+
+    #[test]
+    fn validate_catalog_semantics_accepts_only_supported_combinations() {
+        assert!(
+            validate_catalog_semantics(
+                CatalogSemantics::IcuNative,
+                CatalogStorageFormat::Po,
+                PluralEncoding::Icu
+            )
+            .is_ok()
+        );
+        assert!(
+            validate_catalog_semantics(
+                CatalogSemantics::IcuNative,
+                CatalogStorageFormat::Ndjson,
+                PluralEncoding::Icu
+            )
+            .is_ok()
+        );
+        assert!(
+            validate_catalog_semantics(
+                CatalogSemantics::GettextCompat,
+                CatalogStorageFormat::Po,
+                PluralEncoding::Gettext
+            )
+            .is_ok()
+        );
+
+        assert!(matches!(
+            validate_catalog_semantics(
+                CatalogSemantics::IcuNative,
+                CatalogStorageFormat::Po,
+                PluralEncoding::Gettext
+            ),
+            Err(ApiError::InvalidArguments(message))
+                if message.contains("IcuNative requires PluralEncoding::Icu")
+        ));
+        assert!(matches!(
+            validate_catalog_semantics(
+                CatalogSemantics::GettextCompat,
+                CatalogStorageFormat::Po,
+                PluralEncoding::Icu
+            ),
+            Err(ApiError::InvalidArguments(message))
+                if message.contains("GettextCompat requires PluralEncoding::Gettext")
+        ));
+        assert!(matches!(
+            validate_catalog_semantics(
+                CatalogSemantics::GettextCompat,
+                CatalogStorageFormat::Ndjson,
+                PluralEncoding::Gettext
+            ),
+            Err(ApiError::Unsupported(message))
+                if message.contains("not supported for NDJSON")
+        ));
+    }
+}
+
+#[cfg(test)]
 mod tests;

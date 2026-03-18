@@ -71,6 +71,12 @@ jobs:
       - name: Generate LCOV coverage report
         run: cargo coverage-lcov
 
+      - name: Generate JSON coverage summary
+        run: cargo llvm-cov report --json --summary-only --output-path target/coverage-summary.json
+
+      - name: Enforce staged crate coverage thresholds
+        run: node scripts/coverage-gate.mjs target/coverage-summary.json ferrocat-po=88 ferrocat-icu=93
+
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v5
         with:
@@ -84,3 +90,9 @@ jobs:
         with:
           name: coverage-lcov
           path: target/lcov.info
+
+      - name: Upload coverage summary artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-summary-json
+          path: target/coverage-summary.json

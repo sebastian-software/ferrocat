@@ -111,3 +111,133 @@ pub(super) fn merge_placeholders(
         merge_unique_strings(target.entry(key).or_default(), values);
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::collections::BTreeMap;
+
+    use super::{
+        dedupe_origins, dedupe_placeholders, dedupe_strings, merge_placeholders,
+        merge_unique_origins, merge_unique_strings, push_unique_origin, push_unique_string,
+    };
+    use crate::api::CatalogOrigin;
+
+    #[test]
+    fn dedupe_and_merge_strings_preserve_first_seen_order() {
+        assert_eq!(
+            dedupe_strings(vec![
+                "alpha".to_owned(),
+                "beta".to_owned(),
+                "alpha".to_owned(),
+                "gamma".to_owned(),
+            ]),
+            vec!["alpha".to_owned(), "beta".to_owned(), "gamma".to_owned(),]
+        );
+
+        let mut small = vec!["alpha".to_owned()];
+        merge_unique_strings(
+            &mut small,
+            vec!["alpha".to_owned(), "beta".to_owned(), "beta".to_owned()],
+        );
+        assert_eq!(small, vec!["alpha".to_owned(), "beta".to_owned()]);
+
+        let mut large = vec![
+            "a".to_owned(),
+            "b".to_owned(),
+            "c".to_owned(),
+            "d".to_owned(),
+            "e".to_owned(),
+            "f".to_owned(),
+        ];
+        merge_unique_strings(
+            &mut large,
+            vec!["b".to_owned(), "g".to_owned(), "h".to_owned()],
+        );
+        assert_eq!(
+            large,
+            vec![
+                "a".to_owned(),
+                "b".to_owned(),
+                "c".to_owned(),
+                "d".to_owned(),
+                "e".to_owned(),
+                "f".to_owned(),
+                "g".to_owned(),
+                "h".to_owned(),
+            ]
+        );
+        assert!(push_unique_string(&large, "h"));
+        assert!(!push_unique_string(&large, "missing"));
+    }
+
+    #[test]
+    fn dedupe_and_merge_origins_keep_unique_entries() {
+        let origin_a = CatalogOrigin {
+            file: "src/a.rs".to_owned(),
+            line: Some(1),
+        };
+        let origin_b = CatalogOrigin {
+            file: "src/b.rs".to_owned(),
+            line: None,
+        };
+
+        assert_eq!(
+            dedupe_origins(vec![origin_a.clone(), origin_b.clone(), origin_a.clone()]),
+            vec![origin_a.clone(), origin_b.clone()]
+        );
+
+        let mut merged = vec![origin_a.clone()];
+        merge_unique_origins(
+            &mut merged,
+            vec![origin_a.clone(), origin_b.clone(), origin_b.clone()],
+        );
+        assert_eq!(merged.len(), 2);
+        assert_eq!(merged[0], origin_a);
+        assert_eq!(merged[1], origin_b);
+        assert!(push_unique_origin(&merged, &origin_b));
+        assert!(!push_unique_origin(
+            &merged,
+            &CatalogOrigin {
+                file: "src/c.rs".to_owned(),
+                line: Some(2),
+            }
+        ));
+    }
+
+    #[test]
+    fn placeholder_helpers_dedupe_and_merge_per_key() {
+        let deduped = dedupe_placeholders(BTreeMap::from([
+            (
+                "count".to_owned(),
+                vec!["1".to_owned(), "2".to_owned(), "1".to_owned()],
+            ),
+            ("name".to_owned(), vec!["Ada".to_owned(), "Ada".to_owned()]),
+        ]));
+        assert_eq!(
+            deduped,
+            BTreeMap::from([
+                ("count".to_owned(), vec!["1".to_owned(), "2".to_owned()]),
+                ("name".to_owned(), vec!["Ada".to_owned()]),
+            ])
+        );
+
+        let mut merged = BTreeMap::from([("count".to_owned(), vec!["1".to_owned()])]);
+        merge_placeholders(
+            &mut merged,
+            BTreeMap::from([
+                (
+                    "count".to_owned(),
+                    vec!["1".to_owned(), "3".to_owned(), "3".to_owned()],
+                ),
+                ("name".to_owned(), vec!["Ada".to_owned()]),
+            ]),
+        );
+        assert_eq!(
+            merged,
+            BTreeMap::from([
+                ("count".to_owned(), vec!["1".to_owned(), "3".to_owned()]),
+                ("name".to_owned(), vec!["Ada".to_owned()]),
+            ])
+        );
+    }
+}

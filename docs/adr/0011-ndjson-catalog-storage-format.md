@@ -27,7 +27,7 @@ the canonical catalog model built around:
 - optional `msgctxt`
 - current translation value
 - comments, origins, flags, and obsolete state
-- ICU-oriented plural structure
+- ICU/text-first native catalog semantics
 
 ## Decision
 
@@ -62,6 +62,11 @@ Message records use:
 - optional `comments`, `origin`, `obsolete`, and `extra`
 
 Plural messages stay flattened as ICU strings in `id` and `str`.
+
+The later semantics split in ADR 0012 makes this more explicit:
+
+- NDJSON belongs to the `CatalogSemantics::IcuNative` path
+- classic gettext plural compatibility stays on the PO-only compat path
 
 We explicitly do not introduce:
 

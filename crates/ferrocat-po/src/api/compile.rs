@@ -640,3 +640,275 @@ fn validate_compiled_catalog_semantics(
     }
     Ok(())
 }
+
+#[cfg(test)]
+mod unit_tests {
+    use std::collections::BTreeMap;
+
+    use super::{
+        ApiError, CatalogMessage, CatalogMessageKey, CatalogSemantics,
+        CompiledCatalogTranslationKind, EffectiveTranslation, NormalizedParsedCatalog,
+        TranslationShape, collect_compiled_catalog_artifact_source_keys,
+        compiled_catalog_artifact_catalogs_contain_key,
+        compiled_catalog_translation_kind_for_message, compiled_translation_for_message,
+        describe_compiled_id_catalogs, message_has_runtime_translation,
+        prepare_compiled_catalog_artifact_catalogs, rendered_compiled_catalog_artifact_message,
+        validate_compiled_catalog_semantics,
+    };
+    use crate::ParsedCatalog;
+    use crate::api::PluralSource;
+
+    fn normalized_catalog(
+        locale: Option<&str>,
+        semantics: CatalogSemantics,
+        messages: Vec<CatalogMessage>,
+    ) -> NormalizedParsedCatalog {
+        NormalizedParsedCatalog::new(ParsedCatalog {
+            locale: locale.map(str::to_owned),
+            semantics,
+            headers: BTreeMap::new(),
+            messages,
+            diagnostics: Vec::new(),
+        })
+        .expect("normalized catalog")
+    }
+
+    fn singular_message(msgid: &str, value: &str) -> CatalogMessage {
+        CatalogMessage {
+            msgid: msgid.to_owned(),
+            msgctxt: None,
+            translation: TranslationShape::Singular {
+                value: value.to_owned(),
+            },
+            comments: Vec::new(),
+            origin: Vec::new(),
+            obsolete: false,
+            extra: None,
+        }
+    }
+
+    fn plural_message(msgid: &str) -> CatalogMessage {
+        CatalogMessage {
+            msgid: msgid.to_owned(),
+            msgctxt: None,
+            translation: TranslationShape::Plural {
+                source: PluralSource {
+                    one: Some("# file".to_owned()),
+                    other: "# files".to_owned(),
+                },
+                translation: BTreeMap::from([
+                    ("one".to_owned(), "# Datei".to_owned()),
+                    ("other".to_owned(), "# Dateien".to_owned()),
+                ]),
+                variable: "count".to_owned(),
+            },
+            comments: Vec::new(),
+            origin: Vec::new(),
+            obsolete: false,
+            extra: None,
+        }
+    }
+
+    #[test]
+    fn compile_translation_helpers_cover_native_compat_and_mismatch_paths() {
+        let plural_message = plural_message("files");
+        assert_eq!(
+            compiled_catalog_translation_kind_for_message(
+                CatalogSemantics::IcuNative,
+                &plural_message
+            ),
+            CompiledCatalogTranslationKind::Singular
+        );
+        assert_eq!(
+            compiled_catalog_translation_kind_for_message(
+                CatalogSemantics::GettextCompat,
+                &plural_message
+            ),
+            CompiledCatalogTranslationKind::Plural
+        );
+
+        assert!(matches!(
+            compiled_translation_for_message(
+                &plural_message,
+                EffectiveTranslation::Plural(BTreeMap::from([
+                    ("one".to_owned(), "# Datei".to_owned()),
+                    ("other".to_owned(), "# Dateien".to_owned()),
+                ])),
+                CatalogSemantics::IcuNative,
+            ),
+            Some(super::CompiledTranslation::Singular(value))
+                if value == "{count, plural, one {# Datei} other {# Dateien}}"
+        ));
+        assert!(
+            compiled_translation_for_message(
+                &plural_message,
+                EffectiveTranslation::Singular("wrong".to_owned()),
+                CatalogSemantics::IcuNative,
+            )
+            .is_none()
+        );
+    }
+
+    #[test]
+    fn compile_artifact_preparation_rejects_invalid_locale_sets() {
+        let de = normalized_catalog(
+            Some("de"),
+            CatalogSemantics::IcuNative,
+            vec![singular_message("Hello", "Hallo")],
+        );
+        let en = normalized_catalog(
+            Some("en"),
+            CatalogSemantics::IcuNative,
+            vec![singular_message("Hello", "Hello")],
+        );
+        let compat = normalized_catalog(
+            Some("fr"),
+            CatalogSemantics::GettextCompat,
+            vec![singular_message("Hello", "Bonjour")],
+        );
+
+        assert!(matches!(
+            prepare_compiled_catalog_artifact_catalogs(
+                &[],
+                "de",
+                "en",
+                &[],
+                CatalogSemantics::IcuNative,
+            ),
+            Err(ApiError::InvalidArguments(message))
+                if message.contains("at least one catalog")
+        ));
+        assert!(matches!(
+            prepare_compiled_catalog_artifact_catalogs(
+                &[&de],
+                " ",
+                "en",
+                &[],
+                CatalogSemantics::IcuNative,
+            ),
+            Err(ApiError::InvalidArguments(message))
+                if message.contains("requested_locale")
+        ));
+        assert!(matches!(
+            prepare_compiled_catalog_artifact_catalogs(
+                &[&de, &compat],
+                "de",
+                "en",
+                &[],
+                CatalogSemantics::IcuNative,
+            ),
+            Err(ApiError::InvalidArguments(message))
+                if message.contains("uses")
+        ));
+        assert!(matches!(
+            prepare_compiled_catalog_artifact_catalogs(
+                &[&de, &en],
+                "de",
+                "en",
+                &[String::from("de")],
+                CatalogSemantics::IcuNative,
+            ),
+            Err(ApiError::InvalidArguments(message))
+                if message.contains("must not repeat")
+        ));
+        assert!(matches!(
+            prepare_compiled_catalog_artifact_catalogs(
+                &[&de, &en],
+                "de",
+                "en",
+                &[String::from("fr")],
+                CatalogSemantics::IcuNative,
+            ),
+            Err(ApiError::InvalidArguments(message))
+                if message.contains("was not provided")
+        ));
+    }
+
+    #[test]
+    fn compile_artifact_helper_views_cover_lookup_and_runtime_rendering() {
+        let mut obsolete = singular_message("Old", "Alt");
+        obsolete.obsolete = true;
+        let de = normalized_catalog(
+            Some("de"),
+            CatalogSemantics::IcuNative,
+            vec![
+                singular_message("Hello", "Hallo"),
+                plural_message("files"),
+                obsolete,
+            ],
+        );
+        let en = normalized_catalog(
+            Some("en"),
+            CatalogSemantics::IcuNative,
+            vec![singular_message("Hello", "Hello"), plural_message("files")],
+        );
+        let locales = BTreeMap::from([("de".to_owned(), &de), ("en".to_owned(), &en)]);
+
+        let source_keys = collect_compiled_catalog_artifact_source_keys(&locales);
+        assert!(source_keys.contains(&CatalogMessageKey::new("Hello", None)));
+        assert!(!source_keys.contains(&CatalogMessageKey::new("Old", None)));
+        assert!(compiled_catalog_artifact_catalogs_contain_key(
+            &locales,
+            &CatalogMessageKey::new("files", None)
+        ));
+        assert!(!compiled_catalog_artifact_catalogs_contain_key(
+            &locales,
+            &CatalogMessageKey::new("missing", None)
+        ));
+
+        assert_eq!(
+            rendered_compiled_catalog_artifact_message(
+                &de,
+                &CatalogMessageKey::new("Hello", None),
+                "en",
+                false,
+            ),
+            Some("Hallo".to_owned())
+        );
+        assert_eq!(
+            rendered_compiled_catalog_artifact_message(
+                &de,
+                &CatalogMessageKey::new("files", None),
+                "en",
+                false,
+            ),
+            Some("{count, plural, one {# Datei} other {# Dateien}}".to_owned())
+        );
+        assert!(message_has_runtime_translation(&singular_message(
+            "Hello", "Hallo"
+        )));
+        assert!(!message_has_runtime_translation(&singular_message(
+            "Hello", ""
+        )));
+        assert!(message_has_runtime_translation(&plural_message("files")));
+        assert!(validate_compiled_catalog_semantics(&de, CatalogSemantics::IcuNative).is_ok());
+    }
+
+    #[test]
+    fn describe_compiled_id_catalogs_rejects_missing_empty_and_duplicate_locales() {
+        let missing_locale = normalized_catalog(
+            None,
+            CatalogSemantics::IcuNative,
+            vec![singular_message("Hello", "Hallo")],
+        );
+        let blank_locale = normalized_catalog(
+            Some(" "),
+            CatalogSemantics::IcuNative,
+            vec![singular_message("Hello", "Hallo")],
+        );
+        let de_one = normalized_catalog(
+            Some("de"),
+            CatalogSemantics::IcuNative,
+            vec![singular_message("Hello", "Hallo")],
+        );
+        let de_two = normalized_catalog(
+            Some("de"),
+            CatalogSemantics::IcuNative,
+            vec![singular_message("Bye", "Tschuess")],
+        );
+
+        assert!(describe_compiled_id_catalogs(&[&missing_locale]).is_err());
+        assert!(describe_compiled_id_catalogs(&[&blank_locale]).is_err());
+        assert!(describe_compiled_id_catalogs(&[&de_one, &de_two]).is_err());
+    }
+}

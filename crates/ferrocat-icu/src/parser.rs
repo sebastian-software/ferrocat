@@ -690,4 +690,42 @@ mod tests {
         let result: Result<_, IcuParseError> = parse_icu("{broken");
         assert!(result.is_err());
     }
+
+    #[test]
+    fn rejects_unsupported_types_and_unexpected_trailing_input() {
+        let unsupported = parse_icu("{name, foo}").expect_err("unsupported type");
+        assert!(
+            unsupported
+                .message
+                .contains("Unsupported ICU argument type")
+        );
+
+        let trailing = parse_icu("hello}").expect_err("trailing input");
+        assert!(trailing.message.contains("Unexpected trailing input"));
+    }
+
+    #[test]
+    fn rejects_unterminated_apostrophe_and_unexpected_closing_tag() {
+        let apostrophe = parse_icu("'unterminated").expect_err("unterminated apostrophe");
+        assert!(
+            apostrophe
+                .message
+                .contains("Unterminated apostrophe escape")
+        );
+
+        let closing = parse_icu("</b>").expect_err("unexpected closing tag");
+        assert!(closing.message.contains("Unexpected closing tag"));
+    }
+
+    #[test]
+    fn parses_formatters_without_style_and_invalid_tag_names_fail() {
+        let message = parse_icu("{value, number}").expect("parse formatter without style");
+        assert!(matches!(
+            &message.nodes[0],
+            IcuNode::Number { style: None, .. }
+        ));
+
+        let error = parse_icu("<a>broken</>").expect_err("invalid closing tag");
+        assert!(error.message.contains("Mismatched closing tag"));
+    }
 }

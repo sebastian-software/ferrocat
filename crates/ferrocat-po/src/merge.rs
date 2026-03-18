@@ -1049,8 +1049,12 @@ fn trimmed_str(bytes: &[u8]) -> &str {
 mod tests {
     use std::borrow::Cow;
 
-    use super::{ExtractedMessage, merge_catalog};
-    use crate::parse_po;
+    use super::{
+        ExtractedMessage, MergeHeader, estimate_merge_capacity, extract_merge_quoted_cow,
+        find_existing_index, header_fragment_is_borrowable, merge_catalog, parse_header_fragment,
+        parse_nplurals,
+    };
+    use crate::{BorrowedMsgStr, parse_po};
 
     #[test]
     fn preserves_existing_translations_and_updates_references() {
@@ -1122,5 +1126,118 @@ mod tests {
         assert_eq!(reparsed.items[0].msgstr.len(), 2);
         assert_eq!(reparsed.items[0].msgstr[0], "");
         assert_eq!(reparsed.items[0].msgstr[1], "");
+    }
+
+    #[test]
+    fn merge_helpers_cover_header_and_lookup_paths() {
+        assert_eq!(
+            extract_merge_quoted_cow(br#"msgid "plain""#),
+            Ok(Cow::Borrowed("plain"))
+        );
+        assert_eq!(
+            extract_merge_quoted_cow(br#"msgid "line\nbreak""#),
+            Ok(Cow::Owned("line\nbreak".to_owned()))
+        );
+        assert!(header_fragment_is_borrowable(
+            br#"Language: de\nPlural-Forms: nplurals=2;\n"#
+        ));
+        assert!(!header_fragment_is_borrowable(br#"Language: \"de\"\n"#));
+        assert_eq!(
+            parse_header_fragment(br#""Language: de\nPlural-Forms: nplurals=3; plural=(n>1);\n""#)
+                .expect("header fragment"),
+            vec![
+                MergeHeader {
+                    key: Cow::Borrowed("Language"),
+                    value: Cow::Borrowed("de"),
+                },
+                MergeHeader {
+                    key: Cow::Borrowed("Plural-Forms"),
+                    value: Cow::Borrowed("nplurals=3; plural=(n>1);"),
+                },
+            ]
+        );
+        assert_eq!(
+            parse_nplurals(&[
+                MergeHeader {
+                    key: Cow::Borrowed("Language"),
+                    value: Cow::Borrowed("de"),
+                },
+                MergeHeader {
+                    key: Cow::Borrowed("Plural-Forms"),
+                    value: Cow::Borrowed(" nplurals = 4 ; plural = (n > 1); "),
+                },
+            ]),
+            Some(4)
+        );
+        assert_eq!(
+            find_existing_index(
+                &std::collections::HashMap::from([(
+                    "hello",
+                    vec![(Some("menu"), 3usize), (None, 1usize)],
+                )]),
+                Some("menu"),
+                "hello",
+            ),
+            Some(3)
+        );
+        assert!(
+            estimate_merge_capacity(
+                "msgid \"a\"\nmsgstr \"b\"\n",
+                &[ExtractedMessage {
+                    msgid: Cow::Borrowed("hello"),
+                    references: vec![Cow::Borrowed("src/app.rs:1")],
+                    ..ExtractedMessage::default()
+                }],
+            ) > 24
+        );
+    }
+
+    #[test]
+    fn merge_preserves_existing_plural_values_and_dedupes_flags() {
+        let existing = concat!(
+            "msgid \"\"\n",
+            "msgstr \"\"\n",
+            "\"Plural-Forms: nplurals=3; plural=(n > 1);\\n\"\n",
+            "\n",
+            "#, fuzzy\n",
+            "msgid \"count\"\n",
+            "msgid_plural \"counts\"\n",
+            "msgstr[0] \"eins\"\n",
+            "msgstr[1] \"zwei\"\n",
+            "msgstr[2] \"viele\"\n",
+        );
+        let extracted = vec![ExtractedMessage {
+            msgid: Cow::Borrowed("count"),
+            msgid_plural: Some(Cow::Borrowed("counts")),
+            flags: vec![Cow::Borrowed("fuzzy"), Cow::Borrowed("rust-format")],
+            ..ExtractedMessage::default()
+        }];
+
+        let merged = merge_catalog(existing, &extracted).expect("merge plural");
+        assert!(merged.contains("#, fuzzy,rust-format"));
+        let reparsed = parse_po(&merged).expect("reparse merged plural");
+        assert_eq!(reparsed.items[0].msgstr.len(), 3);
+        assert_eq!(reparsed.items[0].msgstr[0], "eins");
+        assert_eq!(reparsed.items[0].msgstr[2], "viele");
+    }
+
+    #[test]
+    fn merge_normalizes_crlf_input_and_keeps_existing_single_value() {
+        let existing = "msgid \"hello\"\r\nmsgstr \"world\"\r\n";
+        let merged = merge_catalog(
+            existing,
+            &[ExtractedMessage {
+                msgid: Cow::Borrowed("hello"),
+                ..ExtractedMessage::default()
+            }],
+        )
+        .expect("merge normalized crlf");
+
+        let reparsed = parse_po(&merged).expect("reparse normalized");
+        assert_eq!(reparsed.items[0].msgstr[0], "world");
+        assert!(!matches!(
+            BorrowedMsgStr::Singular(Cow::Borrowed("world")),
+            BorrowedMsgStr::None
+        ));
     }
 }

@@ -138,4 +138,14 @@ mod tests {
         assert!(has_selectordinal(&message));
         assert!(has_tag(&message));
     }
+
+    #[test]
+    fn reports_absence_of_optional_structures() {
+        let message = parse_icu("Hello {name}").expect("parse");
+        assert_eq!(extract_variables(&message), vec!["name"]);
+        assert!(!has_plural(&message));
+        assert!(!has_select(&message));
+        assert!(!has_selectordinal(&message));
+        assert!(!has_tag(&message));
+    }
 }

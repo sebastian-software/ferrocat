@@ -2,6 +2,12 @@
 
 `ferrocat` now exposes workspace-local Cargo aliases for coverage reporting through `cargo-llvm-cov`.
 
+The long-term goal for the shipped library surface is:
+
+- `95%+` line coverage for `ferrocat-po`
+- `95%+` line coverage for `ferrocat-icu`
+- `95%+` line coverage for `ferrocat` once the umbrella crate contains measurable executable logic beyond re-exports
+
 The coverage commands intentionally exclude:
 
 - `ferrocat-bench`, which is a benchmark harness rather than shipped library code
@@ -12,6 +18,32 @@ That keeps the report focused on the public and internal library crates that mat
 - `ferrocat`
 - `ferrocat-po`
 - `ferrocat-icu`
+
+## Baseline
+
+Measured locally on `2026-03-18` with `cargo coverage-summary` plus a JSON summary export:
+
+- `ferrocat-po`: `88.10%` line coverage
+- `ferrocat-icu`: `93.98%` line coverage
+- `ferrocat`: `N/A` in `llvm-cov` today because the umbrella crate is almost entirely re-exports and does not currently surface measurable executable lines in the report
+
+That means the current rollout is intentionally staged:
+
+- Phase 1: standardized local commands and CI artifact publication
+- Phase 2: crate-level guardrails close to the measured baseline
+  - `ferrocat-po >= 88%`
+  - `ferrocat-icu >= 93%`
+  - `ferrocat` is still reported, but not percentage-gated until `llvm-cov` has measurable lines for the crate
+- Phase 3: raise the measurable core crates to `95%+`
+
+The next high-yield test targets after the current baseline are still:
+
+- `ferrocat-po/src/api/catalog.rs`
+- `ferrocat-po/src/api/compile.rs`
+- `ferrocat-po/src/api/plural.rs`
+- `ferrocat-po/src/merge.rs`
+- `ferrocat-po/src/borrowed.rs`
+- `ferrocat-icu/src/parser.rs`
 
 ## Local Setup
 
@@ -57,6 +89,8 @@ target/lcov.info
 ## CI
 
 The GitHub Actions CI workflow runs a dedicated coverage job on Ubuntu, installs the required LLVM tooling, uploads the generated LCOV report to Codecov, and stores the same `lcov.info` file as a workflow artifact.
+
+That same job now also exports `target/coverage-summary.json` and runs a small crate-aware gate script so the staged thresholds are enforced per crate instead of through one global blended percentage.
 
 For private repositories, add a GitHub Actions repository secret named `CODECOV_TOKEN`.
 

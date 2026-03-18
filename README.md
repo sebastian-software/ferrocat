@@ -176,7 +176,7 @@ assert_eq!(compiled.len(), 1);
 This layer is intentionally small:
 
 - it starts from `NormalizedParsedCatalog`, so source identity is still `msgid + msgctxt`
-- it produces typed runtime values instead of flattening plurals into strings
+- it preserves the parsed catalog semantics: native catalogs compile to runtime strings, compat catalogs can still compile to typed plural values
 - it derives compact stable lookup keys for runtime maps
 - it does **not** silently fill source text by default
 
@@ -291,6 +291,8 @@ cargo coverage-lcov
 ```
 
 The coverage setup focuses on `ferrocat`, `ferrocat-po`, and `ferrocat-icu`, while excluding the workspace-only benchmark and conformance crates.
+
+The long-term quality target is `95%+` line coverage for the measurable core crates. The current CI rollout is staged and already enforces per-crate floor values close to the measured baseline instead of relying on one blended workspace percentage.
 
 See [docs/test-coverage.md](docs/test-coverage.md) for local setup, Codecov wiring, and artifact locations.
 

@@ -3,6 +3,11 @@
 - Status: Accepted
 - Date: 2026-03-16
 
+Note: The original direction in this ADR is still valid, but the concrete
+high-level API split is now refined by ADR 0012. The default path is
+ICU-native and raw-text-first; classic gettext plural handling is behind the
+explicit `CatalogSemantics::GettextCompat` bridge mode.
+
 ## Context
 
 `ferrocat` now has a high-level catalog API layered on top of the PO core:
@@ -40,8 +45,7 @@ Treat gettext as a compatibility bridge around that model.
 
 Concretely:
 
-- `PluralEncoding::Icu` remains the default for the high-level API
-- internal message projection should prefer ICU-oriented structure
+- the high-level API stays ICU-first by default
 - gettext import and export remain supported, but conservatively
 - existing `Plural-Forms` metadata should be respected where possible
 - automatic gettext header generation should only happen for clearly safe cases

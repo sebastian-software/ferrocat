@@ -706,3 +706,189 @@ impl From<std::io::Error> for ApiError {
         Self::Io(value)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::collections::BTreeMap;
+    use std::io;
+    use std::path::Path;
+
+    use super::{
+        ApiError, CatalogMessage, CatalogMessageExtra, CatalogMessageKey, CatalogSemantics,
+        CatalogStorageFormat, CatalogUpdateInput, Diagnostic, DiagnosticSeverity,
+        EffectiveTranslation, EffectiveTranslationRef, NormalizedParsedCatalog, ObsoleteStrategy,
+        OrderBy, ParseCatalogOptions, ParsedCatalog, PlaceholderCommentMode, PluralEncoding,
+        PluralSource, TranslationShape, UpdateCatalogFileOptions, UpdateCatalogOptions,
+    };
+
+    #[test]
+    fn catalog_update_input_defaults_and_conversions_use_expected_variants() {
+        assert!(matches!(
+            CatalogUpdateInput::default(),
+            CatalogUpdateInput::Structured(messages) if messages.is_empty()
+        ));
+        assert!(matches!(
+            CatalogUpdateInput::from(Vec::<super::ExtractedMessage>::new()),
+            CatalogUpdateInput::Structured(messages) if messages.is_empty()
+        ));
+        assert!(matches!(
+            CatalogUpdateInput::from(Vec::<super::SourceExtractedMessage>::new()),
+            CatalogUpdateInput::SourceFirst(messages) if messages.is_empty()
+        ));
+    }
+
+    #[test]
+    fn catalog_message_helpers_cover_key_and_fallback_behavior() {
+        let singular = CatalogMessage {
+            msgid: "Hello".to_owned(),
+            msgctxt: Some("button".to_owned()),
+            translation: TranslationShape::Singular {
+                value: String::new(),
+            },
+            comments: vec!["Shown in toolbar".to_owned()],
+            origin: Vec::new(),
+            obsolete: false,
+            extra: Some(CatalogMessageExtra {
+                translator_comments: vec!["Imperative".to_owned()],
+                flags: vec!["fuzzy".to_owned()],
+            }),
+        };
+
+        assert_eq!(
+            singular.key(),
+            CatalogMessageKey::new("Hello", Some("button".to_owned()))
+        );
+        assert!(matches!(
+            singular.effective_translation(),
+            EffectiveTranslationRef::Singular("")
+        ));
+        assert_eq!(
+            singular.source_fallback_translation(Some("en")),
+            EffectiveTranslation::Singular("Hello".to_owned())
+        );
+
+        let plural = CatalogMessage {
+            msgid: "{count, plural, one {# file} other {# files}}".to_owned(),
+            msgctxt: None,
+            translation: TranslationShape::Plural {
+                source: PluralSource {
+                    one: Some("{count} file".to_owned()),
+                    other: "{count} files".to_owned(),
+                },
+                translation: BTreeMap::from([
+                    ("one".to_owned(), String::new()),
+                    ("other".to_owned(), "{count} Dateien".to_owned()),
+                ]),
+                variable: "count".to_owned(),
+            },
+            comments: Vec::new(),
+            origin: Vec::new(),
+            obsolete: false,
+            extra: None,
+        };
+
+        assert!(matches!(
+            plural.effective_translation(),
+            EffectiveTranslationRef::Plural(values)
+                if values.get("other") == Some(&"{count} Dateien".to_owned())
+        ));
+        assert_eq!(
+            plural.source_fallback_translation(Some("de")),
+            EffectiveTranslation::Plural(BTreeMap::from([
+                ("one".to_owned(), "{count} file".to_owned()),
+                ("other".to_owned(), "{count} Dateien".to_owned()),
+            ]))
+        );
+    }
+
+    #[test]
+    fn normalized_catalog_helpers_expose_lookup_and_source_fallback_views() {
+        let parsed = ParsedCatalog {
+            locale: Some("en".to_owned()),
+            semantics: CatalogSemantics::IcuNative,
+            headers: BTreeMap::new(),
+            messages: vec![CatalogMessage {
+                msgid: "Hello".to_owned(),
+                msgctxt: None,
+                translation: TranslationShape::Singular {
+                    value: String::new(),
+                },
+                comments: Vec::new(),
+                origin: Vec::new(),
+                obsolete: false,
+                extra: None,
+            }],
+            diagnostics: Vec::new(),
+        };
+
+        let normalized = NormalizedParsedCatalog::new(parsed.clone()).expect("normalized");
+        let key = CatalogMessageKey::new("Hello", None);
+
+        assert_eq!(normalized.message_count(), 1);
+        assert!(normalized.contains_key(&key));
+        assert_eq!(
+            normalized.parsed_catalog().semantics,
+            CatalogSemantics::IcuNative
+        );
+        assert!(normalized.get(&key).is_some());
+        assert_eq!(
+            normalized.effective_translation_with_source_fallback(&key, "en"),
+            Some(EffectiveTranslation::Singular("Hello".to_owned()))
+        );
+        assert_eq!(normalized.into_parsed_catalog(), parsed);
+    }
+
+    #[test]
+    fn option_defaults_reflect_native_po_defaults() {
+        let update = UpdateCatalogOptions::default();
+        assert_eq!(update.storage_format, CatalogStorageFormat::Po);
+        assert_eq!(update.semantics, CatalogSemantics::IcuNative);
+        assert_eq!(update.plural_encoding, PluralEncoding::Icu);
+        assert_eq!(update.obsolete_strategy, ObsoleteStrategy::Mark);
+        assert_eq!(update.order_by, OrderBy::Msgid);
+        assert!(update.include_origins);
+        assert!(update.include_line_numbers);
+        assert_eq!(
+            update.print_placeholders_in_comments,
+            PlaceholderCommentMode::Enabled { limit: 3 }
+        );
+
+        let update_file = UpdateCatalogFileOptions::default();
+        assert_eq!(update_file.target_path, Path::new(""));
+        assert_eq!(update_file.storage_format, CatalogStorageFormat::Po);
+        assert_eq!(update_file.semantics, CatalogSemantics::IcuNative);
+        assert_eq!(update_file.plural_encoding, PluralEncoding::Icu);
+
+        let parse = ParseCatalogOptions::default();
+        assert_eq!(parse.storage_format, CatalogStorageFormat::Po);
+        assert_eq!(parse.semantics, CatalogSemantics::IcuNative);
+        assert_eq!(parse.plural_encoding, PluralEncoding::Icu);
+        assert!(!parse.strict);
+    }
+
+    #[test]
+    fn diagnostics_and_api_errors_preserve_human_readable_messages() {
+        let diagnostic = Diagnostic::new(DiagnosticSeverity::Warning, "code", "message")
+            .with_identity("Hello", Some("button"));
+        assert_eq!(diagnostic.severity, DiagnosticSeverity::Warning);
+        assert_eq!(diagnostic.code, "code");
+        assert_eq!(diagnostic.message, "message");
+        assert_eq!(diagnostic.msgid.as_deref(), Some("Hello"));
+        assert_eq!(diagnostic.msgctxt.as_deref(), Some("button"));
+
+        let io_error = ApiError::from(io::Error::other("disk"));
+        assert_eq!(io_error.to_string(), "disk");
+        assert_eq!(
+            ApiError::InvalidArguments("bad input".to_owned()).to_string(),
+            "bad input"
+        );
+        assert_eq!(
+            ApiError::Conflict("duplicate".to_owned()).to_string(),
+            "duplicate"
+        );
+        assert_eq!(
+            ApiError::Unsupported("unsupported".to_owned()).to_string(),
+            "unsupported"
+        );
+    }
+}

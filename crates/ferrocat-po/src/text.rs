@@ -361,11 +361,27 @@ mod tests {
     }
 
     #[test]
+    fn appends_plain_text_when_no_escape_index_is_known() {
+        let mut out = String::from("prefix:");
+        escape_string_into_with_first_escape(&mut out, "plain", None);
+        assert_eq!(out, "prefix:plain");
+    }
+
+    #[test]
     fn extracts_quoted_text_from_bytes() {
         assert_eq!(
             extract_quoted_bytes_cow(br#"msgid "byte path""#),
             Ok(Cow::Borrowed("byte path"))
         );
+    }
+
+    #[test]
+    fn extracts_owned_quoted_text_when_unescaping_is_required() {
+        assert_eq!(
+            extract_quoted_bytes_cow(br#"msgid "line\nbreak""#),
+            Ok(Cow::Owned("line\nbreak".to_owned()))
+        );
+        assert_eq!(extract_quoted("msgid bare"), Ok(String::new()));
     }
 
     #[test]
@@ -396,6 +412,15 @@ mod tests {
     }
 
     #[test]
+    fn keeps_non_reference_whitespace_groups_and_empty_input_stable() {
+        assert_eq!(
+            split_reference_comment("foo bar"),
+            vec![Cow::Borrowed("foo bar")]
+        );
+        assert_eq!(split_reference_comment("   "), vec![Cow::Borrowed("")]);
+    }
+
+    #[test]
     fn rejects_unescaped_quote_in_string_literal() {
         assert_eq!(
             validate_quoted_content(br#"Some msgstr with "double\" quotes"#)
@@ -403,5 +428,23 @@ mod tests {
                 .to_string(),
             "unescaped quote in string literal"
         );
+    }
+
+    #[test]
+    fn unescape_string_covers_octal_hex_and_error_paths() {
+        assert_eq!(unescape_string("\\101\\x42").as_deref(), Ok("AB"));
+        assert_eq!(
+            unescape_string("\\x4")
+                .expect_err("incomplete hex escape")
+                .to_string(),
+            "incomplete hex escape"
+        );
+        assert_eq!(
+            unescape_string("\\xZZ")
+                .expect_err("invalid hex escape")
+                .to_string(),
+            "invalid hex escape"
+        );
+        assert!(validate_quoted_content(br#"still safe\""#).is_ok());
     }
 }

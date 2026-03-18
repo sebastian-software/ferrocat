@@ -641,7 +641,7 @@ fn trimmed_cow(bytes: &[u8]) -> Cow<'_, str> {
 mod tests {
     use std::borrow::Cow;
 
-    use super::parse_po_borrowed;
+    use super::{BorrowedMsgStr, parse_po_borrowed};
 
     #[test]
     fn borrows_simple_fields() {
@@ -705,5 +705,89 @@ msgstr "world"
             file.items[0].msgstr,
             super::BorrowedMsgStr::Singular(Cow::Borrowed("bar"))
         );
+    }
+
+    #[test]
+    fn rejects_crlf_input_for_borrowed_parsing() {
+        let error = parse_po_borrowed("msgid \"foo\"\r\nmsgstr \"bar\"\r\n")
+            .expect_err("crlf should be rejected");
+        assert!(error.to_string().contains("LF-only"));
+    }
+
+    #[test]
+    fn parses_plural_metadata_flags_and_obsolete_items() {
+        let input = concat!(
+            "# translator\n",
+            "#. extracted\n",
+            "#: src/app.rs:1 src/lib.rs:2\n",
+            "#, fuzzy, c-format\n",
+            "#@ domain: admin\n",
+            "msgctxt \"menu\"\n",
+            "msgid \"file\"\n",
+            "msgid_plural \"files\"\n",
+            "msgstr[0] \"Datei\"\n",
+            "msgstr[1] \"Dateien\"\n",
+            "\n",
+            "#~ msgid \"old\"\n",
+            "#~ msgstr \"alt\"\n",
+        );
+
+        let file = parse_po_borrowed(input).expect("borrowed plural parse");
+        assert_eq!(file.items.len(), 2);
+
+        let item = &file.items[0];
+        assert_eq!(item.msgctxt.as_deref(), Some("menu"));
+        assert_eq!(item.msgid_plural.as_deref(), Some("files"));
+        assert_eq!(
+            item.msgstr,
+            BorrowedMsgStr::Plural(vec![Cow::Borrowed("Datei"), Cow::Borrowed("Dateien"),])
+        );
+        assert_eq!(
+            item.references,
+            vec![Cow::Borrowed("src/app.rs:1"), Cow::Borrowed("src/lib.rs:2")]
+        );
+        assert_eq!(
+            item.flags,
+            vec![Cow::Borrowed("fuzzy"), Cow::Borrowed("c-format")]
+        );
+        assert_eq!(
+            item.metadata,
+            vec![(Cow::Borrowed("domain"), Cow::Borrowed("admin"))]
+        );
+
+        assert!(file.items[1].obsolete);
+        assert_eq!(file.items[1].msgid, Cow::Borrowed("old"));
+    }
+
+    #[test]
+    fn parses_owned_headers_and_multiline_fields_when_escapes_are_present() {
+        let input = concat!(
+            "msgid \"\"\n",
+            "msgstr \"\"\n",
+            "\"Project-Id-Version: Demo \\\"Suite\\\"\\n\"\n",
+            "\"Plural-Forms: nplurals=3; plural=(n > 1);\\n\"\n",
+            "\n",
+            "msgctxt \"cta\"\n",
+            "msgid \"hel\"\n",
+            "\"lo\"\n",
+            "msgstr \"wor\"\n",
+            "\"ld\"\n",
+        );
+
+        let file = parse_po_borrowed(input).expect("borrowed parse with owned headers");
+        assert_eq!(
+            file.headers[0],
+            super::BorrowedHeader {
+                key: Cow::Owned("Project-Id-Version".to_owned()),
+                value: Cow::Owned("Demo \"Suite\"".to_owned()),
+            }
+        );
+        assert_eq!(file.items[0].msgid, Cow::Borrowed("hello"));
+        assert_eq!(file.items[0].msgctxt.as_deref(), Some("cta"));
+        assert_eq!(
+            file.items[0].msgstr,
+            BorrowedMsgStr::Singular(Cow::Borrowed("world"))
+        );
+        assert_eq!(file.items[0].nplurals, 3);
     }
 }

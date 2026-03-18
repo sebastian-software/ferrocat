@@ -584,7 +584,15 @@ fn append_escaped_icu_literal(out: &mut String, value: &str) {
 
 #[cfg(test)]
 mod tests {
-    use super::{IcuPluralProjection, looks_like_projectable_icu_plural, project_icu_plural};
+    use std::collections::{BTreeMap, HashMap};
+    use std::sync::Mutex;
+
+    use super::{
+        IcuPluralProjection, PluralProfile, cached_icu_plural_categories_for,
+        derive_plural_variable, fallback_plural_categories, looks_like_projectable_icu_plural,
+        materialize_plural_categories, normalize_plural_locale, project_icu_plural,
+        sorted_plural_keys, split_icu_kind, synthesize_icu_plural,
+    };
 
     #[test]
     fn plural_fast_scan_skips_plain_and_mixed_messages() {
@@ -628,5 +636,183 @@ mod tests {
             project_icu_plural("{count, number, integer}"),
             IcuPluralProjection::NotPlural
         ));
+    }
+
+    #[test]
+    fn plural_profiles_and_category_helpers_fill_expected_shapes() {
+        let profile = PluralProfile::for_translation(
+            Some("fr"),
+            &BTreeMap::from([
+                ("one".to_owned(), "un".to_owned()),
+                ("other".to_owned(), "autres".to_owned()),
+            ]),
+        );
+        assert_eq!(profile.nplurals(), 2);
+        assert_eq!(
+            profile.categories(),
+            &["one".to_owned(), "other".to_owned()]
+        );
+        assert_eq!(
+            profile.materialize_translation(&BTreeMap::from([(
+                "other".to_owned(),
+                "autres".to_owned(),
+            )])),
+            BTreeMap::from([
+                ("one".to_owned(), String::new()),
+                ("other".to_owned(), "autres".to_owned()),
+            ])
+        );
+        assert_eq!(
+            profile.source_locale_translation(&super::PluralSource {
+                one: Some("one-file".to_owned()),
+                other: "many-files".to_owned(),
+            }),
+            BTreeMap::from([
+                ("one".to_owned(), "one-file".to_owned()),
+                ("other".to_owned(), "many-files".to_owned()),
+            ])
+        );
+        assert_eq!(
+            profile.empty_translation(),
+            BTreeMap::from([
+                ("one".to_owned(), String::new()),
+                ("other".to_owned(), String::new()),
+            ])
+        );
+        assert_eq!(
+            profile.gettext_values(&BTreeMap::from([
+                ("one".to_owned(), "eins".to_owned()),
+                ("other".to_owned(), "viele".to_owned()),
+            ])),
+            vec!["eins".to_owned(), "viele".to_owned()]
+        );
+        assert_eq!(
+            profile.gettext_header().as_deref(),
+            Some("nplurals=2; plural=(n != 1);")
+        );
+        assert_eq!(
+            materialize_plural_categories(
+                &["one".to_owned(), "other".to_owned()],
+                &BTreeMap::from([("one".to_owned(), "eins".to_owned())]),
+            ),
+            BTreeMap::from([
+                ("one".to_owned(), "eins".to_owned()),
+                ("other".to_owned(), String::new()),
+            ])
+        );
+    }
+
+    #[test]
+    fn plural_category_fallbacks_and_sorting_are_deterministic() {
+        assert_eq!(
+            fallback_plural_categories(Some(1)),
+            vec!["other".to_owned()]
+        );
+        assert_eq!(
+            fallback_plural_categories(Some(3)),
+            vec!["one".to_owned(), "few".to_owned(), "other".to_owned()]
+        );
+        assert_eq!(
+            fallback_plural_categories(Some(7)),
+            vec![
+                "zero".to_owned(),
+                "one".to_owned(),
+                "two".to_owned(),
+                "few".to_owned(),
+                "many".to_owned(),
+                "other".to_owned(),
+            ]
+        );
+        assert_eq!(
+            sorted_plural_keys(&BTreeMap::from([
+                ("many".to_owned(), "viele".to_owned()),
+                ("one".to_owned(), "eins".to_owned()),
+            ])),
+            vec!["one".to_owned(), "many".to_owned(), "other".to_owned()]
+        );
+    }
+
+    #[test]
+    fn derive_plural_variable_prefers_count_and_rejects_ambiguous_sets() {
+        assert_eq!(
+            derive_plural_variable(&BTreeMap::from([
+                ("count".to_owned(), vec!["1".to_owned()]),
+                ("items".to_owned(), vec!["files".to_owned()]),
+            ])),
+            Some("count".to_owned())
+        );
+        assert_eq!(
+            derive_plural_variable(&BTreeMap::from([(
+                "items".to_owned(),
+                vec!["files".to_owned()],
+            )])),
+            Some("items".to_owned())
+        );
+        assert_eq!(
+            derive_plural_variable(&BTreeMap::from([
+                ("1".to_owned(), vec!["eins".to_owned()]),
+                ("2".to_owned(), vec!["zwei".to_owned()]),
+            ])),
+            None
+        );
+        assert_eq!(
+            derive_plural_variable(&BTreeMap::from([
+                ("files".to_owned(), vec!["many".to_owned()]),
+                ("items".to_owned(), vec!["many".to_owned()]),
+            ])),
+            None
+        );
+    }
+
+    #[test]
+    fn synthesize_and_project_icu_plural_cover_supported_and_unsupported_cases() {
+        let synthesized = synthesize_icu_plural(
+            "count",
+            &BTreeMap::from([
+                ("other".to_owned(), "# files".to_owned()),
+                ("one".to_owned(), "# file".to_owned()),
+            ]),
+        );
+        assert_eq!(synthesized, "{count, plural, one {# file} other {# files}}");
+
+        assert!(matches!(
+            project_icu_plural("{count, plural, offset:1 one {# file} other {# files}}"),
+            IcuPluralProjection::Unsupported(message) if message.contains("offset")
+        ));
+        assert!(matches!(
+            project_icu_plural("{count, plural, =0 {none} other {# files}}"),
+            IcuPluralProjection::Unsupported(message) if message.contains("exact-match")
+        ));
+        assert!(matches!(
+            project_icu_plural("{count, plural, one {{gender, select, other {# file}}} other {# files}}"),
+            IcuPluralProjection::Unsupported(message) if message.contains("Nested ICU")
+        ));
+        assert!(matches!(
+            project_icu_plural("{count, plural, one {# file}}"),
+            IcuPluralProjection::Malformed
+        ));
+        assert!(matches!(
+            project_icu_plural("plain text"),
+            IcuPluralProjection::NotPlural
+        ));
+    }
+
+    #[test]
+    fn locale_normalization_and_cache_helpers_cover_hits_and_misses() {
+        assert_eq!(normalize_plural_locale(" pt_BR "), "pt-BR");
+        assert_eq!(
+            split_icu_kind(b"plural, one {x}").map(|(kind, _)| kind),
+            Some(&b"plural"[..])
+        );
+        assert_eq!(split_icu_kind(b"").map(|(kind, _)| kind), None);
+
+        let cache = Mutex::new(HashMap::new());
+        assert_eq!(cached_icu_plural_categories_for("   ", &cache), None);
+        assert!(
+            cached_icu_plural_categories_for("de", &cache)
+                .expect("categories")
+                .iter()
+                .any(|category| category == "other")
+        );
     }
 }

@@ -311,3 +311,188 @@ fn take_line(input: &str, start: usize) -> Option<(&str, usize)> {
         None => Some((&input[start..], input.len())),
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::collections::BTreeMap;
+
+    use super::{
+        CanonicalMessage, CanonicalTranslation, Catalog, CatalogOrigin, CatalogSemantics,
+        NDJSON_FORMAT, PlaceholderCommentMode, normalize_input, parse_catalog_to_internal_ndjson,
+        parse_frontmatter, stringify_catalog_ndjson, take_line,
+    };
+
+    fn sample_catalog() -> Catalog {
+        Catalog {
+            locale: Some("de".to_owned()),
+            headers: BTreeMap::new(),
+            file_comments: Vec::new(),
+            file_extracted_comments: Vec::new(),
+            messages: vec![
+                CanonicalMessage {
+                    msgid: "About us".to_owned(),
+                    msgctxt: Some("nav".to_owned()),
+                    translation: CanonicalTranslation::Singular {
+                        value: "Ueber uns".to_owned(),
+                    },
+                    comments: vec!["Shown in nav".to_owned()],
+                    origins: vec![CatalogOrigin {
+                        file: "src/nav.rs".to_owned(),
+                        line: Some(4),
+                    }],
+                    placeholders: BTreeMap::new(),
+                    obsolete: false,
+                    translator_comments: vec!["Keep short".to_owned()],
+                    flags: vec!["fuzzy".to_owned()],
+                },
+                CanonicalMessage {
+                    msgid: "files".to_owned(),
+                    msgctxt: None,
+                    translation: CanonicalTranslation::Plural {
+                        source: super::super::PluralSource {
+                            one: Some("# file".to_owned()),
+                            other: "# files".to_owned(),
+                        },
+                        translation_by_category: BTreeMap::from([
+                            ("one".to_owned(), "# Datei".to_owned()),
+                            ("other".to_owned(), "# Dateien".to_owned()),
+                        ]),
+                        variable: "count".to_owned(),
+                    },
+                    comments: Vec::new(),
+                    origins: Vec::new(),
+                    placeholders: BTreeMap::new(),
+                    obsolete: true,
+                    translator_comments: Vec::new(),
+                    flags: Vec::new(),
+                },
+            ],
+            diagnostics: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn frontmatter_parser_accepts_valid_blocks_and_rejects_invalid_ones() {
+        let (frontmatter, body) = parse_frontmatter(concat!(
+            "---\n",
+            "format: ferrocat.ndjson.v1\n",
+            "locale: de\n",
+            "source_locale: en\n",
+            "---\n",
+            "{\"id\":\"About us\",\"str\":\"Ueber uns\"}\n",
+        ))
+        .expect("frontmatter");
+        assert_eq!(frontmatter.locale.as_deref(), Some("de"));
+        assert_eq!(frontmatter.source_locale.as_deref(), Some("en"));
+        assert!(body.contains("\"About us\""));
+
+        for invalid in [
+            "format: ferrocat.ndjson.v1\n---\n",
+            "---\nlocale: de\n---\n",
+            "---\nformat: wrong\n---\n",
+            "---\nformat: ferrocat.ndjson.v1\nformat: ferrocat.ndjson.v1\n---\n",
+            "---\nformat: ferrocat.ndjson.v1\nunknown: value\n---\n",
+            "---\nformat: ferrocat.ndjson.v1\n",
+        ] {
+            assert!(parse_frontmatter(invalid).is_err(), "{invalid:?}");
+        }
+    }
+
+    #[test]
+    fn normalize_input_and_take_line_handle_bom_and_crlf() {
+        assert_eq!(normalize_input("\u{feff}a\r\nb\r").as_ref(), "a\nb\n");
+        assert_eq!(take_line("alpha\nbeta", 0), Some(("alpha", 6)));
+        assert_eq!(take_line("alpha\nbeta", 6), Some(("beta", 10)));
+        assert_eq!(take_line("alpha\nbeta", 10), None);
+    }
+
+    #[test]
+    fn ndjson_roundtrip_keeps_comments_metadata_and_plural_rendering() {
+        let rendered = stringify_catalog_ndjson(
+            &sample_catalog(),
+            Some("de"),
+            "en",
+            &PlaceholderCommentMode::Disabled,
+        );
+        assert!(rendered.contains(&format!("format: {NDJSON_FORMAT}")));
+        assert!(rendered.contains("\"ctx\":\"nav\""));
+        assert!(rendered.contains("\"translator_comments\":[\"Keep short\"]"));
+        assert!(rendered.contains("{count, plural, one {# Datei} other {# Dateien}}"));
+
+        let parsed = parse_catalog_to_internal_ndjson(
+            &rendered,
+            None,
+            "en",
+            CatalogSemantics::IcuNative,
+            false,
+        )
+        .expect("roundtrip parse");
+
+        assert_eq!(parsed.locale.as_deref(), Some("de"));
+        assert_eq!(parsed.messages.len(), 2);
+        assert_eq!(parsed.messages[0].msgctxt.as_deref(), Some("nav"));
+        assert_eq!(parsed.messages[0].origins[0].file, "src/nav.rs");
+        assert_eq!(
+            parsed.messages[0].translator_comments,
+            vec!["Keep short".to_owned()]
+        );
+        assert_eq!(parsed.messages[0].flags, vec!["fuzzy".to_owned()]);
+        assert!(parsed.messages[1].obsolete);
+    }
+
+    #[test]
+    fn ndjson_parser_rejects_invalid_semantics_duplicates_and_bad_json() {
+        let duplicate = concat!(
+            "---\n",
+            "format: ferrocat.ndjson.v1\n",
+            "source_locale: en\n",
+            "---\n",
+            "{\"id\":\"About us\",\"str\":\"A\"}\n",
+            "{\"id\":\"About us\",\"str\":\"B\"}\n",
+        );
+        assert!(
+            parse_catalog_to_internal_ndjson(
+                duplicate,
+                None,
+                "en",
+                CatalogSemantics::IcuNative,
+                false
+            )
+            .is_err()
+        );
+
+        assert!(
+            parse_catalog_to_internal_ndjson(
+                concat!(
+                    "---\n",
+                    "format: ferrocat.ndjson.v1\n",
+                    "source_locale: en\n",
+                    "---\n",
+                    "{\"id\":\"About us\",\"str\":\"A\",\n",
+                ),
+                None,
+                "en",
+                CatalogSemantics::IcuNative,
+                false
+            )
+            .is_err()
+        );
+
+        assert!(
+            parse_catalog_to_internal_ndjson(
+                concat!(
+                    "---\n",
+                    "format: ferrocat.ndjson.v1\n",
+                    "source_locale: en\n",
+                    "---\n",
+                    "{\"id\":\"About us\",\"str\":\"A\"}\n",
+                ),
+                None,
+                "en",
+                CatalogSemantics::GettextCompat,
+                false
+            )
+            .is_err()
+        );
+    }
+}
