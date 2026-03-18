@@ -119,7 +119,19 @@ Across all of these layers, `ferrocat` keeps a conservative gettext-compatibilit
 
 The borrowed parser exists because real PO workflows are often read-heavy and transformation-heavy. In those paths, avoiding unnecessary allocation is the difference between a pleasant API and a scalable one.
 
-At the high-level catalog layer, storage is now an explicit choice. `CatalogStorageFormat::Po` remains the default, while `CatalogStorageFormat::Ndjson` enables a frontmatter + NDJSON representation where each message is stored as one JSON record per line.
+At the high-level catalog layer, both storage and semantics are now explicit choices. `CatalogStorageFormat::Po` remains the default storage format, while `CatalogStorageFormat::Ndjson` enables a frontmatter + NDJSON representation where each message is stored as one JSON record per line.
+
+`CatalogSemantics::IcuNative` is now the default high-level mode:
+
+- ICU strings stay as raw text during parse and update
+- top-level ICU plurals are no longer eagerly projected into `TranslationShape::Plural`
+- `CatalogStorageFormat::Ndjson` is available only in this native mode
+
+`CatalogSemantics::GettextCompat` is the explicit bridge mode for classic PO plural workflows:
+
+- classic `msgid_plural` / `msgstr[n]` is accepted and emitted for PO
+- runtime artifacts still bridge to final ICU strings at the compile boundary
+- NDJSON is intentionally out of scope for this compat path
 
 ```rust
 use ferrocat::{CatalogStorageFormat, ParseCatalogOptions, parse_catalog};
@@ -224,7 +236,7 @@ This higher-level compile path is meant for runtime/export tooling that wants:
 - explicit missing-message reporting for non-source locales
 - final ICU-string validation diagnostics
 
-Use `NormalizedParsedCatalog::compile` when you only want the smaller typed runtime lookup layer for one normalized catalog. Use `compile_catalog_artifact` when you need the fully resolved locale-specific runtime artifact that downstream loaders or bundlers can consume directly. Use `compile_catalog_artifact_selected` when a host adapter already knows the exact compiled runtime IDs it needs and wants only that subset. Use `CompiledCatalogIdIndex` when a host adapter wants to cache the ordered `compiled_id -> source_key` mapping or ask Ferrocat which requested IDs are known, available in a given catalog set, and singular vs plural before compiling payloads.
+Use `NormalizedParsedCatalog::compile` when you only want the smaller typed runtime lookup layer for one normalized catalog. In `CatalogSemantics::IcuNative`, compiled values are singular runtime strings even when the source text is an ICU plural. In `CatalogSemantics::GettextCompat`, compiled values can still be structured plurals. Use `compile_catalog_artifact` when you need the fully resolved locale-specific runtime artifact that downstream loaders or bundlers can consume directly. Use `compile_catalog_artifact_selected` when a host adapter already knows the exact compiled runtime IDs it needs and wants only that subset. Use `CompiledCatalogIdIndex` when a host adapter wants to cache the ordered `compiled_id -> source_key` mapping or ask Ferrocat which requested IDs are known, available in a given catalog set, and singular vs plural before compiling payloads.
 
 ## Project Status
 

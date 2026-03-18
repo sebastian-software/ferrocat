@@ -4,10 +4,10 @@ use serde::{Deserialize, Serialize};
 
 use super::catalog::{
     CanonicalMessage, CanonicalTranslation, Catalog, append_placeholder_comments,
-    plural_source_branches, split_placeholder_comments, textual_translation_from_strings,
+    plural_source_branches, split_placeholder_comments,
 };
 use super::plural::synthesize_icu_plural;
-use super::{ApiError, CatalogOrigin, PlaceholderCommentMode, PluralEncoding};
+use super::{ApiError, CatalogOrigin, CatalogSemantics, PlaceholderCommentMode};
 
 const FRONTMATTER_DELIMITER: &str = "---";
 const NDJSON_FORMAT: &str = "ferrocat.ndjson.v1";
@@ -56,8 +56,15 @@ pub(super) fn parse_catalog_to_internal_ndjson(
     content: &str,
     locale_override: Option<&str>,
     source_locale: &str,
-    strict: bool,
+    semantics: CatalogSemantics,
+    _strict: bool,
 ) -> Result<Catalog, ApiError> {
+    if semantics != CatalogSemantics::IcuNative {
+        return Err(ApiError::Unsupported(
+            "CatalogSemantics::GettextCompat is not supported for NDJSON catalogs".to_owned(),
+        ));
+    }
+
     let normalized = normalize_input(content);
     let (frontmatter, body) = parse_frontmatter(normalized.as_ref())?;
     if let Some(header_source_locale) = &frontmatter.source_locale
@@ -71,7 +78,7 @@ pub(super) fn parse_catalog_to_internal_ndjson(
 
     let locale = locale_override.map(str::to_owned).or(frontmatter.locale);
 
-    let mut diagnostics = Vec::new();
+    let diagnostics = Vec::new();
     let mut seen = BTreeSet::<(String, Option<String>)>::new();
     let mut messages = Vec::new();
 
@@ -95,20 +102,11 @@ pub(super) fn parse_catalog_to_internal_ndjson(
         }
 
         let (comments, placeholders) = split_placeholder_comments(record.comments);
-        let translation = textual_translation_from_strings(
-            &record.id,
-            record.ctx.as_deref(),
-            &record.str,
-            PluralEncoding::Icu,
-            strict,
-            &mut diagnostics,
-        )?;
-
         let extra = record.extra.unwrap_or_default();
         messages.push(CanonicalMessage {
             msgid: record.id,
             msgctxt: record.ctx,
-            translation,
+            translation: CanonicalTranslation::Singular { value: record.str },
             comments,
             origins: record
                 .origin

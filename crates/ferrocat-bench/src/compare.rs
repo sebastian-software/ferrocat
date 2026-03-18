@@ -13,8 +13,8 @@ use std::time::Instant;
 use ferrocat_icu::{IcuMessage, IcuNode, IcuOption, IcuPluralKind, parse_icu};
 use ferrocat_po::{
     BorrowedMsgStr, BorrowedPoFile, CatalogMessage, CatalogMessageExtra, CatalogOrigin,
-    CatalogStorageFormat, ExtractedMessage, MergeExtractedMessage, MsgStr, ParseCatalogOptions,
-    ParsedCatalog, PluralEncoding, PoFile, SerializeOptions, TranslationShape,
+    CatalogSemantics, CatalogStorageFormat, ExtractedMessage, MergeExtractedMessage, MsgStr,
+    ParseCatalogOptions, ParsedCatalog, PluralEncoding, PoFile, SerializeOptions, TranslationShape,
     UpdateCatalogOptions, merge_catalog, parse_catalog, parse_po, parse_po_borrowed, stringify_po,
     update_catalog,
 };
@@ -521,6 +521,7 @@ impl PreparedScenario {
                     locale: fixture_locale(&first.fixture).as_deref(),
                     source_locale: "en",
                     storage_format: CatalogStorageFormat::Po,
+                    semantics: CatalogSemantics::IcuNative,
                     plural_encoding: PluralEncoding::Icu,
                     strict: false,
                 })
@@ -835,6 +836,7 @@ impl PreparedScenario {
                 locale: locale.as_deref(),
                 source_locale: "en",
                 storage_format,
+                semantics: CatalogSemantics::IcuNative,
                 plural_encoding: PluralEncoding::Icu,
                 strict: false,
             })
@@ -963,6 +965,7 @@ impl PreparedScenario {
                 source_locale: "en",
                 input: fixture.api_messages.clone().into(),
                 existing: Some(fixture.existing_po.as_str()),
+                semantics: semantics_for_plural_encoding(plural_encoding),
                 plural_encoding,
                 ..UpdateCatalogOptions::default()
             })
@@ -1415,6 +1418,13 @@ fn fixture_plural_encoding(name: &str) -> PluralEncoding {
         PluralEncoding::Gettext
     } else {
         PluralEncoding::Icu
+    }
+}
+
+fn semantics_for_plural_encoding(plural_encoding: PluralEncoding) -> CatalogSemantics {
+    match plural_encoding {
+        PluralEncoding::Icu => CatalogSemantics::IcuNative,
+        PluralEncoding::Gettext => CatalogSemantics::GettextCompat,
     }
 }
 

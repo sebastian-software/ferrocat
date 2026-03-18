@@ -1,11 +1,11 @@
 pub(super) use super::{
-    ApiError, CatalogMessageKey, CatalogOrigin, CatalogStorageFormat, CatalogUpdateInput,
-    CompileCatalogArtifactOptions, CompileCatalogOptions, CompileSelectedCatalogArtifactOptions,
-    CompiledCatalogIdIndex, CompiledCatalogTranslationKind, CompiledKeyStrategy,
-    CompiledTranslation, DiagnosticSeverity, EffectiveTranslation, EffectiveTranslationRef,
-    ExtractedMessage, ExtractedPluralMessage, ExtractedSingularMessage, ObsoleteStrategy,
-    ParseCatalogOptions, PluralEncoding, PluralSource, SourceExtractedMessage, TranslationShape,
-    UpdateCatalogFileOptions, UpdateCatalogOptions, compile::compiled_key_for,
+    ApiError, CatalogMessageKey, CatalogOrigin, CatalogSemantics, CatalogStorageFormat,
+    CatalogUpdateInput, CompileCatalogArtifactOptions, CompileCatalogOptions,
+    CompileSelectedCatalogArtifactOptions, CompiledCatalogIdIndex, CompiledCatalogTranslationKind,
+    CompiledKeyStrategy, CompiledTranslation, DiagnosticSeverity, EffectiveTranslation,
+    EffectiveTranslationRef, ExtractedMessage, ExtractedPluralMessage, ExtractedSingularMessage,
+    ObsoleteStrategy, ParseCatalogOptions, PluralEncoding, PluralSource, SourceExtractedMessage,
+    TranslationShape, UpdateCatalogFileOptions, UpdateCatalogOptions, compile::compiled_key_for,
     compile_catalog_artifact, compile_catalog_artifact_selected, compiled_key, parse_catalog,
     plural::cached_icu_plural_categories_for, update_catalog, update_catalog_file,
 };
@@ -31,11 +31,16 @@ pub(super) fn normalized_catalog(
     locale: Option<&str>,
     plural_encoding: PluralEncoding,
 ) -> super::NormalizedParsedCatalog {
+    let semantics = match plural_encoding {
+        PluralEncoding::Icu => CatalogSemantics::IcuNative,
+        PluralEncoding::Gettext => CatalogSemantics::GettextCompat,
+    };
     parse_catalog(ParseCatalogOptions {
         content,
         source_locale: "en",
         locale,
         storage_format: CatalogStorageFormat::Po,
+        semantics,
         plural_encoding,
         ..ParseCatalogOptions::default()
     })
@@ -53,6 +58,7 @@ pub(super) fn normalized_ndjson_catalog(
         source_locale: "en",
         locale,
         storage_format: CatalogStorageFormat::Ndjson,
+        semantics: CatalogSemantics::IcuNative,
         plural_encoding: PluralEncoding::Icu,
         ..ParseCatalogOptions::default()
     })

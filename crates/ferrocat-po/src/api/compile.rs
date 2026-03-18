@@ -11,7 +11,7 @@ use sha2::{Digest, Sha256};
 
 use super::plural::synthesize_icu_plural;
 use super::{
-    ApiError, CatalogMessage, CatalogMessageKey, CompileCatalogArtifactOptions,
+    ApiError, CatalogMessage, CatalogMessageKey, CatalogSemantics, CompileCatalogArtifactOptions,
     CompileCatalogOptions, CompileSelectedCatalogArtifactOptions, CompiledCatalog,
     CompiledCatalogArtifact, CompiledCatalogDiagnostic, CompiledCatalogIdIndex,
     CompiledCatalogMissingMessage, CompiledCatalogTranslationKind, CompiledKeyStrategy,
@@ -66,6 +66,7 @@ impl NormalizedParsedCatalog {
     where
         F: FnMut(CompiledKeyStrategy, &CatalogMessageKey) -> String,
     {
+        validate_compiled_catalog_semantics(self, options.semantics)?;
         let source_locale = if options.source_fallback {
             Some(options.source_locale.ok_or_else(|| {
                 ApiError::InvalidArguments(
@@ -78,15 +79,26 @@ impl NormalizedParsedCatalog {
         let mut entries = BTreeMap::new();
 
         for (source_key, message) in self.iter() {
-            let translation = source_locale.map_or_else(
-                || compiled_translation_from_effective(message.effective_translation_owned()),
+            let effective = source_locale.map_or_else(
+                || message.effective_translation_owned(),
                 |source_locale| {
-                    compiled_translation_from_effective(
-                        self.effective_translation_with_source_fallback(source_key, source_locale)
-                            .expect("normalized catalog lookup"),
-                    )
+                    self.effective_translation_with_source_fallback(source_key, source_locale)
+                        .expect("normalized catalog lookup")
                 },
             );
+            let translation = compiled_translation_for_message(
+                message,
+                effective,
+                self.parsed_catalog().semantics,
+            )
+            .ok_or_else(|| {
+                ApiError::InvalidArguments(format!(
+                    "catalog semantics {:?} were inconsistent with message {:?} / {:?}",
+                    self.parsed_catalog().semantics,
+                    source_key.msgctxt,
+                    source_key.msgid
+                ))
+            })?;
             let compiled_key = key_generator(options.key_strategy, source_key);
             let compiled_message = CompiledMessage {
                 key: compiled_key.clone(),
@@ -136,6 +148,7 @@ pub fn compile_catalog_artifact(
         options.requested_locale,
         options.source_locale,
         options.fallback_chain,
+        options.semantics,
     )?;
     compile_catalog_artifact_from_source_keys(
         &locales,
@@ -163,6 +176,7 @@ pub fn compile_catalog_artifact_selected(
         artifact_options.requested_locale,
         artifact_options.source_locale,
         artifact_options.fallback_chain,
+        artifact_options.semantics,
     )?;
 
     let mut source_keys = BTreeSet::new();
@@ -185,10 +199,24 @@ pub fn compile_catalog_artifact_selected(
     compile_catalog_artifact_from_source_keys(&locales, source_keys, &artifact_options)
 }
 
-fn compiled_translation_from_effective(value: EffectiveTranslation) -> CompiledTranslation {
-    match value {
-        EffectiveTranslation::Singular(value) => CompiledTranslation::Singular(value),
-        EffectiveTranslation::Plural(values) => CompiledTranslation::Plural(values),
+fn compiled_translation_for_message(
+    message: &CatalogMessage,
+    value: EffectiveTranslation,
+    semantics: CatalogSemantics,
+) -> Option<CompiledTranslation> {
+    match (&message.translation, value) {
+        (TranslationShape::Singular { .. }, EffectiveTranslation::Singular(value)) => {
+            Some(CompiledTranslation::Singular(value))
+        }
+        (TranslationShape::Plural { variable, .. }, EffectiveTranslation::Plural(values)) => {
+            match semantics {
+                CatalogSemantics::IcuNative => Some(CompiledTranslation::Singular(
+                    synthesize_icu_plural(variable, &values),
+                )),
+                CatalogSemantics::GettextCompat => Some(CompiledTranslation::Plural(values)),
+            }
+        }
+        _ => None,
     }
 }
 
@@ -310,11 +338,17 @@ pub(super) fn describe_compiled_id_catalogs<'a>(
 }
 
 pub(super) fn compiled_catalog_translation_kind_for_message(
+    semantics: CatalogSemantics,
     message: &CatalogMessage,
 ) -> CompiledCatalogTranslationKind {
-    match &message.translation {
-        TranslationShape::Singular { .. } => CompiledCatalogTranslationKind::Singular,
-        TranslationShape::Plural { .. } => CompiledCatalogTranslationKind::Plural,
+    match (semantics, &message.translation) {
+        (_, TranslationShape::Singular { .. }) => CompiledCatalogTranslationKind::Singular,
+        (CatalogSemantics::IcuNative, TranslationShape::Plural { .. }) => {
+            CompiledCatalogTranslationKind::Singular
+        }
+        (CatalogSemantics::GettextCompat, TranslationShape::Plural { .. }) => {
+            CompiledCatalogTranslationKind::Plural
+        }
     }
 }
 
@@ -327,6 +361,7 @@ fn prepare_compiled_catalog_artifact_catalogs<'a>(
     requested_locale: &str,
     source_locale: &str,
     fallback_chain: &[String],
+    semantics: CatalogSemantics,
 ) -> Result<BTreeMap<String, &'a NormalizedParsedCatalog>, ApiError> {
     super::validate_source_locale(source_locale)?;
     if requested_locale.trim().is_empty() {
@@ -342,6 +377,7 @@ fn prepare_compiled_catalog_artifact_catalogs<'a>(
 
     let mut locales = BTreeMap::<String, &NormalizedParsedCatalog>::new();
     for catalog in catalogs {
+        validate_compiled_catalog_semantics(catalog, semantics)?;
         let locale = catalog
             .parsed_catalog()
             .locale
@@ -587,4 +623,20 @@ fn message_has_runtime_translation(message: &CatalogMessage) -> bool {
             translation.values().any(|value| !value.is_empty())
         }
     }
+}
+
+fn validate_compiled_catalog_semantics(
+    catalog: &NormalizedParsedCatalog,
+    expected: CatalogSemantics,
+) -> Result<(), ApiError> {
+    let actual = catalog.parsed_catalog().semantics;
+    if actual != expected {
+        return Err(ApiError::InvalidArguments(format!(
+            "compile options requested {:?} semantics, but catalog locale {:?} uses {:?}",
+            expected,
+            catalog.parsed_catalog().locale,
+            actual
+        )));
+    }
+    Ok(())
 }

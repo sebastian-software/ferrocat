@@ -15,3 +15,4 @@ Current records:
 - [0009: Use Versioned, Truncated SHA-256 Keys for Runtime Catalog Compilation](0009-runtime-catalog-compiled-key-strategy.md)
 - [0010: Add a Locale-Resolved Compiled Catalog Artifact API](0010-compiled-catalog-artifact-api.md)
 - [0011: Add an NDJSON Storage Format for High-Level Catalog Workflows](0011-ndjson-catalog-storage-format.md)
+- [0012: Make the High-Level Catalog API ICU-Native by Default and Move Gettext Plurals Behind an Explicit Compat Mode](0012-icu-native-core-and-gettext-compat-semantics.md)

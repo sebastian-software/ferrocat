@@ -88,7 +88,7 @@ In practice this is the "fast path" workflow API: it stays close to classic PO m
 
 ### `parse_catalog`
 
-Use this when you want more than raw PO syntax. It projects a PO or NDJSON catalog into `ferrocat`'s higher-level catalog model, including plural handling, diagnostics, and optional ICU-aware interpretation.
+Use this when you want more than raw PO syntax. It projects a PO or NDJSON catalog into `ferrocat`'s higher-level catalog model, with explicit storage and semantics choices.
 
 Choose this when your application wants semantic catalog data rather than just PO syntax nodes.
 
@@ -98,6 +98,18 @@ High-level catalog parsing now also takes an explicit `storage_format`:
 
 - `CatalogStorageFormat::Po` for classic gettext `.po`
 - `CatalogStorageFormat::Ndjson` for Ferrocat's frontmatter + NDJSON catalog storage
+
+High-level parsing also takes an explicit `CatalogSemantics`:
+
+- `CatalogSemantics::IcuNative` is the default and keeps ICU/text messages raw
+- `CatalogSemantics::GettextCompat` is the explicit classic gettext plural mode
+
+Important boundaries:
+
+- `CatalogSemantics::IcuNative` only supports `PluralEncoding::Icu`
+- `CatalogSemantics::GettextCompat` only supports `PluralEncoding::Gettext`
+- `CatalogStorageFormat::Ndjson` is available only with `CatalogSemantics::IcuNative`
+- native parsing no longer eagerly projects top-level ICU plurals into `TranslationShape::Plural`
 
 `parse_catalog` intentionally stays as the neutral parse step. If you want keyed lookups or effective-translation helpers, build a richer view explicitly with `ParsedCatalog::into_normalized_view()`.
 
@@ -208,6 +220,13 @@ Compared with `merge_catalog`, this is the "full semantics" path. It is the bett
 
 Like parsing, updates now use an explicit `storage_format`. PO remains the default. NDJSON storage uses a small frontmatter header plus one JSON message record per line.
 
+Updates also use an explicit `CatalogSemantics`:
+
+- `IcuNative` is the default and writes raw ICU/text messages
+- `GettextCompat` is the explicit PO-interop mode and writes classic gettext plurals
+
+In native mode, `CatalogUpdateInput::SourceFirst` stays source-text-first; it no longer auto-projects ICU strings into structured plural messages. Use `CatalogUpdateInput::Structured` when you want explicit plural structure.
+
 In `NDJSON` storage, arbitrary gettext-style custom headers are intentionally out of scope for `v1`; only the explicit frontmatter metadata is persisted.
 
 ### `update_catalog_file`
@@ -218,7 +237,7 @@ It reads the current file if present, runs the full update, and only writes back
 
 Choose this for CLI tools, task runners, or build/dev pipelines that work directly on catalog files on disk.
 
-Like `update_catalog`, it accepts `CatalogUpdateInput`, so source-string-first tooling can hand off plural projection and catalog-shaping to Ferrocat instead of pre-projecting everything into `ExtractedMessage`.
+Like `update_catalog`, it accepts `CatalogUpdateInput`, so source-string-first tooling can choose between a raw source-first path and an explicitly structured plural path without having to write PO/NDJSON itself.
 
 `UpdateCatalogFileOptions` borrows both the path and the locale/header inputs, so file-based automation can call it without constructing throwaway owned request objects.
 

@@ -66,19 +66,19 @@ mod text;
 mod utf8;
 
 pub use api::{
-    ApiError, CatalogMessage, CatalogMessageExtra, CatalogMessageKey, CatalogOrigin, CatalogStats,
-    CatalogStorageFormat, CatalogUpdateInput, CatalogUpdateResult, CompileCatalogArtifactOptions,
-    CompileCatalogOptions, CompileSelectedCatalogArtifactOptions, CompiledCatalog,
-    CompiledCatalogArtifact, CompiledCatalogDiagnostic, CompiledCatalogIdDescription,
-    CompiledCatalogIdIndex, CompiledCatalogMissingMessage, CompiledCatalogTranslationKind,
-    CompiledCatalogUnavailableId, CompiledKeyStrategy, CompiledMessage, CompiledTranslation,
-    DescribeCompiledIdsReport, Diagnostic, DiagnosticSeverity, EffectiveTranslation,
-    EffectiveTranslationRef, ExtractedMessage, ExtractedPluralMessage, ExtractedSingularMessage,
-    NormalizedParsedCatalog, ObsoleteStrategy, OrderBy, ParseCatalogOptions, ParsedCatalog,
-    PlaceholderCommentMode, PluralEncoding, PluralSource, SourceExtractedMessage, TranslationShape,
-    UpdateCatalogFileOptions, UpdateCatalogOptions, compile_catalog_artifact,
-    compile_catalog_artifact_selected, compiled_key, parse_catalog, update_catalog,
-    update_catalog_file,
+    ApiError, CatalogMessage, CatalogMessageExtra, CatalogMessageKey, CatalogOrigin,
+    CatalogSemantics, CatalogStats, CatalogStorageFormat, CatalogUpdateInput, CatalogUpdateResult,
+    CompileCatalogArtifactOptions, CompileCatalogOptions, CompileSelectedCatalogArtifactOptions,
+    CompiledCatalog, CompiledCatalogArtifact, CompiledCatalogDiagnostic,
+    CompiledCatalogIdDescription, CompiledCatalogIdIndex, CompiledCatalogMissingMessage,
+    CompiledCatalogTranslationKind, CompiledCatalogUnavailableId, CompiledKeyStrategy,
+    CompiledMessage, CompiledTranslation, DescribeCompiledIdsReport, Diagnostic,
+    DiagnosticSeverity, EffectiveTranslation, EffectiveTranslationRef, ExtractedMessage,
+    ExtractedPluralMessage, ExtractedSingularMessage, NormalizedParsedCatalog, ObsoleteStrategy,
+    OrderBy, ParseCatalogOptions, ParsedCatalog, PlaceholderCommentMode, PluralEncoding,
+    PluralSource, SourceExtractedMessage, TranslationShape, UpdateCatalogFileOptions,
+    UpdateCatalogOptions, compile_catalog_artifact, compile_catalog_artifact_selected,
+    compiled_key, parse_catalog, update_catalog, update_catalog_file,
 };
 pub use borrowed::{
     BorrowedHeader, BorrowedMsgStr, BorrowedPoFile, BorrowedPoItem, parse_po_borrowed,

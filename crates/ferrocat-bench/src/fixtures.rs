@@ -1799,8 +1799,8 @@ fn scan_stats(content: &str) -> FixtureStats {
 mod tests {
     use ferrocat_icu::parse_icu;
     use ferrocat_po::{
-        CatalogStorageFormat, ParseCatalogOptions, PluralEncoding, UpdateCatalogOptions,
-        parse_catalog, update_catalog,
+        CatalogSemantics, CatalogStorageFormat, ParseCatalogOptions, PluralEncoding,
+        UpdateCatalogOptions, parse_catalog, update_catalog,
     };
 
     use super::{fixture_by_name, icu_fixture_by_name, merge_fixture_by_name};
@@ -1905,6 +1905,7 @@ mod tests {
             locale: Some("de"),
             source_locale: "en",
             storage_format: CatalogStorageFormat::Po,
+            semantics: CatalogSemantics::IcuNative,
             plural_encoding: PluralEncoding::Icu,
             strict: false,
         })
@@ -1937,6 +1938,7 @@ mod tests {
             source_locale: "en",
             input: fixture.api_extracted_messages().to_vec().into(),
             existing: Some(fixture.existing_po()),
+            semantics: CatalogSemantics::IcuNative,
             plural_encoding: PluralEncoding::Icu,
             ..UpdateCatalogOptions::default()
         })
@@ -1947,24 +1949,19 @@ mod tests {
     }
 
     #[test]
-    fn update_catalog_preserves_diagnostics_for_unsupported_icu_fixture() {
+    fn update_catalog_keeps_unsupported_icu_fixture_raw_in_native_mode() {
         let fixture = merge_fixture_by_name("catalog-icu-unsupported").expect("fixture exists");
         let result = update_catalog(UpdateCatalogOptions {
             locale: Some("de"),
             source_locale: "en",
             input: fixture.api_extracted_messages().to_vec().into(),
             existing: Some(fixture.existing_po()),
+            semantics: CatalogSemantics::IcuNative,
             plural_encoding: PluralEncoding::Icu,
             ..UpdateCatalogOptions::default()
         })
         .expect("update catalog");
 
-        assert!(!result.diagnostics.is_empty());
-        assert!(
-            result
-                .diagnostics
-                .iter()
-                .any(|diagnostic| diagnostic.code == "plural.unsupported_icu_projection")
-        );
+        assert!(result.diagnostics.is_empty());
     }
 }

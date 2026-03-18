@@ -12,10 +12,10 @@ use conformance_harness::{evaluate_all_cases, summarize_evaluations};
 use ferrocat_conformance::{ConformanceCase, Expectation, ExpectedArtifact, load_all_manifests};
 use ferrocat_icu::{extract_variables, parse_icu, validate_icu};
 use ferrocat_po::{
-    CatalogMessage, CatalogMessageExtra, CatalogStorageFormat, Header, MsgStr, ParseCatalogOptions,
-    ParsedCatalog, PluralEncoding, PoFile, PoItem, SerializeOptions, TranslationShape,
-    UpdateCatalogFileOptions, UpdateCatalogOptions, merge_catalog, parse_catalog, parse_po,
-    parse_po_borrowed, stringify_po, update_catalog, update_catalog_file,
+    CatalogMessage, CatalogMessageExtra, CatalogSemantics, CatalogStorageFormat, Header, MsgStr,
+    ParseCatalogOptions, ParsedCatalog, PluralEncoding, PoFile, PoItem, SerializeOptions,
+    TranslationShape, UpdateCatalogFileOptions, UpdateCatalogOptions, merge_catalog, parse_catalog,
+    parse_po, parse_po_borrowed, stringify_po, update_catalog, update_catalog_file,
 };
 use fixtures::{
     Fixture, IcuFixture, MergeFixture, fixture_by_name, icu_fixture_by_name, merge_fixture_by_name,
@@ -325,6 +325,7 @@ fn bench_parse_catalog_po(fixture: &Fixture, config: BenchConfig) -> Result<(), 
                 locale: inferred_fixture_locale(fixture.name()),
                 source_locale: "en",
                 storage_format: CatalogStorageFormat::Po,
+                semantics: CatalogSemantics::IcuNative,
                 plural_encoding: PluralEncoding::Icu,
                 strict: false,
             })
@@ -360,6 +361,7 @@ fn bench_parse_catalog_ndjson(fixture: &Fixture, config: BenchConfig) -> Result<
                 locale,
                 source_locale: "en",
                 storage_format: CatalogStorageFormat::Ndjson,
+                semantics: CatalogSemantics::IcuNative,
                 plural_encoding: PluralEncoding::Icu,
                 strict: false,
             })
@@ -568,6 +570,7 @@ fn bench_update_catalog(fixture: &MergeFixture, config: BenchConfig) -> Result<(
                 source_locale: "en",
                 input: fixture.api_extracted_messages().to_vec().into(),
                 existing: Some(fixture.existing_po()),
+                semantics: CatalogSemantics::IcuNative,
                 plural_encoding: PluralEncoding::Icu,
                 ..UpdateCatalogOptions::default()
             })
@@ -611,6 +614,7 @@ fn bench_update_catalog_file(fixture: &MergeFixture, config: BenchConfig) -> Res
                 locale: Some("de"),
                 source_locale: "en",
                 input: fixture.api_extracted_messages().to_vec().into(),
+                semantics: CatalogSemantics::IcuNative,
                 plural_encoding: PluralEncoding::Icu,
                 ..UpdateCatalogFileOptions::default()
             })
@@ -662,6 +666,7 @@ fn bench_update_catalog_file_ndjson(
                 source_locale: "en",
                 input: fixture.api_extracted_messages().to_vec().into(),
                 storage_format: CatalogStorageFormat::Ndjson,
+                semantics: CatalogSemantics::IcuNative,
                 plural_encoding: PluralEncoding::Icu,
                 ..UpdateCatalogFileOptions::default()
             })
@@ -993,6 +998,7 @@ fn merge_fixture_existing_ndjson(fixture: &MergeFixture) -> Result<String, Strin
         locale,
         source_locale: "en",
         storage_format: CatalogStorageFormat::Po,
+        semantics: CatalogSemantics::IcuNative,
         plural_encoding: PluralEncoding::Icu,
         strict: false,
     })
@@ -1006,6 +1012,7 @@ fn fixture_parsed_catalog(fixture: &Fixture) -> Result<ParsedCatalog, String> {
         locale: inferred_fixture_locale(fixture.name()),
         source_locale: "en",
         storage_format: CatalogStorageFormat::Po,
+        semantics: CatalogSemantics::IcuNative,
         plural_encoding: PluralEncoding::Icu,
         strict: false,
     })
@@ -1243,7 +1250,9 @@ const fn f64_from_usize(value: usize) -> f64 {
 
 #[cfg(test)]
 mod tests {
-    use ferrocat_po::{CatalogStorageFormat, ParseCatalogOptions, PluralEncoding, parse_catalog};
+    use ferrocat_po::{
+        CatalogSemantics, CatalogStorageFormat, ParseCatalogOptions, PluralEncoding, parse_catalog,
+    };
 
     use super::{
         fixture_by_name, fixture_ndjson_content, fixture_parsed_catalog, render_po_catalog,
@@ -1259,6 +1268,7 @@ mod tests {
             locale,
             source_locale: "en",
             storage_format: CatalogStorageFormat::Ndjson,
+            semantics: CatalogSemantics::IcuNative,
             plural_encoding: PluralEncoding::Icu,
             strict: false,
         })
@@ -1279,6 +1289,7 @@ mod tests {
             locale: Some("de"),
             source_locale: "en",
             storage_format: CatalogStorageFormat::Po,
+            semantics: CatalogSemantics::IcuNative,
             plural_encoding: PluralEncoding::Icu,
             strict: false,
         })

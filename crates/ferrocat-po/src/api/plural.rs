@@ -10,15 +10,24 @@ use std::sync::{Mutex, OnceLock};
 use ferrocat_icu::{IcuMessage, IcuNode, IcuPluralKind, parse_icu};
 use icu_locale::Locale;
 use icu_plurals::{PluralCategory, PluralRules};
+use memchr::memchr;
 
 use super::PluralSource;
 
+#[allow(
+    dead_code,
+    reason = "ICU projection remains available for lazy/on-demand bridges."
+)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct ParsedIcuPlural {
     pub(super) variable: String,
     pub(super) branches: BTreeMap<String, String>,
 }
 
+#[allow(
+    dead_code,
+    reason = "ICU projection remains available for lazy/on-demand bridges."
+)]
 pub(super) enum IcuPluralProjection {
     NotPlural,
     Projected(ParsedIcuPlural),
@@ -134,6 +143,10 @@ impl PluralProfile {
 ///
 /// Missing categories become empty strings so downstream export and fallback
 /// code can treat the map as dense without extra branching.
+#[allow(
+    dead_code,
+    reason = "ICU projection remains available for lazy/on-demand bridges."
+)]
 pub(super) fn materialize_plural_categories(
     categories: &[String],
     translation: &BTreeMap<String, String>,
@@ -303,8 +316,12 @@ pub(super) fn synthesize_icu_plural(variable: &str, branches: &BTreeMap<String, 
 /// Unsupported but valid ICU constructs report `Unsupported` so callers can
 /// keep the message as singular with a targeted diagnostic instead of failing
 /// or guessing.
+#[allow(
+    dead_code,
+    reason = "ICU projection remains available for lazy/on-demand bridges."
+)]
 pub(super) fn project_icu_plural(input: &str) -> IcuPluralProjection {
-    if !looks_like_icu_message(input.as_bytes()) {
+    if !looks_like_projectable_icu_plural(input.as_bytes()) {
         return IcuPluralProjection::NotPlural;
     }
 
@@ -354,10 +371,108 @@ pub(super) fn project_icu_plural(input: &str) -> IcuPluralProjection {
 }
 
 #[inline]
-fn looks_like_icu_message(input: &[u8]) -> bool {
-    input.iter().any(|byte| matches!(byte, b'{' | b'}' | b'<'))
+#[allow(
+    dead_code,
+    reason = "ICU projection remains available for lazy/on-demand bridges."
+)]
+fn looks_like_projectable_icu_plural(input: &[u8]) -> bool {
+    let input = trim_ascii(input);
+    let Some(first) = input.first().copied() else {
+        return false;
+    };
+
+    match first {
+        b'<' => return false,
+        b'{' => {}
+        _ => return false,
+    }
+
+    let Some(after_open) = input.get(1..) else {
+        return false;
+    };
+    let Some(first_comma) = memchr(b',', after_open) else {
+        return false;
+    };
+    if first_comma == 0 {
+        return true;
+    }
+
+    let after_name = trim_ascii_start(&after_open[first_comma + 1..]);
+    let Some((kind, _tail)) = split_icu_kind(after_name) else {
+        return true;
+    };
+
+    if kind == b"plural" {
+        return true;
+    }
+
+    !matches!(
+        kind,
+        b"number"
+            | b"date"
+            | b"time"
+            | b"list"
+            | b"duration"
+            | b"ago"
+            | b"name"
+            | b"select"
+            | b"selectordinal"
+    )
 }
 
+#[allow(
+    dead_code,
+    reason = "ICU projection remains available for lazy/on-demand bridges."
+)]
+fn trim_ascii(input: &[u8]) -> &[u8] {
+    trim_ascii_end(trim_ascii_start(input))
+}
+
+#[allow(
+    dead_code,
+    reason = "ICU projection remains available for lazy/on-demand bridges."
+)]
+fn trim_ascii_start(input: &[u8]) -> &[u8] {
+    let start = input
+        .iter()
+        .position(|byte| !byte.is_ascii_whitespace())
+        .unwrap_or(input.len());
+    &input[start..]
+}
+
+#[allow(
+    dead_code,
+    reason = "ICU projection remains available for lazy/on-demand bridges."
+)]
+fn trim_ascii_end(input: &[u8]) -> &[u8] {
+    let end = input
+        .iter()
+        .rposition(|byte| !byte.is_ascii_whitespace())
+        .map(|index| index + 1)
+        .unwrap_or(0);
+    &input[..end]
+}
+
+#[allow(
+    dead_code,
+    reason = "ICU projection remains available for lazy/on-demand bridges."
+)]
+fn split_icu_kind(input: &[u8]) -> Option<(&[u8], &[u8])> {
+    let token_end = input
+        .iter()
+        .position(|byte| byte.is_ascii_whitespace() || matches!(byte, b',' | b'}'))
+        .unwrap_or(input.len());
+    let kind = input.get(..token_end)?;
+    if kind.is_empty() {
+        return None;
+    }
+    Some((kind, input.get(token_end..).unwrap_or_default()))
+}
+
+#[allow(
+    dead_code,
+    reason = "ICU projection remains available for lazy/on-demand bridges."
+)]
 fn only_node(message: &IcuMessage) -> Option<&IcuNode> {
     match message.nodes.as_slice() {
         [node] => Some(node),
@@ -367,6 +482,10 @@ fn only_node(message: &IcuMessage) -> Option<&IcuNode> {
 
 /// Re-renders a projected ICU subtree back into a string while rejecting nested
 /// select/plural constructs that the catalog model cannot represent.
+#[allow(
+    dead_code,
+    reason = "ICU projection remains available for lazy/on-demand bridges."
+)]
 fn render_projectable_icu_nodes(nodes: &[IcuNode]) -> Result<String, &'static str> {
     let mut out = String::new();
     for node in nodes {
@@ -375,6 +494,10 @@ fn render_projectable_icu_nodes(nodes: &[IcuNode]) -> Result<String, &'static st
     Ok(out)
 }
 
+#[allow(
+    dead_code,
+    reason = "ICU projection remains available for lazy/on-demand bridges."
+)]
 fn render_projectable_icu_node(node: &IcuNode, out: &mut String) -> Result<(), &'static str> {
     match node {
         IcuNode::Literal(value) => append_escaped_icu_literal(out, value),
@@ -414,6 +537,10 @@ fn render_projectable_icu_node(node: &IcuNode, out: &mut String) -> Result<(), &
     Ok(())
 }
 
+#[allow(
+    dead_code,
+    reason = "ICU projection remains available for lazy/on-demand bridges."
+)]
 fn render_formatter(kind: &str, name: &str, style: Option<&str>, out: &mut String) {
     out.push('{');
     out.push_str(name);
@@ -428,6 +555,10 @@ fn render_formatter(kind: &str, name: &str, style: Option<&str>, out: &mut Strin
 
 /// Escapes ICU-sensitive literal characters only when needed, keeping the
 /// common literal path allocation-light.
+#[allow(
+    dead_code,
+    reason = "ICU projection remains available for lazy/on-demand bridges."
+)]
 fn append_escaped_icu_literal(out: &mut String, value: &str) {
     if !value
         .as_bytes()
@@ -448,5 +579,54 @@ fn append_escaped_icu_literal(out: &mut String, value: &str) {
             }
             _ => out.push(ch),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{IcuPluralProjection, looks_like_projectable_icu_plural, project_icu_plural};
+
+    #[test]
+    fn plural_fast_scan_skips_plain_and_mixed_messages() {
+        assert!(!looks_like_projectable_icu_plural(
+            b"Bench 1: Hello {name}, you have {count} items."
+        ));
+        assert!(!looks_like_projectable_icu_plural(
+            b"<link>{name}</link> updated benchmark entry."
+        ));
+        assert!(!looks_like_projectable_icu_plural(
+            b"{count, number, integer}"
+        ));
+        assert!(!looks_like_projectable_icu_plural(b"{name}"));
+    }
+
+    #[test]
+    fn plural_fast_scan_keeps_plural_candidates() {
+        assert!(looks_like_projectable_icu_plural(
+            b"{count, plural, one {# item} other {# items}}"
+        ));
+        assert!(looks_like_projectable_icu_plural(
+            b"{count,plural,one {# item} other {# items}}"
+        ));
+        assert!(looks_like_projectable_icu_plural(
+            b"{count, plural one {# item} other {# items}}"
+        ));
+        assert!(looks_like_projectable_icu_plural(b"{count, plura"));
+    }
+
+    #[test]
+    fn project_icu_plural_keeps_formatter_messages_singular() {
+        assert!(matches!(
+            project_icu_plural("Bench 1: {count, number, integer} items for {name}."),
+            IcuPluralProjection::NotPlural
+        ));
+        assert!(matches!(
+            project_icu_plural("<link>{name}</link> updated benchmark entry."),
+            IcuPluralProjection::NotPlural
+        ));
+        assert!(matches!(
+            project_icu_plural("{count, number, integer}"),
+            IcuPluralProjection::NotPlural
+        ));
     }
 }

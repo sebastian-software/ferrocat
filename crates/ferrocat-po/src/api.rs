@@ -19,12 +19,13 @@ pub use self::compile_types::{
     CompiledMessage, CompiledTranslation, DescribeCompiledIdsReport,
 };
 pub use self::types::{
-    ApiError, CatalogMessage, CatalogMessageExtra, CatalogMessageKey, CatalogOrigin, CatalogStats,
-    CatalogStorageFormat, CatalogUpdateInput, CatalogUpdateResult, Diagnostic, DiagnosticSeverity,
-    EffectiveTranslation, EffectiveTranslationRef, ExtractedMessage, ExtractedPluralMessage,
-    ExtractedSingularMessage, NormalizedParsedCatalog, ObsoleteStrategy, OrderBy,
-    ParseCatalogOptions, ParsedCatalog, PlaceholderCommentMode, PluralEncoding, PluralSource,
-    SourceExtractedMessage, TranslationShape, UpdateCatalogFileOptions, UpdateCatalogOptions,
+    ApiError, CatalogMessage, CatalogMessageExtra, CatalogMessageKey, CatalogOrigin,
+    CatalogSemantics, CatalogStats, CatalogStorageFormat, CatalogUpdateInput, CatalogUpdateResult,
+    Diagnostic, DiagnosticSeverity, EffectiveTranslation, EffectiveTranslationRef,
+    ExtractedMessage, ExtractedPluralMessage, ExtractedSingularMessage, NormalizedParsedCatalog,
+    ObsoleteStrategy, OrderBy, ParseCatalogOptions, ParsedCatalog, PlaceholderCommentMode,
+    PluralEncoding, PluralSource, SourceExtractedMessage, TranslationShape,
+    UpdateCatalogFileOptions, UpdateCatalogOptions,
 };
 
 fn validate_source_locale(source_locale: &str) -> Result<(), ApiError> {
@@ -34,6 +35,31 @@ fn validate_source_locale(source_locale: &str) -> Result<(), ApiError> {
         ));
     }
     Ok(())
+}
+
+fn validate_catalog_semantics(
+    semantics: CatalogSemantics,
+    storage_format: CatalogStorageFormat,
+    plural_encoding: PluralEncoding,
+) -> Result<(), ApiError> {
+    match semantics {
+        CatalogSemantics::IcuNative if plural_encoding != PluralEncoding::Icu => {
+            Err(ApiError::InvalidArguments(
+                "CatalogSemantics::IcuNative requires PluralEncoding::Icu".to_owned(),
+            ))
+        }
+        CatalogSemantics::GettextCompat if plural_encoding != PluralEncoding::Gettext => {
+            Err(ApiError::InvalidArguments(
+                "CatalogSemantics::GettextCompat requires PluralEncoding::Gettext".to_owned(),
+            ))
+        }
+        CatalogSemantics::GettextCompat if storage_format == CatalogStorageFormat::Ndjson => {
+            Err(ApiError::Unsupported(
+                "CatalogSemantics::GettextCompat is not supported for NDJSON catalogs".to_owned(),
+            ))
+        }
+        _ => Ok(()),
+    }
 }
 
 #[cfg(test)]

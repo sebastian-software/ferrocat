@@ -165,7 +165,10 @@ fn compile_catalog_preserves_plural_translation_shape() {
         PluralEncoding::Gettext,
     );
     let compiled = normalized
-        .compile(&CompileCatalogOptions::default())
+        .compile(&CompileCatalogOptions {
+            semantics: CatalogSemantics::GettextCompat,
+            ..CompileCatalogOptions::default()
+        })
         .expect("compile");
 
     let (_, message) = compiled.iter().next().expect("compiled message");
@@ -530,6 +533,7 @@ fn compile_catalog_artifact_requires_requested_and_unique_catalog_locales() {
         &CompileCatalogArtifactOptions {
             requested_locale: "de",
             source_locale: "en",
+            semantics: CatalogSemantics::GettextCompat,
             ..CompileCatalogArtifactOptions::default()
         },
     )
@@ -566,6 +570,7 @@ fn compile_catalog_artifact_collects_or_raises_invalid_icu_messages() {
         &CompileCatalogArtifactOptions {
             requested_locale: "de",
             source_locale: "en",
+            semantics: CatalogSemantics::GettextCompat,
             ..CompileCatalogArtifactOptions::default()
         },
     )
@@ -579,6 +584,7 @@ fn compile_catalog_artifact_collects_or_raises_invalid_icu_messages() {
             requested_locale: "de",
             source_locale: "en",
             strict_icu: true,
+            semantics: CatalogSemantics::GettextCompat,
             ..CompileCatalogArtifactOptions::default()
         },
     )
@@ -909,6 +915,7 @@ fn compile_catalog_artifact_selected_preserves_fallback_and_validation_semantics
             requested_locale: "de",
             source_locale: "en",
             source_fallback: true,
+            semantics: CatalogSemantics::GettextCompat,
             compiled_ids: &[hello_id.clone(), broken_id.clone()],
             ..CompileSelectedCatalogArtifactOptions::default()
         },

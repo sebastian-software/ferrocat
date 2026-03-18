@@ -14,12 +14,9 @@ use super::helpers::{
     merge_unique_strings,
 };
 use super::ndjson::{parse_catalog_to_internal_ndjson, stringify_catalog_ndjson};
-use super::plural::{
-    IcuPluralProjection, PluralProfile, derive_plural_variable, materialize_plural_categories,
-    project_icu_plural, sorted_plural_keys, synthesize_icu_plural,
-};
+use super::plural::{PluralProfile, derive_plural_variable, synthesize_icu_plural};
 use super::{
-    ApiError, CatalogMessage, CatalogMessageExtra, CatalogOrigin, CatalogStats,
+    ApiError, CatalogMessage, CatalogMessageExtra, CatalogOrigin, CatalogSemantics, CatalogStats,
     CatalogStorageFormat, CatalogUpdateInput, CatalogUpdateResult, Diagnostic, DiagnosticSeverity,
     ExtractedMessage, ObsoleteStrategy, OrderBy, ParseCatalogOptions, ParsedCatalog,
     PlaceholderCommentMode, PluralEncoding, PluralSource, TranslationShape,
@@ -100,6 +97,11 @@ struct ParsedPluralFormsHeader {
 )]
 pub fn update_catalog(options: UpdateCatalogOptions<'_>) -> Result<CatalogUpdateResult, ApiError> {
     super::validate_source_locale(options.source_locale)?;
+    super::validate_catalog_semantics(
+        options.semantics,
+        options.storage_format,
+        options.plural_encoding,
+    )?;
 
     let created = options.existing.is_none();
     let original = options.existing.unwrap_or("");
@@ -108,6 +110,7 @@ pub fn update_catalog(options: UpdateCatalogOptions<'_>) -> Result<CatalogUpdate
             content,
             options.locale,
             options.source_locale,
+            options.semantics,
             options.plural_encoding,
             false,
             options.storage_format,
@@ -128,7 +131,7 @@ pub fn update_catalog(options: UpdateCatalogOptions<'_>) -> Result<CatalogUpdate
         .or_else(|| existing.locale.clone())
         .or_else(|| existing.headers.get("Language").cloned());
     let mut diagnostics = existing.diagnostics.clone();
-    let normalized = normalize_update_input(&options.input, &mut diagnostics)?;
+    let normalized = normalize_update_input(&options.input)?;
     let (mut merged, stats) = merge_catalogs(
         existing,
         &normalized,
@@ -181,6 +184,7 @@ pub fn update_catalog_file(
         input: options.input,
         existing: existing.as_deref(),
         storage_format: options.storage_format,
+        semantics: options.semantics,
         plural_encoding: options.plural_encoding,
         obsolete_strategy: options.obsolete_strategy,
         overwrite_source_translations: options.overwrite_source_translations,
@@ -211,10 +215,16 @@ pub fn update_catalog_file(
 )]
 pub fn parse_catalog(options: ParseCatalogOptions<'_>) -> Result<ParsedCatalog, ApiError> {
     super::validate_source_locale(options.source_locale)?;
+    super::validate_catalog_semantics(
+        options.semantics,
+        options.storage_format,
+        options.plural_encoding,
+    )?;
     let catalog = parse_catalog_to_internal(
         options.content,
         options.locale,
         options.source_locale,
+        options.semantics,
         options.plural_encoding,
         options.strict,
         options.storage_format,
@@ -227,6 +237,7 @@ pub fn parse_catalog(options: ParseCatalogOptions<'_>) -> Result<ParsedCatalog, 
 
     Ok(ParsedCatalog {
         locale: catalog.locale,
+        semantics: options.semantics,
         headers: catalog.headers,
         messages,
         diagnostics: catalog.diagnostics,
@@ -238,10 +249,7 @@ pub fn parse_catalog(options: ParseCatalogOptions<'_>) -> Result<ParsedCatalog, 
 /// The result keeps only the fields that matter for catalog identity and merge
 /// semantics, while also projecting source-first ICU plurals into the same
 /// structured plural representation used by `CatalogUpdateInput::Structured`.
-fn normalize_update_input(
-    input: &CatalogUpdateInput,
-    diagnostics: &mut Vec<Diagnostic>,
-) -> Result<Vec<NormalizedMessage>, ApiError> {
+fn normalize_update_input(input: &CatalogUpdateInput) -> Result<Vec<NormalizedMessage>, ApiError> {
     let mut index = BTreeMap::<(String, Option<String>), usize>::new();
     let mut normalized = Vec::<NormalizedMessage>::new();
 
@@ -286,52 +294,13 @@ fn normalize_update_input(
         }
         CatalogUpdateInput::SourceFirst(messages) => {
             for message in messages {
-                let kind = match project_icu_plural(&message.msgid) {
-                    IcuPluralProjection::Projected(projected) => NormalizedKind::Plural {
-                        source: PluralSource {
-                            one: projected.branches.get("one").cloned(),
-                            other: projected
-                                .branches
-                                .get("other")
-                                .cloned()
-                                .unwrap_or_else(|| message.msgid.clone()),
-                        },
-                        variable: Some(projected.variable),
-                    },
-                    IcuPluralProjection::Unsupported(reason) => {
-                        diagnostics.push(
-                            Diagnostic::new(
-                                DiagnosticSeverity::Warning,
-                                "plural.source_first_fallback",
-                                format!(
-                                    "Could not project source-first ICU plural into catalog plural form: {reason}"
-                                ),
-                            )
-                            .with_identity(&message.msgid, message.msgctxt.as_deref()),
-                        );
-                        NormalizedKind::Singular
-                    }
-                    IcuPluralProjection::Malformed => {
-                        diagnostics.push(
-                            Diagnostic::new(
-                                DiagnosticSeverity::Warning,
-                                "plural.source_first_fallback",
-                                "Could not parse source-first ICU plural safely; keeping the message as singular.",
-                            )
-                            .with_identity(&message.msgid, message.msgctxt.as_deref()),
-                        );
-                        NormalizedKind::Singular
-                    }
-                    IcuPluralProjection::NotPlural => NormalizedKind::Singular,
-                };
-
                 push_normalized_message(
                     &mut index,
                     &mut normalized,
                     NormalizedMessage {
                         msgid: message.msgid.clone(),
                         msgctxt: message.msgctxt.clone(),
-                        kind,
+                        kind: NormalizedKind::Singular,
                         comments: dedupe_strings(message.comments.clone()),
                         origins: dedupe_origins(message.origin.clone()),
                         placeholders: dedupe_placeholders(message.placeholders.clone()),
@@ -582,7 +551,7 @@ fn extract_plural_variable(message: &CanonicalMessage) -> Option<String> {
 fn apply_header_defaults(
     headers: &mut BTreeMap<String, String>,
     locale: Option<&str>,
-    plural_encoding: PluralEncoding,
+    semantics: CatalogSemantics,
     diagnostics: &mut Vec<Diagnostic>,
     custom: &BTreeMap<String, String>,
 ) {
@@ -601,7 +570,7 @@ fn apply_header_defaults(
     if let Some(locale) = locale {
         headers.insert("Language".to_owned(), locale.to_owned());
     }
-    if plural_encoding == PluralEncoding::Gettext && !custom.contains_key("Plural-Forms") {
+    if semantics == CatalogSemantics::GettextCompat && !custom.contains_key("Plural-Forms") {
         let profile = PluralProfile::for_locale(locale);
         let parsed_header = parse_plural_forms_from_headers(headers);
         match (parsed_header.raw.as_deref(), profile.gettext_header()) {
@@ -668,7 +637,7 @@ fn apply_storage_defaults(
             apply_header_defaults(
                 &mut catalog.headers,
                 locale,
-                options.plural_encoding,
+                options.semantics,
                 diagnostics,
                 options
                     .custom_header_attributes
@@ -764,40 +733,37 @@ fn export_message_to_po(
             translation_by_category,
             variable,
         } => {
+            if options.semantics == CatalogSemantics::IcuNative {
+                let mut item = base_po_item(message, options, 1);
+                item.msgid = synthesize_icu_plural(variable, &plural_source_branches(source));
+                item.msgstr =
+                    MsgStr::from(synthesize_icu_plural(variable, translation_by_category));
+                return Ok(item);
+            }
+
             let plural_profile = PluralProfile::for_translation(locale, translation_by_category);
             let nplurals = plural_profile
                 .nplurals()
                 .max(translation_by_category.len().max(1));
             let mut item = base_po_item(message, options, nplurals);
 
-            match options.plural_encoding {
-                PluralEncoding::Icu => {
-                    item.msgid = synthesize_icu_plural(variable, &plural_source_branches(source));
-                    item.msgstr =
-                        MsgStr::from(synthesize_icu_plural(variable, translation_by_category));
-                }
-                PluralEncoding::Gettext => {
-                    if !translation_by_category.contains_key("other") {
-                        diagnostics.push(
-                            Diagnostic::new(
-                                DiagnosticSeverity::Error,
-                                "plural.unsupported_gettext_export",
-                                "Plural translation is missing the required \"other\" category.",
-                            )
-                            .with_identity(&message.msgid, message.msgctxt.as_deref()),
-                        );
-                        return Err(ApiError::Unsupported(
-                            "plural translation is missing the required \"other\" category"
-                                .to_owned(),
-                        ));
-                    }
-                    item.msgid = source.one.clone().unwrap_or_else(|| source.other.clone());
-                    item.msgid_plural = Some(source.other.clone());
-                    item.msgstr =
-                        MsgStr::from(plural_profile.gettext_values(translation_by_category));
-                    item.nplurals = plural_profile.nplurals();
-                }
+            if !translation_by_category.contains_key("other") {
+                diagnostics.push(
+                    Diagnostic::new(
+                        DiagnosticSeverity::Error,
+                        "plural.unsupported_gettext_export",
+                        "Plural translation is missing the required \"other\" category.",
+                    )
+                    .with_identity(&message.msgid, message.msgctxt.as_deref()),
+                );
+                return Err(ApiError::Unsupported(
+                    "plural translation is missing the required \"other\" category".to_owned(),
+                ));
             }
+            item.msgid = source.one.clone().unwrap_or_else(|| source.other.clone());
+            item.msgid_plural = Some(source.other.clone());
+            item.msgstr = MsgStr::from(plural_profile.gettext_values(translation_by_category));
+            item.nplurals = plural_profile.nplurals();
 
             Ok(item)
         }
@@ -895,24 +861,34 @@ fn parse_catalog_to_internal(
     content: &str,
     locale_override: Option<&str>,
     source_locale: &str,
+    semantics: CatalogSemantics,
     plural_encoding: PluralEncoding,
     strict: bool,
     storage_format: CatalogStorageFormat,
 ) -> Result<Catalog, ApiError> {
     match storage_format {
-        CatalogStorageFormat::Po => {
-            parse_catalog_to_internal_po(content, locale_override, plural_encoding, strict)
-        }
-        CatalogStorageFormat::Ndjson => {
-            parse_catalog_to_internal_ndjson(content, locale_override, source_locale, strict)
-        }
+        CatalogStorageFormat::Po => parse_catalog_to_internal_po(
+            content,
+            locale_override,
+            semantics,
+            plural_encoding,
+            strict,
+        ),
+        CatalogStorageFormat::Ndjson => parse_catalog_to_internal_ndjson(
+            content,
+            locale_override,
+            source_locale,
+            semantics,
+            strict,
+        ),
     }
 }
 
 fn parse_catalog_to_internal_po(
     content: &str,
     locale_override: Option<&str>,
-    plural_encoding: PluralEncoding,
+    semantics: CatalogSemantics,
+    _plural_encoding: PluralEncoding,
     strict: bool,
 ) -> Result<Catalog, ApiError> {
     let file = parse_po(content)?;
@@ -930,7 +906,7 @@ fn parse_catalog_to_internal_po(
     validate_plural_forms_header(
         locale.as_deref(),
         &plural_forms,
-        plural_encoding,
+        semantics,
         &mut diagnostics,
     );
     let mut messages = Vec::with_capacity(file.items.len());
@@ -941,7 +917,7 @@ fn parse_catalog_to_internal_po(
             item,
             locale.as_deref(),
             nplurals,
-            plural_encoding,
+            semantics,
             strict,
             &mut conversion_diagnostics,
         )?;
@@ -968,9 +944,9 @@ fn import_message_from_po(
     item: PoItem,
     locale: Option<&str>,
     nplurals: Option<usize>,
-    plural_encoding: PluralEncoding,
-    strict: bool,
-    diagnostics: &mut Vec<Diagnostic>,
+    semantics: CatalogSemantics,
+    _strict: bool,
+    _diagnostics: &mut Vec<Diagnostic>,
 ) -> Result<CanonicalMessage, ApiError> {
     let (comments, placeholders) = split_placeholder_comments(item.extracted_comments);
     let origins = item
@@ -980,6 +956,11 @@ fn import_message_from_po(
         .collect();
 
     let translation = if let Some(msgid_plural) = &item.msgid_plural {
+        if semantics == CatalogSemantics::IcuNative {
+            return Err(ApiError::Unsupported(
+                "classic gettext plural requires compat mode".to_owned(),
+            ));
+        }
         let plural_profile =
             PluralProfile::for_gettext_slots(locale, nplurals.or(Some(item.msgstr.len())));
         CanonicalTranslation::Plural {
@@ -1001,14 +982,14 @@ fn import_message_from_po(
             variable: "count".to_owned(),
         }
     } else {
-        textual_translation_from_strings(
-            &item.msgid,
-            item.msgctxt.as_deref(),
-            item.msgstr.first_str().unwrap_or_default(),
-            plural_encoding,
-            strict,
-            diagnostics,
-        )?
+        if semantics == CatalogSemantics::IcuNative && matches!(item.msgstr, MsgStr::Plural(_)) {
+            return Err(ApiError::Unsupported(
+                "classic gettext plural requires compat mode".to_owned(),
+            ));
+        }
+        CanonicalTranslation::Singular {
+            value: item.msgstr.first_str().unwrap_or_default().to_owned(),
+        }
     };
 
     Ok(CanonicalMessage {
@@ -1022,118 +1003,6 @@ fn import_message_from_po(
         translator_comments: item.comments,
         flags: item.flags,
     })
-}
-
-pub(super) fn textual_translation_from_strings(
-    msgid: &str,
-    msgctxt: Option<&str>,
-    msgstr: &str,
-    plural_encoding: PluralEncoding,
-    strict: bool,
-    diagnostics: &mut Vec<Diagnostic>,
-) -> Result<CanonicalTranslation, ApiError> {
-    if plural_encoding != PluralEncoding::Icu {
-        return Ok(CanonicalTranslation::Singular {
-            value: msgstr.to_owned(),
-        });
-    }
-
-    match project_icu_plural(msgid) {
-        IcuPluralProjection::Projected(source_plural) => {
-            let translated_projection = project_icu_plural(msgstr);
-            match translated_projection {
-                IcuPluralProjection::Projected(translated_plural)
-                    if translated_plural.variable == source_plural.variable =>
-                {
-                    Ok(CanonicalTranslation::Plural {
-                        source: PluralSource {
-                            one: source_plural.branches.get("one").cloned(),
-                            other: source_plural
-                                .branches
-                                .get("other")
-                                .cloned()
-                                .unwrap_or_else(|| msgid.to_owned()),
-                        },
-                        translation_by_category: materialize_plural_categories(
-                            &sorted_plural_keys(&translated_plural.branches),
-                            &translated_plural.branches,
-                        ),
-                        variable: source_plural.variable,
-                    })
-                }
-                IcuPluralProjection::Projected(_) => {
-                    if strict {
-                        return Err(ApiError::Unsupported(
-                            "ICU plural source and translation use different variables".to_owned(),
-                        ));
-                    }
-                    diagnostics.push(
-                        Diagnostic::new(
-                            DiagnosticSeverity::Warning,
-                            "plural.partial_icu_parse",
-                            "Could not safely align ICU plural source and translation; keeping the message as singular.",
-                        )
-                        .with_identity(msgid, msgctxt),
-                    );
-                    Ok(CanonicalTranslation::Singular {
-                        value: msgstr.to_owned(),
-                    })
-                }
-                IcuPluralProjection::Unsupported(_) | IcuPluralProjection::Malformed => {
-                    if strict && matches!(translated_projection, IcuPluralProjection::Malformed) {
-                        return Err(ApiError::Unsupported(
-                            "ICU plural message could not be parsed in strict mode".to_owned(),
-                        ));
-                    }
-                    diagnostics.push(
-                        Diagnostic::new(
-                            DiagnosticSeverity::Warning,
-                            "plural.partial_icu_parse",
-                            "Could not fully parse ICU plural translation; keeping the message as singular.",
-                        )
-                        .with_identity(msgid, msgctxt),
-                    );
-                    Ok(CanonicalTranslation::Singular {
-                        value: msgstr.to_owned(),
-                    })
-                }
-                IcuPluralProjection::NotPlural => {
-                    diagnostics.push(
-                        Diagnostic::new(
-                            DiagnosticSeverity::Warning,
-                            "plural.partial_icu_parse",
-                            "Could not fully parse ICU plural translation; keeping the message as singular.",
-                        )
-                        .with_identity(msgid, msgctxt),
-                    );
-                    Ok(CanonicalTranslation::Singular {
-                        value: msgstr.to_owned(),
-                    })
-                }
-            }
-        }
-        IcuPluralProjection::Malformed if strict => Err(ApiError::Unsupported(
-            "ICU plural parsing failed in strict mode".to_owned(),
-        )),
-        IcuPluralProjection::Unsupported(message) => {
-            diagnostics.push(
-                Diagnostic::new(
-                    DiagnosticSeverity::Warning,
-                    "plural.unsupported_icu_projection",
-                    message,
-                )
-                .with_identity(msgid, msgctxt),
-            );
-            Ok(CanonicalTranslation::Singular {
-                value: msgstr.to_owned(),
-            })
-        }
-        IcuPluralProjection::NotPlural | IcuPluralProjection::Malformed => {
-            Ok(CanonicalTranslation::Singular {
-                value: msgstr.to_owned(),
-            })
-        }
-    }
 }
 
 /// Splits extractor-style placeholder comments back out of the generic
@@ -1207,10 +1076,10 @@ fn parse_plural_forms_from_headers(headers: &BTreeMap<String, String>) -> Parsed
 fn validate_plural_forms_header(
     locale: Option<&str>,
     plural_forms: &ParsedPluralFormsHeader,
-    plural_encoding: PluralEncoding,
+    semantics: CatalogSemantics,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    if plural_encoding != PluralEncoding::Gettext {
+    if semantics != CatalogSemantics::GettextCompat {
         return;
     }
 

@@ -341,6 +341,8 @@ pub struct CatalogUpdateResult {
 pub struct ParsedCatalog {
     /// Declared or overridden catalog locale.
     pub locale: Option<String>,
+    /// High-level semantics used to parse the catalog.
+    pub semantics: CatalogSemantics,
     /// Normalized header map keyed by header name.
     pub headers: BTreeMap<String, String>,
     /// Parsed catalog messages in source order.
@@ -473,6 +475,16 @@ pub enum CatalogStorageFormat {
     Ndjson,
 }
 
+/// High-level semantics used by the catalog API.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum CatalogSemantics {
+    /// ICU-native semantics with raw ICU/text messages as the primary representation.
+    #[default]
+    IcuNative,
+    /// Classic gettext plural semantics used for PO compatibility workflows.
+    GettextCompat,
+}
+
 /// Strategy used for messages that disappear from the extracted input.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum ObsoleteStrategy {
@@ -526,6 +538,8 @@ pub struct UpdateCatalogOptions<'a> {
     pub existing: Option<&'a str>,
     /// Storage format used when reading existing content and rendering the result.
     pub storage_format: CatalogStorageFormat,
+    /// High-level semantics used when parsing, merging, and rendering the catalog.
+    pub semantics: CatalogSemantics,
     /// Target plural representation for the rendered PO file.
     pub plural_encoding: PluralEncoding,
     /// Strategy for messages absent from the extracted input.
@@ -552,6 +566,7 @@ impl Default for UpdateCatalogOptions<'_> {
             input: CatalogUpdateInput::default(),
             existing: None,
             storage_format: CatalogStorageFormat::Po,
+            semantics: CatalogSemantics::IcuNative,
             plural_encoding: PluralEncoding::Icu,
             obsolete_strategy: ObsoleteStrategy::Mark,
             overwrite_source_translations: false,
@@ -577,6 +592,8 @@ pub struct UpdateCatalogFileOptions<'a> {
     pub input: CatalogUpdateInput,
     /// Storage format used when reading and writing the file content.
     pub storage_format: CatalogStorageFormat,
+    /// High-level semantics used when parsing, merging, and rendering the catalog.
+    pub semantics: CatalogSemantics,
     /// Target plural representation for the rendered PO file.
     pub plural_encoding: PluralEncoding,
     /// Strategy for messages absent from the extracted input.
@@ -603,6 +620,7 @@ impl Default for UpdateCatalogFileOptions<'_> {
             source_locale: "",
             input: CatalogUpdateInput::default(),
             storage_format: CatalogStorageFormat::Po,
+            semantics: CatalogSemantics::IcuNative,
             plural_encoding: PluralEncoding::Icu,
             obsolete_strategy: ObsoleteStrategy::Mark,
             overwrite_source_translations: false,
@@ -626,6 +644,8 @@ pub struct ParseCatalogOptions<'a> {
     pub source_locale: &'a str,
     /// Storage format used when parsing the content.
     pub storage_format: CatalogStorageFormat,
+    /// High-level semantics used when interpreting catalog content.
+    pub semantics: CatalogSemantics,
     /// Target plural interpretation for the resulting catalog view.
     pub plural_encoding: PluralEncoding,
     /// Whether unsupported ICU plural projection cases should become hard errors.
@@ -639,6 +659,7 @@ impl Default for ParseCatalogOptions<'_> {
             locale: None,
             source_locale: "",
             storage_format: CatalogStorageFormat::Po,
+            semantics: CatalogSemantics::IcuNative,
             plural_encoding: PluralEncoding::Icu,
             strict: false,
         }

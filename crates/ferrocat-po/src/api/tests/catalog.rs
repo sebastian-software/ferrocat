@@ -153,7 +153,7 @@ fn source_first_plain_messages_normalize_as_singular() {
 }
 
 #[test]
-fn source_first_simple_icu_plural_projects_into_plural_update() {
+fn source_first_simple_icu_plural_stays_singular_in_native_mode() {
     let result = update_catalog(UpdateCatalogOptions {
         source_locale: "en",
         locale: Some("en"),
@@ -167,7 +167,10 @@ fn source_first_simple_icu_plural_projects_into_plural_update() {
     .expect("update");
 
     let parsed = parse_po(&result.content).expect("parse output");
-    assert!(parsed.items[0].msgid.contains("{items, plural,"));
+    assert_eq!(
+        parsed.items[0].msgid,
+        "{items, plural, one {# file} other {# files}}"
+    );
     assert_eq!(
         parsed.items[0].msgstr[0],
         "{items, plural, one {# file} other {# files}}"
@@ -176,7 +179,7 @@ fn source_first_simple_icu_plural_projects_into_plural_update() {
 }
 
 #[test]
-fn source_first_unsupported_icu_plural_falls_back_to_singular_with_warning() {
+fn source_first_nested_icu_plural_stays_singular_without_projection_warning() {
     let result = update_catalog(UpdateCatalogOptions {
         source_locale: "en",
         locale: Some("en"),
@@ -194,12 +197,7 @@ fn source_first_unsupported_icu_plural_falls_back_to_singular_with_warning() {
         "{count, plural, one {{gender, select, male {He has one file} other {They have one file}}} other {{gender, select, male {He has # files} other {They have # files}}}}"
     );
     assert_eq!(parsed.items[0].msgstr[0], parsed.items[0].msgid);
-    assert!(
-        result
-            .diagnostics
-            .iter()
-            .any(|diagnostic| diagnostic.code == "plural.source_first_fallback")
-    );
+    assert!(result.diagnostics.is_empty());
 }
 
 #[test]
@@ -214,6 +212,7 @@ fn parse_catalog_projects_gettext_plural_into_structured_shape() {
         locale: Some("de"),
         source_locale: "en",
         storage_format: CatalogStorageFormat::Po,
+        semantics: CatalogSemantics::GettextCompat,
         plural_encoding: PluralEncoding::Gettext,
         strict: false,
     })
@@ -249,6 +248,7 @@ fn normalized_view_indexes_messages_by_key() {
         locale: Some("de"),
         source_locale: "en",
         storage_format: CatalogStorageFormat::Po,
+        semantics: CatalogSemantics::GettextCompat,
         plural_encoding: PluralEncoding::Gettext,
         strict: false,
     })
@@ -279,6 +279,7 @@ fn normalized_view_rejects_duplicate_keys() {
         locale: Some("de"),
         source_locale: "en",
         storage_format: CatalogStorageFormat::Po,
+        semantics: CatalogSemantics::GettextCompat,
         plural_encoding: PluralEncoding::Gettext,
         strict: false,
     })
@@ -305,6 +306,7 @@ fn normalized_view_can_apply_source_locale_fallbacks() {
         locale: Some("en"),
         source_locale: "en",
         storage_format: CatalogStorageFormat::Po,
+        semantics: CatalogSemantics::GettextCompat,
         plural_encoding: PluralEncoding::Gettext,
         strict: false,
     })
@@ -339,6 +341,7 @@ fn normalized_view_skips_source_fallback_for_non_source_locale_catalogs() {
         locale: Some("de"),
         source_locale: "en",
         storage_format: CatalogStorageFormat::Po,
+        semantics: CatalogSemantics::GettextCompat,
         plural_encoding: PluralEncoding::Gettext,
         strict: false,
     })
@@ -366,6 +369,7 @@ fn parse_catalog_uses_icu_plural_categories_for_french_gettext() {
         locale: Some("fr"),
         source_locale: "en",
         storage_format: CatalogStorageFormat::Po,
+        semantics: CatalogSemantics::GettextCompat,
         plural_encoding: PluralEncoding::Gettext,
         strict: false,
     })
@@ -403,6 +407,7 @@ fn parse_catalog_prefers_gettext_slot_count_when_it_disagrees_with_locale_catego
         locale: Some("fr"),
         source_locale: "en",
         storage_format: CatalogStorageFormat::Po,
+        semantics: CatalogSemantics::GettextCompat,
         plural_encoding: PluralEncoding::Gettext,
         strict: false,
     })
@@ -431,6 +436,7 @@ fn parse_catalog_reports_plural_forms_locale_mismatch() {
         locale: Some("fr"),
         source_locale: "en",
         storage_format: CatalogStorageFormat::Po,
+        semantics: CatalogSemantics::GettextCompat,
         plural_encoding: PluralEncoding::Gettext,
         strict: false,
     })
@@ -445,7 +451,7 @@ fn parse_catalog_reports_plural_forms_locale_mismatch() {
 }
 
 #[test]
-fn parse_catalog_detects_simple_icu_plural_when_requested() {
+fn parse_catalog_keeps_simple_icu_plural_as_singular_in_native_mode() {
     let parsed = parse_catalog(ParseCatalogOptions {
         content: concat!(
             "msgid \"{count, plural, one {# item} other {# items}}\"\n",
@@ -454,33 +460,21 @@ fn parse_catalog_detects_simple_icu_plural_when_requested() {
         locale: Some("de"),
         source_locale: "en",
         storage_format: CatalogStorageFormat::Po,
+        semantics: CatalogSemantics::IcuNative,
         plural_encoding: PluralEncoding::Icu,
         strict: false,
     })
     .expect("parse");
 
-    match &parsed.messages[0].translation {
-        TranslationShape::Plural {
-            translation,
-            variable,
-            ..
-        } => {
-            assert_eq!(variable, "count");
-            assert_eq!(
-                translation.get("one").map(String::as_str),
-                Some("# Artikel")
-            );
-            assert_eq!(
-                translation.get("other").map(String::as_str),
-                Some("# Artikel")
-            );
-        }
-        other => panic!("expected plural translation, got {other:?}"),
-    }
+    assert!(matches!(
+        parsed.messages[0].translation,
+        TranslationShape::Singular { .. }
+    ));
+    assert!(parsed.diagnostics.is_empty());
 }
 
 #[test]
-fn parse_catalog_warns_and_falls_back_for_unsupported_nested_icu_plural() {
+fn parse_catalog_keeps_nested_icu_plural_as_singular_without_projection_warning() {
     let parsed = parse_catalog(ParseCatalogOptions {
         content: concat!(
             "msgid \"{count, plural, one {{gender, select, male {He has one item} other {They have one item}}} other {{gender, select, male {He has # items} other {They have # items}}}}\"\n",
@@ -489,26 +483,22 @@ fn parse_catalog_warns_and_falls_back_for_unsupported_nested_icu_plural() {
         locale: Some("de"),
         source_locale: "en",
         storage_format: CatalogStorageFormat::Po,
+        semantics: CatalogSemantics::IcuNative,
         plural_encoding: PluralEncoding::Icu,
         strict: false,
     })
     .expect("parse");
 
-    assert!(
-        parsed
-            .diagnostics
-            .iter()
-            .any(|diagnostic| diagnostic.code == "plural.unsupported_icu_projection")
-    );
     assert!(matches!(
         parsed.messages[0].translation,
         TranslationShape::Singular { .. }
     ));
+    assert!(parsed.diagnostics.is_empty());
 }
 
 #[test]
-fn parse_catalog_strict_fails_on_malformed_icu_plural() {
-    let error = parse_catalog(ParseCatalogOptions {
+fn parse_catalog_strict_keeps_malformed_icu_plural_as_singular_in_native_mode() {
+    let parsed = parse_catalog(ParseCatalogOptions {
         content: concat!(
             "msgid \"{count, plural, one {# item} other {# items}\"\n",
             "msgstr \"{count, plural, one {# Artikel} other {# Artikel}}\"\n",
@@ -516,15 +506,16 @@ fn parse_catalog_strict_fails_on_malformed_icu_plural() {
         locale: Some("de"),
         source_locale: "en",
         storage_format: CatalogStorageFormat::Po,
+        semantics: CatalogSemantics::IcuNative,
         plural_encoding: PluralEncoding::Icu,
         strict: true,
     })
-    .expect_err("strict parse should fail");
+    .expect("strict parse");
 
-    match error {
-        ApiError::Unsupported(message) => assert!(message.contains("strict mode")),
-        other => panic!("unexpected error: {other:?}"),
-    }
+    assert!(matches!(
+        parsed.messages[0].translation,
+        TranslationShape::Singular { .. }
+    ));
 }
 
 #[test]
@@ -541,6 +532,7 @@ fn parse_catalog_ndjson_matches_po_semantics() {
         locale: Some("de"),
         source_locale: "en",
         storage_format: CatalogStorageFormat::Po,
+        semantics: CatalogSemantics::IcuNative,
         plural_encoding: PluralEncoding::Icu,
         strict: false,
     })
@@ -558,6 +550,7 @@ fn parse_catalog_ndjson_matches_po_semantics() {
         locale: Some("de"),
         source_locale: "en",
         storage_format: CatalogStorageFormat::Ndjson,
+        semantics: CatalogSemantics::IcuNative,
         plural_encoding: PluralEncoding::Icu,
         strict: false,
     })
@@ -690,6 +683,7 @@ fn update_catalog_ndjson_renders_frontmatter_and_roundtrips() {
         locale: Some("de"),
         source_locale: "en",
         storage_format: CatalogStorageFormat::Ndjson,
+        semantics: CatalogSemantics::IcuNative,
         plural_encoding: PluralEncoding::Icu,
         strict: false,
     })
@@ -699,7 +693,7 @@ fn update_catalog_ndjson_renders_frontmatter_and_roundtrips() {
     assert_eq!(reparsed.messages.len(), 2);
     assert!(matches!(
         reparsed.messages[1].translation,
-        TranslationShape::Plural { .. }
+        TranslationShape::Singular { .. }
     ));
 }
 
@@ -750,6 +744,7 @@ fn update_catalog_gettext_export_emits_plural_slots() {
     let result = update_catalog(UpdateCatalogOptions {
         source_locale: "en",
         locale: Some("de"),
+        semantics: CatalogSemantics::GettextCompat,
         plural_encoding: PluralEncoding::Gettext,
         input: structured_input(vec![ExtractedMessage::Plural(ExtractedPluralMessage {
             msgid: "books".to_owned(),
@@ -775,6 +770,7 @@ fn update_catalog_gettext_export_uses_icu_plural_categories_for_french() {
     let result = update_catalog(UpdateCatalogOptions {
         source_locale: "en",
         locale: Some("fr"),
+        semantics: CatalogSemantics::GettextCompat,
         plural_encoding: PluralEncoding::Gettext,
         input: structured_input(vec![ExtractedMessage::Plural(ExtractedPluralMessage {
             msgid: "files".to_owned(),
@@ -798,6 +794,7 @@ fn update_catalog_gettext_sets_safe_plural_forms_header_for_two_form_locale() {
     let result = update_catalog(UpdateCatalogOptions {
         source_locale: "en",
         locale: Some("de"),
+        semantics: CatalogSemantics::GettextCompat,
         plural_encoding: PluralEncoding::Gettext,
         input: structured_input(vec![ExtractedMessage::Singular(ExtractedSingularMessage {
             msgid: "Hello".to_owned(),
@@ -821,6 +818,7 @@ fn update_catalog_gettext_reports_when_no_safe_plural_forms_header_is_known() {
     let result = update_catalog(UpdateCatalogOptions {
         source_locale: "en",
         locale: Some("fr"),
+        semantics: CatalogSemantics::GettextCompat,
         plural_encoding: PluralEncoding::Gettext,
         input: structured_input(vec![ExtractedMessage::Singular(ExtractedSingularMessage {
             msgid: "Bonjour".to_owned(),
@@ -843,6 +841,7 @@ fn update_catalog_gettext_completes_partial_plural_forms_header_when_safe() {
     let result = update_catalog(UpdateCatalogOptions {
         source_locale: "en",
         locale: Some("de"),
+        semantics: CatalogSemantics::GettextCompat,
         plural_encoding: PluralEncoding::Gettext,
         existing: Some(concat!(
             "msgid \"\"\n",
@@ -879,6 +878,7 @@ fn update_catalog_gettext_preserves_existing_complete_plural_forms_header() {
     let result = update_catalog(UpdateCatalogOptions {
         source_locale: "en",
         locale: Some("de"),
+        semantics: CatalogSemantics::GettextCompat,
         plural_encoding: PluralEncoding::Gettext,
         existing: Some(concat!(
             "msgid \"\"\n",

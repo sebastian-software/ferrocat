@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 
 use super::{
-    ApiError, CatalogMessageKey, NormalizedParsedCatalog,
+    ApiError, CatalogMessageKey, CatalogSemantics, NormalizedParsedCatalog,
     compile::{
         compiled_catalog_translation_kind_for_message, compiled_key_for,
         describe_compiled_id_catalogs,
@@ -36,6 +36,8 @@ pub struct CompileCatalogOptions<'a> {
     pub source_fallback: bool,
     /// Source locale used when `source_fallback` is enabled.
     pub source_locale: Option<&'a str>,
+    /// High-level semantics used by the input catalog set.
+    pub semantics: CatalogSemantics,
 }
 
 impl Default for CompileCatalogOptions<'_> {
@@ -44,6 +46,7 @@ impl Default for CompileCatalogOptions<'_> {
             key_strategy: CompiledKeyStrategy::FerrocatV1,
             source_fallback: false,
             source_locale: None,
+            semantics: CatalogSemantics::IcuNative,
         }
     }
 }
@@ -63,6 +66,8 @@ pub struct CompileCatalogArtifactOptions<'a> {
     pub source_fallback: bool,
     /// Whether invalid final ICU messages should fail compilation instead of producing diagnostics.
     pub strict_icu: bool,
+    /// High-level semantics used by the input catalog set.
+    pub semantics: CatalogSemantics,
 }
 
 impl Default for CompileCatalogArtifactOptions<'_> {
@@ -74,6 +79,7 @@ impl Default for CompileCatalogArtifactOptions<'_> {
             key_strategy: CompiledKeyStrategy::FerrocatV1,
             source_fallback: false,
             strict_icu: false,
+            semantics: CatalogSemantics::IcuNative,
         }
     }
 }
@@ -93,6 +99,8 @@ pub struct CompileSelectedCatalogArtifactOptions<'a> {
     pub source_fallback: bool,
     /// Whether invalid final ICU messages should fail compilation instead of producing diagnostics.
     pub strict_icu: bool,
+    /// High-level semantics used by the input catalog set.
+    pub semantics: CatalogSemantics,
     /// Requested compiled runtime IDs to include in the artifact.
     pub compiled_ids: &'a [String],
 }
@@ -106,6 +114,7 @@ impl Default for CompileSelectedCatalogArtifactOptions<'_> {
             key_strategy: CompiledKeyStrategy::FerrocatV1,
             source_fallback: false,
             strict_icu: false,
+            semantics: CatalogSemantics::IcuNative,
             compiled_ids: &[],
         }
     }
@@ -120,6 +129,7 @@ impl CompileSelectedCatalogArtifactOptions<'_> {
             key_strategy: self.key_strategy,
             source_fallback: self.source_fallback,
             strict_icu: self.strict_icu,
+            semantics: self.semantics,
         }
     }
 }
@@ -339,7 +349,10 @@ impl CompiledCatalogIdIndex {
                 if message.obsolete {
                     continue;
                 }
-                let next_kind = compiled_catalog_translation_kind_for_message(message);
+                let next_kind = compiled_catalog_translation_kind_for_message(
+                    catalog.parsed_catalog().semantics,
+                    message,
+                );
                 if let Some(existing_kind) = translation_kind {
                     if existing_kind != next_kind {
                         return Err(ApiError::Conflict(format!(
