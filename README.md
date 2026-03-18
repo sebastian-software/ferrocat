@@ -287,6 +287,18 @@ cargo run --release -p ferrocat-bench -- compare gettext-official-v1 --out bench
 cargo run --release -p ferrocat-bench -- compare gettext-official-quick-v1 --out benchmark/results/gettext-official-quick-v1.json
 ```
 
+Latest local regression check for the borrowing-first catalog API refactor (`2026-03-18`, same machine, same harness, `--runs 3`):
+
+| Workload | Before iter/s | After iter/s |
+|---|---:|---:|
+| `parse mixed-10000` | 302.1 | 324.0 |
+| `parse-borrowed mixed-10000` | 423.7 | 455.2 |
+| `stringify mixed-10000` | 936.1 | 990.2 |
+| `merge gettext-ui-de-1000` | 1645.9 | 1779.5 |
+| `update-catalog gettext-ui-de-1000` | 340.1 | 342.5 |
+
+These are same-session sanity-check numbers rather than publication-grade cross-tool results, but they are useful as a guardrail: the API cleanup stayed performance-neutral or better across the representative PO and catalog workloads we care about most.
+
 Historical benchmark results live in [docs/performance-history.md](docs/performance-history.md).
 
 The manual external comparison suite, including the official gettext-only benchmark profile and reference-host rules, is documented in [docs/benchmarking.md](docs/benchmarking.md).
