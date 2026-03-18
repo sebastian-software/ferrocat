@@ -289,6 +289,7 @@ fn evaluate_po_plural_header(case: &ConformanceCase) -> Result<String, String> {
             content: &input,
             locale: Some(locale),
             source_locale: &source_locale,
+            storage_format: ferrocat_po::CatalogStorageFormat::Po,
             plural_encoding: PluralEncoding::Gettext,
             strict: false,
         })

@@ -33,6 +33,67 @@ fn compile_catalog_preserves_singular_translation_and_source_key() {
 }
 
 #[test]
+fn compile_catalog_artifact_matches_between_po_and_ndjson_storage() {
+    let po_requested = normalized_catalog(
+        concat!(
+            "msgid \"About us\"\n",
+            "msgstr \"Ueber uns\"\n\n",
+            "msgid \"{count, plural, one {# file} other {# files}}\"\n",
+            "msgstr \"{count, plural, one {# Datei} other {# Dateien}}\"\n",
+        ),
+        Some("de"),
+        PluralEncoding::Icu,
+    );
+    let ndjson_requested = normalized_ndjson_catalog(
+        concat!(
+            "---\n",
+            "format: ferrocat.ndjson.v1\n",
+            "locale: de\n",
+            "source_locale: en\n",
+            "---\n",
+            "{\"id\":\"About us\",\"str\":\"Ueber uns\"}\n",
+            "{\"id\":\"{count, plural, one {# file} other {# files}}\",\"str\":\"{count, plural, one {# Datei} other {# Dateien}}\"}\n",
+        ),
+        Some("de"),
+    );
+    let source = normalized_ndjson_catalog(
+        concat!(
+            "---\n",
+            "format: ferrocat.ndjson.v1\n",
+            "locale: en\n",
+            "source_locale: en\n",
+            "---\n",
+            "{\"id\":\"About us\",\"str\":\"About us\"}\n",
+            "{\"id\":\"{count, plural, one {# file} other {# files}}\",\"str\":\"{count, plural, one {# file} other {# files}}\"}\n",
+        ),
+        Some("en"),
+    );
+
+    let po_artifact = compile_catalog_artifact(
+        &[&po_requested, &source],
+        &CompileCatalogArtifactOptions {
+            requested_locale: "de",
+            source_locale: "en",
+            ..CompileCatalogArtifactOptions::default()
+        },
+    )
+    .expect("compile po artifact");
+    let ndjson_artifact = compile_catalog_artifact(
+        &[&ndjson_requested, &source],
+        &CompileCatalogArtifactOptions {
+            requested_locale: "de",
+            source_locale: "en",
+            ..CompileCatalogArtifactOptions::default()
+        },
+    )
+    .expect("compile ndjson artifact");
+
+    assert_eq!(po_artifact.messages, ndjson_artifact.messages);
+    assert_eq!(po_artifact.missing, ndjson_artifact.missing);
+    assert_eq!(po_artifact.diagnostics, ndjson_artifact.diagnostics);
+}
+
+#[test]
 fn compile_catalog_changes_key_when_context_changes() {
     let without_context = compiled_key("Save", None);
     let with_context = compiled_key("Save", Some("menu"));

@@ -1,13 +1,13 @@
 pub(super) use super::{
-    ApiError, CatalogMessageKey, CatalogUpdateInput, CompileCatalogArtifactOptions,
-    CompileCatalogOptions, CompileSelectedCatalogArtifactOptions, CompiledCatalogIdIndex,
-    CompiledCatalogTranslationKind, CompiledKeyStrategy, CompiledTranslation, DiagnosticSeverity,
-    EffectiveTranslation, EffectiveTranslationRef, ExtractedMessage, ExtractedPluralMessage,
-    ExtractedSingularMessage, ObsoleteStrategy, ParseCatalogOptions, PluralEncoding, PluralSource,
-    SourceExtractedMessage, TranslationShape, UpdateCatalogFileOptions, UpdateCatalogOptions,
-    compile::compiled_key_for, compile_catalog_artifact, compile_catalog_artifact_selected,
-    compiled_key, parse_catalog, plural::cached_icu_plural_categories_for, update_catalog,
-    update_catalog_file,
+    ApiError, CatalogMessageKey, CatalogOrigin, CatalogStorageFormat, CatalogUpdateInput,
+    CompileCatalogArtifactOptions, CompileCatalogOptions, CompileSelectedCatalogArtifactOptions,
+    CompiledCatalogIdIndex, CompiledCatalogTranslationKind, CompiledKeyStrategy,
+    CompiledTranslation, DiagnosticSeverity, EffectiveTranslation, EffectiveTranslationRef,
+    ExtractedMessage, ExtractedPluralMessage, ExtractedSingularMessage, ObsoleteStrategy,
+    ParseCatalogOptions, PluralEncoding, PluralSource, SourceExtractedMessage, TranslationShape,
+    UpdateCatalogFileOptions, UpdateCatalogOptions, compile::compiled_key_for,
+    compile_catalog_artifact, compile_catalog_artifact_selected, compiled_key, parse_catalog,
+    plural::cached_icu_plural_categories_for, update_catalog, update_catalog_file,
 };
 pub(super) use crate::parse_po;
 pub(super) use std::collections::{BTreeMap, HashMap};
@@ -35,10 +35,28 @@ pub(super) fn normalized_catalog(
         content,
         source_locale: "en",
         locale,
+        storage_format: CatalogStorageFormat::Po,
         plural_encoding,
         ..ParseCatalogOptions::default()
     })
     .expect("parse catalog")
     .into_normalized_view()
     .expect("normalized view")
+}
+
+pub(super) fn normalized_ndjson_catalog(
+    content: &str,
+    locale: Option<&str>,
+) -> super::NormalizedParsedCatalog {
+    parse_catalog(ParseCatalogOptions {
+        content,
+        source_locale: "en",
+        locale,
+        storage_format: CatalogStorageFormat::Ndjson,
+        plural_encoding: PluralEncoding::Icu,
+        ..ParseCatalogOptions::default()
+    })
+    .expect("parse ndjson catalog")
+    .into_normalized_view()
+    .expect("normalized ndjson view")
 }

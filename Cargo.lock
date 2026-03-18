@@ -143,6 +143,8 @@ dependencies = [
  "icu_locale",
  "icu_plurals",
  "memchr",
+ "serde",
+ "serde_json",
  "sha2",
 ]
 

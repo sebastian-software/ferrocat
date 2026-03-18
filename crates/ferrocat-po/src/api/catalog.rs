@@ -13,43 +13,45 @@ use super::helpers::{
     dedupe_origins, dedupe_placeholders, dedupe_strings, merge_placeholders, merge_unique_origins,
     merge_unique_strings,
 };
+use super::ndjson::{parse_catalog_to_internal_ndjson, stringify_catalog_ndjson};
 use super::plural::{
     IcuPluralProjection, PluralProfile, derive_plural_variable, materialize_plural_categories,
     project_icu_plural, sorted_plural_keys, synthesize_icu_plural,
 };
 use super::{
-    ApiError, CatalogMessage, CatalogMessageExtra, CatalogOrigin, CatalogStats, CatalogUpdateInput,
-    CatalogUpdateResult, Diagnostic, DiagnosticSeverity, ExtractedMessage, ObsoleteStrategy,
-    OrderBy, ParseCatalogOptions, ParsedCatalog, PlaceholderCommentMode, PluralEncoding,
-    PluralSource, TranslationShape, UpdateCatalogFileOptions, UpdateCatalogOptions,
+    ApiError, CatalogMessage, CatalogMessageExtra, CatalogOrigin, CatalogStats,
+    CatalogStorageFormat, CatalogUpdateInput, CatalogUpdateResult, Diagnostic, DiagnosticSeverity,
+    ExtractedMessage, ObsoleteStrategy, OrderBy, ParseCatalogOptions, ParsedCatalog,
+    PlaceholderCommentMode, PluralEncoding, PluralSource, TranslationShape,
+    UpdateCatalogFileOptions, UpdateCatalogOptions,
 };
 use crate::{Header, MsgStr, PoFile, PoItem, SerializeOptions, parse_po, stringify_po};
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
-struct Catalog {
-    locale: Option<String>,
-    headers: BTreeMap<String, String>,
-    file_comments: Vec<String>,
-    file_extracted_comments: Vec<String>,
-    messages: Vec<CanonicalMessage>,
-    diagnostics: Vec<Diagnostic>,
+pub(super) struct Catalog {
+    pub(super) locale: Option<String>,
+    pub(super) headers: BTreeMap<String, String>,
+    pub(super) file_comments: Vec<String>,
+    pub(super) file_extracted_comments: Vec<String>,
+    pub(super) messages: Vec<CanonicalMessage>,
+    pub(super) diagnostics: Vec<Diagnostic>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-struct CanonicalMessage {
-    msgid: String,
-    msgctxt: Option<String>,
-    translation: CanonicalTranslation,
-    comments: Vec<String>,
-    origins: Vec<CatalogOrigin>,
-    placeholders: BTreeMap<String, Vec<String>>,
-    obsolete: bool,
-    translator_comments: Vec<String>,
-    flags: Vec<String>,
+pub(super) struct CanonicalMessage {
+    pub(super) msgid: String,
+    pub(super) msgctxt: Option<String>,
+    pub(super) translation: CanonicalTranslation,
+    pub(super) comments: Vec<String>,
+    pub(super) origins: Vec<CatalogOrigin>,
+    pub(super) placeholders: BTreeMap<String, Vec<String>>,
+    pub(super) obsolete: bool,
+    pub(super) translator_comments: Vec<String>,
+    pub(super) flags: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-enum CanonicalTranslation {
+pub(super) enum CanonicalTranslation {
     Singular {
         value: String,
     },
@@ -86,12 +88,12 @@ struct ParsedPluralFormsHeader {
     plural: Option<String>,
 }
 
-/// Merges extracted messages into an existing catalog and returns updated PO content.
+/// Merges extracted messages into an existing catalog and returns updated catalog content.
 ///
 /// # Errors
 ///
-/// Returns [`ApiError`] when the source locale is missing, the existing PO file
-/// cannot be parsed, or the requested plural encoding cannot be represented safely.
+/// Returns [`ApiError`] when the source locale is missing, the existing catalog
+/// cannot be parsed, or the requested storage format cannot be rendered safely.
 #[expect(
     clippy::needless_pass_by_value,
     reason = "Public API takes owned option structs so callers can build and move them ergonomically."
@@ -102,9 +104,14 @@ pub fn update_catalog(options: UpdateCatalogOptions<'_>) -> Result<CatalogUpdate
     let created = options.existing.is_none();
     let original = options.existing.unwrap_or("");
     let existing = match options.existing {
-        Some(content) if !content.is_empty() => {
-            parse_catalog_to_internal(content, options.locale, options.plural_encoding, false)?
-        }
+        Some(content) if !content.is_empty() => parse_catalog_to_internal(
+            content,
+            options.locale,
+            options.source_locale,
+            options.plural_encoding,
+            false,
+            options.storage_format,
+        )?,
         Some(_) | None => Catalog {
             locale: options.locale.map(str::to_owned),
             headers: BTreeMap::new(),
@@ -132,19 +139,9 @@ pub fn update_catalog(options: UpdateCatalogOptions<'_>) -> Result<CatalogUpdate
         &mut diagnostics,
     );
     merged.locale.clone_from(&locale);
-    let empty_custom_headers = BTreeMap::new();
-    apply_header_defaults(
-        &mut merged.headers,
-        locale.as_deref(),
-        options.plural_encoding,
-        &mut diagnostics,
-        options
-            .custom_header_attributes
-            .unwrap_or(&empty_custom_headers),
-    );
+    apply_storage_defaults(&mut merged, &options, locale.as_deref(), &mut diagnostics)?;
     sort_messages(&mut merged.messages, options.order_by);
-    let file = export_catalog_to_po(&merged, &options, locale.as_deref(), &mut diagnostics)?;
-    let content = stringify_po(&file, &SerializeOptions::default());
+    let content = export_catalog_content(&merged, &options, locale.as_deref(), &mut diagnostics)?;
 
     Ok(CatalogUpdateResult {
         updated: content != original,
@@ -155,7 +152,7 @@ pub fn update_catalog(options: UpdateCatalogOptions<'_>) -> Result<CatalogUpdate
     })
 }
 
-/// Updates a PO catalog on disk and only writes the file when the rendered
+/// Updates a catalog on disk and only writes the file when the rendered
 /// output changes.
 ///
 /// # Errors
@@ -183,6 +180,7 @@ pub fn update_catalog_file(
         source_locale: options.source_locale,
         input: options.input,
         existing: existing.as_deref(),
+        storage_format: options.storage_format,
         plural_encoding: options.plural_encoding,
         obsolete_strategy: options.obsolete_strategy,
         overwrite_source_translations: options.overwrite_source_translations,
@@ -200,12 +198,12 @@ pub fn update_catalog_file(
     Ok(result)
 }
 
-/// Parses PO content into the higher-level catalog representation used by
+/// Parses catalog content into the higher-level representation used by
 /// `ferrocat`'s catalog APIs.
 ///
 /// # Errors
 ///
-/// Returns [`ApiError`] when the PO content cannot be parsed, the source
+/// Returns [`ApiError`] when the catalog content cannot be parsed, the source
 /// locale is missing, or strict ICU projection fails.
 #[expect(
     clippy::needless_pass_by_value,
@@ -216,8 +214,10 @@ pub fn parse_catalog(options: ParseCatalogOptions<'_>) -> Result<ParsedCatalog, 
     let catalog = parse_catalog_to_internal(
         options.content,
         options.locale,
+        options.source_locale,
         options.plural_encoding,
         options.strict,
+        options.storage_format,
     )?;
     let messages = catalog
         .messages
@@ -656,6 +656,61 @@ fn first_origin_sort_key(origins: &[CatalogOrigin]) -> (String, Option<u32>) {
     )
 }
 
+fn apply_storage_defaults(
+    catalog: &mut Catalog,
+    options: &UpdateCatalogOptions<'_>,
+    locale: Option<&str>,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> Result<(), ApiError> {
+    match options.storage_format {
+        CatalogStorageFormat::Po => {
+            let empty_custom_headers = BTreeMap::new();
+            apply_header_defaults(
+                &mut catalog.headers,
+                locale,
+                options.plural_encoding,
+                diagnostics,
+                options
+                    .custom_header_attributes
+                    .unwrap_or(&empty_custom_headers),
+            );
+            Ok(())
+        }
+        CatalogStorageFormat::Ndjson => {
+            if options
+                .custom_header_attributes
+                .is_some_and(|headers| !headers.is_empty())
+            {
+                return Err(ApiError::Unsupported(
+                    "custom_header_attributes are not supported for NDJSON catalogs".to_owned(),
+                ));
+            }
+            catalog.headers.clear();
+            Ok(())
+        }
+    }
+}
+
+fn export_catalog_content(
+    catalog: &Catalog,
+    options: &UpdateCatalogOptions<'_>,
+    locale: Option<&str>,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> Result<String, ApiError> {
+    match options.storage_format {
+        CatalogStorageFormat::Po => {
+            let file = export_catalog_to_po(catalog, options, locale, diagnostics)?;
+            Ok(stringify_po(&file, &SerializeOptions::default()))
+        }
+        CatalogStorageFormat::Ndjson => Ok(stringify_catalog_ndjson(
+            catalog,
+            locale,
+            options.source_locale,
+            &options.print_placeholders_in_comments,
+        )),
+    }
+}
+
 /// Converts the canonical in-memory catalog back into a `PoFile` while keeping
 /// file-level comments and header order normalized.
 fn export_catalog_to_po(
@@ -788,7 +843,7 @@ fn base_po_item(
 }
 
 /// Builds the minimal category map needed to re-synthesize a source ICU plural.
-fn plural_source_branches(source: &PluralSource) -> BTreeMap<String, String> {
+pub(super) fn plural_source_branches(source: &PluralSource) -> BTreeMap<String, String> {
     let mut map = BTreeMap::new();
     if let Some(one) = &source.one {
         map.insert("one".to_owned(), one.clone());
@@ -799,7 +854,7 @@ fn plural_source_branches(source: &PluralSource) -> BTreeMap<String, String> {
 
 /// Emits extracted placeholder comments only for numeric placeholders, which
 /// mirrors how gettext tools commonly surface ordered placeholder hints.
-fn append_placeholder_comments(
+pub(super) fn append_placeholder_comments(
     comments: &mut Vec<String>,
     placeholders: &BTreeMap<String, Vec<String>>,
     mode: &PlaceholderCommentMode,
@@ -831,12 +886,30 @@ fn normalize_placeholder_value(value: &str) -> String {
     value.replace('\n', " ")
 }
 
-/// Parses PO text into the canonical internal catalog representation used by
+/// Parses catalog text into the canonical internal catalog representation used by
 /// both `parse_catalog` and `update_catalog`.
 ///
 /// Keeping this internal representation stable lets the public APIs share one
 /// import path before they diverge into normalized lookup or update/export work.
 fn parse_catalog_to_internal(
+    content: &str,
+    locale_override: Option<&str>,
+    source_locale: &str,
+    plural_encoding: PluralEncoding,
+    strict: bool,
+    storage_format: CatalogStorageFormat,
+) -> Result<Catalog, ApiError> {
+    match storage_format {
+        CatalogStorageFormat::Po => {
+            parse_catalog_to_internal_po(content, locale_override, plural_encoding, strict)
+        }
+        CatalogStorageFormat::Ndjson => {
+            parse_catalog_to_internal_ndjson(content, locale_override, source_locale, strict)
+        }
+    }
+}
+
+fn parse_catalog_to_internal_po(
     content: &str,
     locale_override: Option<&str>,
     plural_encoding: PluralEncoding,
@@ -886,10 +959,6 @@ fn parse_catalog_to_internal(
     })
 }
 
-#[expect(
-    clippy::too_many_lines,
-    reason = "PO import keeps singular/plural projection and diagnostics in one place to preserve parser semantics."
-)]
 /// Converts one parsed `PoItem` into the canonical internal message form.
 ///
 /// The branching is intentionally centralized here so that gettext plural slot
@@ -932,103 +1001,14 @@ fn import_message_from_po(
             variable: "count".to_owned(),
         }
     } else {
-        let msgstr = item.msgstr.first_str().unwrap_or_default().to_owned();
-        if plural_encoding == PluralEncoding::Icu {
-            match project_icu_plural(&item.msgid) {
-                IcuPluralProjection::Projected(source_plural) => {
-                    let translated_projection = project_icu_plural(&msgstr);
-                    match translated_projection {
-                        IcuPluralProjection::Projected(translated_plural)
-                            if translated_plural.variable == source_plural.variable =>
-                        {
-                            CanonicalTranslation::Plural {
-                                source: PluralSource {
-                                    one: source_plural.branches.get("one").cloned(),
-                                    other: source_plural
-                                        .branches
-                                        .get("other")
-                                        .cloned()
-                                        .unwrap_or_else(|| item.msgid.clone()),
-                                },
-                                translation_by_category: materialize_plural_categories(
-                                    &sorted_plural_keys(&translated_plural.branches),
-                                    &translated_plural.branches,
-                                ),
-                                variable: source_plural.variable,
-                            }
-                        }
-                        IcuPluralProjection::Projected(_) => {
-                            if strict {
-                                return Err(ApiError::Unsupported(
-                                    "ICU plural source and translation use different variables"
-                                        .to_owned(),
-                                ));
-                            }
-                            diagnostics.push(
-                                Diagnostic::new(
-                                    DiagnosticSeverity::Warning,
-                                    "plural.partial_icu_parse",
-                                    "Could not safely align ICU plural source and translation; keeping the message as singular.",
-                                )
-                                .with_identity(&item.msgid, item.msgctxt.as_deref()),
-                            );
-                            CanonicalTranslation::Singular { value: msgstr }
-                        }
-                        IcuPluralProjection::Unsupported(_) | IcuPluralProjection::Malformed => {
-                            if strict
-                                && matches!(translated_projection, IcuPluralProjection::Malformed)
-                            {
-                                return Err(ApiError::Unsupported(
-                                    "ICU plural message could not be parsed in strict mode"
-                                        .to_owned(),
-                                ));
-                            }
-                            diagnostics.push(
-                                Diagnostic::new(
-                                    DiagnosticSeverity::Warning,
-                                    "plural.partial_icu_parse",
-                                    "Could not fully parse ICU plural translation; keeping the message as singular.",
-                                )
-                                .with_identity(&item.msgid, item.msgctxt.as_deref()),
-                            );
-                            CanonicalTranslation::Singular { value: msgstr }
-                        }
-                        IcuPluralProjection::NotPlural => {
-                            diagnostics.push(
-                                Diagnostic::new(
-                                    DiagnosticSeverity::Warning,
-                                    "plural.partial_icu_parse",
-                                    "Could not fully parse ICU plural translation; keeping the message as singular.",
-                                )
-                                .with_identity(&item.msgid, item.msgctxt.as_deref()),
-                            );
-                            CanonicalTranslation::Singular { value: msgstr }
-                        }
-                    }
-                }
-                IcuPluralProjection::Malformed if strict => {
-                    return Err(ApiError::Unsupported(
-                        "ICU plural parsing failed in strict mode".to_owned(),
-                    ));
-                }
-                IcuPluralProjection::Unsupported(message) => {
-                    diagnostics.push(
-                        Diagnostic::new(
-                            DiagnosticSeverity::Warning,
-                            "plural.unsupported_icu_projection",
-                            message,
-                        )
-                        .with_identity(&item.msgid, item.msgctxt.as_deref()),
-                    );
-                    CanonicalTranslation::Singular { value: msgstr }
-                }
-                IcuPluralProjection::NotPlural | IcuPluralProjection::Malformed => {
-                    CanonicalTranslation::Singular { value: msgstr }
-                }
-            }
-        } else {
-            CanonicalTranslation::Singular { value: msgstr }
-        }
+        textual_translation_from_strings(
+            &item.msgid,
+            item.msgctxt.as_deref(),
+            item.msgstr.first_str().unwrap_or_default(),
+            plural_encoding,
+            strict,
+            diagnostics,
+        )?
     };
 
     Ok(CanonicalMessage {
@@ -1044,9 +1024,121 @@ fn import_message_from_po(
     })
 }
 
+pub(super) fn textual_translation_from_strings(
+    msgid: &str,
+    msgctxt: Option<&str>,
+    msgstr: &str,
+    plural_encoding: PluralEncoding,
+    strict: bool,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> Result<CanonicalTranslation, ApiError> {
+    if plural_encoding != PluralEncoding::Icu {
+        return Ok(CanonicalTranslation::Singular {
+            value: msgstr.to_owned(),
+        });
+    }
+
+    match project_icu_plural(msgid) {
+        IcuPluralProjection::Projected(source_plural) => {
+            let translated_projection = project_icu_plural(msgstr);
+            match translated_projection {
+                IcuPluralProjection::Projected(translated_plural)
+                    if translated_plural.variable == source_plural.variable =>
+                {
+                    Ok(CanonicalTranslation::Plural {
+                        source: PluralSource {
+                            one: source_plural.branches.get("one").cloned(),
+                            other: source_plural
+                                .branches
+                                .get("other")
+                                .cloned()
+                                .unwrap_or_else(|| msgid.to_owned()),
+                        },
+                        translation_by_category: materialize_plural_categories(
+                            &sorted_plural_keys(&translated_plural.branches),
+                            &translated_plural.branches,
+                        ),
+                        variable: source_plural.variable,
+                    })
+                }
+                IcuPluralProjection::Projected(_) => {
+                    if strict {
+                        return Err(ApiError::Unsupported(
+                            "ICU plural source and translation use different variables".to_owned(),
+                        ));
+                    }
+                    diagnostics.push(
+                        Diagnostic::new(
+                            DiagnosticSeverity::Warning,
+                            "plural.partial_icu_parse",
+                            "Could not safely align ICU plural source and translation; keeping the message as singular.",
+                        )
+                        .with_identity(msgid, msgctxt),
+                    );
+                    Ok(CanonicalTranslation::Singular {
+                        value: msgstr.to_owned(),
+                    })
+                }
+                IcuPluralProjection::Unsupported(_) | IcuPluralProjection::Malformed => {
+                    if strict && matches!(translated_projection, IcuPluralProjection::Malformed) {
+                        return Err(ApiError::Unsupported(
+                            "ICU plural message could not be parsed in strict mode".to_owned(),
+                        ));
+                    }
+                    diagnostics.push(
+                        Diagnostic::new(
+                            DiagnosticSeverity::Warning,
+                            "plural.partial_icu_parse",
+                            "Could not fully parse ICU plural translation; keeping the message as singular.",
+                        )
+                        .with_identity(msgid, msgctxt),
+                    );
+                    Ok(CanonicalTranslation::Singular {
+                        value: msgstr.to_owned(),
+                    })
+                }
+                IcuPluralProjection::NotPlural => {
+                    diagnostics.push(
+                        Diagnostic::new(
+                            DiagnosticSeverity::Warning,
+                            "plural.partial_icu_parse",
+                            "Could not fully parse ICU plural translation; keeping the message as singular.",
+                        )
+                        .with_identity(msgid, msgctxt),
+                    );
+                    Ok(CanonicalTranslation::Singular {
+                        value: msgstr.to_owned(),
+                    })
+                }
+            }
+        }
+        IcuPluralProjection::Malformed if strict => Err(ApiError::Unsupported(
+            "ICU plural parsing failed in strict mode".to_owned(),
+        )),
+        IcuPluralProjection::Unsupported(message) => {
+            diagnostics.push(
+                Diagnostic::new(
+                    DiagnosticSeverity::Warning,
+                    "plural.unsupported_icu_projection",
+                    message,
+                )
+                .with_identity(msgid, msgctxt),
+            );
+            Ok(CanonicalTranslation::Singular {
+                value: msgstr.to_owned(),
+            })
+        }
+        IcuPluralProjection::NotPlural | IcuPluralProjection::Malformed => {
+            Ok(CanonicalTranslation::Singular {
+                value: msgstr.to_owned(),
+            })
+        }
+    }
+}
+
 /// Splits extractor-style placeholder comments back out of the generic
 /// extracted-comment list during PO import.
-fn split_placeholder_comments(
+pub(super) fn split_placeholder_comments(
     extracted_comments: Vec<String>,
 ) -> (Vec<String>, BTreeMap<String, Vec<String>>) {
     let mut comments = Vec::new();

@@ -63,8 +63,8 @@ pub use ferrocat_icu::{
 };
 pub use ferrocat_po::{
     ApiError, BorrowedHeader, BorrowedMsgStr, BorrowedPoFile, BorrowedPoItem, CatalogMessage,
-    CatalogMessageExtra, CatalogMessageKey, CatalogOrigin, CatalogStats, CatalogUpdateInput,
-    CatalogUpdateResult, CompileCatalogArtifactOptions, CompileCatalogOptions,
+    CatalogMessageExtra, CatalogMessageKey, CatalogOrigin, CatalogStats, CatalogStorageFormat,
+    CatalogUpdateInput, CatalogUpdateResult, CompileCatalogArtifactOptions, CompileCatalogOptions,
     CompileSelectedCatalogArtifactOptions, CompiledCatalog, CompiledCatalogArtifact,
     CompiledCatalogDiagnostic, CompiledCatalogIdDescription, CompiledCatalogIdIndex,
     CompiledCatalogMissingMessage, CompiledCatalogTranslationKind, CompiledCatalogUnavailableId,

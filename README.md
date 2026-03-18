@@ -28,7 +28,7 @@ cargo add ferrocat
 The public entry point is the `ferrocat` crate. It re-exports the stable Rust surface from the lower-level workspace crates:
 
 - `ferrocat`: umbrella crate and recommended dependency for application code
-- `ferrocat-po`: PO parsing, serialization, merge helpers, and catalog update APIs
+- `ferrocat-po`: PO parsing, serialization, merge helpers, and high-level catalog update APIs for PO and NDJSON storage
 - `ferrocat-icu`: ICU MessageFormat parsing and structural helpers
 - `ferrocat-bench`: workspace-only benchmark harness
 - `ferrocat-conformance`: workspace-only upstream-derived conformance fixtures
@@ -103,14 +103,14 @@ The current public surface falls into three practical layers, depending on wheth
 |---|---|---|
 | PO core | `parse_po`, `parse_po_borrowed`, `stringify_po` | parse and write classic `.po` files directly |
 | Catalog workflows | `merge_catalog` | do the lean gettext-style merge step against fresh extracted messages |
-| Catalog workflows | `parse_catalog` | read a `.po` file into the higher-level canonical catalog model |
+| Catalog workflows | `parse_catalog` | read a PO or NDJSON catalog into the higher-level canonical catalog model |
 | Catalog workflows | `compiled_key` | derive the default stable runtime lookup key from `msgid` and optional `msgctxt` |
 | Catalog workflows | `NormalizedParsedCatalog::compile` | compile a normalized catalog into runtime lookup entries with stable derived keys |
 | Catalog workflows | `compile_catalog_artifact` | compile one requested-locale runtime artifact with fallback resolution, missing reports, and final ICU strings |
 | Catalog workflows | `compile_catalog_artifact_selected` | compile only a selected subset of compiled runtime IDs into a locale artifact slice |
 | Catalog workflows | `CompiledCatalogIdIndex` | build deterministic compiled-ID metadata, export the ordered ID map, or describe selected IDs against a catalog set |
 | Catalog workflows | `update_catalog` | run the full in-memory catalog update flow with headers, plurals, sorting, and diagnostics |
-| Catalog workflows | `update_catalog_file` | run the same full update flow directly against a file on disk |
+| Catalog workflows | `update_catalog_file` | run the same full update flow directly against a file on disk in PO or NDJSON storage |
 | ICU | `parse_icu`, `validate_icu`, `extract_variables` | parse or inspect ICU MessageFormat structure |
 
 See [docs/api-overview.md](docs/api-overview.md) for the fuller "what should I use when?" guide.
@@ -118,6 +118,29 @@ See [docs/api-overview.md](docs/api-overview.md) for the fuller "what should I u
 Across all of these layers, `ferrocat` keeps a conservative gettext-compatibility stance and surfaces diagnostics where ambiguity matters.
 
 The borrowed parser exists because real PO workflows are often read-heavy and transformation-heavy. In those paths, avoiding unnecessary allocation is the difference between a pleasant API and a scalable one.
+
+At the high-level catalog layer, storage is now an explicit choice. `CatalogStorageFormat::Po` remains the default, while `CatalogStorageFormat::Ndjson` enables a frontmatter + NDJSON representation where each message is stored as one JSON record per line.
+
+```rust
+use ferrocat::{CatalogStorageFormat, ParseCatalogOptions, parse_catalog};
+
+let parsed = parse_catalog(ParseCatalogOptions {
+    content: concat!(
+        "---\n",
+        "format: ferrocat.ndjson.v1\n",
+        "locale: de\n",
+        "source_locale: en\n",
+        "---\n",
+        "{\"id\":\"About us\",\"str\":\"Ueber uns\"}\n",
+    ),
+    source_locale: "en",
+    storage_format: CatalogStorageFormat::Ndjson,
+    ..ParseCatalogOptions::default()
+})?;
+
+assert_eq!(parsed.messages.len(), 1);
+# Ok::<(), Box<dyn std::error::Error>>(())
+```
 
 ## Runtime Catalog Compilation
 

@@ -16,7 +16,7 @@ This page is a lightweight guide for choosing the right function before there is
 | Parse a `.po` file while borrowing from the input string where possible | `parse_po_borrowed` |
 | Turn a `PoFile` back into `.po` text | `stringify_po` |
 | Merge fresh extracted gettext messages into an existing `.po` file | `merge_catalog` |
-| Read a `.po` file into the higher-level canonical catalog model | `parse_catalog` |
+| Read a PO or NDJSON catalog into the higher-level canonical catalog model | `parse_catalog` |
 | Build keyed lookup/helpers on top of a parsed catalog | `ParsedCatalog::into_normalized_view` |
 | Derive the default stable runtime key from `msgid` and `msgctxt` | `compiled_key` |
 | Compile a normalized catalog into runtime lookup entries | `NormalizedParsedCatalog::compile` |
@@ -88,11 +88,16 @@ In practice this is the "fast path" workflow API: it stays close to classic PO m
 
 ### `parse_catalog`
 
-Use this when you want more than raw PO syntax. It projects a PO file into `ferrocat`'s higher-level catalog model, including plural handling, diagnostics, and optional ICU-aware interpretation.
+Use this when you want more than raw PO syntax. It projects a PO or NDJSON catalog into `ferrocat`'s higher-level catalog model, including plural handling, diagnostics, and optional ICU-aware interpretation.
 
 Choose this when your application wants semantic catalog data rather than just PO syntax nodes.
 
 `ParseCatalogOptions` borrows the source text and locale strings, so you can parse directly from existing buffers without first building owned request strings.
+
+High-level catalog parsing now also takes an explicit `storage_format`:
+
+- `CatalogStorageFormat::Po` for classic gettext `.po`
+- `CatalogStorageFormat::Ndjson` for Ferrocat's frontmatter + NDJSON catalog storage
 
 `parse_catalog` intentionally stays as the neutral parse step. If you want keyed lookups or effective-translation helpers, build a richer view explicitly with `ParsedCatalog::into_normalized_view()`.
 
@@ -191,15 +196,19 @@ This goes beyond a raw merge. It can:
 - parse an existing catalog into the canonical model
 - merge extracted messages from either structured catalog input (`CatalogUpdateInput::Structured`) or source-first messages (`CatalogUpdateInput::SourceFirst`)
 - handle locale/plural logic
-- apply header defaults
+- apply storage-specific defaults
 - preserve or report diagnostics
-- sort and export the final PO file
+- sort and export the final catalog as PO or NDJSON
 
 Choose `update_catalog` when you want a complete update operation rather than just the lower-level merge step.
 
 Compared with `merge_catalog`, this is the "full semantics" path. It is the better fit when catalog correctness and consistency matter more than taking the shortest merge route, for example in release pipelines or when you want predictable headers, ordering, plural handling, and diagnostics.
 
 `UpdateCatalogOptions` borrows locale strings, optional existing content, and optional custom-header maps. The extracted message payload itself stays owned, because that is usually the natural shape for upstream extractor output.
+
+Like parsing, updates now use an explicit `storage_format`. PO remains the default. NDJSON storage uses a small frontmatter header plus one JSON message record per line.
+
+In `NDJSON` storage, arbitrary gettext-style custom headers are intentionally out of scope for `v1`; only the explicit frontmatter metadata is persisted.
 
 ### `update_catalog_file`
 

@@ -463,6 +463,16 @@ pub enum PluralEncoding {
     Gettext,
 }
 
+/// Storage format used by the high-level catalog API.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum CatalogStorageFormat {
+    /// Read and write classic gettext PO catalogs.
+    #[default]
+    Po,
+    /// Read and write Ferrocat's NDJSON catalog format with a small frontmatter header.
+    Ndjson,
+}
+
 /// Strategy used for messages that disappear from the extracted input.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum ObsoleteStrategy {
@@ -512,8 +522,10 @@ pub struct UpdateCatalogOptions<'a> {
     pub source_locale: &'a str,
     /// Extracted messages to merge into the catalog.
     pub input: CatalogUpdateInput,
-    /// Existing PO content, when updating an in-memory catalog.
+    /// Existing catalog content, when updating an in-memory catalog.
     pub existing: Option<&'a str>,
+    /// Storage format used when reading existing content and rendering the result.
+    pub storage_format: CatalogStorageFormat,
     /// Target plural representation for the rendered PO file.
     pub plural_encoding: PluralEncoding,
     /// Strategy for messages absent from the extracted input.
@@ -539,6 +551,7 @@ impl Default for UpdateCatalogOptions<'_> {
             source_locale: "",
             input: CatalogUpdateInput::default(),
             existing: None,
+            storage_format: CatalogStorageFormat::Po,
             plural_encoding: PluralEncoding::Icu,
             obsolete_strategy: ObsoleteStrategy::Mark,
             overwrite_source_translations: false,
@@ -562,6 +575,8 @@ pub struct UpdateCatalogFileOptions<'a> {
     pub source_locale: &'a str,
     /// Extracted messages to merge into the catalog.
     pub input: CatalogUpdateInput,
+    /// Storage format used when reading and writing the file content.
+    pub storage_format: CatalogStorageFormat,
     /// Target plural representation for the rendered PO file.
     pub plural_encoding: PluralEncoding,
     /// Strategy for messages absent from the extracted input.
@@ -587,6 +602,7 @@ impl Default for UpdateCatalogFileOptions<'_> {
             locale: None,
             source_locale: "",
             input: CatalogUpdateInput::default(),
+            storage_format: CatalogStorageFormat::Po,
             plural_encoding: PluralEncoding::Icu,
             obsolete_strategy: ObsoleteStrategy::Mark,
             overwrite_source_translations: false,
@@ -599,15 +615,17 @@ impl Default for UpdateCatalogFileOptions<'_> {
     }
 }
 
-/// Options for parsing a PO catalog into the higher-level message model.
+/// Options for parsing a catalog into the higher-level message model.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ParseCatalogOptions<'a> {
-    /// PO content to parse.
+    /// Catalog content to parse.
     pub content: &'a str,
     /// Optional explicit locale override.
     pub locale: Option<&'a str>,
     /// Source locale used for source-side semantics and validation.
     pub source_locale: &'a str,
+    /// Storage format used when parsing the content.
+    pub storage_format: CatalogStorageFormat,
     /// Target plural interpretation for the resulting catalog view.
     pub plural_encoding: PluralEncoding,
     /// Whether unsupported ICU plural projection cases should become hard errors.
@@ -620,6 +638,7 @@ impl Default for ParseCatalogOptions<'_> {
             content: "",
             locale: None,
             source_locale: "",
+            storage_format: CatalogStorageFormat::Po,
             plural_encoding: PluralEncoding::Icu,
             strict: false,
         }
