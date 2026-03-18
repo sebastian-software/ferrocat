@@ -30,6 +30,11 @@ At the same time, the key format must avoid silently papering over collisions or
 
 This yields compact ASCII-safe runtime keys of 11 characters.
 
+The same default key contract is also exposed publicly through a small helper
+that accepts `msgid` and optional `msgctxt`, so downstream transforms and host
+adapters can derive the exact same runtime identity without reimplementing the
+algorithm locally.
+
 Collision handling is strict:
 
 - if two distinct source identities produce the same compiled key, compilation fails

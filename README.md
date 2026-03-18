@@ -104,6 +104,7 @@ The current public surface falls into three practical layers, depending on wheth
 | PO core | `parse_po`, `parse_po_borrowed`, `stringify_po` | parse and write classic `.po` files directly |
 | Catalog workflows | `merge_catalog` | do the lean gettext-style merge step against fresh extracted messages |
 | Catalog workflows | `parse_catalog` | read a `.po` file into the higher-level canonical catalog model |
+| Catalog workflows | `compiled_key` | derive the default stable runtime lookup key from `msgid` and optional `msgctxt` |
 | Catalog workflows | `NormalizedParsedCatalog::compile` | compile a normalized catalog into runtime lookup entries with stable derived keys |
 | Catalog workflows | `compile_catalog_artifact` | compile one requested-locale runtime artifact with fallback resolution, missing reports, and final ICU strings |
 | Catalog workflows | `compile_catalog_artifact_selected` | compile only a selected subset of compiled runtime IDs into a locale artifact slice |
@@ -152,6 +153,9 @@ Current key contract:
 - visible version prefix: none
 - versioning: internal domain-separation input to the hash, not part of the emitted key
 - collisions: compile-time error, never overwrite
+
+If a host adapter or source transform needs that same default runtime key
+without compiling a whole catalog first, use `compiled_key(msgid, msgctxt)`.
 
 The goal is to give downstream runtimes small, reproducible lookup keys without turning the library into a code generator. If you need JS/TS/Rust module generation, `CompiledCatalog` is the intended handoff point.
 

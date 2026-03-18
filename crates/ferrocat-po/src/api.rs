@@ -1097,6 +1097,28 @@ fn compiled_translation_from_effective(value: EffectiveTranslation) -> CompiledT
     }
 }
 
+/// Derives the default stable runtime lookup key for `msgid` and `msgctxt`.
+///
+/// This public helper uses the same `FerrocatV1` key contract as
+/// [`NormalizedParsedCatalog::compile`] and [`compile_catalog_artifact`].
+///
+/// ```rust
+/// use ferrocat_po::compiled_key;
+///
+/// let without_context = compiled_key("Save", None);
+/// let with_context = compiled_key("Save", Some("menu"));
+///
+/// assert_eq!(without_context.len(), 11);
+/// assert_ne!(without_context, with_context);
+/// ```
+#[must_use]
+pub fn compiled_key(msgid: &str, msgctxt: Option<&str>) -> String {
+    compiled_key_for(
+        CompiledKeyStrategy::FerrocatV1,
+        &CatalogMessageKey::new(msgid, msgctxt.map(str::to_owned)),
+    )
+}
+
 fn compiled_key_for(strategy: CompiledKeyStrategy, key: &CatalogMessageKey) -> String {
     match strategy {
         CompiledKeyStrategy::FerrocatV1 => ferrocat_v1_compiled_key(key),
@@ -3123,8 +3145,8 @@ mod tests {
         ExtractedPluralMessage, ExtractedSingularMessage, ObsoleteStrategy, ParseCatalogOptions,
         PluralEncoding, PluralSource, SourceExtractedMessage, TranslationShape,
         UpdateCatalogFileOptions, UpdateCatalogOptions, cached_icu_plural_categories_for,
-        compile_catalog_artifact, compile_catalog_artifact_selected, compiled_key_for,
-        parse_catalog, update_catalog, update_catalog_file,
+        compile_catalog_artifact, compile_catalog_artifact_selected, compiled_key,
+        compiled_key_for, parse_catalog, update_catalog, update_catalog_file,
     };
     use crate::parse_po;
     use std::collections::{BTreeMap, HashMap};
@@ -3190,18 +3212,9 @@ mod tests {
 
     #[test]
     fn compile_catalog_changes_key_when_context_changes() {
-        let without_context = compiled_key_for(
-            CompiledKeyStrategy::FerrocatV1,
-            &CatalogMessageKey::new("Save", None),
-        );
-        let with_context = compiled_key_for(
-            CompiledKeyStrategy::FerrocatV1,
-            &CatalogMessageKey::new("Save", Some("menu".to_owned())),
-        );
-        let repeated = compiled_key_for(
-            CompiledKeyStrategy::FerrocatV1,
-            &CatalogMessageKey::new("Save", None),
-        );
+        let without_context = compiled_key("Save", None);
+        let with_context = compiled_key("Save", Some("menu"));
+        let repeated = compiled_key("Save", None);
 
         assert_eq!(without_context, repeated);
         assert_ne!(without_context, with_context);
@@ -3215,16 +3228,39 @@ mod tests {
 
     #[test]
     fn compile_catalog_changes_key_when_msgid_changes() {
-        let left = compiled_key_for(
-            CompiledKeyStrategy::FerrocatV1,
-            &CatalogMessageKey::new("Save", None),
-        );
-        let right = compiled_key_for(
-            CompiledKeyStrategy::FerrocatV1,
-            &CatalogMessageKey::new("Store", None),
-        );
+        let left = compiled_key("Save", None);
+        let right = compiled_key("Store", None);
 
         assert_ne!(left, right);
+    }
+
+    #[test]
+    fn compiled_key_matches_internal_ferrocat_v1_contract() {
+        let public = compiled_key("Save", Some("menu"));
+        let internal = compiled_key_for(
+            CompiledKeyStrategy::FerrocatV1,
+            &CatalogMessageKey::new("Save", Some("menu".to_owned())),
+        );
+
+        assert_eq!(public, internal);
+    }
+
+    #[test]
+    fn compiled_key_matches_compiled_catalog_entries() {
+        let normalized = normalized_catalog(
+            "msgctxt \"menu\"\nmsgid \"Save\"\nmsgstr \"Speichern\"\n",
+            Some("de"),
+            PluralEncoding::Icu,
+        );
+        let compiled = normalized
+            .compile(&CompileCatalogOptions::default())
+            .expect("compile");
+        let expected = compiled_key("Save", Some("menu"));
+
+        let (actual_key, message) = compiled.iter().next().expect("compiled message");
+
+        assert_eq!(actual_key, expected);
+        assert_eq!(message.key, expected);
     }
 
     #[test]

@@ -18,6 +18,7 @@ This page is a lightweight guide for choosing the right function before there is
 | Merge fresh extracted gettext messages into an existing `.po` file | `merge_catalog` |
 | Read a `.po` file into the higher-level canonical catalog model | `parse_catalog` |
 | Build keyed lookup/helpers on top of a parsed catalog | `ParsedCatalog::into_normalized_view` |
+| Derive the default stable runtime key from `msgid` and `msgctxt` | `compiled_key` |
 | Compile a normalized catalog into runtime lookup entries | `NormalizedParsedCatalog::compile` |
 | Compile a requested-locale runtime artifact with fallbacks and missing reports | `compile_catalog_artifact` |
 | Compile only a selected subset of compiled runtime IDs | `compile_catalog_artifact_selected` |
@@ -104,6 +105,15 @@ The built-in `CompiledKeyStrategy::FerrocatV1` contract is intentionally compact
 - encoded as unpadded Base64URL
 - no visible version prefix in the emitted key
 - hard compile failure on collisions
+
+### `compiled_key`
+
+Use this when a host adapter, source transform, or manifest builder needs the
+same default runtime key that Ferrocat emits during catalog compilation, but
+only has `msgid` and optional `msgctxt` available.
+
+This is the public, host-facing helper for the current default key contract.
+It corresponds to `CompiledKeyStrategy::FerrocatV1`.
 
 ### `compile_catalog_artifact`
 

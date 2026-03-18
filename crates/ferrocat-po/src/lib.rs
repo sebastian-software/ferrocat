@@ -75,7 +75,8 @@ pub use api::{
     ObsoleteStrategy, OrderBy, ParseCatalogOptions, ParsedCatalog, PlaceholderCommentMode,
     PluralEncoding, PluralSource, SourceExtractedMessage, TranslationShape,
     UpdateCatalogFileOptions, UpdateCatalogOptions, compile_catalog_artifact,
-    compile_catalog_artifact_selected, parse_catalog, update_catalog, update_catalog_file,
+    compile_catalog_artifact_selected, compiled_key, parse_catalog, update_catalog,
+    update_catalog_file,
 };
 pub use borrowed::{
     BorrowedHeader, BorrowedMsgStr, BorrowedPoFile, BorrowedPoItem, parse_po_borrowed,
