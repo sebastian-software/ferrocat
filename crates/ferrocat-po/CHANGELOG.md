@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.8.0](https://github.com/sebastian-software/ferrocat/compare/ferrocat-po-v0.7.0...ferrocat-po-v0.8.0) (2026-03-18)
+
+
+### Features
+
+* **catalog:** expose public compiled key helper ([5a3e2c8](https://github.com/sebastian-software/ferrocat/commit/5a3e2c8a9ad1e1d25eced87cffc0920dbef6d02a))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * ferrocat-icu bumped from 0.7.0 to 0.8.0
+
 ## [0.7.0](https://github.com/sebastian-software/ferrocat/compare/ferrocat-po-v0.6.0...ferrocat-po-v0.7.0) (2026-03-17)
 
 
