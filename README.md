@@ -297,7 +297,7 @@ For quicker day-to-day checks there is also `gettext-official-quick-v1`. It keep
 
 For workflow-style benchmarking there is now also a separate `gettext-workflows-v1` profile, which compares `merge_catalog` against a conservative `msgmerge` baseline on the `gettext-ui-de-*` corpus.
 
-Current official gettext snapshot from [benchmark/results/gettext-official-v1-ed87944.json](benchmark/results/gettext-official-v1-ed87944.json) (`generated_at: 2026-03-17T23:13:00Z`):
+Current official gettext snapshot from [benchmark/results/gettext-official-v1-20260318-094344.json](benchmark/results/gettext-official-v1-20260318-094344.json) (`generated_at: 2026-03-18T09:50:53Z`):
 
 Environment snapshot for that report:
 
@@ -328,17 +328,17 @@ Column labels:
 
 | Fixture | ferrocat (Rust)<br>`parse_po` | ferrocat (Rust)<br>`parse_po_borrowed` | pofile-ts (Node.js)<br>`parsePo` | gettext-parser (Node.js)<br>`po.parse` | pofile (Node.js)<br>`parse` | polib (Python)<br>`parse` |
 |---|---:|---:|---:|---:|---:|---:|
-| UI strings (DE, 10k)<br>(`gettext-ui-de-10000`) | 1.32M | **1.65M** | 577k | 103k | 9.2k | 59.3k |
-| SaaS strings (FR, 10k)<br>(`gettext-saas-fr-10000`) | 1.30M | **1.60M** | 565k | 113k | 8.5k | 58.3k |
-| Commerce strings (PL, 10k)<br>(`gettext-commerce-pl-10000`) | 1.28M | **1.64M** | 592k | 106k | 7.8k | 59.5k |
+| UI strings (DE, 10k)<br>(`gettext-ui-de-10000`) | 1.35M | **1.67M** | 570k | 105k | 9.6k | 59.4k |
+| SaaS strings (FR, 10k)<br>(`gettext-saas-fr-10000`) | 1.31M | **1.58M** | 537k | 112k | 8.5k | 58.2k |
+| Commerce strings (PL, 10k)<br>(`gettext-commerce-pl-10000`) | 1.29M | **1.63M** | 593k | 102k | 7.9k | 59.9k |
 
 ### Stringify throughput
 
 | Fixture | ferrocat (Rust)<br>`stringify_po` | pofile-ts (Node.js)<br>`stringifyPo` | gettext-parser (Node.js)<br>`po.compile` | pofile (Node.js)<br>`serialize` | polib (Python)<br>`serialize` | GNU gettext (C)<br>`msgcat` |
 |---|---:|---:|---:|---:|---:|---:|
-| UI strings (DE, 10k)<br>(`gettext-ui-de-10000`) | **6.16M** | 1.30M | 195k | 564k | 99.6k | 29.8k |
-| SaaS strings (FR, 10k)<br>(`gettext-saas-fr-10000`) | **6.09M** | 1.05M | 243k | 649k | 113k | 30.9k |
-| Commerce strings (PL, 10k)<br>(`gettext-commerce-pl-10000`) | **6.47M** | 1.11M | 220k | 609k | 112k | 29.3k |
+| UI strings (DE, 10k)<br>(`gettext-ui-de-10000`) | **6.06M** | 1.25M | 194k | 696k | 99.9k | 29.7k |
+| SaaS strings (FR, 10k)<br>(`gettext-saas-fr-10000`) | **5.96M** | 1.04M | 243k | 649k | 114k | 30.7k |
+| Commerce strings (PL, 10k)<br>(`gettext-commerce-pl-10000`) | **6.43M** | 1.12M | 225k | 621k | 113k | 29.3k |
 
 `merge_catalog` is the leaner gettext-style merge step. It works like a fast-path merge:
 
@@ -347,7 +347,7 @@ Column labels:
 - mark removed entries as obsolete
 - preserve the classic PO shape instead of re-projecting through the higher-level catalog model
 
-Workflow ecosystem snapshot from [benchmark/results/gettext-workflows-ecosystem-v1-merge-only-no-fuzzy.json](benchmark/results/gettext-workflows-ecosystem-v1-merge-only-no-fuzzy.json) (`generated_at: 2026-03-17T08:55:17Z`):
+Workflow ecosystem snapshot from [benchmark/results/gettext-workflows-ecosystem-v1-20260318-095059.json](benchmark/results/gettext-workflows-ecosystem-v1-20260318-095059.json) (`generated_at: 2026-03-18T09:52:12Z`):
 
 `pofile`, `pofile-ts`, and `polib` now also run as reconstructed `msgmerge`-style pipelines: parse existing `.po`, merge against the generated `.pot`, then serialize again. This is intentionally a workflow comparison, not just a raw parser benchmark.
 
@@ -375,8 +375,8 @@ The broader `gettext-compat-v1` and `gettext-workflows-v1` reports are still use
 
 | Fixture | ferrocat (Rust)<br>`merge_catalog` | pofile-ts (Node.js)<br>`parsePo` + merge + `stringifyPo` | pofile (Node.js)<br>`parse` + merge + `serialize` | GNU gettext (C)<br>`msgmerge` | polib (Python)<br>`pofile` + merge + `str()` |
 |---|---:|---:|---:|---:|---:|
-| UI strings (DE, 1k)<br>(`gettext-ui-de-1000`) | **1.94M** | 164k | 76.9k | 23.4k | 17.9k |
-| UI strings (DE, 10k)<br>(`gettext-ui-de-10000`) | **1.77M** | 151k | 2.6k | 26.8k | 17.9k |
+| UI strings (DE, 1k)<br>(`gettext-ui-de-1000`) | **1.97M** | 169k | 77.8k | 23.3k | 18.1k |
+| UI strings (DE, 10k)<br>(`gettext-ui-de-10000`) | **1.84M** | 155k | 2.7k | 26.8k | 18.1k |
 
 For profiling on macOS:
 
