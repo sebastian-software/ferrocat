@@ -30,6 +30,8 @@ mod backend {
     fn find_escapable_byte_impl(haystack: &[u8]) -> Option<usize> {
         // Apple Silicon is our primary target, so this is the first place where
         // a dedicated NEON path is worth the maintenance cost.
+        // SAFETY: `neon_find_escapable_byte` only reads within `haystack`, and this
+        // branch is compiled exclusively for `aarch64` targets with NEON enabled.
         unsafe { neon_find_escapable_byte(haystack) }
     }
 
@@ -73,6 +75,8 @@ mod backend {
 
         let mut offset = 0usize;
         while offset + 16 <= haystack.len() {
+            // SAFETY: the loop guard guarantees a full 16-byte chunk remains, so the
+            // pointer arithmetic and NEON load stay within the slice bounds.
             let matched = unsafe {
                 let chunk = vld1q_u8(haystack.as_ptr().add(offset));
                 let mut matched = vceqq_u8(chunk, vdupq_n_u8(b'"'));

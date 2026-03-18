@@ -1,4 +1,4 @@
-#![cfg_attr(docsrs, warn(missing_docs, rustdoc::broken_intra_doc_links))]
+#![warn(missing_docs, rustdoc::broken_intra_doc_links)]
 //! Performance-first PO parsing and serialization.
 //!
 //! The crate exposes both owned and borrowed parsers for gettext PO files,
@@ -26,27 +26,28 @@
 //! };
 //!
 //! let source = parse_catalog(ParseCatalogOptions {
-//!     content: "msgid \"Hello\"\nmsgstr \"Hello\"\n".to_owned(),
-//!     source_locale: "en".to_owned(),
-//!     locale: Some("en".to_owned()),
+//!     content: "msgid \"Hello\"\nmsgstr \"Hello\"\n",
+//!     source_locale: "en",
+//!     locale: Some("en"),
 //!     ..ParseCatalogOptions::default()
 //! })?
 //! .into_normalized_view()?;
 //! let requested = parse_catalog(ParseCatalogOptions {
-//!     content: "msgid \"Hello\"\nmsgstr \"Hallo\"\n".to_owned(),
-//!     source_locale: "en".to_owned(),
-//!     locale: Some("de".to_owned()),
+//!     content: "msgid \"Hello\"\nmsgstr \"Hallo\"\n",
+//!     source_locale: "en",
+//!     locale: Some("de"),
 //!     ..ParseCatalogOptions::default()
 //! })?
 //! .into_normalized_view()?;
 //! let index = CompiledCatalogIdIndex::new(&[&requested, &source], ferrocat_po::CompiledKeyStrategy::FerrocatV1)?;
+//! let compiled_ids = index.iter().map(|(id, _)| id.to_owned()).collect::<Vec<_>>();
 //! let compiled = compile_catalog_artifact_selected(
 //!     &[&requested, &source],
 //!     &index,
 //!     &CompileSelectedCatalogArtifactOptions {
-//!         requested_locale: "de".to_owned(),
-//!         source_locale: "en".to_owned(),
-//!         compiled_ids: index.iter().map(|(id, _)| id.to_owned()).collect(),
+//!         requested_locale: "de",
+//!         source_locale: "en",
+//!         compiled_ids: &compiled_ids,
 //!         ..CompileSelectedCatalogArtifactOptions::default()
 //!     },
 //! )?;
@@ -62,6 +63,7 @@ mod parse;
 mod scan;
 mod serialize;
 mod text;
+mod utf8;
 
 pub use api::{
     ApiError, CatalogMessage, CatalogMessageExtra, CatalogMessageKey, CatalogOrigin, CatalogStats,

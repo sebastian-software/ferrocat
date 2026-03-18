@@ -1723,10 +1723,10 @@ mod tests {
     fn update_catalog_accepts_projectable_icu_fixture() {
         let fixture = merge_fixture_by_name("catalog-icu-projectable").expect("fixture exists");
         let result = update_catalog(UpdateCatalogOptions {
-            locale: Some("de".to_owned()),
-            source_locale: "en".to_owned(),
+            locale: Some("de"),
+            source_locale: "en",
             input: fixture.api_extracted_messages().to_vec().into(),
-            existing: Some(fixture.existing_po().to_owned()),
+            existing: Some(fixture.existing_po()),
             plural_encoding: PluralEncoding::Icu,
             ..UpdateCatalogOptions::default()
         })
@@ -1740,10 +1740,10 @@ mod tests {
     fn update_catalog_preserves_diagnostics_for_unsupported_icu_fixture() {
         let fixture = merge_fixture_by_name("catalog-icu-unsupported").expect("fixture exists");
         let result = update_catalog(UpdateCatalogOptions {
-            locale: Some("de".to_owned()),
-            source_locale: "en".to_owned(),
+            locale: Some("de"),
+            source_locale: "en",
             input: fixture.api_extracted_messages().to_vec().into(),
-            existing: Some(fixture.existing_po().to_owned()),
+            existing: Some(fixture.existing_po()),
             plural_encoding: PluralEncoding::Icu,
             ..UpdateCatalogOptions::default()
         })

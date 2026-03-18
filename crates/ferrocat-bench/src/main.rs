@@ -392,10 +392,10 @@ fn bench_update_catalog(fixture: &MergeFixture, config: BenchConfig) -> Result<(
         let mut bytes = 0usize;
         for _ in 0..config.iterations {
             let rendered = update_catalog(UpdateCatalogOptions {
-                locale: Some("de".to_owned()),
-                source_locale: "en".to_owned(),
+                locale: Some("de"),
+                source_locale: "en",
                 input: fixture.api_extracted_messages().to_vec().into(),
-                existing: Some(fixture.existing_po().to_owned()),
+                existing: Some(fixture.existing_po()),
                 plural_encoding: PluralEncoding::Icu,
                 ..UpdateCatalogOptions::default()
             })
@@ -435,9 +435,9 @@ fn bench_update_catalog_file(fixture: &MergeFixture, config: BenchConfig) -> Res
         for _ in 0..config.iterations {
             fs::write(&path, fixture.existing_po()).map_err(|error| error.to_string())?;
             let rendered = update_catalog_file(UpdateCatalogFileOptions {
-                target_path: path.clone(),
-                locale: Some("de".to_owned()),
-                source_locale: "en".to_owned(),
+                target_path: &path,
+                locale: Some("de"),
+                source_locale: "en",
                 input: fixture.api_extracted_messages().to_vec().into(),
                 plural_encoding: PluralEncoding::Icu,
                 ..UpdateCatalogFileOptions::default()

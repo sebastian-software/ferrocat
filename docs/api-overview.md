@@ -62,6 +62,14 @@ Typical use cases:
 
 ## Catalog Workflows
 
+The high-level catalog request structs are now intentionally borrowing-first:
+
+- string inputs such as catalog text and locales are accepted as `&str`
+- selected compiled IDs and fallback chains are accepted as borrowed slices
+- file-oriented updates accept `&Path`
+
+That keeps the API ergonomic for callers while avoiding avoidable request-side allocation and clone pressure before the real catalog work even starts.
+
 ### `merge_catalog`
 
 Use this for the basic gettext merge step:
@@ -83,6 +91,8 @@ In practice this is the "fast path" workflow API: it stays close to classic PO m
 Use this when you want more than raw PO syntax. It projects a PO file into `ferrocat`'s higher-level catalog model, including plural handling, diagnostics, and optional ICU-aware interpretation.
 
 Choose this when your application wants semantic catalog data rather than just PO syntax nodes.
+
+`ParseCatalogOptions` borrows the source text and locale strings, so you can parse directly from existing buffers without first building owned request strings.
 
 `parse_catalog` intentionally stays as the neutral parse step. If you want keyed lookups or effective-translation helpers, build a richer view explicitly with `ParsedCatalog::into_normalized_view()`.
 
@@ -130,6 +140,8 @@ This sits one step above `NormalizedParsedCatalog::compile`:
 
 Choose this when your downstream tooling needs locale resolution semantics centralized in Ferrocat instead of rebuilding them in a host adapter.
 
+`CompileCatalogArtifactOptions` borrows locale strings and the fallback-chain slice, which keeps host-side request assembly cheap even when compilation is performance-sensitive.
+
 Important semantics:
 
 - only non-obsolete messages participate in artifact compilation
@@ -151,6 +163,8 @@ This is the narrower companion to `compile_catalog_artifact`:
 - return the same `CompiledCatalogArtifact` shape, but filtered to the requested subset
 
 Choose this when a bundler/plugin layer has already mapped modules or chunks to the exact message IDs they require.
+
+Like the broader artifact API, the request struct borrows locale data and selection slices, so callers can reuse existing vectors or arrays of compiled IDs without another owned wrapper.
 
 ### `CompiledCatalogIdIndex`
 
@@ -185,6 +199,8 @@ Choose `update_catalog` when you want a complete update operation rather than ju
 
 Compared with `merge_catalog`, this is the "full semantics" path. It is the better fit when catalog correctness and consistency matter more than taking the shortest merge route, for example in release pipelines or when you want predictable headers, ordering, plural handling, and diagnostics.
 
+`UpdateCatalogOptions` borrows locale strings, optional existing content, and optional custom-header maps. The extracted message payload itself stays owned, because that is usually the natural shape for upstream extractor output.
+
 ### `update_catalog_file`
 
 Use this when you want the same high-level behavior as `update_catalog`, but against a file path.
@@ -194,6 +210,8 @@ It reads the current file if present, runs the full update, and only writes back
 Choose this for CLI tools, task runners, or build/dev pipelines that work directly on catalog files on disk.
 
 Like `update_catalog`, it accepts `CatalogUpdateInput`, so source-string-first tooling can hand off plural projection and catalog-shaping to Ferrocat instead of pre-projecting everything into `ExtractedMessage`.
+
+`UpdateCatalogFileOptions` borrows both the path and the locale/header inputs, so file-based automation can call it without constructing throwaway owned request objects.
 
 ## ICU MessageFormat
 

@@ -1,5 +1,4 @@
 use std::borrow::Cow;
-use std::str;
 
 use crate::scan::{
     CommentKind, Keyword, LineKind, LineScanner, classify_line, find_byte, find_quoted_bounds,
@@ -7,6 +6,7 @@ use crate::scan::{
 };
 use crate::serialize::{write_keyword, write_prefixed_line};
 use crate::text::{escape_string_into, unescape_string, validate_quoted_content};
+use crate::utf8::input_slice_as_str;
 use crate::{BorrowedMsgStr, ParseError, SerializeOptions};
 
 /// Borrowed extracted message input for the lightweight merge helper.
@@ -1037,8 +1037,8 @@ fn parse_nplurals(headers: &[MergeHeader<'_>]) -> Option<usize> {
     None
 }
 
-const fn bytes_to_str(bytes: &[u8]) -> &str {
-    unsafe { str::from_utf8_unchecked(bytes) }
+fn bytes_to_str(bytes: &[u8]) -> &str {
+    input_slice_as_str(bytes)
 }
 
 fn trimmed_str(bytes: &[u8]) -> &str {

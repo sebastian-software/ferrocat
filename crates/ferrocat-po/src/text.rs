@@ -2,6 +2,7 @@ use std::borrow::Cow;
 
 use crate::ParseError;
 use crate::scan::{find_byte, find_escapable_byte, find_quoted_bounds, has_byte};
+use crate::utf8::{input_slice_as_str, string_from_utf8};
 
 /// Escapes a PO string literal payload.
 #[must_use]
@@ -118,7 +119,7 @@ pub fn unescape_string(input: &str) -> Result<String, ParseError> {
         index += 1;
     }
 
-    Ok(unsafe { String::from_utf8_unchecked(out) })
+    Ok(string_from_utf8(out))
 }
 
 /// Extracts and unescapes the first quoted PO string from `line`, borrowing
@@ -285,10 +286,8 @@ fn push_char_bytes(out: &mut Vec<u8>, ch: char) {
     out.extend_from_slice(ch.encode_utf8(&mut buf).as_bytes());
 }
 
-const fn bytes_to_str(bytes: &[u8]) -> &str {
-    // All byte slices handled here originate from valid `&str` inputs and are
-    // only split on ASCII delimiter bytes such as quotes and backslashes.
-    unsafe { std::str::from_utf8_unchecked(bytes) }
+fn bytes_to_str(bytes: &[u8]) -> &str {
+    input_slice_as_str(bytes)
 }
 
 fn normalize_reference_token(input: &str) -> Cow<'_, str> {

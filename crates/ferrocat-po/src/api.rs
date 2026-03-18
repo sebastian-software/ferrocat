@@ -1,9 +1,12 @@
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::fmt;
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::sync::{Mutex, OnceLock};
 
+mod file_io;
+
+use self::file_io::atomic_write;
 use crate::{Header, MsgStr, ParseError, PoFile, PoItem, SerializeOptions, parse_po, stringify_po};
 use ferrocat_icu::{IcuMessage, IcuNode, IcuPluralKind, parse_icu};
 use icu_locale::Locale;
@@ -13,59 +16,83 @@ use sha2::{Digest, Sha256};
 /// File and line information for an extracted message origin.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct CatalogOrigin {
+    /// Path-like source identifier where the message came from.
     pub file: String,
+    /// One-based line number when the extractor provided one.
     pub line: Option<u32>,
 }
 
 /// Structured singular message input used by catalog update operations.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct ExtractedSingularMessage {
+    /// Source message identifier.
     pub msgid: String,
+    /// Optional gettext message context.
     pub msgctxt: Option<String>,
+    /// Extracted comments that should become translator-facing guidance.
     pub comments: Vec<String>,
+    /// Source locations collected by the extractor.
     pub origin: Vec<CatalogOrigin>,
+    /// Placeholder hints keyed by placeholder name.
     pub placeholders: BTreeMap<String, Vec<String>>,
 }
 
 /// Source-side plural forms for structured catalog messages.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct PluralSource {
+    /// Singular source form, when one exists separately from `other`.
     pub one: Option<String>,
+    /// Required plural catch-all source form.
     pub other: String,
 }
 
 /// Structured plural message input used by catalog update operations.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct ExtractedPluralMessage {
+    /// Stable source identifier for the message family.
     pub msgid: String,
+    /// Optional gettext message context.
     pub msgctxt: Option<String>,
+    /// Structured source-side plural forms.
     pub source: PluralSource,
+    /// Extracted comments that should become translator-facing guidance.
     pub comments: Vec<String>,
+    /// Source locations collected by the extractor.
     pub origin: Vec<CatalogOrigin>,
+    /// Placeholder hints keyed by placeholder name.
     pub placeholders: BTreeMap<String, Vec<String>>,
 }
 
 /// Structured extractor input accepted by [`update_catalog`] and [`update_catalog_file`].
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ExtractedMessage {
+    /// Message that has a single source/translation value.
     Singular(ExtractedSingularMessage),
+    /// Message that carries structured plural source forms.
     Plural(ExtractedPluralMessage),
 }
 
 /// Source-first extractor input that lets `ferrocat` infer plural structure.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct SourceExtractedMessage {
+    /// Source message text used both as identifier and source value.
     pub msgid: String,
+    /// Optional gettext message context.
     pub msgctxt: Option<String>,
+    /// Extracted comments that should become translator-facing guidance.
     pub comments: Vec<String>,
+    /// Source locations collected by the extractor.
     pub origin: Vec<CatalogOrigin>,
+    /// Placeholder hints keyed by placeholder name.
     pub placeholders: BTreeMap<String, Vec<String>>,
 }
 
 /// Input payload accepted by catalog update operations.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CatalogUpdateInput {
+    /// Pre-projected singular/plural messages.
     Structured(Vec<ExtractedMessage>),
+    /// Source-first messages that let `ferrocat` infer plural structure.
     SourceFirst(Vec<SourceExtractedMessage>),
 }
 
@@ -90,12 +117,18 @@ impl From<Vec<SourceExtractedMessage>> for CatalogUpdateInput {
 /// Public translation shape returned from parsed catalogs.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TranslationShape {
+    /// Message represented by a single string value.
     Singular {
+        /// The current translation value.
         value: String,
     },
+    /// Message represented by structured plural categories.
     Plural {
+        /// Source-side plural forms.
         source: PluralSource,
+        /// Translation values keyed by plural category.
         translation: BTreeMap<String, String>,
+        /// Variable name used when re-synthesizing ICU plural strings.
         variable: String,
     },
 }
@@ -103,21 +136,27 @@ pub enum TranslationShape {
 /// Borrowed view over a message translation.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum EffectiveTranslationRef<'a> {
+    /// Singular translation borrowed from the parsed catalog.
     Singular(&'a str),
+    /// Plural translation borrowed from the parsed catalog.
     Plural(&'a BTreeMap<String, String>),
 }
 
 /// Owned translation value materialized from a parsed catalog.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum EffectiveTranslation {
+    /// Singular translation value.
     Singular(String),
+    /// Plural translation values keyed by category.
     Plural(BTreeMap<String, String>),
 }
 
 /// Translation value stored in a compiled runtime catalog.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CompiledTranslation {
+    /// Singular runtime value.
     Singular(String),
+    /// Structured plural runtime value.
     Plural(BTreeMap<String, String>),
 }
 
@@ -133,16 +172,16 @@ pub enum CompiledKeyStrategy {
 
 /// Options controlling runtime catalog compilation.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CompileCatalogOptions {
+pub struct CompileCatalogOptions<'a> {
     /// Built-in strategy used to derive stable runtime keys.
     pub key_strategy: CompiledKeyStrategy,
     /// Whether empty source-locale values should be filled from the source text.
     pub source_fallback: bool,
     /// Source locale used when `source_fallback` is enabled.
-    pub source_locale: Option<String>,
+    pub source_locale: Option<&'a str>,
 }
 
-impl Default for CompileCatalogOptions {
+impl Default for CompileCatalogOptions<'_> {
     fn default() -> Self {
         Self {
             key_strategy: CompiledKeyStrategy::FerrocatV1,
@@ -154,13 +193,13 @@ impl Default for CompileCatalogOptions {
 
 /// Options controlling high-level compiled catalog artifact generation.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CompileCatalogArtifactOptions {
+pub struct CompileCatalogArtifactOptions<'a> {
     /// Locale for which the runtime artifact should be produced.
-    pub requested_locale: String,
+    pub requested_locale: &'a str,
     /// Source locale used for explicit source fallback behavior.
-    pub source_locale: String,
+    pub source_locale: &'a str,
     /// Ordered fallback locales consulted after the requested locale.
-    pub fallback_chain: Vec<String>,
+    pub fallback_chain: &'a [String],
     /// Built-in strategy used to derive stable runtime keys.
     pub key_strategy: CompiledKeyStrategy,
     /// Whether source text should be used when no non-source translation exists.
@@ -169,12 +208,12 @@ pub struct CompileCatalogArtifactOptions {
     pub strict_icu: bool,
 }
 
-impl Default for CompileCatalogArtifactOptions {
+impl Default for CompileCatalogArtifactOptions<'_> {
     fn default() -> Self {
         Self {
-            requested_locale: String::new(),
-            source_locale: String::new(),
-            fallback_chain: Vec::new(),
+            requested_locale: "",
+            source_locale: "",
+            fallback_chain: &[],
             key_strategy: CompiledKeyStrategy::FerrocatV1,
             source_fallback: false,
             strict_icu: false,
@@ -184,13 +223,13 @@ impl Default for CompileCatalogArtifactOptions {
 
 /// Options controlling selected-subset compiled catalog artifact generation.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CompileSelectedCatalogArtifactOptions {
+pub struct CompileSelectedCatalogArtifactOptions<'a> {
     /// Locale for which the runtime artifact should be produced.
-    pub requested_locale: String,
+    pub requested_locale: &'a str,
     /// Source locale used for explicit source fallback behavior.
-    pub source_locale: String,
+    pub source_locale: &'a str,
     /// Ordered fallback locales consulted after the requested locale.
-    pub fallback_chain: Vec<String>,
+    pub fallback_chain: &'a [String],
     /// Built-in strategy used to derive stable runtime keys.
     pub key_strategy: CompiledKeyStrategy,
     /// Whether source text should be used when no non-source translation exists.
@@ -198,29 +237,29 @@ pub struct CompileSelectedCatalogArtifactOptions {
     /// Whether invalid final ICU messages should fail compilation instead of producing diagnostics.
     pub strict_icu: bool,
     /// Requested compiled runtime IDs to include in the artifact.
-    pub compiled_ids: Vec<String>,
+    pub compiled_ids: &'a [String],
 }
 
-impl Default for CompileSelectedCatalogArtifactOptions {
+impl Default for CompileSelectedCatalogArtifactOptions<'_> {
     fn default() -> Self {
         Self {
-            requested_locale: String::new(),
-            source_locale: String::new(),
-            fallback_chain: Vec::new(),
+            requested_locale: "",
+            source_locale: "",
+            fallback_chain: &[],
             key_strategy: CompiledKeyStrategy::FerrocatV1,
             source_fallback: false,
             strict_icu: false,
-            compiled_ids: Vec::new(),
+            compiled_ids: &[],
         }
     }
 }
 
-impl CompileSelectedCatalogArtifactOptions {
-    fn artifact_options(&self) -> CompileCatalogArtifactOptions {
+impl CompileSelectedCatalogArtifactOptions<'_> {
+    fn artifact_options(&self) -> CompileCatalogArtifactOptions<'_> {
         CompileCatalogArtifactOptions {
-            requested_locale: self.requested_locale.clone(),
-            source_locale: self.source_locale.clone(),
-            fallback_chain: self.fallback_chain.clone(),
+            requested_locale: self.requested_locale,
+            source_locale: self.source_locale,
+            fallback_chain: self.fallback_chain,
             key_strategy: self.key_strategy,
             source_fallback: self.source_fallback,
             strict_icu: self.strict_icu,
@@ -231,7 +270,9 @@ impl CompileSelectedCatalogArtifactOptions {
 /// High-level translation kind associated with a compiled runtime ID.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CompiledCatalogTranslationKind {
+    /// Translation is a single string value.
     Singular,
+    /// Translation is a plural/category map.
     Plural,
 }
 
@@ -522,19 +563,28 @@ pub struct CompiledCatalogDiagnostic {
 /// Extra translator-facing metadata preserved on a catalog message.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct CatalogMessageExtra {
+    /// Translator comments that were attached to the original PO item.
     pub translator_comments: Vec<String>,
+    /// PO flags such as `fuzzy`.
     pub flags: Vec<String>,
 }
 
 /// Public message representation returned by [`parse_catalog`].
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CatalogMessage {
+    /// Source message identifier.
     pub msgid: String,
+    /// Optional gettext message context.
     pub msgctxt: Option<String>,
+    /// Public translation representation.
     pub translation: TranslationShape,
+    /// Extracted comments preserved from the source catalog.
     pub comments: Vec<String>,
+    /// Source origins preserved from PO references.
     pub origin: Vec<CatalogOrigin>,
+    /// Whether the message is marked obsolete.
     pub obsolete: bool,
+    /// Optional additional translator-facing PO metadata.
     pub extra: Option<CatalogMessageExtra>,
 }
 
@@ -600,7 +650,9 @@ impl CatalogMessage {
 /// Stable lookup key for catalog messages.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct CatalogMessageKey {
+    /// Source message identifier.
     pub msgid: String,
+    /// Optional gettext message context.
     pub msgctxt: Option<String>,
 }
 
@@ -618,18 +670,26 @@ impl CatalogMessageKey {
 /// Severity level attached to a [`Diagnostic`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DiagnosticSeverity {
+    /// Informational message that does not indicate a problem.
     Info,
+    /// Non-fatal condition that may require user attention.
     Warning,
+    /// Serious condition associated with invalid input or unsupported output.
     Error,
 }
 
 /// Non-fatal issue collected while parsing or updating catalogs.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Diagnostic {
+    /// Severity level for the diagnostic.
     pub severity: DiagnosticSeverity,
+    /// Stable machine-readable code for the diagnostic.
     pub code: String,
+    /// Human-readable explanation of the condition.
     pub message: String,
+    /// Source `msgid`, when the diagnostic can be tied to one message.
     pub msgid: Option<String>,
+    /// Source `msgctxt`, when the diagnostic can be tied to one message.
     pub msgctxt: Option<String>,
 }
 
@@ -658,30 +718,45 @@ impl Diagnostic {
 /// Basic counters describing an update operation.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct CatalogStats {
+    /// Total messages in the final catalog.
     pub total: usize,
+    /// Messages added during the update.
     pub added: usize,
+    /// Existing messages whose rendered representation changed.
     pub changed: usize,
+    /// Existing messages preserved without changes.
     pub unchanged: usize,
+    /// Messages newly marked obsolete.
     pub obsolete_marked: usize,
+    /// Messages removed because the obsolete strategy deleted them.
     pub obsolete_removed: usize,
 }
 
 /// Result returned by catalog update operations.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CatalogUpdateResult {
+    /// Final PO content after applying the update.
     pub content: String,
+    /// Whether the update created a new catalog from scratch.
     pub created: bool,
+    /// Whether the final content differs from the original input.
     pub updated: bool,
+    /// Summary counters for the operation.
     pub stats: CatalogStats,
+    /// Non-fatal diagnostics collected during processing.
     pub diagnostics: Vec<Diagnostic>,
 }
 
 /// Parsed catalog plus diagnostics and normalized headers.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ParsedCatalog {
+    /// Declared or overridden catalog locale.
     pub locale: Option<String>,
+    /// Normalized header map keyed by header name.
     pub headers: BTreeMap<String, String>,
+    /// Parsed catalog messages in source order.
     pub messages: Vec<CatalogMessage>,
+    /// Non-fatal diagnostics collected while parsing.
     pub diagnostics: Vec<Diagnostic>,
 }
 
@@ -804,9 +879,9 @@ impl NormalizedParsedCatalog {
     /// use ferrocat_po::{CompileCatalogOptions, ParseCatalogOptions, parse_catalog};
     ///
     /// let parsed = parse_catalog(ParseCatalogOptions {
-    ///     content: "msgid \"Hello\"\nmsgstr \"Hallo\"\n".to_owned(),
-    ///     source_locale: "en".to_owned(),
-    ///     locale: Some("de".to_owned()),
+    ///     content: "msgid \"Hello\"\nmsgstr \"Hallo\"\n",
+    ///     source_locale: "en",
+    ///     locale: Some("de"),
     ///     ..ParseCatalogOptions::default()
     /// })?;
     /// let normalized = parsed.into_normalized_view()?;
@@ -817,20 +892,23 @@ impl NormalizedParsedCatalog {
     /// assert_eq!(message.source_key.msgid, "Hello");
     /// # Ok::<(), Box<dyn std::error::Error>>(())
     /// ```
-    pub fn compile(&self, options: &CompileCatalogOptions) -> Result<CompiledCatalog, ApiError> {
+    pub fn compile(
+        &self,
+        options: &CompileCatalogOptions<'_>,
+    ) -> Result<CompiledCatalog, ApiError> {
         self.compile_with_key_generator(options, compiled_key_for)
     }
 
     fn compile_with_key_generator<F>(
         &self,
-        options: &CompileCatalogOptions,
+        options: &CompileCatalogOptions<'_>,
         mut key_generator: F,
     ) -> Result<CompiledCatalog, ApiError>
     where
         F: FnMut(CompiledKeyStrategy, &CatalogMessageKey) -> String,
     {
         let source_locale = if options.source_fallback {
-            Some(options.source_locale.as_deref().ok_or_else(|| {
+            Some(options.source_locale.ok_or_else(|| {
                 ApiError::InvalidArguments(
                     "compile_catalog source_fallback requires source_locale".to_owned(),
                 )
@@ -892,13 +970,13 @@ struct ResolvedArtifactMessage {
 /// `strict_icu` is enabled and a final runtime message fails ICU validation.
 pub fn compile_catalog_artifact(
     catalogs: &[&NormalizedParsedCatalog],
-    options: &CompileCatalogArtifactOptions,
+    options: &CompileCatalogArtifactOptions<'_>,
 ) -> Result<CompiledCatalogArtifact, ApiError> {
     let locales = prepare_compiled_catalog_artifact_catalogs(
         catalogs,
-        &options.requested_locale,
-        &options.source_locale,
-        &options.fallback_chain,
+        options.requested_locale,
+        options.source_locale,
+        options.fallback_chain,
     )?;
     compile_catalog_artifact_from_source_keys(
         &locales,
@@ -918,18 +996,18 @@ pub fn compile_catalog_artifact(
 pub fn compile_catalog_artifact_selected(
     catalogs: &[&NormalizedParsedCatalog],
     index: &CompiledCatalogIdIndex,
-    options: &CompileSelectedCatalogArtifactOptions,
+    options: &CompileSelectedCatalogArtifactOptions<'_>,
 ) -> Result<CompiledCatalogArtifact, ApiError> {
     let artifact_options = options.artifact_options();
     let locales = prepare_compiled_catalog_artifact_catalogs(
         catalogs,
-        &artifact_options.requested_locale,
-        &artifact_options.source_locale,
-        &artifact_options.fallback_chain,
+        artifact_options.requested_locale,
+        artifact_options.source_locale,
+        artifact_options.fallback_chain,
     )?;
 
     let mut source_keys = BTreeSet::new();
-    for compiled_id in &options.compiled_ids {
+    for compiled_id in options.compiled_ids {
         let source_key = index.get(compiled_id).ok_or_else(|| {
             ApiError::InvalidArguments(format!(
                 "compile_catalog_artifact_selected received unknown compiled ID {:?}",
@@ -951,33 +1029,45 @@ pub fn compile_catalog_artifact_selected(
 /// Encoding used for plural messages in PO files.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum PluralEncoding {
+    /// Keep plural messages in Ferrocat's structured ICU-oriented representation.
     #[default]
     Icu,
+    /// Materialize plural messages as classic gettext `msgid_plural` plus `msgstr[n]`.
     Gettext,
 }
 
 /// Strategy used for messages that disappear from the extracted input.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum ObsoleteStrategy {
+    /// Mark missing messages obsolete and keep them in the file.
     #[default]
     Mark,
+    /// Remove missing messages entirely.
     Delete,
+    /// Keep missing messages as active entries.
     Keep,
 }
 
 /// Sort order used when writing output catalogs.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum OrderBy {
+    /// Sort by `msgid` then context.
     #[default]
     Msgid,
+    /// Sort by the first source origin, then by message identity.
     Origin,
 }
 
 /// Controls whether placeholder hints are emitted as extracted comments.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PlaceholderCommentMode {
+    /// Do not emit placeholder comments.
     Disabled,
-    Enabled { limit: usize },
+    /// Emit up to `limit` placeholder comments per placeholder name.
+    Enabled {
+        /// Maximum number of values rendered per placeholder name.
+        limit: usize,
+    },
 }
 
 impl Default for PlaceholderCommentMode {
@@ -988,26 +1078,38 @@ impl Default for PlaceholderCommentMode {
 
 /// Options for in-memory catalog updates.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct UpdateCatalogOptions {
-    pub locale: Option<String>,
-    pub source_locale: String,
+pub struct UpdateCatalogOptions<'a> {
+    /// Locale of the catalog being updated. When `None`, Ferrocat infers it from the existing file.
+    pub locale: Option<&'a str>,
+    /// Source locale used for source-side semantics and fallback handling.
+    pub source_locale: &'a str,
+    /// Extracted messages to merge into the catalog.
     pub input: CatalogUpdateInput,
-    pub existing: Option<String>,
+    /// Existing PO content, when updating an in-memory catalog.
+    pub existing: Option<&'a str>,
+    /// Target plural representation for the rendered PO file.
     pub plural_encoding: PluralEncoding,
+    /// Strategy for messages absent from the extracted input.
     pub obsolete_strategy: ObsoleteStrategy,
+    /// Whether source-locale translations should be refreshed from the extracted source strings.
     pub overwrite_source_translations: bool,
+    /// Sort order for the final rendered catalog.
     pub order_by: OrderBy,
+    /// Whether source origins should be rendered as references.
     pub include_origins: bool,
+    /// Whether rendered references should include line numbers.
     pub include_line_numbers: bool,
+    /// Controls emission of placeholder comments.
     pub print_placeholders_in_comments: PlaceholderCommentMode,
-    pub custom_header_attributes: BTreeMap<String, String>,
+    /// Optional additional header attributes to inject or override.
+    pub custom_header_attributes: Option<&'a BTreeMap<String, String>>,
 }
 
-impl Default for UpdateCatalogOptions {
+impl Default for UpdateCatalogOptions<'_> {
     fn default() -> Self {
         Self {
             locale: None,
-            source_locale: String::new(),
+            source_locale: "",
             input: CatalogUpdateInput::default(),
             existing: None,
             plural_encoding: PluralEncoding::Icu,
@@ -1017,34 +1119,46 @@ impl Default for UpdateCatalogOptions {
             include_origins: true,
             include_line_numbers: true,
             print_placeholders_in_comments: PlaceholderCommentMode::Enabled { limit: 3 },
-            custom_header_attributes: BTreeMap::new(),
+            custom_header_attributes: None,
         }
     }
 }
 
 /// Options for updating a catalog file on disk.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct UpdateCatalogFileOptions {
-    pub target_path: PathBuf,
-    pub locale: Option<String>,
-    pub source_locale: String,
+pub struct UpdateCatalogFileOptions<'a> {
+    /// Path to the catalog file that should be read and conditionally written.
+    pub target_path: &'a Path,
+    /// Locale of the catalog being updated. When `None`, Ferrocat infers it from the existing file.
+    pub locale: Option<&'a str>,
+    /// Source locale used for source-side semantics and fallback handling.
+    pub source_locale: &'a str,
+    /// Extracted messages to merge into the catalog.
     pub input: CatalogUpdateInput,
+    /// Target plural representation for the rendered PO file.
     pub plural_encoding: PluralEncoding,
+    /// Strategy for messages absent from the extracted input.
     pub obsolete_strategy: ObsoleteStrategy,
+    /// Whether source-locale translations should be refreshed from the extracted source strings.
     pub overwrite_source_translations: bool,
+    /// Sort order for the final rendered catalog.
     pub order_by: OrderBy,
+    /// Whether source origins should be rendered as references.
     pub include_origins: bool,
+    /// Whether rendered references should include line numbers.
     pub include_line_numbers: bool,
+    /// Controls emission of placeholder comments.
     pub print_placeholders_in_comments: PlaceholderCommentMode,
-    pub custom_header_attributes: BTreeMap<String, String>,
+    /// Optional additional header attributes to inject or override.
+    pub custom_header_attributes: Option<&'a BTreeMap<String, String>>,
 }
 
-impl Default for UpdateCatalogFileOptions {
+impl Default for UpdateCatalogFileOptions<'_> {
     fn default() -> Self {
         Self {
-            target_path: PathBuf::new(),
+            target_path: Path::new(""),
             locale: None,
-            source_locale: String::new(),
+            source_locale: "",
             input: CatalogUpdateInput::default(),
             plural_encoding: PluralEncoding::Icu,
             obsolete_strategy: ObsoleteStrategy::Mark,
@@ -1053,27 +1167,32 @@ impl Default for UpdateCatalogFileOptions {
             include_origins: true,
             include_line_numbers: true,
             print_placeholders_in_comments: PlaceholderCommentMode::Enabled { limit: 3 },
-            custom_header_attributes: BTreeMap::new(),
+            custom_header_attributes: None,
         }
     }
 }
 
 /// Options for parsing a PO catalog into the higher-level message model.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ParseCatalogOptions {
-    pub content: String,
-    pub locale: Option<String>,
-    pub source_locale: String,
+pub struct ParseCatalogOptions<'a> {
+    /// PO content to parse.
+    pub content: &'a str,
+    /// Optional explicit locale override.
+    pub locale: Option<&'a str>,
+    /// Source locale used for source-side semantics and validation.
+    pub source_locale: &'a str,
+    /// Target plural interpretation for the resulting catalog view.
     pub plural_encoding: PluralEncoding,
+    /// Whether unsupported ICU plural projection cases should become hard errors.
     pub strict: bool,
 }
 
-impl Default for ParseCatalogOptions {
+impl Default for ParseCatalogOptions<'_> {
     fn default() -> Self {
         Self {
-            content: String::new(),
+            content: "",
             locale: None,
-            source_locale: String::new(),
+            source_locale: "",
             plural_encoding: PluralEncoding::Icu,
             strict: false,
         }
@@ -1083,10 +1202,15 @@ impl Default for ParseCatalogOptions {
 /// Error returned by catalog parsing and update APIs.
 #[derive(Debug)]
 pub enum ApiError {
+    /// Underlying PO parse or string-unescape failure.
     Parse(ParseError),
+    /// Filesystem failure raised by disk-based helpers.
     Io(std::io::Error),
+    /// Caller-supplied arguments were missing, inconsistent, or invalid.
     InvalidArguments(String),
+    /// The requested operation encountered conflicting catalog state.
     Conflict(String),
+    /// The requested behavior cannot be represented safely.
     Unsupported(String),
 }
 
@@ -1388,20 +1512,17 @@ impl PluralProfile {
     clippy::needless_pass_by_value,
     reason = "Public API takes owned option structs so callers can build and move them ergonomically."
 )]
-pub fn update_catalog(options: UpdateCatalogOptions) -> Result<CatalogUpdateResult, ApiError> {
-    validate_source_locale(&options.source_locale)?;
+pub fn update_catalog(options: UpdateCatalogOptions<'_>) -> Result<CatalogUpdateResult, ApiError> {
+    validate_source_locale(options.source_locale)?;
 
     let created = options.existing.is_none();
-    let original = options.existing.as_deref().unwrap_or("");
-    let existing = match options.existing.as_deref() {
-        Some(content) if !content.is_empty() => parse_catalog_to_internal(
-            content,
-            options.locale.as_deref(),
-            options.plural_encoding,
-            false,
-        )?,
+    let original = options.existing.unwrap_or("");
+    let existing = match options.existing {
+        Some(content) if !content.is_empty() => {
+            parse_catalog_to_internal(content, options.locale, options.plural_encoding, false)?
+        }
         Some(_) | None => Catalog {
-            locale: options.locale.clone(),
+            locale: options.locale.map(str::to_owned),
             headers: BTreeMap::new(),
             file_comments: Vec::new(),
             file_extracted_comments: Vec::new(),
@@ -1412,7 +1533,7 @@ pub fn update_catalog(options: UpdateCatalogOptions) -> Result<CatalogUpdateResu
 
     let locale = options
         .locale
-        .clone()
+        .map(str::to_owned)
         .or_else(|| existing.locale.clone())
         .or_else(|| existing.headers.get("Language").cloned());
     let mut diagnostics = existing.diagnostics.clone();
@@ -1421,18 +1542,21 @@ pub fn update_catalog(options: UpdateCatalogOptions) -> Result<CatalogUpdateResu
         existing,
         &normalized,
         locale.as_deref(),
-        &options.source_locale,
+        options.source_locale,
         options.overwrite_source_translations,
         options.obsolete_strategy,
         &mut diagnostics,
     );
     merged.locale.clone_from(&locale);
+    let empty_custom_headers = BTreeMap::new();
     apply_header_defaults(
         &mut merged.headers,
         locale.as_deref(),
         options.plural_encoding,
         &mut diagnostics,
-        &options.custom_header_attributes,
+        options
+            .custom_header_attributes
+            .unwrap_or(&empty_custom_headers),
     );
     sort_messages(&mut merged.messages, options.order_by);
     let file = export_catalog_to_po(&merged, &options, locale.as_deref(), &mut diagnostics)?;
@@ -1455,16 +1579,16 @@ pub fn update_catalog(options: UpdateCatalogOptions) -> Result<CatalogUpdateResu
 /// Returns [`ApiError`] when the input is invalid, when the existing file
 /// cannot be read or parsed, or when the updated content cannot be written.
 pub fn update_catalog_file(
-    options: UpdateCatalogFileOptions,
+    options: UpdateCatalogFileOptions<'_>,
 ) -> Result<CatalogUpdateResult, ApiError> {
-    validate_source_locale(&options.source_locale)?;
+    validate_source_locale(options.source_locale)?;
     if options.target_path.as_os_str().is_empty() {
         return Err(ApiError::InvalidArguments(
             "target_path must not be empty".to_owned(),
         ));
     }
 
-    let existing = match fs::read_to_string(&options.target_path) {
+    let existing = match fs::read_to_string(options.target_path) {
         Ok(content) => Some(content),
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
         Err(error) => return Err(ApiError::Io(error)),
@@ -1474,7 +1598,7 @@ pub fn update_catalog_file(
         locale: options.locale,
         source_locale: options.source_locale,
         input: options.input,
-        existing,
+        existing: existing.as_deref(),
         plural_encoding: options.plural_encoding,
         obsolete_strategy: options.obsolete_strategy,
         overwrite_source_translations: options.overwrite_source_translations,
@@ -1486,7 +1610,7 @@ pub fn update_catalog_file(
     })?;
 
     if result.created || result.updated {
-        atomic_write(&options.target_path, &result.content)?;
+        atomic_write(options.target_path, &result.content)?;
     }
 
     Ok(result)
@@ -1503,11 +1627,11 @@ pub fn update_catalog_file(
     clippy::needless_pass_by_value,
     reason = "Public API takes owned option structs so callers can build and move them ergonomically."
 )]
-pub fn parse_catalog(options: ParseCatalogOptions) -> Result<ParsedCatalog, ApiError> {
-    validate_source_locale(&options.source_locale)?;
+pub fn parse_catalog(options: ParseCatalogOptions<'_>) -> Result<ParsedCatalog, ApiError> {
+    validate_source_locale(options.source_locale)?;
     let catalog = parse_catalog_to_internal(
-        &options.content,
-        options.locale.as_deref(),
+        options.content,
+        options.locale,
         options.plural_encoding,
         options.strict,
     )?;
@@ -1956,7 +2080,7 @@ fn first_origin_sort_key(origins: &[CatalogOrigin]) -> (String, Option<u32>) {
 
 fn export_catalog_to_po(
     catalog: &Catalog,
-    options: &UpdateCatalogOptions,
+    options: &UpdateCatalogOptions<'_>,
     locale: Option<&str>,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> Result<PoFile, ApiError> {
@@ -1984,7 +2108,7 @@ fn export_catalog_to_po(
 
 fn export_message_to_po(
     message: &CanonicalMessage,
-    options: &UpdateCatalogOptions,
+    options: &UpdateCatalogOptions<'_>,
     locale: Option<&str>,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> Result<PoItem, ApiError> {
@@ -2042,7 +2166,7 @@ fn export_message_to_po(
 
 fn base_po_item(
     message: &CanonicalMessage,
-    options: &UpdateCatalogOptions,
+    options: &UpdateCatalogOptions<'_>,
     nplurals: usize,
 ) -> PoItem {
     let mut item = PoItem::new(nplurals);
@@ -2600,7 +2724,7 @@ fn compiled_catalog_artifact_catalogs_contain_key(
 fn compile_catalog_artifact_from_source_keys<I>(
     locales: &BTreeMap<String, &NormalizedParsedCatalog>,
     source_keys: I,
-    options: &CompileCatalogArtifactOptions,
+    options: &CompileCatalogArtifactOptions<'_>,
 ) -> Result<CompiledCatalogArtifact, ApiError>
 where
     I: IntoIterator<Item = CatalogMessageKey>,
@@ -2624,11 +2748,11 @@ where
         let resolved = resolve_compiled_catalog_artifact_message(locales, &source_key, options);
         if options.requested_locale != options.source_locale {
             let resolved_locale = resolved.as_ref().map(|value| value.locale.clone());
-            if resolved_locale.as_deref() != Some(options.requested_locale.as_str()) {
+            if resolved_locale.as_deref() != Some(options.requested_locale) {
                 artifact.missing.push(CompiledCatalogMissingMessage {
                     key: compiled_key.clone(),
                     source_key: source_key.clone(),
-                    requested_locale: options.requested_locale.clone(),
+                    requested_locale: options.requested_locale.to_owned(),
                     resolved_locale: resolved_locale.clone(),
                 });
             }
@@ -2665,9 +2789,9 @@ where
 fn resolve_compiled_catalog_artifact_message(
     catalogs: &BTreeMap<String, &NormalizedParsedCatalog>,
     source_key: &CatalogMessageKey,
-    options: &CompileCatalogArtifactOptions,
+    options: &CompileCatalogArtifactOptions<'_>,
 ) -> Option<ResolvedArtifactMessage> {
-    for locale in std::iter::once(options.requested_locale.as_str())
+    for locale in std::iter::once(options.requested_locale)
         .chain(options.fallback_chain.iter().map(String::as_str))
     {
         let Some(catalog) = catalogs.get(locale) else {
@@ -2682,7 +2806,7 @@ fn resolve_compiled_catalog_artifact_message(
         return rendered_compiled_catalog_artifact_message(
             catalog,
             source_key,
-            &options.source_locale,
+            options.source_locale,
             false,
         )
         .map(|message| ResolvedArtifactMessage {
@@ -2697,15 +2821,15 @@ fn resolve_compiled_catalog_artifact_message(
         return None;
     }
 
-    let catalog = catalogs.get(&options.source_locale)?;
+    let catalog = catalogs.get(options.source_locale)?;
     let message = catalog.get(source_key)?;
     if message.obsolete {
         return None;
     }
 
-    rendered_compiled_catalog_artifact_message(catalog, source_key, &options.source_locale, true)
+    rendered_compiled_catalog_artifact_message(catalog, source_key, options.source_locale, true)
         .map(|message| ResolvedArtifactMessage {
-            locale: options.source_locale.clone(),
+            locale: options.source_locale.to_owned(),
             message,
         })
 }
@@ -3119,22 +3243,6 @@ fn append_escaped_icu_literal(out: &mut String, value: &str) {
     }
 }
 
-fn atomic_write(path: &Path, content: &str) -> Result<(), ApiError> {
-    let directory = path.parent().unwrap_or_else(|| Path::new("."));
-    fs::create_dir_all(directory)?;
-
-    let file_name = path
-        .file_name()
-        .and_then(|name| name.to_str())
-        .ok_or_else(|| {
-            ApiError::InvalidArguments("target_path must have a file name".to_owned())
-        })?;
-    let temp_path = directory.join(format!(".{file_name}.ferrocat.tmp"));
-    fs::write(&temp_path, content)?;
-    fs::rename(&temp_path, path)?;
-    Ok(())
-}
-
 #[cfg(test)]
 mod tests {
     use super::{
@@ -3167,9 +3275,9 @@ mod tests {
         plural_encoding: PluralEncoding,
     ) -> super::NormalizedParsedCatalog {
         parse_catalog(ParseCatalogOptions {
-            content: content.to_owned(),
-            source_locale: "en".to_owned(),
-            locale: locale.map(str::to_owned),
+            content,
+            source_locale: "en",
+            locale,
             plural_encoding,
             ..ParseCatalogOptions::default()
         })
@@ -3324,7 +3432,7 @@ mod tests {
         let compiled = normalized
             .compile(&CompileCatalogOptions {
                 source_fallback: true,
-                source_locale: Some("en".to_owned()),
+                source_locale: Some("en"),
                 ..CompileCatalogOptions::default()
             })
             .expect("compile");
@@ -3404,8 +3512,8 @@ mod tests {
         let artifact = compile_catalog_artifact(
             &[&requested, &source],
             &CompileCatalogArtifactOptions {
-                requested_locale: "de".to_owned(),
-                source_locale: "en".to_owned(),
+                requested_locale: "de",
+                source_locale: "en",
                 ..CompileCatalogArtifactOptions::default()
             },
         )
@@ -3445,8 +3553,8 @@ mod tests {
         let artifact = compile_catalog_artifact(
             &[&requested, &source],
             &CompileCatalogArtifactOptions {
-                requested_locale: "de".to_owned(),
-                source_locale: "en".to_owned(),
+                requested_locale: "de",
+                source_locale: "en",
                 ..CompileCatalogArtifactOptions::default()
             },
         )
@@ -3488,9 +3596,9 @@ mod tests {
         let artifact = compile_catalog_artifact(
             &[&requested, &first_fallback, &second_fallback, &source],
             &CompileCatalogArtifactOptions {
-                requested_locale: "de".to_owned(),
-                source_locale: "en".to_owned(),
-                fallback_chain: vec!["fr".to_owned(), "it".to_owned()],
+                requested_locale: "de",
+                source_locale: "en",
+                fallback_chain: &["fr".to_owned(), "it".to_owned()],
                 source_fallback: true,
                 ..CompileCatalogArtifactOptions::default()
             },
@@ -3525,8 +3633,8 @@ mod tests {
         let artifact = compile_catalog_artifact(
             &[&requested, &source],
             &CompileCatalogArtifactOptions {
-                requested_locale: "de".to_owned(),
-                source_locale: "en".to_owned(),
+                requested_locale: "de",
+                source_locale: "en",
                 ..CompileCatalogArtifactOptions::default()
             },
         )
@@ -3557,8 +3665,8 @@ mod tests {
         let artifact = compile_catalog_artifact(
             &[&requested, &source],
             &CompileCatalogArtifactOptions {
-                requested_locale: "de".to_owned(),
-                source_locale: "en".to_owned(),
+                requested_locale: "de",
+                source_locale: "en",
                 source_fallback: true,
                 ..CompileCatalogArtifactOptions::default()
             },
@@ -3588,8 +3696,8 @@ mod tests {
         let artifact = compile_catalog_artifact(
             &[&source],
             &CompileCatalogArtifactOptions {
-                requested_locale: "en".to_owned(),
-                source_locale: "en".to_owned(),
+                requested_locale: "en",
+                source_locale: "en",
                 ..CompileCatalogArtifactOptions::default()
             },
         )
@@ -3618,8 +3726,8 @@ mod tests {
         let artifact = compile_catalog_artifact(
             &[&requested, &source],
             &CompileCatalogArtifactOptions {
-                requested_locale: "de".to_owned(),
-                source_locale: "en".to_owned(),
+                requested_locale: "de",
+                source_locale: "en",
                 ..CompileCatalogArtifactOptions::default()
             },
         )
@@ -3645,8 +3753,8 @@ mod tests {
         let missing_requested = compile_catalog_artifact(
             &[&source],
             &CompileCatalogArtifactOptions {
-                requested_locale: "de".to_owned(),
-                source_locale: "en".to_owned(),
+                requested_locale: "de",
+                source_locale: "en",
                 ..CompileCatalogArtifactOptions::default()
             },
         )
@@ -3656,8 +3764,8 @@ mod tests {
         let duplicate_locale = compile_catalog_artifact(
             &[&source, &duplicate],
             &CompileCatalogArtifactOptions {
-                requested_locale: "en".to_owned(),
-                source_locale: "en".to_owned(),
+                requested_locale: "en",
+                source_locale: "en",
                 ..CompileCatalogArtifactOptions::default()
             },
         )
@@ -3681,8 +3789,8 @@ mod tests {
         let artifact = compile_catalog_artifact(
             &[&requested, &source],
             &CompileCatalogArtifactOptions {
-                requested_locale: "de".to_owned(),
-                source_locale: "en".to_owned(),
+                requested_locale: "de",
+                source_locale: "en",
                 ..CompileCatalogArtifactOptions::default()
             },
         )
@@ -3693,8 +3801,8 @@ mod tests {
         let error = compile_catalog_artifact(
             &[&requested, &source],
             &CompileCatalogArtifactOptions {
-                requested_locale: "de".to_owned(),
-                source_locale: "en".to_owned(),
+                requested_locale: "de",
+                source_locale: "en",
                 strict_icu: true,
                 ..CompileCatalogArtifactOptions::default()
             },
@@ -3936,9 +4044,9 @@ mod tests {
             &[&requested, &source],
             &index,
             &CompileSelectedCatalogArtifactOptions {
-                requested_locale: "de".to_owned(),
-                source_locale: "en".to_owned(),
-                compiled_ids: vec![hello_id.clone(), hello_id.clone()],
+                requested_locale: "de",
+                source_locale: "en",
+                compiled_ids: &[hello_id.clone(), hello_id.clone()],
                 ..CompileSelectedCatalogArtifactOptions::default()
             },
         )
@@ -3973,9 +4081,9 @@ mod tests {
             &[&requested, &source],
             &index,
             &CompileSelectedCatalogArtifactOptions {
-                requested_locale: "de".to_owned(),
-                source_locale: "en".to_owned(),
-                compiled_ids: vec!["missing-id".to_owned()],
+                requested_locale: "de",
+                source_locale: "en",
+                compiled_ids: &["missing-id".to_owned()],
                 ..CompileSelectedCatalogArtifactOptions::default()
             },
         )
@@ -4023,10 +4131,10 @@ mod tests {
             &[&requested, &source],
             &index,
             &CompileSelectedCatalogArtifactOptions {
-                requested_locale: "de".to_owned(),
-                source_locale: "en".to_owned(),
+                requested_locale: "de",
+                source_locale: "en",
                 source_fallback: true,
-                compiled_ids: vec![hello_id.clone(), broken_id.clone()],
+                compiled_ids: &[hello_id.clone(), broken_id.clone()],
                 ..CompileSelectedCatalogArtifactOptions::default()
             },
         )
@@ -4045,8 +4153,8 @@ mod tests {
     #[test]
     fn update_catalog_creates_new_source_locale_messages() {
         let result = update_catalog(UpdateCatalogOptions {
-            source_locale: "en".to_owned(),
-            locale: Some("en".to_owned()),
+            source_locale: "en",
+            locale: Some("en"),
             input: structured_input(vec![ExtractedMessage::Singular(ExtractedSingularMessage {
                 msgid: "Hello".to_owned(),
                 ..ExtractedSingularMessage::default()
@@ -4068,9 +4176,9 @@ mod tests {
     fn update_catalog_preserves_non_source_translations() {
         let existing = "msgid \"Hello\"\nmsgstr \"Hallo\"\n";
         let result = update_catalog(UpdateCatalogOptions {
-            source_locale: "en".to_owned(),
-            locale: Some("de".to_owned()),
-            existing: Some(existing.to_owned()),
+            source_locale: "en",
+            locale: Some("de"),
+            existing: Some(existing),
             input: structured_input(vec![ExtractedMessage::Singular(ExtractedSingularMessage {
                 msgid: "Hello".to_owned(),
                 ..ExtractedSingularMessage::default()
@@ -4088,9 +4196,9 @@ mod tests {
     fn overwrite_source_translations_refreshes_source_locale() {
         let existing = "msgid \"Hello\"\nmsgstr \"Old\"\n";
         let result = update_catalog(UpdateCatalogOptions {
-            source_locale: "en".to_owned(),
-            locale: Some("en".to_owned()),
-            existing: Some(existing.to_owned()),
+            source_locale: "en",
+            locale: Some("en"),
+            existing: Some(existing),
             overwrite_source_translations: true,
             input: structured_input(vec![ExtractedMessage::Singular(ExtractedSingularMessage {
                 msgid: "Hello".to_owned(),
@@ -4109,9 +4217,9 @@ mod tests {
     fn obsolete_strategy_delete_removes_missing_messages() {
         let existing = "msgid \"keep\"\nmsgstr \"x\"\n\nmsgid \"drop\"\nmsgstr \"y\"\n";
         let result = update_catalog(UpdateCatalogOptions {
-            source_locale: "en".to_owned(),
-            locale: Some("de".to_owned()),
-            existing: Some(existing.to_owned()),
+            source_locale: "en",
+            locale: Some("de"),
+            existing: Some(existing),
             obsolete_strategy: ObsoleteStrategy::Delete,
             input: structured_input(vec![ExtractedMessage::Singular(ExtractedSingularMessage {
                 msgid: "keep".to_owned(),
@@ -4129,8 +4237,8 @@ mod tests {
     #[test]
     fn duplicate_conflicts_fail_hard() {
         let error = update_catalog(UpdateCatalogOptions {
-            source_locale: "en".to_owned(),
-            locale: Some("en".to_owned()),
+            source_locale: "en",
+            locale: Some("en"),
             input: structured_input(vec![
                 ExtractedMessage::Singular(ExtractedSingularMessage {
                     msgid: "Hello".to_owned(),
@@ -4155,8 +4263,8 @@ mod tests {
     #[test]
     fn plural_icu_export_uses_structural_input() {
         let result = update_catalog(UpdateCatalogOptions {
-            source_locale: "en".to_owned(),
-            locale: Some("en".to_owned()),
+            source_locale: "en",
+            locale: Some("en"),
             input: structured_input(vec![ExtractedMessage::Plural(ExtractedPluralMessage {
                 msgid: "{count, plural, one {# item} other {# items}}".to_owned(),
                 source: PluralSource {
@@ -4178,8 +4286,8 @@ mod tests {
     #[test]
     fn source_first_plain_messages_normalize_as_singular() {
         let result = update_catalog(UpdateCatalogOptions {
-            source_locale: "en".to_owned(),
-            locale: Some("en".to_owned()),
+            source_locale: "en",
+            locale: Some("en"),
             input: source_first_input(vec![SourceExtractedMessage {
                 msgid: "Welcome".to_owned(),
                 ..SourceExtractedMessage::default()
@@ -4197,8 +4305,8 @@ mod tests {
     #[test]
     fn source_first_simple_icu_plural_projects_into_plural_update() {
         let result = update_catalog(UpdateCatalogOptions {
-            source_locale: "en".to_owned(),
-            locale: Some("en".to_owned()),
+            source_locale: "en",
+            locale: Some("en"),
             input: source_first_input(vec![SourceExtractedMessage {
                 msgid: "{items, plural, one {# file} other {# files}}".to_owned(),
                 placeholders: BTreeMap::from([("items".to_owned(), vec!["items".to_owned()])]),
@@ -4220,8 +4328,8 @@ mod tests {
     #[test]
     fn source_first_unsupported_icu_plural_falls_back_to_singular_with_warning() {
         let result = update_catalog(UpdateCatalogOptions {
-            source_locale: "en".to_owned(),
-            locale: Some("en".to_owned()),
+            source_locale: "en",
+            locale: Some("en"),
             input: source_first_input(vec![SourceExtractedMessage {
                 msgid: "{count, plural, one {{gender, select, male {He has one file} other {They have one file}}} other {{gender, select, male {He has # files} other {They have # files}}}}".to_owned(),
                 ..SourceExtractedMessage::default()
@@ -4252,10 +4360,9 @@ mod tests {
                 "msgid_plural \"books\"\n",
                 "msgstr[0] \"Buch\"\n",
                 "msgstr[1] \"Buecher\"\n",
-            )
-            .to_owned(),
-            locale: Some("de".to_owned()),
-            source_locale: "en".to_owned(),
+            ),
+            locale: Some("de"),
+            source_locale: "en",
             plural_encoding: PluralEncoding::Gettext,
             strict: false,
         })
@@ -4287,10 +4394,9 @@ mod tests {
                 "msgctxt \"nav\"\n",
                 "msgid \"Home\"\n",
                 "msgstr \"Start\"\n",
-            )
-            .to_owned(),
-            locale: Some("de".to_owned()),
-            source_locale: "en".to_owned(),
+            ),
+            locale: Some("de"),
+            source_locale: "en",
             plural_encoding: PluralEncoding::Gettext,
             strict: false,
         })
@@ -4317,10 +4423,9 @@ mod tests {
                 "\n",
                 "msgid \"Hello\"\n",
                 "msgstr \"Servus\"\n",
-            )
-            .to_owned(),
-            locale: Some("de".to_owned()),
-            source_locale: "en".to_owned(),
+            ),
+            locale: Some("de"),
+            source_locale: "en",
             plural_encoding: PluralEncoding::Gettext,
             strict: false,
         })
@@ -4343,10 +4448,9 @@ mod tests {
                 "\n",
                 "msgid \"Welcome\"\n",
                 "msgstr \"\"\n",
-            )
-            .to_owned(),
-            locale: Some("en".to_owned()),
-            source_locale: "en".to_owned(),
+            ),
+            locale: Some("en"),
+            source_locale: "en",
             plural_encoding: PluralEncoding::Gettext,
             strict: false,
         })
@@ -4377,9 +4481,9 @@ mod tests {
     #[test]
     fn normalized_view_skips_source_fallback_for_non_source_locale_catalogs() {
         let parsed = parse_catalog(ParseCatalogOptions {
-            content: concat!("msgid \"Hello\"\n", "msgstr \"\"\n").to_owned(),
-            locale: Some("de".to_owned()),
-            source_locale: "en".to_owned(),
+            content: concat!("msgid \"Hello\"\n", "msgstr \"\"\n"),
+            locale: Some("de"),
+            source_locale: "en",
             plural_encoding: PluralEncoding::Gettext,
             strict: false,
         })
@@ -4403,10 +4507,9 @@ mod tests {
                 "msgstr[0] \"fichier\"\n",
                 "msgstr[1] \"millions de fichiers\"\n",
                 "msgstr[2] \"fichiers\"\n",
-            )
-            .to_owned(),
-            locale: Some("fr".to_owned()),
-            source_locale: "en".to_owned(),
+            ),
+            locale: Some("fr"),
+            source_locale: "en",
             plural_encoding: PluralEncoding::Gettext,
             strict: false,
         })
@@ -4440,10 +4543,9 @@ mod tests {
                 "msgid_plural \"livres\"\n",
                 "msgstr[0] \"livre\"\n",
                 "msgstr[1] \"livres\"\n",
-            )
-            .to_owned(),
-            locale: Some("fr".to_owned()),
-            source_locale: "en".to_owned(),
+            ),
+            locale: Some("fr"),
+            source_locale: "en",
             plural_encoding: PluralEncoding::Gettext,
             strict: false,
         })
@@ -4468,10 +4570,9 @@ mod tests {
                 "msgstr \"\"\n",
                 "\"Language: fr\\n\"\n",
                 "\"Plural-Forms: nplurals=2; plural=(n != 1);\\n\"\n",
-            )
-            .to_owned(),
-            locale: Some("fr".to_owned()),
-            source_locale: "en".to_owned(),
+            ),
+            locale: Some("fr"),
+            source_locale: "en",
             plural_encoding: PluralEncoding::Gettext,
             strict: false,
         })
@@ -4491,10 +4592,9 @@ mod tests {
             content: concat!(
                 "msgid \"{count, plural, one {# item} other {# items}}\"\n",
                 "msgstr \"{count, plural, one {# Artikel} other {# Artikel}}\"\n",
-            )
-            .to_owned(),
-            locale: Some("de".to_owned()),
-            source_locale: "en".to_owned(),
+            ),
+            locale: Some("de"),
+            source_locale: "en",
             plural_encoding: PluralEncoding::Icu,
             strict: false,
         })
@@ -4526,10 +4626,9 @@ mod tests {
             content: concat!(
                 "msgid \"{count, plural, one {{gender, select, male {He has one item} other {They have one item}}} other {{gender, select, male {He has # items} other {They have # items}}}}\"\n",
                 "msgstr \"{count, plural, one {{gender, select, male {Er hat einen Artikel} other {Sie haben einen Artikel}}} other {{gender, select, male {Er hat # Artikel} other {Sie haben # Artikel}}}}\"\n",
-            )
-            .to_owned(),
-            locale: Some("de".to_owned()),
-            source_locale: "en".to_owned(),
+            ),
+            locale: Some("de"),
+            source_locale: "en",
             plural_encoding: PluralEncoding::Icu,
             strict: false,
         })
@@ -4553,10 +4652,9 @@ mod tests {
             content: concat!(
                 "msgid \"{count, plural, one {# item} other {# items}\"\n",
                 "msgstr \"{count, plural, one {# Artikel} other {# Artikel}}\"\n",
-            )
-            .to_owned(),
-            locale: Some("de".to_owned()),
-            source_locale: "en".to_owned(),
+            ),
+            locale: Some("de"),
+            source_locale: "en",
             plural_encoding: PluralEncoding::Icu,
             strict: true,
         })
@@ -4576,9 +4674,9 @@ mod tests {
         let path = temp_dir.join("messages.po");
 
         let first = update_catalog_file(UpdateCatalogFileOptions {
-            target_path: path.clone(),
-            source_locale: "en".to_owned(),
-            locale: Some("en".to_owned()),
+            target_path: &path,
+            source_locale: "en",
+            locale: Some("en"),
             input: structured_input(vec![ExtractedMessage::Singular(ExtractedSingularMessage {
                 msgid: "Hello".to_owned(),
                 ..ExtractedSingularMessage::default()
@@ -4589,9 +4687,9 @@ mod tests {
         assert!(first.created);
 
         let second = update_catalog_file(UpdateCatalogFileOptions {
-            target_path: path.clone(),
-            source_locale: "en".to_owned(),
-            locale: Some("en".to_owned()),
+            target_path: &path,
+            source_locale: "en",
+            locale: Some("en"),
             input: structured_input(vec![ExtractedMessage::Singular(ExtractedSingularMessage {
                 msgid: "Hello".to_owned(),
                 ..ExtractedSingularMessage::default()
@@ -4608,8 +4706,8 @@ mod tests {
     #[test]
     fn update_catalog_gettext_export_emits_plural_slots() {
         let result = update_catalog(UpdateCatalogOptions {
-            source_locale: "en".to_owned(),
-            locale: Some("de".to_owned()),
+            source_locale: "en",
+            locale: Some("de"),
             plural_encoding: PluralEncoding::Gettext,
             input: structured_input(vec![ExtractedMessage::Plural(ExtractedPluralMessage {
                 msgid: "books".to_owned(),
@@ -4633,8 +4731,8 @@ mod tests {
     #[test]
     fn update_catalog_gettext_export_uses_icu_plural_categories_for_french() {
         let result = update_catalog(UpdateCatalogOptions {
-            source_locale: "en".to_owned(),
-            locale: Some("fr".to_owned()),
+            source_locale: "en",
+            locale: Some("fr"),
             plural_encoding: PluralEncoding::Gettext,
             input: structured_input(vec![ExtractedMessage::Plural(ExtractedPluralMessage {
                 msgid: "files".to_owned(),
@@ -4656,8 +4754,8 @@ mod tests {
     #[test]
     fn update_catalog_gettext_sets_safe_plural_forms_header_for_two_form_locale() {
         let result = update_catalog(UpdateCatalogOptions {
-            source_locale: "en".to_owned(),
-            locale: Some("de".to_owned()),
+            source_locale: "en",
+            locale: Some("de"),
             plural_encoding: PluralEncoding::Gettext,
             input: structured_input(vec![ExtractedMessage::Singular(ExtractedSingularMessage {
                 msgid: "Hello".to_owned(),
@@ -4679,8 +4777,8 @@ mod tests {
     #[test]
     fn update_catalog_gettext_reports_when_no_safe_plural_forms_header_is_known() {
         let result = update_catalog(UpdateCatalogOptions {
-            source_locale: "en".to_owned(),
-            locale: Some("fr".to_owned()),
+            source_locale: "en",
+            locale: Some("fr"),
             plural_encoding: PluralEncoding::Gettext,
             input: structured_input(vec![ExtractedMessage::Singular(ExtractedSingularMessage {
                 msgid: "Bonjour".to_owned(),
@@ -4701,18 +4799,15 @@ mod tests {
     #[test]
     fn update_catalog_gettext_completes_partial_plural_forms_header_when_safe() {
         let result = update_catalog(UpdateCatalogOptions {
-            source_locale: "en".to_owned(),
-            locale: Some("de".to_owned()),
+            source_locale: "en",
+            locale: Some("de"),
             plural_encoding: PluralEncoding::Gettext,
-            existing: Some(
-                concat!(
-                    "msgid \"\"\n",
-                    "msgstr \"\"\n",
-                    "\"Language: de\\n\"\n",
-                    "\"Plural-Forms: nplurals=2;\\n\"\n",
-                )
-                .to_owned(),
-            ),
+            existing: Some(concat!(
+                "msgid \"\"\n",
+                "msgstr \"\"\n",
+                "\"Language: de\\n\"\n",
+                "\"Plural-Forms: nplurals=2;\\n\"\n",
+            )),
             input: structured_input(vec![ExtractedMessage::Singular(ExtractedSingularMessage {
                 msgid: "Hello".to_owned(),
                 ..ExtractedSingularMessage::default()
@@ -4740,18 +4835,15 @@ mod tests {
     #[test]
     fn update_catalog_gettext_preserves_existing_complete_plural_forms_header() {
         let result = update_catalog(UpdateCatalogOptions {
-            source_locale: "en".to_owned(),
-            locale: Some("de".to_owned()),
+            source_locale: "en",
+            locale: Some("de"),
             plural_encoding: PluralEncoding::Gettext,
-            existing: Some(
-                concat!(
-                    "msgid \"\"\n",
-                    "msgstr \"\"\n",
-                    "\"Language: de\\n\"\n",
-                    "\"Plural-Forms: nplurals=2; plural=(n > 1);\\n\"\n",
-                )
-                .to_owned(),
-            ),
+            existing: Some(concat!(
+                "msgid \"\"\n",
+                "msgstr \"\"\n",
+                "\"Language: de\\n\"\n",
+                "\"Plural-Forms: nplurals=2; plural=(n > 1);\\n\"\n",
+            )),
             input: structured_input(vec![ExtractedMessage::Singular(ExtractedSingularMessage {
                 msgid: "Hello".to_owned(),
                 ..ExtractedSingularMessage::default()
@@ -4779,8 +4871,8 @@ mod tests {
     #[test]
     fn parse_catalog_requires_source_locale() {
         let error = parse_catalog(ParseCatalogOptions {
-            content: String::new(),
-            source_locale: String::new(),
+            content: "",
+            source_locale: "",
             ..ParseCatalogOptions::default()
         })
         .expect_err("missing source locale");
@@ -4800,8 +4892,8 @@ mod tests {
         placeholders.insert("second".to_owned(), vec!["second".to_owned()]);
 
         let result = update_catalog(UpdateCatalogOptions {
-            source_locale: "en".to_owned(),
-            locale: Some("de".to_owned()),
+            source_locale: "en",
+            locale: Some("de"),
             input: structured_input(vec![ExtractedMessage::Plural(ExtractedPluralMessage {
                 msgid: "Developers".to_owned(),
                 source: PluralSource {

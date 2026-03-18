@@ -1,5 +1,4 @@
 use std::borrow::Cow;
-use std::str;
 
 use memchr::memchr_iter;
 
@@ -8,6 +7,7 @@ use crate::scan::{
     split_once_byte, trim_ascii,
 };
 use crate::text::{extract_quoted_bytes_cow, split_reference_comment};
+use crate::utf8::input_slice_as_str;
 use crate::{Header, MsgStr, ParseError, PoFile, PoItem};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -405,10 +405,8 @@ fn parse_nplurals(headers: &[Header]) -> Option<usize> {
     None
 }
 
-const fn bytes_to_str(bytes: &[u8]) -> &str {
-    // Parser slices are always derived from an input `&str` and cut only on
-    // ASCII boundaries such as quotes, comments, colons and newlines.
-    unsafe { str::from_utf8_unchecked(bytes) }
+fn bytes_to_str(bytes: &[u8]) -> &str {
+    input_slice_as_str(bytes)
 }
 
 fn trimmed_str(bytes: &[u8]) -> &str {

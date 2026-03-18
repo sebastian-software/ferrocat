@@ -41,9 +41,9 @@ msgstr "world"
     }]);
 
     let parsed_catalog = parse_catalog(ParseCatalogOptions {
-        content: "msgid \"hello\"\nmsgstr \"world\"\n".to_owned(),
-        locale: Some("de".to_owned()),
-        source_locale: "en".to_owned(),
+        content: "msgid \"hello\"\nmsgstr \"world\"\n",
+        locale: Some("de"),
+        source_locale: "en",
         ..ParseCatalogOptions::default()
     })
     .expect("parse catalog");
@@ -61,9 +61,9 @@ msgstr "world"
     );
 
     let source = parse_catalog(ParseCatalogOptions {
-        content: "msgid \"hello\"\nmsgstr \"hello\"\n".to_owned(),
-        locale: Some("en".to_owned()),
-        source_locale: "en".to_owned(),
+        content: "msgid \"hello\"\nmsgstr \"hello\"\n",
+        locale: Some("en"),
+        source_locale: "en",
         ..ParseCatalogOptions::default()
     })
     .expect("parse source catalog")
@@ -72,8 +72,8 @@ msgstr "world"
     let artifact = compile_catalog_artifact(
         &[&normalized, &source],
         &CompileCatalogArtifactOptions {
-            requested_locale: "de".to_owned(),
-            source_locale: "en".to_owned(),
+            requested_locale: "de",
+            source_locale: "en",
             ..CompileCatalogArtifactOptions::default()
         },
     )
@@ -83,13 +83,17 @@ msgstr "world"
     let index =
         CompiledCatalogIdIndex::new(&[&normalized, &source], CompiledKeyStrategy::FerrocatV1)
             .expect("compiled id index");
+    let compiled_ids = index
+        .iter()
+        .map(|(id, _)| id.to_owned())
+        .collect::<Vec<_>>();
     let selected_artifact = compile_catalog_artifact_selected(
         &[&normalized, &source],
         &index,
         &CompileSelectedCatalogArtifactOptions {
-            requested_locale: "de".to_owned(),
-            source_locale: "en".to_owned(),
-            compiled_ids: index.iter().map(|(id, _)| id.to_owned()).collect(),
+            requested_locale: "de",
+            source_locale: "en",
+            compiled_ids: &compiled_ids,
             ..CompileSelectedCatalogArtifactOptions::default()
         },
     )

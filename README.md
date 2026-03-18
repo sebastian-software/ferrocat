@@ -127,9 +127,9 @@ The borrowed parser exists because real PO workflows are often read-heavy and tr
 use ferrocat::{CompileCatalogOptions, ParseCatalogOptions, parse_catalog};
 
 let parsed = parse_catalog(ParseCatalogOptions {
-    content: "msgid \"Hello\"\nmsgstr \"Hallo\"\n".to_owned(),
-    source_locale: "en".to_owned(),
-    locale: Some("de".to_owned()),
+    content: "msgid \"Hello\"\nmsgstr \"Hallo\"\n",
+    source_locale: "en",
+    locale: Some("de"),
     ..ParseCatalogOptions::default()
 })?;
 let normalized = parsed.into_normalized_view()?;
@@ -167,16 +167,16 @@ use ferrocat::{
 };
 
 let source = parse_catalog(ParseCatalogOptions {
-    content: "msgid \"Hello\"\nmsgstr \"Hello\"\n".to_owned(),
-    source_locale: "en".to_owned(),
-    locale: Some("en".to_owned()),
+    content: "msgid \"Hello\"\nmsgstr \"Hello\"\n",
+    source_locale: "en",
+    locale: Some("en"),
     ..ParseCatalogOptions::default()
 })?
 .into_normalized_view()?;
 let requested = parse_catalog(ParseCatalogOptions {
-    content: "msgid \"Hello\"\nmsgstr \"Hallo\"\n".to_owned(),
-    source_locale: "en".to_owned(),
-    locale: Some("de".to_owned()),
+    content: "msgid \"Hello\"\nmsgstr \"Hallo\"\n",
+    source_locale: "en",
+    locale: Some("de"),
     ..ParseCatalogOptions::default()
 })?
 .into_normalized_view()?;
@@ -184,8 +184,8 @@ let requested = parse_catalog(ParseCatalogOptions {
 let artifact = compile_catalog_artifact(
     &[&requested, &source],
     &CompileCatalogArtifactOptions {
-        requested_locale: "de".to_owned(),
-        source_locale: "en".to_owned(),
+        requested_locale: "de",
+        source_locale: "en",
         ..CompileCatalogArtifactOptions::default()
     },
 )?;

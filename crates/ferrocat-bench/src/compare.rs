@@ -844,10 +844,10 @@ impl PreparedScenario {
         let plural_encoding = fixture_plural_encoding(&self.fixture);
         for _ in 0..iterations {
             let updated = update_catalog(UpdateCatalogOptions {
-                locale: locale.clone(),
-                source_locale: "en".to_owned(),
+                locale: locale.as_deref(),
+                source_locale: "en",
                 input: fixture.api_messages.clone().into(),
-                existing: Some(fixture.existing_po.clone()),
+                existing: Some(fixture.existing_po.as_str()),
                 plural_encoding,
                 ..UpdateCatalogOptions::default()
             })

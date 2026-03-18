@@ -286,9 +286,9 @@ fn evaluate_po_plural_header(case: &ConformanceCase) -> Result<String, String> {
             .clone()
             .unwrap_or_else(|| "en".to_owned());
         parse_catalog(ParseCatalogOptions {
-            content: input,
-            locale: Some(locale.to_owned()),
-            source_locale,
+            content: &input,
+            locale: Some(locale),
+            source_locale: &source_locale,
             plural_encoding: PluralEncoding::Gettext,
             strict: false,
         })
