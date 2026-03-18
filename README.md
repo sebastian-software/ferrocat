@@ -303,6 +303,9 @@ cargo run --release -p ferrocat-bench -- parse mixed-10000 200
 cargo run --release -p ferrocat-bench -- parse-borrowed mixed-10000 200
 cargo run --release -p ferrocat-bench -- stringify mixed-10000 200
 cargo run --release -p ferrocat-bench -- merge mixed-10000 100
+cargo run --release -p ferrocat-bench -- parse-catalog-po catalog-modern-de-10000 --runs 3
+cargo run --release -p ferrocat-bench -- parse-catalog-ndjson catalog-modern-de-10000 --runs 3
+cargo run --release -p ferrocat-bench -- compare storage-formats-v1 --out benchmark/results/storage-formats-v1.json
 cargo run -p ferrocat-bench -- describe mixed-1000
 cargo run -p ferrocat-bench -- describe gettext-ui-de-1000
 cargo run -p ferrocat-bench -- verify-benchmark-env
@@ -319,6 +322,11 @@ The smallest official benchmark profile is `gettext-official-v1`: one conservati
 For quicker day-to-day checks there is also `gettext-official-quick-v1`. It keeps the same fixture and tool matrix, but uses fewer warmups, fewer measured samples, and a lower minimum sample duration. That makes it useful as a fast regression check while `gettext-official-v1` stays the publication-grade profile.
 
 For workflow-style benchmarking there is now also a separate `gettext-workflows-v1` profile, which compares `merge_catalog` against a conservative `msgmerge` baseline on the `gettext-ui-de-*` corpus.
+
+The repo now intentionally separates two benchmark stories:
+
+- `gettext-*` fixtures and profiles are for external PO ecosystem comparisons against other libraries and tools. These keep classic gettext features such as `msgid_plural` and `msgstr[n]` because that is the native comparison target.
+- `catalog-modern-*` fixtures and the `storage-formats-v1` profile are for internal Ferrocat storage-format comparisons. These use the same modern ICU-oriented catalog semantics for both `CatalogStorageFormat::Po` and `CatalogStorageFormat::Ndjson`, so the comparison does not give classic gettext plurals an artificial advantage.
 
 Current official gettext snapshot from [benchmark/results/gettext-official-v1-20260318-094344.json](benchmark/results/gettext-official-v1-20260318-094344.json) (`generated_at: 2026-03-18T09:50:53Z`):
 
@@ -400,6 +408,19 @@ The broader `gettext-compat-v1` and `gettext-workflows-v1` reports are still use
 |---|---:|---:|---:|---:|---:|
 | UI strings (DE, 1k)<br>(`gettext-ui-de-1000`) | **1.97M** | 169k | 77.8k | 23.3k | 18.1k |
 | UI strings (DE, 10k)<br>(`gettext-ui-de-10000`) | **1.84M** | 155k | 2.7k | 26.8k | 18.1k |
+
+### Catalog Storage Throughput Inside Ferrocat
+
+For the internal storage-format comparison, `catalog-modern-*` fixtures deliberately keep the same canonical message semantics across both formats: mostly singular messages, a small projectable ICU plural slice, and a smaller slice of other supported ICU patterns. The PO side stores those modern messages as ICU strings in `msgid`/`msgstr`, without classic gettext plural entries.
+
+Current storage-format snapshot from `cargo run --release -p ferrocat-bench -- compare storage-formats-v1 --out benchmark/results/storage-formats-v1.json`:
+
+| Fixture | ferrocat (Rust)<br>`parse_catalog` with `CatalogStorageFormat::Po` | ferrocat (Rust)<br>`parse_catalog` with `CatalogStorageFormat::Ndjson` |
+|---|---:|---:|
+| Modern catalog (DE, 1k)<br>(`catalog-modern-de-1000`) | **749k** | 722k |
+| Modern catalog (DE, 10k)<br>(`catalog-modern-de-10000`) | **686k** | 615k |
+
+The compare runner calibrates these scenarios to similar wall-clock durations, so the 10k row is the better publication-grade number. The direct bench commands are still useful when you want fixed-iteration snapshots for parse, stringify, and `update_catalog_file`, and those measurements are tracked in [docs/performance-history.md](docs/performance-history.md).
 
 For profiling on macOS:
 

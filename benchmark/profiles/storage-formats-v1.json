@@ -1,0 +1,11 @@
+{
+  "name": "storage-formats-v1",
+  "minimum_sample_millis": 500,
+  "scenarios": [
+    { "id": "catalog-storage-parse/catalog-modern-de-1000/po", "comparison_group": "catalog-storage-parse/catalog-modern-de-1000", "workload": "catalog-storage-parse", "operation": "parse-catalog", "fixture": "catalog-modern-de-1000", "implementation": "ferrocat-parse-catalog-po", "warmup_runs": 2, "measured_runs": 6 },
+    { "id": "catalog-storage-parse/catalog-modern-de-1000/ndjson", "comparison_group": "catalog-storage-parse/catalog-modern-de-1000", "workload": "catalog-storage-parse", "operation": "parse-catalog", "fixture": "catalog-modern-de-1000", "implementation": "ferrocat-parse-catalog-ndjson", "warmup_runs": 2, "measured_runs": 6 },
+
+    { "id": "catalog-storage-parse/catalog-modern-de-10000/po", "comparison_group": "catalog-storage-parse/catalog-modern-de-10000", "workload": "catalog-storage-parse", "operation": "parse-catalog", "fixture": "catalog-modern-de-10000", "implementation": "ferrocat-parse-catalog-po", "warmup_runs": 2, "measured_runs": 6 },
+    { "id": "catalog-storage-parse/catalog-modern-de-10000/ndjson", "comparison_group": "catalog-storage-parse/catalog-modern-de-10000", "workload": "catalog-storage-parse", "operation": "parse-catalog", "fixture": "catalog-modern-de-10000", "implementation": "ferrocat-parse-catalog-ndjson", "warmup_runs": 2, "measured_runs": 6 }
+  ]
+}

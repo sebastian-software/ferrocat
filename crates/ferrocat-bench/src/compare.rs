@@ -12,9 +12,11 @@ use std::time::Instant;
 
 use ferrocat_icu::{IcuMessage, IcuNode, IcuOption, IcuPluralKind, parse_icu};
 use ferrocat_po::{
-    BorrowedMsgStr, BorrowedPoFile, ExtractedMessage, MergeExtractedMessage, MsgStr,
-    PluralEncoding, PoFile, SerializeOptions, UpdateCatalogOptions, merge_catalog, parse_po,
-    parse_po_borrowed, stringify_po, update_catalog,
+    BorrowedMsgStr, BorrowedPoFile, CatalogMessage, CatalogMessageExtra, CatalogOrigin,
+    CatalogStorageFormat, ExtractedMessage, MergeExtractedMessage, MsgStr, ParseCatalogOptions,
+    ParsedCatalog, PluralEncoding, PoFile, SerializeOptions, TranslationShape,
+    UpdateCatalogOptions, merge_catalog, parse_catalog, parse_po, parse_po_borrowed, stringify_po,
+    update_catalog,
 };
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -294,6 +296,8 @@ fn execute_scenario(
     match scenario.implementation.as_str() {
         "ferrocat-parse" => prepared.run_internal_parse(iterations, false),
         "ferrocat-parse-borrowed" => prepared.run_internal_parse(iterations, true),
+        "ferrocat-parse-catalog-po" => prepared.run_internal_parse_catalog(iterations, false),
+        "ferrocat-parse-catalog-ndjson" => prepared.run_internal_parse_catalog(iterations, true),
         "ferrocat-stringify" => prepared.run_internal_stringify(iterations, capture_artifacts),
         "ferrocat-merge" => prepared.run_internal_merge(iterations, capture_artifacts),
         "ferrocat-update-catalog" => {
@@ -431,6 +435,7 @@ struct PreparedScenario {
     existing_po_path: Option<PathBuf>,
     pot_path: Option<PathBuf>,
     po_content: Option<String>,
+    catalog_ndjson_content: Option<String>,
     po_file: Option<PoFile>,
     merge_fixture: Option<OwnedMergeFixture>,
     icu_messages: Option<Vec<String>>,
@@ -495,7 +500,50 @@ impl PreparedScenario {
                     existing_po_path: None,
                     pot_path: None,
                     po_content: Some(fixture.content().to_owned()),
+                    catalog_ndjson_content: None,
                     po_file: Some(po_file),
+                    merge_fixture: None,
+                    icu_messages: None,
+                })
+            }
+            "parse-catalog" => {
+                let fixture = load_fixture(&first.fixture)?;
+                let po_input_path = tempdir.path().join("catalog-input.po");
+                fs::write(&po_input_path, fixture.content()).map_err(|error| {
+                    format!(
+                        "failed to write catalog fixture input {}: {error}",
+                        po_input_path.display()
+                    )
+                })?;
+                let po_content = fixture.content().to_owned();
+                let parsed = parse_catalog(ParseCatalogOptions {
+                    content: &po_content,
+                    locale: fixture_locale(&first.fixture).as_deref(),
+                    source_locale: "en",
+                    storage_format: CatalogStorageFormat::Po,
+                    plural_encoding: PluralEncoding::Icu,
+                    strict: false,
+                })
+                .map_err(|error| format!("failed to parse catalog fixture: {error}"))?;
+                let ndjson_content = render_ndjson_catalog(&parsed);
+                let ndjson_input_path = tempdir.path().join("catalog-input.fcat.ndjson");
+                fs::write(&ndjson_input_path, &ndjson_content).map_err(|error| {
+                    format!(
+                        "failed to write catalog NDJSON fixture input {}: {error}",
+                        ndjson_input_path.display()
+                    )
+                })?;
+                Ok(Self {
+                    operation: first.operation.clone(),
+                    fixture: first.fixture.clone(),
+                    tempdir,
+                    po_input_path: Some(po_input_path),
+                    icu_messages_path: None,
+                    existing_po_path: None,
+                    pot_path: None,
+                    po_content: Some(po_content),
+                    catalog_ndjson_content: Some(ndjson_content),
+                    po_file: None,
                     merge_fixture: None,
                     icu_messages: None,
                 })
@@ -535,6 +583,7 @@ impl PreparedScenario {
                     existing_po_path: Some(existing_po_path),
                     pot_path,
                     po_content: None,
+                    catalog_ndjson_content: None,
                     po_file: None,
                     merge_fixture: Some(OwnedMergeFixture::from_fixture(&fixture)),
                     icu_messages: None,
@@ -561,6 +610,7 @@ impl PreparedScenario {
                     existing_po_path: None,
                     pot_path: None,
                     po_content: None,
+                    catalog_ndjson_content: None,
                     po_file: None,
                     merge_fixture: None,
                     icu_messages: Some(messages),
@@ -600,6 +650,7 @@ impl PreparedScenario {
                         existing_po_path: None,
                         pot_path: None,
                         po_content: Some(content),
+                        catalog_ndjson_content: None,
                         po_file: None,
                         merge_fixture: None,
                         icu_messages: None,
@@ -642,6 +693,7 @@ impl PreparedScenario {
                         existing_po_path: Some(existing_po_path),
                         pot_path: Some(pot_path),
                         po_content: None,
+                        catalog_ndjson_content: None,
                         po_file: None,
                         merge_fixture: None,
                         icu_messages: None,
@@ -659,6 +711,15 @@ impl PreparedScenario {
                 _ => {
                     return Err(format!(
                         "scenario {} expected PO summary artifact",
+                        self.fixture
+                    ));
+                }
+            },
+            "parse-catalog" => match result.artifact.as_ref() {
+                Some(ExecutionArtifact::CatalogSummary(summary)) => digest_summary(summary)?,
+                _ => {
+                    return Err(format!(
+                        "scenario {} expected catalog summary artifact",
                         self.fixture
                     ));
                 }
@@ -739,6 +800,60 @@ impl PreparedScenario {
                 .map(|value| value as u64),
             messages_processed: None,
             artifact: Some(ExecutionArtifact::PoSummary(summary)),
+        })
+    }
+
+    fn run_internal_parse_catalog(
+        &self,
+        iterations: usize,
+        ndjson: bool,
+    ) -> Result<ExecutionResult, String> {
+        let locale = fixture_locale(&self.fixture);
+        let (content, storage_format, bytes_per_iteration) = if ndjson {
+            (
+                self.catalog_ndjson_content.as_deref().ok_or_else(|| {
+                    "internal parse-catalog-ndjson requires NDJSON content".to_owned()
+                })?,
+                CatalogStorageFormat::Ndjson,
+                self.catalog_ndjson_content.as_ref().map_or(0, String::len),
+            )
+        } else {
+            (
+                self.po_content
+                    .as_deref()
+                    .ok_or_else(|| "internal parse-catalog-po requires PO content".to_owned())?,
+                CatalogStorageFormat::Po,
+                self.po_content.as_ref().map_or(0, String::len),
+            )
+        };
+
+        let mut last_summary = None;
+        let start = Instant::now();
+        for _ in 0..iterations {
+            let parsed = parse_catalog(ParseCatalogOptions {
+                content,
+                locale: locale.as_deref(),
+                source_locale: "en",
+                storage_format,
+                plural_encoding: PluralEncoding::Icu,
+                strict: false,
+            })
+            .map_err(|error| format!("parse_catalog failed: {error}"))?;
+            last_summary = Some(CatalogSemanticSummary::from_parsed_catalog(parsed)?);
+        }
+        let elapsed = start.elapsed();
+        let summary =
+            last_summary.ok_or_else(|| "internal parse-catalog produced no summary".to_owned())?;
+        let digest = digest_summary(&summary)?;
+        Ok(ExecutionResult {
+            tool_version: INTERNAL_TOOL_VERSION.to_owned(),
+            reported_digest: digest,
+            elapsed_ns: elapsed.as_nanos(),
+            baseline_elapsed_ns: None,
+            bytes_processed: (bytes_per_iteration * iterations) as u64,
+            items_processed: None,
+            messages_processed: Some((summary.messages.len() * iterations) as u64),
+            artifact: Some(ExecutionArtifact::CatalogSummary(summary)),
         })
     }
 
@@ -1303,6 +1418,138 @@ fn fixture_plural_encoding(name: &str) -> PluralEncoding {
     }
 }
 
+#[derive(Debug, Serialize)]
+struct CompareNdjsonRecord<'a> {
+    id: String,
+    str: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    ctx: Option<&'a str>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    comments: Vec<&'a str>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    origin: Vec<CompareNdjsonOrigin<'a>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    extra: Option<CompareNdjsonExtra<'a>>,
+    #[serde(skip_serializing_if = "is_false")]
+    obsolete: bool,
+}
+
+#[derive(Debug, Serialize)]
+struct CompareNdjsonOrigin<'a> {
+    file: &'a str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    line: Option<u32>,
+}
+
+#[derive(Debug, Serialize)]
+struct CompareNdjsonExtra<'a> {
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    translator_comments: Vec<&'a str>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    flags: Vec<&'a str>,
+}
+
+fn render_ndjson_catalog(parsed: &ParsedCatalog) -> String {
+    let mut rendered = String::from("---\nformat: ferrocat.ndjson.v1\n");
+    if let Some(locale) = &parsed.locale {
+        rendered.push_str("locale: ");
+        rendered.push_str(locale);
+        rendered.push('\n');
+    }
+    rendered.push_str("source_locale: en\n---\n");
+
+    for message in &parsed.messages {
+        let record = CompareNdjsonRecord {
+            id: render_ndjson_id(message),
+            str: render_ndjson_translation(message),
+            ctx: message.msgctxt.as_deref(),
+            comments: message.comments.iter().map(String::as_str).collect(),
+            origin: message
+                .origin
+                .iter()
+                .map(|origin| CompareNdjsonOrigin {
+                    file: &origin.file,
+                    line: origin.line,
+                })
+                .collect(),
+            extra: render_ndjson_extra(message.extra.as_ref()),
+            obsolete: message.obsolete,
+        };
+        rendered.push_str(
+            &serde_json::to_string(&record).expect("compare ndjson record must serialize"),
+        );
+        rendered.push('\n');
+    }
+
+    rendered
+}
+
+fn render_ndjson_id(message: &CatalogMessage) -> String {
+    match &message.translation {
+        TranslationShape::Singular { .. } => message.msgid.clone(),
+        TranslationShape::Plural {
+            source, variable, ..
+        } => synthesize_icu_plural(variable, source.one.as_deref(), &source.other),
+    }
+}
+
+fn render_ndjson_translation(message: &CatalogMessage) -> String {
+    match &message.translation {
+        TranslationShape::Singular { value } => value.clone(),
+        TranslationShape::Plural {
+            translation,
+            variable,
+            ..
+        } => synthesize_icu_plural_map(variable, translation),
+    }
+}
+
+fn render_ndjson_extra(extra: Option<&CatalogMessageExtra>) -> Option<CompareNdjsonExtra<'_>> {
+    let extra = extra?;
+    if extra.translator_comments.is_empty() && extra.flags.is_empty() {
+        None
+    } else {
+        Some(CompareNdjsonExtra {
+            translator_comments: extra
+                .translator_comments
+                .iter()
+                .map(String::as_str)
+                .collect(),
+            flags: extra.flags.iter().map(String::as_str).collect(),
+        })
+    }
+}
+
+fn synthesize_icu_plural_map(variable: &str, forms: &BTreeMap<String, String>) -> String {
+    let mut rendered = format!("{{{variable}, plural,");
+    for (category, value) in forms {
+        rendered.push(' ');
+        rendered.push_str(category);
+        rendered.push_str(" {");
+        rendered.push_str(value);
+        rendered.push('}');
+    }
+    rendered.push('}');
+    rendered
+}
+
+fn synthesize_icu_plural(variable: &str, one: Option<&str>, other: &str) -> String {
+    let mut rendered = format!("{{{variable}, plural,");
+    if let Some(one) = one {
+        rendered.push_str(" one {");
+        rendered.push_str(one);
+        rendered.push('}');
+    }
+    rendered.push_str(" other {");
+    rendered.push_str(other);
+    rendered.push_str("}}");
+    rendered
+}
+
+const fn is_false(value: &bool) -> bool {
+    !*value
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 struct PoSemanticSummary {
     headers: Vec<PoHeaderSummary>,
@@ -1411,6 +1658,136 @@ impl PoItemSummary {
         if self.msgid_plural.as_deref() == Some("") {
             self.msgid_plural = None;
         }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+struct CatalogSemanticSummary {
+    locale: Option<String>,
+    diagnostics: Vec<String>,
+    messages: Vec<CatalogMessageSummary>,
+}
+
+impl CatalogSemanticSummary {
+    fn from_parsed_catalog(parsed: ParsedCatalog) -> Result<Self, String> {
+        let normalized = parsed
+            .into_normalized_view()
+            .map_err(|error| format!("failed to normalize parsed catalog: {error}"))?;
+        let catalog = normalized.parsed_catalog();
+        let messages = normalized
+            .iter()
+            .map(|(_, message)| CatalogMessageSummary::from_message(message))
+            .collect::<Vec<_>>();
+        let diagnostics = catalog
+            .diagnostics
+            .iter()
+            .map(|diagnostic| {
+                format!(
+                    "{}:{}:{}",
+                    diagnostic_severity_label(diagnostic.severity),
+                    diagnostic.code,
+                    diagnostic.message
+                )
+            })
+            .collect::<Vec<_>>();
+
+        Ok(Self {
+            locale: catalog.locale.clone(),
+            diagnostics,
+            messages,
+        })
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
+struct CatalogMessageSummary {
+    msgctxt: Option<String>,
+    msgid: String,
+    translation: CatalogTranslationSummary,
+    comments: Vec<String>,
+    origins: Vec<CatalogOriginSummary>,
+    obsolete: bool,
+    translator_comments: Vec<String>,
+    flags: Vec<String>,
+}
+
+impl CatalogMessageSummary {
+    fn from_message(message: &CatalogMessage) -> Self {
+        Self {
+            msgctxt: message.msgctxt.clone(),
+            msgid: message.msgid.clone(),
+            translation: CatalogTranslationSummary::from_translation(&message.translation),
+            comments: message.comments.clone(),
+            origins: message
+                .origin
+                .iter()
+                .map(CatalogOriginSummary::from_origin)
+                .collect(),
+            obsolete: message.obsolete,
+            translator_comments: message
+                .extra
+                .as_ref()
+                .map_or_else(Vec::new, |extra| extra.translator_comments.clone()),
+            flags: message
+                .extra
+                .as_ref()
+                .map_or_else(Vec::new, |extra| extra.flags.clone()),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
+enum CatalogTranslationSummary {
+    Singular(String),
+    Plural {
+        source_one: Option<String>,
+        source_other: String,
+        variable: String,
+        forms: Vec<(String, String)>,
+    },
+}
+
+impl CatalogTranslationSummary {
+    fn from_translation(translation: &TranslationShape) -> Self {
+        match translation {
+            TranslationShape::Singular { value } => Self::Singular(value.clone()),
+            TranslationShape::Plural {
+                source,
+                translation,
+                variable,
+            } => Self::Plural {
+                source_one: source.one.clone(),
+                source_other: source.other.clone(),
+                variable: variable.clone(),
+                forms: translation
+                    .iter()
+                    .map(|(category, value)| (category.clone(), value.clone()))
+                    .collect(),
+            },
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
+struct CatalogOriginSummary {
+    file: String,
+    line: Option<u32>,
+}
+
+impl CatalogOriginSummary {
+    fn from_origin(origin: &CatalogOrigin) -> Self {
+        Self {
+            file: origin.file.clone(),
+            line: origin.line,
+        }
+    }
+}
+
+fn diagnostic_severity_label(severity: ferrocat_po::DiagnosticSeverity) -> &'static str {
+    match severity {
+        ferrocat_po::DiagnosticSeverity::Info => "info",
+        ferrocat_po::DiagnosticSeverity::Warning => "warning",
+        ferrocat_po::DiagnosticSeverity::Error => "error",
     }
 }
 
@@ -1906,6 +2283,7 @@ impl ExecutionResult {
 #[derive(Debug, Clone)]
 enum ExecutionArtifact {
     PoSummary(PoSemanticSummary),
+    CatalogSummary(CatalogSemanticSummary),
     IcuSummary(IcuFixtureSummary),
     RenderedPo(String),
     RenderedPoPath(PathBuf),
@@ -3026,6 +3404,14 @@ mod tests {
         let profile =
             BenchmarkProfile::load(&workspace, "gettext-workflows-ecosystem-v1").expect("profile");
         assert_eq!(profile.name, "gettext-workflows-ecosystem-v1");
+        assert!(!profile.scenarios.is_empty());
+    }
+
+    #[test]
+    fn profile_loads_storage_formats_v1() {
+        let workspace = workspace_root().expect("workspace");
+        let profile = BenchmarkProfile::load(&workspace, "storage-formats-v1").expect("profile");
+        assert_eq!(profile.name, "storage-formats-v1");
         assert!(!profile.scenarios.is_empty());
     }
 

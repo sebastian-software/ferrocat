@@ -12,10 +12,10 @@ use conformance_harness::{evaluate_all_cases, summarize_evaluations};
 use ferrocat_conformance::{ConformanceCase, Expectation, ExpectedArtifact, load_all_manifests};
 use ferrocat_icu::{extract_variables, parse_icu, validate_icu};
 use ferrocat_po::{
-    CatalogMessage, CatalogMessageExtra, CatalogStorageFormat, ParseCatalogOptions, ParsedCatalog,
-    PluralEncoding, SerializeOptions, TranslationShape, UpdateCatalogFileOptions,
-    UpdateCatalogOptions, merge_catalog, parse_catalog, parse_po, parse_po_borrowed, stringify_po,
-    update_catalog, update_catalog_file,
+    CatalogMessage, CatalogMessageExtra, CatalogStorageFormat, Header, MsgStr, ParseCatalogOptions,
+    ParsedCatalog, PluralEncoding, PoFile, PoItem, SerializeOptions, TranslationShape,
+    UpdateCatalogFileOptions, UpdateCatalogOptions, merge_catalog, parse_catalog, parse_po,
+    parse_po_borrowed, stringify_po, update_catalog, update_catalog_file,
 };
 use fixtures::{
     Fixture, IcuFixture, MergeFixture, fixture_by_name, icu_fixture_by_name, merge_fixture_by_name,
@@ -56,11 +56,21 @@ fn run() -> Result<(), String> {
             let fixture = load_fixture(&fixture_name)?;
             bench_parse_borrowed(&fixture, config)
         }
-        "parse-ndjson" => {
-            let fixture_name = args.next().unwrap_or_else(|| "realistic".to_owned());
+        "parse-catalog-po" => {
+            let fixture_name = args
+                .next()
+                .unwrap_or_else(|| "catalog-modern-de-1000".to_owned());
             let config = parse_bench_config(args, &fixture_name)?;
             let fixture = load_fixture(&fixture_name)?;
-            bench_parse_ndjson(&fixture, config)
+            bench_parse_catalog_po(&fixture, config)
+        }
+        "parse-catalog-ndjson" | "parse-ndjson" => {
+            let fixture_name = args
+                .next()
+                .unwrap_or_else(|| "catalog-modern-de-1000".to_owned());
+            let config = parse_bench_config(args, &fixture_name)?;
+            let fixture = load_fixture(&fixture_name)?;
+            bench_parse_catalog_ndjson(&fixture, config)
         }
         "parse-icu" => {
             let fixture_name = args.next().unwrap_or_else(|| "realistic".to_owned());
@@ -86,11 +96,21 @@ fn run() -> Result<(), String> {
             let fixture = load_fixture(&fixture_name)?;
             bench_stringify(&fixture, config)
         }
-        "stringify-ndjson" => {
-            let fixture_name = args.next().unwrap_or_else(|| "realistic".to_owned());
+        "stringify-catalog-po" => {
+            let fixture_name = args
+                .next()
+                .unwrap_or_else(|| "catalog-modern-de-1000".to_owned());
             let config = parse_bench_config(args, &fixture_name)?;
             let fixture = load_fixture(&fixture_name)?;
-            bench_stringify_ndjson(&fixture, config)
+            bench_stringify_catalog_po(&fixture, config)
+        }
+        "stringify-catalog-ndjson" | "stringify-ndjson" => {
+            let fixture_name = args
+                .next()
+                .unwrap_or_else(|| "catalog-modern-de-1000".to_owned());
+            let config = parse_bench_config(args, &fixture_name)?;
+            let fixture = load_fixture(&fixture_name)?;
+            bench_stringify_catalog_ndjson(&fixture, config)
         }
         "merge" => {
             let fixture_name = args.next().unwrap_or_else(|| "realistic".to_owned());
@@ -111,7 +131,9 @@ fn run() -> Result<(), String> {
             bench_update_catalog_file(&fixture, config)
         }
         "update-catalog-file-ndjson" => {
-            let fixture_name = args.next().unwrap_or_else(|| "realistic".to_owned());
+            let fixture_name = args
+                .next()
+                .unwrap_or_else(|| "catalog-modern-de-1000".to_owned());
             let config = parse_bench_config(args, &fixture_name)?;
             let fixture = load_merge_fixture(&fixture_name)?;
             bench_update_catalog_file_ndjson(&fixture, config)
@@ -127,7 +149,7 @@ fn run() -> Result<(), String> {
             Ok(())
         }
         other => Err(format!(
-            "unknown command: {other} (use verify-benchmark-env, compare, parse, parse-borrowed, parse-ndjson, parse-icu, validate-icu, extract-icu-variables, stringify, stringify-ndjson, merge, update-catalog, update-catalog-file, update-catalog-file-ndjson, describe, or conformance-report)"
+            "unknown command: {other} (use verify-benchmark-env, compare, parse, parse-borrowed, parse-catalog-po, parse-catalog-ndjson, parse-icu, validate-icu, extract-icu-variables, stringify, stringify-catalog-po, stringify-catalog-ndjson, merge, update-catalog, update-catalog-file, update-catalog-file-ndjson, describe, or conformance-report)"
         )),
     }
 }
@@ -203,7 +225,7 @@ fn parse_positive_usize(label: &str, value: &str) -> Result<usize, String> {
 fn load_fixture(fixture_name: &str) -> Result<Fixture, String> {
     fixture_by_name(fixture_name).ok_or_else(|| {
         format!(
-            "unknown fixture: {fixture_name} (use tiny, realistic, stress, mixed-1000, mixed-10000, or gettext-<ui|commerce|saas|content>-<de|fr|pl|ar>-<count>)"
+            "unknown fixture: {fixture_name} (use tiny, realistic, stress, mixed-1000, mixed-10000, gettext-<ui|commerce|saas|content>-<de|fr|pl|ar>-<count>, or catalog-modern-de-<count>)"
         )
     })
 }
@@ -219,7 +241,7 @@ fn load_icu_fixture(fixture_name: &str) -> Result<IcuFixture, String> {
 fn load_merge_fixture(fixture_name: &str) -> Result<MergeFixture, String> {
     merge_fixture_by_name(fixture_name).ok_or_else(|| {
         format!(
-            "unknown merge fixture: {fixture_name} (use mixed-1000, mixed-10000, gettext-<ui|commerce|saas|content>-<de|fr|pl|ar>-<count>, catalog-icu-light, catalog-icu-heavy, catalog-icu-projectable, or catalog-icu-unsupported)"
+            "unknown merge fixture: {fixture_name} (use mixed-1000, mixed-10000, gettext-<ui|commerce|saas|content>-<de|fr|pl|ar>-<count>, catalog-modern-de-<count>, catalog-icu-light, catalog-icu-heavy, catalog-icu-projectable, or catalog-icu-unsupported)"
         )
     })
 }
@@ -229,9 +251,11 @@ fn default_iterations(fixture_name: &str) -> usize {
         "tiny" => 20_000,
         "mixed-10000" => 100,
         "catalog-icu-heavy" => 25,
+        "catalog-modern-de-10000" => 100,
         "catalog-icu-projectable" | "catalog-icu-unsupported" => 50,
         "stress" => 1_000,
         name if name.starts_with("gettext-") && name.ends_with("-10000") => 100,
+        name if name.starts_with("catalog-modern-") => 400,
         name if name.starts_with("gettext-") => 400,
         name if name.starts_with("icu-") && name.ends_with("-10000") => 50,
         name if name.starts_with("icu-") => 200,
@@ -291,7 +315,41 @@ fn bench_parse_borrowed(fixture: &Fixture, config: BenchConfig) -> Result<(), St
     Ok(())
 }
 
-fn bench_parse_ndjson(fixture: &Fixture, config: BenchConfig) -> Result<(), String> {
+fn bench_parse_catalog_po(fixture: &Fixture, config: BenchConfig) -> Result<(), String> {
+    let mut parsed_items = 0usize;
+    let samples = run_bench(config, || {
+        let start = Instant::now();
+        for _ in 0..config.iterations {
+            let parsed = parse_catalog(ParseCatalogOptions {
+                content: fixture.content(),
+                locale: inferred_fixture_locale(fixture.name()),
+                source_locale: "en",
+                storage_format: CatalogStorageFormat::Po,
+                plural_encoding: PluralEncoding::Icu,
+                strict: false,
+            })
+            .map_err(|error| error.to_string())?;
+            parsed_items = parsed.messages.len();
+            std::hint::black_box(parsed);
+        }
+        Ok(BenchSample::new(
+            start.elapsed(),
+            config.iterations,
+            fixture.content().len(),
+        ))
+    })?;
+    report(
+        "parse-catalog-po",
+        fixture,
+        fixture.content().len(),
+        parsed_items,
+        config,
+        &samples,
+    );
+    Ok(())
+}
+
+fn bench_parse_catalog_ndjson(fixture: &Fixture, config: BenchConfig) -> Result<(), String> {
     let (content, locale, items_per_iteration) = fixture_ndjson_content(fixture)?;
     let mut parsed_items = 0usize;
     let samples = run_bench(config, || {
@@ -316,7 +374,7 @@ fn bench_parse_ndjson(fixture: &Fixture, config: BenchConfig) -> Result<(), Stri
         ))
     })?;
     report(
-        "parse-ndjson",
+        "parse-catalog-ndjson",
         fixture,
         content.len(),
         parsed_items.max(items_per_iteration),
@@ -419,7 +477,36 @@ fn bench_stringify(fixture: &Fixture, config: BenchConfig) -> Result<(), String>
     Ok(())
 }
 
-fn bench_stringify_ndjson(fixture: &Fixture, config: BenchConfig) -> Result<(), String> {
+fn bench_stringify_catalog_po(fixture: &Fixture, config: BenchConfig) -> Result<(), String> {
+    let parsed = fixture_parsed_catalog(fixture)?;
+    let mut bytes_per_iteration = 0usize;
+    let samples = run_bench(config, || {
+        let start = Instant::now();
+        let mut bytes = 0usize;
+        for _ in 0..config.iterations {
+            let rendered = render_po_catalog(&parsed);
+            bytes += rendered.len();
+            std::hint::black_box(rendered);
+        }
+        bytes_per_iteration = bytes / config.iterations;
+        Ok(BenchSample::new(
+            start.elapsed(),
+            config.iterations,
+            bytes_per_iteration,
+        ))
+    })?;
+    report(
+        "stringify-catalog-po",
+        fixture,
+        bytes_per_iteration,
+        parsed.messages.len(),
+        config,
+        &samples,
+    );
+    Ok(())
+}
+
+fn bench_stringify_catalog_ndjson(fixture: &Fixture, config: BenchConfig) -> Result<(), String> {
     let parsed = fixture_parsed_catalog(fixture)?;
     let mut bytes_per_iteration = 0usize;
     let samples = run_bench(config, || {
@@ -438,7 +525,7 @@ fn bench_stringify_ndjson(fixture: &Fixture, config: BenchConfig) -> Result<(), 
         ))
     })?;
     report(
-        "stringify-ndjson",
+        "stringify-catalog-ndjson",
         fixture,
         bytes_per_iteration,
         parsed.messages.len(),
@@ -925,6 +1012,56 @@ fn fixture_parsed_catalog(fixture: &Fixture) -> Result<ParsedCatalog, String> {
     .map_err(|error| error.to_string())
 }
 
+fn render_po_catalog(parsed: &ParsedCatalog) -> String {
+    let mut file = PoFile {
+        comments: vec!["Benchmark-generated catalog render".to_owned()],
+        extracted_comments: Vec::new(),
+        headers: Vec::new(),
+        items: Vec::with_capacity(parsed.messages.len()),
+    };
+
+    if let Some(locale) = &parsed.locale {
+        file.headers.push(Header {
+            key: "Language".to_owned(),
+            value: locale.clone(),
+        });
+    }
+    file.headers.push(Header {
+        key: "Content-Type".to_owned(),
+        value: "text/plain; charset=UTF-8".to_owned(),
+    });
+    file.headers.push(Header {
+        key: "Content-Transfer-Encoding".to_owned(),
+        value: "8bit".to_owned(),
+    });
+
+    for message in &parsed.messages {
+        let mut item = PoItem::new(1);
+        item.msgid = render_ndjson_id(message);
+        item.msgctxt = message.msgctxt.clone();
+        item.msgstr = MsgStr::from(render_ndjson_translation(message));
+        item.extracted_comments = message.comments.clone();
+        item.references = message
+            .origin
+            .iter()
+            .map(|origin| {
+                origin.line.map_or_else(
+                    || origin.file.clone(),
+                    |line| format!("{}:{line}", origin.file),
+                )
+            })
+            .collect();
+        item.obsolete = message.obsolete;
+        if let Some(extra) = &message.extra {
+            item.comments = extra.translator_comments.clone();
+            item.flags = extra.flags.clone();
+        }
+        file.items.push(item);
+    }
+
+    stringify_po(&file, &SerializeOptions::default())
+}
+
 fn render_ndjson_catalog(parsed: &ParsedCatalog) -> String {
     let mut rendered = String::from("---\nformat: ferrocat.ndjson.v1\n");
     if let Some(locale) = &parsed.locale {
@@ -1000,7 +1137,7 @@ fn synthesize_icu_plural_map(
     variable: &str,
     forms: &std::collections::BTreeMap<String, String>,
 ) -> String {
-    let mut rendered = format!("{{{variable}, plural");
+    let mut rendered = format!("{{{variable}, plural,");
     for (category, value) in forms {
         rendered.push(' ');
         rendered.push_str(category);
@@ -1013,7 +1150,7 @@ fn synthesize_icu_plural_map(
 }
 
 fn synthesize_icu_plural(variable: &str, one: Option<&str>, other: &str) -> String {
-    let mut rendered = format!("{{{variable}, plural");
+    let mut rendered = format!("{{{variable}, plural,");
     if let Some(one) = one {
         rendered.push_str(" one {");
         rendered.push_str(one);
@@ -1037,6 +1174,14 @@ fn inferred_fixture_locale(name: &str) -> Option<&'static str> {
             "fr" => Some("fr"),
             "pl" => Some("pl"),
             "ar" => Some("ar"),
+            _ => None,
+        }
+    } else if parts.len() >= 4
+        && parts.first() == Some(&"catalog")
+        && parts.get(1) == Some(&"modern")
+    {
+        match parts[2] {
+            "de" => Some("de"),
             _ => None,
         }
     } else {
@@ -1094,4 +1239,52 @@ fn summarize(samples: &[BenchSample]) -> BenchSummary {
 )]
 const fn f64_from_usize(value: usize) -> f64 {
     value as f64
+}
+
+#[cfg(test)]
+mod tests {
+    use ferrocat_po::{CatalogStorageFormat, ParseCatalogOptions, PluralEncoding, parse_catalog};
+
+    use super::{
+        fixture_by_name, fixture_ndjson_content, fixture_parsed_catalog, render_po_catalog,
+    };
+
+    #[test]
+    fn catalog_modern_po_and_ndjson_parse_to_same_messages() {
+        let fixture = fixture_by_name("catalog-modern-de-1000").expect("fixture exists");
+        let po_parsed = fixture_parsed_catalog(&fixture).expect("parse PO catalog");
+        let (ndjson, locale, _) = fixture_ndjson_content(&fixture).expect("render NDJSON");
+        let ndjson_parsed = parse_catalog(ParseCatalogOptions {
+            content: &ndjson,
+            locale,
+            source_locale: "en",
+            storage_format: CatalogStorageFormat::Ndjson,
+            plural_encoding: PluralEncoding::Icu,
+            strict: false,
+        })
+        .expect("parse NDJSON catalog");
+
+        assert_eq!(po_parsed.locale, ndjson_parsed.locale);
+        assert_eq!(po_parsed.diagnostics, ndjson_parsed.diagnostics);
+        assert_eq!(po_parsed.messages, ndjson_parsed.messages);
+    }
+
+    #[test]
+    fn benchmark_po_catalog_renderer_roundtrips_modern_fixture() {
+        let fixture = fixture_by_name("catalog-modern-de-1000").expect("fixture exists");
+        let parsed = fixture_parsed_catalog(&fixture).expect("parse PO catalog");
+        let rendered = render_po_catalog(&parsed);
+        let reparsed = parse_catalog(ParseCatalogOptions {
+            content: &rendered,
+            locale: Some("de"),
+            source_locale: "en",
+            storage_format: CatalogStorageFormat::Po,
+            plural_encoding: PluralEncoding::Icu,
+            strict: false,
+        })
+        .expect("reparse rendered PO");
+
+        assert_eq!(parsed.locale, reparsed.locale);
+        assert_eq!(parsed.messages, reparsed.messages);
+    }
 }

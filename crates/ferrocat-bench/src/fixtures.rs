@@ -160,6 +160,10 @@ pub fn fixture_by_name(name: &str) -> Option<Fixture> {
         "stress" => Some(static_fixture("stress", STRESS_FIXTURE)),
         "mixed-1000" => Some(generated_fixture(1_000)),
         "mixed-10000" => Some(generated_fixture(10_000)),
+        _ if parse_catalog_modern_fixture_name(name).is_some() => {
+            parse_catalog_modern_fixture_name(name)
+                .map(|(locale, entries)| generated_catalog_modern_parse_fixture(locale, entries))
+        }
         _ => parse_gettext_fixture_name(name)
             .map(|(family, locale, entries)| generated_gettext_fixture(family, locale, entries)),
     }
@@ -189,6 +193,10 @@ pub fn merge_fixture_by_name(name: &str) -> Option<MergeFixture> {
     match name {
         "mixed-1000" => Some(generated_merge_fixture(1_000)),
         "mixed-10000" => Some(generated_merge_fixture(10_000)),
+        _ if parse_catalog_modern_fixture_name(name).is_some() => {
+            parse_catalog_modern_fixture_name(name)
+                .map(|(locale, entries)| generated_catalog_modern_fixture(locale, entries))
+        }
         "catalog-icu-light" => Some(generated_catalog_icu_fixture(
             CatalogIcuFixtureKind::Light,
             1_000,
@@ -286,6 +294,18 @@ fn generated_gettext_merge_fixture(
         "generated-gettext",
         build_gettext_fixture(family, locale, entries),
     )
+}
+
+fn generated_catalog_modern_parse_fixture(locale: GettextLocaleProfile, entries: usize) -> Fixture {
+    let merge = generated_catalog_modern_fixture(locale, entries);
+    let content = merge.existing_po.into_owned();
+    let stats = scan_stats(&content);
+    Fixture {
+        name: Cow::Owned(format!("catalog-modern-{}-{entries}", locale.id)),
+        kind: "generated-catalog-modern",
+        content: Cow::Owned(content),
+        stats,
+    }
 }
 
 #[expect(
@@ -478,6 +498,77 @@ fn generated_catalog_icu_fixture(kind: CatalogIcuFixtureKind, entries: usize) ->
     }
 }
 
+fn generated_catalog_modern_fixture(locale: GettextLocaleProfile, entries: usize) -> MergeFixture {
+    let mut existing_po = String::with_capacity(entries * 180);
+    existing_po.push_str("# Modern catalog benchmark fixture\n");
+    existing_po.push_str("msgid \"\"\n");
+    existing_po.push_str("msgstr \"\"\n");
+    let _ = writeln!(
+        existing_po,
+        "\"Project-Id-Version: ferrocat modern catalog benchmark\\\\n\""
+    );
+    let _ = writeln!(existing_po, "\"Language: {}\\\\n\"", locale.language);
+    existing_po.push_str("\"Content-Type: text/plain; charset=UTF-8\\n\"\n");
+    existing_po.push_str("\"Content-Transfer-Encoding: 8bit\\n\"\n");
+    let _ = writeln!(
+        existing_po,
+        "\"Plural-Forms: {}\\\\n\"\n",
+        locale.plural_forms
+    );
+
+    let mut extracted_messages = Vec::with_capacity(entries);
+    let mut api_extracted_messages = Vec::with_capacity(entries);
+
+    for index in 0..entries {
+        let msgctxt = (index % 11 == 0).then(|| format!("modern-context-{}", index % 5));
+        let reference = format!("src/catalog_{:04}.tsx:{}", index, (index % 200) + 1);
+        let comments = (index % 8 == 0)
+            .then(|| format!("Modern catalog extractor note {}", index % 13))
+            .into_iter()
+            .collect::<Vec<_>>();
+        let origin = vec![parse_origin(&reference)];
+        let flavor = catalog_modern_flavor(index);
+        let (msgid, msgstr, api_message, merge_message) = build_catalog_icu_entry(
+            flavor,
+            index,
+            msgctxt.clone(),
+            comments.clone(),
+            origin,
+            reference.clone(),
+        );
+
+        for comment in &comments {
+            existing_po.push_str("#. ");
+            existing_po.push_str(comment);
+            existing_po.push('\n');
+        }
+        existing_po.push_str("#: ");
+        existing_po.push_str(&reference);
+        existing_po.push('\n');
+        if index % 17 == 0 {
+            existing_po.push_str("#, fuzzy\n");
+        }
+        if let Some(ref msgctxt) = msgctxt {
+            push_keyword(&mut existing_po, "", "msgctxt", msgctxt);
+        }
+        push_keyword(&mut existing_po, "", "msgid", &msgid);
+        push_keyword(&mut existing_po, "", "msgstr", &msgstr);
+        existing_po.push('\n');
+
+        api_extracted_messages.push(api_message);
+        extracted_messages.push(merge_message);
+    }
+
+    MergeFixture {
+        name: Cow::Owned(format!("catalog-modern-{}-{entries}", locale.id)),
+        kind: "generated-catalog-modern",
+        existing_entries: entries,
+        existing_po: Cow::Owned(existing_po),
+        extracted_messages,
+        api_extracted_messages,
+    }
+}
+
 const fn icu_fixture_kind_name(kind: IcuFixtureKind) -> &'static str {
     match kind {
         IcuFixtureKind::Literal => "icu-literal",
@@ -536,6 +627,25 @@ fn parse_gettext_fixture_name(
         gettext_locale_profile(locale)?,
         entries.parse::<usize>().ok()?,
     ))
+}
+
+fn parse_catalog_modern_fixture_name(name: &str) -> Option<(GettextLocaleProfile, usize)> {
+    let mut parts = name.split('-');
+    let prefix = parts.next()?;
+    let family = parts.next()?;
+    let locale = parts.next()?;
+    let entries = parts.next()?;
+
+    if prefix != "catalog" || family != "modern" || parts.next().is_some() {
+        return None;
+    }
+
+    let locale = gettext_locale_profile(locale)?;
+    if locale.id != "de" {
+        return None;
+    }
+
+    Some((locale, entries.parse::<usize>().ok()?))
 }
 
 fn parse_gettext_family(name: &str) -> Option<GettextFixtureFamily> {
@@ -1101,8 +1211,10 @@ const fn catalog_icu_flavor(kind: CatalogIcuFixtureKind, index: usize) -> Catalo
 
 #[derive(Clone, Copy)]
 enum CatalogIcuFlavor {
+    PlainSingular,
     Args,
     Formatters,
+    TagsSingular,
     ProjectablePlural,
     FormatterPlural,
     TagsProjectable,
@@ -1110,6 +1222,19 @@ enum CatalogIcuFlavor {
     SelectUnsupported,
     ExactSelectorUnsupported,
     OffsetUnsupported,
+}
+
+const fn catalog_modern_flavor(index: usize) -> CatalogIcuFlavor {
+    match index % 20 {
+        17 => CatalogIcuFlavor::ProjectablePlural,
+        18 => CatalogIcuFlavor::FormatterPlural,
+        19 => match index % 3 {
+            0 => CatalogIcuFlavor::Args,
+            1 => CatalogIcuFlavor::Formatters,
+            _ => CatalogIcuFlavor::TagsSingular,
+        },
+        _ => CatalogIcuFlavor::PlainSingular,
+    }
 }
 
 #[expect(
@@ -1132,6 +1257,26 @@ fn build_catalog_icu_entry(
     let merge_comments = comments.iter().cloned().map(Cow::Owned).collect::<Vec<_>>();
     let merge_reference = vec![Cow::Owned(reference)];
     match flavor {
+        CatalogIcuFlavor::PlainSingular => {
+            let msgid = format!("Modern benchmark message {index} for the dashboard");
+            let msgstr = format!("Moderne Benchmark-Nachricht {index} fuer das Dashboard");
+            let api = ExtractedMessage::Singular(ExtractedSingularMessage {
+                msgid: msgid.clone(),
+                msgctxt: msgctxt.clone(),
+                comments,
+                origin,
+                placeholders: BTreeMap::default(),
+            });
+            let merge = MergeExtractedMessage {
+                msgctxt: msgctxt.map(Cow::Owned),
+                msgid: Cow::Owned(msgid.clone()),
+                msgid_plural: None,
+                references: merge_reference,
+                extracted_comments: merge_comments,
+                flags: Vec::new(),
+            };
+            (msgid, msgstr, api, merge)
+        }
         CatalogIcuFlavor::Args => {
             let msgid = format!("Bench {index}: Hello {{name}}, you have {{count}} items.");
             let msgstr = format!("Lauf {index}: Hallo {{name}}, du hast {{count}} Einträge.");
@@ -1162,6 +1307,30 @@ fn build_catalog_icu_entry(
             );
             let placeholders =
                 placeholder_map(&[("count", "count"), ("date", "date"), ("name", "name")]);
+            let api = ExtractedMessage::Singular(ExtractedSingularMessage {
+                msgid: msgid.clone(),
+                msgctxt: msgctxt.clone(),
+                comments,
+                origin,
+                placeholders,
+            });
+            let merge = MergeExtractedMessage {
+                msgctxt: msgctxt.map(Cow::Owned),
+                msgid: Cow::Owned(msgid.clone()),
+                msgid_plural: None,
+                references: merge_reference,
+                extracted_comments: merge_comments,
+                flags: Vec::new(),
+            };
+            (msgid, msgstr, api, merge)
+        }
+        CatalogIcuFlavor::TagsSingular => {
+            let msgid =
+                format!("<link>{{name}}</link> updated benchmark entry {index} in the workspace.");
+            let msgstr = format!(
+                "<link>{{name}}</link> aktualisierte Benchmark-Eintrag {index} im Arbeitsbereich."
+            );
+            let placeholders = placeholder_map(&[("name", "name")]);
             let api = ExtractedMessage::Singular(ExtractedSingularMessage {
                 msgid: msgid.clone(),
                 msgctxt: msgctxt.clone(),
@@ -1629,7 +1798,10 @@ fn scan_stats(content: &str) -> FixtureStats {
 #[cfg(test)]
 mod tests {
     use ferrocat_icu::parse_icu;
-    use ferrocat_po::{PluralEncoding, UpdateCatalogOptions, update_catalog};
+    use ferrocat_po::{
+        CatalogStorageFormat, ParseCatalogOptions, PluralEncoding, UpdateCatalogOptions,
+        parse_catalog, update_catalog,
+    };
 
     use super::{fixture_by_name, icu_fixture_by_name, merge_fixture_by_name};
 
@@ -1702,6 +1874,44 @@ mod tests {
             assert!(fixture.existing_po().contains("msgid"));
             assert_eq!(fixture.extracted_entries(), 1000);
         }
+    }
+
+    #[test]
+    fn builds_catalog_modern_fixture_with_expected_shape() {
+        let fixture = fixture_by_name("catalog-modern-de-1000").expect("fixture exists");
+        let stats = fixture.stats();
+
+        assert_eq!(fixture.kind(), "generated-catalog-modern");
+        assert_eq!(stats.entries, 1000);
+        assert_eq!(stats.plural_entries, 0);
+        assert!(stats.references > 0);
+        assert!(stats.contexts > 0);
+    }
+
+    #[test]
+    fn builds_catalog_modern_merge_fixture() {
+        let fixture = merge_fixture_by_name("catalog-modern-de-1000").expect("fixture exists");
+        assert_eq!(fixture.kind(), "generated-catalog-modern");
+        assert_eq!(fixture.existing_entries(), 1000);
+        assert_eq!(fixture.extracted_entries(), 1000);
+        assert!(!fixture.existing_po().contains("msgid_plural"));
+    }
+
+    #[test]
+    fn catalog_modern_fixture_is_parseable_as_icu_catalog() {
+        let fixture = fixture_by_name("catalog-modern-de-1000").expect("fixture exists");
+        let parsed = parse_catalog(ParseCatalogOptions {
+            content: fixture.content(),
+            locale: Some("de"),
+            source_locale: "en",
+            storage_format: CatalogStorageFormat::Po,
+            plural_encoding: PluralEncoding::Icu,
+            strict: false,
+        })
+        .expect("parse catalog");
+
+        assert_eq!(parsed.messages.len(), 1000);
+        assert_eq!(parsed.locale.as_deref(), Some("de"));
     }
 
     #[test]
