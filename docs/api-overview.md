@@ -2,21 +2,33 @@
 
 `ferrocat` currently exposes three practical layers of API:
 
-- low-level PO parsing and writing
-- catalog-level gettext workflows
+- low-level Gettext PO parsing and writing
+- catalog-level workflows across Gettext PO and NDJSON storage
 - ICU MessageFormat parsing
 
 This page is a lightweight guide for choosing the right function before there is a fuller generated API reference.
+
+## Supported Catalog Modes
+
+At the high-level catalog layer, `ferrocat` supports three explicit combinations of storage format and message semantics:
+
+| Mode | Storage format | Message model |
+|---|---|---|
+| Classic Gettext catalog mode | Gettext PO | Gettext-compatible plurals |
+| ICU-native Gettext PO mode | Gettext PO | ICU MessageFormat |
+| ICU-native NDJSON catalog mode | NDJSON catalog storage | ICU MessageFormat |
+
+`NDJSON + Gettext-compatible plurals` is intentionally unsupported. In API terms, that means `CatalogStorageFormat::Ndjson` is only available with `CatalogSemantics::IcuNative`.
 
 ## Quick Choice
 
 | If you want to... | Use |
 |---|---|
-| Parse a `.po` file into an owned Rust structure | `parse_po` |
-| Parse a `.po` file while borrowing from the input string where possible | `parse_po_borrowed` |
-| Turn a `PoFile` back into `.po` text | `stringify_po` |
-| Merge fresh extracted gettext messages into an existing `.po` file | `merge_catalog` |
-| Read a PO or NDJSON catalog into the higher-level canonical catalog model | `parse_catalog` |
+| Parse a Gettext PO file into an owned Rust structure | `parse_po` |
+| Parse a Gettext PO file while borrowing from the input string where possible | `parse_po_borrowed` |
+| Turn a `PoFile` back into Gettext PO text | `stringify_po` |
+| Merge fresh extracted gettext messages into an existing Gettext PO file | `merge_catalog` |
+| Read a Gettext PO or NDJSON catalog into the higher-level canonical catalog model | `parse_catalog` |
 | Build keyed lookup/helpers on top of a parsed catalog | `ParsedCatalog::into_normalized_view` |
 | Derive the default stable runtime key from `msgid` and `msgctxt` | `compiled_key` |
 | Compile a normalized catalog into runtime lookup entries | `NormalizedParsedCatalog::compile` |
@@ -28,11 +40,11 @@ This page is a lightweight guide for choosing the right function before there is
 | Only validate ICU syntax | `validate_icu` |
 | Extract variable names from a parsed ICU message | `extract_variables` |
 
-## PO Core
+## Gettext PO Core
 
 ### `parse_po`
 
-Use this when you want the normal, owned Rust representation of a PO file.
+Use this when you want the normal, owned Rust representation of a Gettext PO file.
 
 Typical use cases:
 
@@ -52,7 +64,7 @@ Typical use cases:
 
 ### `stringify_po`
 
-Use this when you already have a `PoFile` and want canonical PO output.
+Use this when you already have a `PoFile` and want canonical Gettext PO output.
 
 Typical use cases:
 
@@ -74,7 +86,7 @@ That keeps the API ergonomic for callers while avoiding avoidable request-side a
 
 Use this for the basic gettext merge step:
 
-- start from an existing `.po`
+- start from an existing Gettext PO catalog
 - feed in freshly extracted messages
 - keep matching translations
 - add new entries
@@ -84,11 +96,11 @@ This is the closest `ferrocat` equivalent to the core "merge updated template/me
 
 Choose `merge_catalog` when you want the leaner, more direct merge operation and already have data in classic gettext-like shapes.
 
-In practice this is the "fast path" workflow API: it stays close to classic PO merge behavior and avoids the extra canonical catalog projection and post-processing done by `update_catalog`.
+In practice this is the "fast path" workflow API: it stays close to classic Gettext PO merge behavior and avoids the extra canonical catalog projection and post-processing done by `update_catalog`.
 
 ### `parse_catalog`
 
-Use this when you want more than raw PO syntax. It projects a PO or NDJSON catalog into `ferrocat`'s higher-level catalog model, with explicit storage and semantics choices.
+Use this when you want more than raw Gettext PO syntax. It projects a Gettext PO or NDJSON catalog into `ferrocat`'s higher-level catalog model, with explicit storage and semantics choices.
 
 Choose this when your application wants semantic catalog data rather than just PO syntax nodes.
 
@@ -96,7 +108,7 @@ Choose this when your application wants semantic catalog data rather than just P
 
 High-level catalog parsing now also takes an explicit `storage_format`:
 
-- `CatalogStorageFormat::Po` for classic gettext `.po`
+- `CatalogStorageFormat::Po` for classic Gettext PO catalogs
 - `CatalogStorageFormat::Ndjson` for Ferrocat's frontmatter + NDJSON catalog storage
 
 High-level parsing also takes an explicit `CatalogSemantics`:
@@ -110,6 +122,12 @@ Important boundaries:
 - `CatalogSemantics::GettextCompat` only supports `PluralEncoding::Gettext`
 - `CatalogStorageFormat::Ndjson` is available only with `CatalogSemantics::IcuNative`
 - native parsing no longer eagerly projects top-level ICU plurals into `TranslationShape::Plural`
+
+That gives you exactly three supported modes:
+
+- classic Gettext catalog mode: Gettext PO + `GettextCompat`
+- ICU-native Gettext PO mode: Gettext PO + `IcuNative`
+- ICU-native NDJSON catalog mode: NDJSON + `IcuNative`
 
 `parse_catalog` intentionally stays as the neutral parse step. If you want keyed lookups or effective-translation helpers, build a richer view explicitly with `ParsedCatalog::into_normalized_view()`.
 

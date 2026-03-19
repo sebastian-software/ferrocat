@@ -5,18 +5,31 @@
 [![CI](https://github.com/sebastian-software/ferrocat/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/sebastian-software/ferrocat/actions/workflows/ci.yml)
 [![codecov](https://codecov.io/github/sebastian-software/ferrocat/graph/badge.svg?branch=main)](https://app.codecov.io/github/sebastian-software/ferrocat)
 
-`ferrocat` is a modern, performance-first toolkit for the translation formats that serious localization workflows still rely on: gettext PO files today, with a clear path toward richer ICU-aware workflows tomorrow.
+`ferrocat` is a modern, performance-first toolkit for translation catalogs that need to span three realities at once: classic GNU gettext PO workflows, ICU MessageFormat semantics, and JSON-friendly storage for external processing.
 
-If your mental model for translations starts with JSON files, `ferrocat` is the bridge back to what a lot of real-world i18n systems have used for decades: PO-based catalogs, gettext-style workflows, translator-friendly metadata, and tooling that has to be both fast and trustworthy.
+Serious localization systems still depend on Gettext PO catalogs, translator-facing metadata, and gettext-shaped workflows. At the same time, modern web stacks and external services often want JSON-shaped records instead of forcing everything through PO as an interchange step.
 
-`ferrocat` brings that world into a Rust-native architecture with explicit crate boundaries, source-attributed conformance coverage, and performance work grounded in borrowing, byte-oriented hot paths, and profiling instead of wishful thinking.
+`ferrocat` brings those concerns into one Rust-native architecture with explicit crate boundaries, source-attributed conformance coverage, and performance work grounded in borrowing, byte-oriented hot paths, and profiling instead of wishful thinking.
+
+## Three Catalog Modes
+
+At the high-level catalog layer, `ferrocat` supports three explicit modes:
+
+| Mode | Storage format | Message model | Use when you want to... |
+|---|---|---|---|
+| Classic Gettext catalog mode | Gettext PO | Gettext-compatible plurals | stay close to traditional gettext catalogs and `msgid_plural` / `msgstr[n]` workflows |
+| ICU-native Gettext PO mode | Gettext PO | ICU MessageFormat | keep Gettext PO files, comments, and tooling, but author messages with ICU plural/select/formatting features |
+| ICU-native NDJSON catalog mode | NDJSON catalog storage | ICU MessageFormat | store catalogs as line-oriented JSON records that are easier to diff, stream, batch, and hand to external services or pipeline tooling |
+
+There is intentionally no `NDJSON + Gettext-compatible plurals` mode. NDJSON is the native high-level storage format for ICU-native catalogs, while classic gettext plural compatibility remains a Gettext PO concern.
 
 ## Why People Get Excited About `ferrocat`
 
-- **It speaks the real language of translation workflows.** PO files are still a durable standard across gettext-based pipelines, translator tooling, comments, references, contexts, and plural handling. `ferrocat` is built for that reality, not just for toy key-value dictionaries.
+- **It speaks the real language of translation workflows.** Gettext PO files are still a durable standard across translator tooling, comments, references, contexts, and plural handling. `ferrocat` is built for that reality, not just for toy key-value dictionaries.
 - **The performance story has reasons behind it.** The fast path is shaped by Rust-native design decisions: owned and borrowed APIs, byte-oriented scanning, explicit crate boundaries, and repeated profiling work to remove avoidable allocation and parsing overhead.
 - **It aims for trust, not just speed.** Conformance is tied back to independently maintained upstream behavior instead of vague compatibility claims.
-- **It is built for migration, not lock-in.** At the high level, `ferrocat` treats ICU-style structure as the long-term semantic model while keeping gettext as the compatibility bridge many teams still need today.
+- **It separates storage from message semantics.** Gettext PO and NDJSON are storage choices; gettext-compatible plurals and ICU MessageFormat are semantic choices. That makes the supported combinations easier to reason about and evolve.
+- **It is built for migration, not lock-in.** Teams can stay in classic gettext mode, move to ICU-native messages while keeping Gettext PO storage, or switch to NDJSON when external systems want JSON-first records instead of a PO conversion step.
 - **It starts in Rust, but it does not stop there.** The core is being shaped so future Node.js/N-API and other bindings can sit on top of a stable engine instead of re-implementing the same translation logic per ecosystem.
 
 ## Installation
@@ -56,7 +69,7 @@ Many teams end up choosing between two unsatisfying extremes:
 - compatibility measured against real upstream behavior
 - a cleaner long-term semantic center for ICU-aware catalog work
 
-That last point matters because gettext is still everywhere, but many teams want something better than being trapped forever in legacy shapes. At the catalog layer, `ferrocat` treats ICU-style structure as the long-term semantic model and gettext as the compatibility bridge.
+That last point matters because gettext is still everywhere, but many teams want something better than being trapped forever in legacy shapes. At the catalog layer, `ferrocat` keeps classic gettext compatibility where it matters, while making ICU-native messages and NDJSON storage first-class options for teams that need richer semantics or easier external processing.
 
 ## Quick Start
 
@@ -97,13 +110,13 @@ If that matches what you are building, this repo is worth trying now and worth w
 
 ## API Overview
 
-The current public surface falls into three practical layers, depending on whether you want raw PO access, higher-level catalog workflows, or ICU parsing:
+The current public surface falls into three practical layers, depending on whether you want raw Gettext PO access, higher-level catalog workflows across Gettext PO and NDJSON storage, or ICU parsing:
 
 | Layer | Functions | Use when you want to... |
 |---|---|---|
-| PO core | `parse_po`, `parse_po_borrowed`, `stringify_po` | parse and write classic `.po` files directly |
+| PO core | `parse_po`, `parse_po_borrowed`, `stringify_po` | parse and write classic Gettext PO files directly |
 | Catalog workflows | `merge_catalog` | do the lean gettext-style merge step against fresh extracted messages |
-| Catalog workflows | `parse_catalog` | read a PO or NDJSON catalog into the higher-level canonical catalog model |
+| Catalog workflows | `parse_catalog` | read a Gettext PO or NDJSON catalog into the higher-level canonical catalog model |
 | Catalog workflows | `compiled_key` | derive the default stable runtime lookup key from `msgid` and optional `msgctxt` |
 | Catalog workflows | `NormalizedParsedCatalog::compile` | compile a normalized catalog into runtime lookup entries with stable derived keys |
 | Catalog workflows | `compile_catalog_artifact` | compile one requested-locale runtime artifact with fallback resolution, missing reports, and final ICU strings |
@@ -117,9 +130,17 @@ See [docs/api-overview.md](docs/api-overview.md) for the fuller "what should I u
 
 Across all of these layers, `ferrocat` keeps a conservative gettext-compatibility stance and surfaces diagnostics where ambiguity matters.
 
-The borrowed parser exists because real PO workflows are often read-heavy and transformation-heavy. In those paths, avoiding unnecessary allocation is the difference between a pleasant API and a scalable one.
+The borrowed parser exists because real Gettext PO workflows are often read-heavy and transformation-heavy. In those paths, avoiding unnecessary allocation is the difference between a pleasant API and a scalable one.
 
 At the high-level catalog layer, both storage and semantics are now explicit choices. `CatalogStorageFormat::Po` remains the default storage format, while `CatalogStorageFormat::Ndjson` enables a frontmatter + NDJSON representation where each message is stored as one JSON record per line.
+
+Those choices collapse into the same three supported catalog modes introduced above:
+
+- Gettext PO + `CatalogSemantics::GettextCompat`
+- Gettext PO + `CatalogSemantics::IcuNative`
+- NDJSON + `CatalogSemantics::IcuNative`
+
+`NDJSON + CatalogSemantics::GettextCompat` is intentionally unsupported.
 
 `CatalogSemantics::IcuNative` is now the default high-level mode:
 
