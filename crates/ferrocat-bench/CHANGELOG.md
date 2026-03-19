@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.9.0](https://github.com/sebastian-software/ferrocat/compare/ferrocat-bench-v0.8.0...ferrocat-bench-v0.9.0) (2026-03-19)
+
+
+### Features
+
+* **catalog:** add ndjson storage format ([f335df9](https://github.com/sebastian-software/ferrocat/commit/f335df94693c2cb59bf54d2a9543f89184bfa6c0))
+
 ## [0.8.0](https://github.com/sebastian-software/ferrocat/compare/ferrocat-bench-v0.7.0...ferrocat-bench-v0.8.0) (2026-03-18)
 
 
