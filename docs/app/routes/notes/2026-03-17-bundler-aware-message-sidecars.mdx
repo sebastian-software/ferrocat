@@ -1,0 +1,258 @@
+---
+title: "Bundler-Aware Message Sidecars"
+description: "Future-facing note about bundler-aware message sidecars and runtime distribution."
+---
+
+# Bundler-Aware Message Sidecars
+
+This note captures a future-facing idea that likely belongs primarily in
+Palamedes or another host adapter, but is directly informed by Ferrocat's
+catalog compilation work.
+
+The central problem is not "how do we parse more PO files?" It is:
+
+- how do we keep client bundle size under control for large applications
+- without forcing manual message sharding onto application authors
+- while still using stable compiled message IDs
+
+## Problem Shape
+
+The naive client-side approach is:
+
+1. build one ESM catalog module per locale
+2. dynamically import that locale module
+3. return a large in-memory message map to the client runtime
+
+That works, but scales poorly as applications grow:
+
+- the client often loads many more messages than the current UI actually needs
+- large locale modules become expensive to ship, parse, and keep resident
+- locale variants such as `de-CH` naturally want overlay semantics rather than
+  another full copy of the world
+
+At the same time, manual message code-splitting is not attractive:
+
+- authors should not need to decide which file or route "owns" a message
+- duplicate source strings across shards make conflict management harder
+- translators and extraction workflows should not be shaped by bundler internals
+
+## Observed Constraints
+
+The most important product constraints for this direction are:
+
+- runtime language switching in the same loaded client is intentionally out of
+  scope
+- a fast reload is preferable to trying to live-switch all translated UI state
+- top-level translation macro expansion is already considered an anti-pattern
+  because locale selection and i18n bootstrapping can be async
+
+That last point is especially important. If top-level translation lookups are
+already forbidden, message payloads do not need to exist before JavaScript chunk
+evaluation. They only need to exist before later render or handler code calls
+into the translation runtime.
+
+This makes an async sidecar-loading model much more feasible.
+
+## Core Idea
+
+Keep normal Vite/Rollup chunking as the primary source of truth, then attach
+message payloads to those chunks as locale-specific sidecars.
+
+In rough terms:
+
+1. translation macros continue to produce stable compiled IDs in application code
+2. build tooling records which message IDs each module references
+3. after final bundler chunking is known, the IDs are aggregated from
+   `module -> ids` into `chunk -> ids`
+4. for each `(chunk, locale)` pair, emit a compact message sidecar
+5. emit a manifest that maps JS chunks to their locale-specific sidecars
+
+The result is not "split messages by hand." It is:
+
+- let the bundler decide code chunk boundaries
+- derive message payload boundaries from those same chunk boundaries
+
+This keeps message distribution aligned with the actual loading behavior of the
+application.
+
+## Why This Is Interesting
+
+This approach potentially gives the best parts of two worlds:
+
+- application authors keep normal bundler-driven code splitting
+- message payloads can be loaded only for chunks that are actually used
+- locale-specific payloads stay much smaller than one giant per-locale catalog
+- no human-maintained "message shard files" are required
+
+For locale overlays such as `de-CH`, the same model can later support:
+
+- a small `de-CH` sidecar
+- fallback to a larger `de` sidecar
+- optional fallback to source locale data only when needed
+
+That is conceptually similar to the new `compile_catalog_artifact` semantics,
+but the delivery unit changes from "entire requested-locale artifact" to
+"chunk-addressable locale sidecar."
+
+## Suggested Architecture
+
+### Build-Time Collection
+
+Do not parse final JavaScript output to discover message usage if it can be
+avoided.
+
+Prefer a two-stage model:
+
+1. the macro/plugin layer records message IDs per source module
+2. the bundler integration aggregates those IDs after final chunking is known
+
+This is more robust than scraping emitted code and stays compatible with
+tree-shaking and chunk renaming.
+
+### Emitted Artifacts
+
+The likely outputs are:
+
+- normal JS chunks from Vite/Rollup
+- one locale-specific message sidecar per chunk
+- one manifest describing which sidecar belongs to which chunk and locale
+
+Conceptually:
+
+```text
+assets/
+  app-ABC123.js
+  checkout-XYZ999.js
+  i18n-manifest.json
+  i18n/de/app-ABC123.messages.json
+  i18n/de/checkout-XYZ999.messages.json
+  i18n/de-CH/app-ABC123.messages.json
+```
+
+The sidecar format does not need to be ESM. It could be JSON or another compact
+lookup-oriented artifact.
+
+### Runtime Flow
+
+At runtime:
+
+1. application decides the locale once during boot
+2. when a chunk is about to be used, its locale sidecar is loaded
+3. sidecar messages are registered in the in-memory translation store
+4. UI code that runs later can resolve `t(id)` as normal
+
+Because top-level translation usage is intentionally disallowed, the runtime can
+remain async here without trying to beat chunk evaluation itself.
+
+### Dev Server Flow
+
+The same idea becomes even more interesting in development:
+
+- JS chunk loads can trigger a corresponding sidecar lookup
+- the dev server can keep Rust-side catalogs resident and watched
+- changed translations can be pushed through hot reload without rebuilding a
+  giant locale module
+
+The development protocol might eventually become batch-oriented rather than
+key-oriented:
+
+- load all message IDs needed for chunk `X`
+- not one HTTP request per translation key
+
+## Where Ferrocat Fits
+
+Ferrocat should probably stay focused on catalog semantics and artifact
+building, not own the bundler integration itself.
+
+Useful Ferrocat responsibilities for this direction:
+
+- stable compiled message IDs
+- locale fallback semantics
+- host-neutral catalog artifacts
+- compact, reproducible message payload generation
+
+Likely Palamedes or host-adapter responsibilities:
+
+- mapping modules to message IDs
+- mapping final chunks to those module-level IDs
+- emitting sidecars and manifests in bundler output
+- dev-server protocol and runtime chunk/sidecar loading
+
+## Current Ferrocat Status
+
+The original shape described in this note is no longer purely hypothetical.
+Ferrocat now already exposes the core build-time primitives a host adapter would
+need to prototype chunk-addressable locale sidecars.
+
+Available today:
+
+- `compile_catalog_artifact` for full requested-locale host-neutral runtime
+  artifacts with fallback resolution, missing reports, and final ICU strings
+- `CompiledCatalogIdIndex` for deterministic `compiled_id -> source_key`
+  indexing across one or more normalized catalogs
+- `compile_catalog_artifact_selected` for compiling only a selected subset of
+  compiled runtime IDs into a locale artifact slice
+- `compile_catalog_artifact_selected_report` for the same selected compile flow
+  with structured reporting of unknown or unavailable compiled IDs
+- `CompiledCatalogIdIndex::describe_compiled_ids` for lightweight metadata about
+  requested compiled IDs, including available locales and singular vs plural
+  shape
+- `CompiledCatalogIdIndex::as_btreemap` and `into_btreemap` for exporting the
+  ordered compiled-ID mapping into host-side caches or manifests
+
+This means the chunk-based ideal is already reachable at build time:
+
+1. a host adapter collects `compiled_id`s per module or final chunk
+2. Ferrocat builds or reuses a `CompiledCatalogIdIndex`
+3. the host adapter calls `compile_catalog_artifact_selected` per
+   `(chunk, locale)` pair
+4. the result is emitted as a locale-specific sidecar payload
+
+What remains outside Ferrocat is mostly orchestration rather than missing
+catalog semantics:
+
+- module-to-ID collection in macros or build plugins
+- aggregation from modules into final bundler chunks
+- manifest generation and sidecar emission format
+- runtime registration/loading behavior
+- dev-server hot reload protocol
+
+One later optimization track still intentionally remains out of scope for now:
+borrowed or lazy subset compilation that avoids fully materializing normalized
+catalogs before compiling a selected ID subset. That may become interesting for
+very large catalogs, but it is not required for the first chunk-sidecar
+prototype.
+
+## Non-Goals
+
+This note is not proposing:
+
+- manual per-route message files
+- runtime language switching within the same loaded client
+- full locale-permutated builds as the only strategy
+- putting Rust directly in the browser
+
+Locale-permutated builds are still interesting for some deployment models, but
+the sidecar concept is attractive precisely because it preserves normal client
+chunking while reducing message payload size.
+
+## Open Questions
+
+- what should the sidecar wire format be
+- how aggressively should shared-chunk message sets be deduplicated
+- should sidecars contain final locale-resolved strings or layered overlay data
+- how should locale overlays such as `de-CH -> de -> en` be represented
+- how should the runtime coordinate "chunk loaded" vs "messages registered"
+- how much over-approximation is acceptable when tree-shaking changes module
+  contents after the macro/plugin layer recorded message IDs
+
+## Current Recommendation
+
+Treat this as a serious follow-up direction for Palamedes:
+
+- keep Ferrocat responsible for semantic compile primitives
+- explore chunk-addressable locale sidecars in the host integration layer
+- prefer bundler-aware message distribution over manual message sharding
+
+The idea appears especially promising for large applications where the current
+"one large locale catalog module" approach becomes increasingly wasteful.

@@ -1,0 +1,37 @@
+---
+title: Project Status
+description: Current strengths, roadmap themes, compatibility policy, and long-term direction for Ferrocat.
+---
+
+# Project Status
+
+`ferrocat` is an actively developed pre-`1.0` Rust project.
+
+## Current strengths
+
+- high-performance PO parsing, serialization, and merge/update workflows
+- ICU MessageFormat parsing with structural helpers
+- normalized catalog APIs plus runtime compilation and requested-locale artifact generation
+- conformance and benchmark infrastructure treated as product features
+
+## Compatibility policy
+
+- **MSRV:** `1.85`
+- **Semver:** the public API is treated seriously, but carefully documented breaking changes may still happen before `1.0`
+- **Documentation:** README examples, rustdoc, and repository docs aim to stay aligned
+
+## Roadmap themes
+
+- deeper runtime/catalog workflows on top of the compiled catalog layer
+- broader cross-ecosystem tooling and bindings
+- continued conformance growth and publication-grade benchmarking discipline
+
+## Why the project direction matters
+
+Today Ferrocat is Rust-first. The longer-term goal is broader: a trustworthy translation core that can serve multiple ecosystems from one implementation, without forcing each host environment to re-implement catalog semantics, compile-time key derivation, and locale resolution separately.
+
+## Follow-up reading
+
+- [Conformance](/quality/conformance)
+- [External Benchmarking](/performance/benchmarking)
+- [Community](/guide/community)

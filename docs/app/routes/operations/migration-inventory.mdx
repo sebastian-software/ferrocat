@@ -1,0 +1,64 @@
+---
+title: Migration Inventory
+description: Route map and status tracker for moving README and docs-orig content into the new docs website.
+---
+
+# Migration Inventory
+
+This inventory maps every source surface from the old markdown set to a canonical route in the new site.
+
+## Checklist
+
+- destination slug assigned
+- frontmatter present
+- internal links rewritten
+- obsolete file-path references removed or converted
+- README and site cross-links updated
+
+## README section mapping
+
+| Source | Destination | Bucket | Status |
+|---|---|---|---|
+| `README`: intro + positioning | `/` | homepage | migrated |
+| `README`: Three Catalog Modes | `/guide/catalog-modes` | guide | migrated |
+| `README`: Why People Get Excited About ferrocat | `/` | homepage | migrated |
+| `README`: Installation | `/guide/getting-started` | guide | migrated |
+| `README`: Compatibility Policy | `/guide/getting-started`, `/guide/project-status` | guide | migrated |
+| `README`: Quick Start | `/guide/getting-started` | guide | migrated |
+| `README`: API Overview | `/reference/api-overview` | reference | migrated |
+| `README`: Runtime Catalog Compilation | `/guide/runtime-compilation` | guide | migrated |
+| `README`: Project Status | `/guide/project-status` | guide | migrated |
+| `README`: Conformance | `/quality/conformance` | quality | migrated |
+| `README`: Test Coverage | `/quality/test-coverage` | quality | migrated |
+| `README`: Open Source and Community | `/guide/community` | guide | migrated |
+| `README`: Benchmarks and Profiling | `/performance/*` | performance | migrated |
+| `README`: Future Direction | `/guide/project-status` | guide | migrated |
+| `README`: Project Docs list | distributed canonical routes | cross-links | migrated |
+
+## `docs-orig` document mapping
+
+| Source file | Destination route | Bucket | Status |
+|---|---|---|---|
+| `docs-orig/api-overview.md` | `/reference/api-overview` | reference | migrated |
+| `docs-orig/conformance.md` | `/quality/conformance` | quality | migrated |
+| `docs-orig/test-coverage.md` | `/quality/test-coverage` | quality | migrated |
+| `docs-orig/benchmarking.md` | `/performance/benchmarking` | performance | migrated |
+| `docs-orig/benchmark-fixtures.md` | `/performance/benchmark-fixtures` | performance | migrated |
+| `docs-orig/performance-history.md` | `/performance/performance-history` | performance | migrated |
+| `docs-orig/release-verification.md` | `/operations/release-verification` | operations | migrated |
+| `docs-orig/adr/README.md` | `/architecture/adr` | architecture | migrated |
+| `docs-orig/adr/0001-rust-native-performance-first-core.md` | `/architecture/adr/0001-rust-native-performance-first-core` | architecture | migrated |
+| `docs-orig/adr/0002-owned-and-borrowed-parse-apis.md` | `/architecture/adr/0002-owned-and-borrowed-parse-apis` | architecture | migrated |
+| `docs-orig/adr/0003-byte-oriented-scanning-and-structural-separation.md` | `/architecture/adr/0003-byte-oriented-scanning-and-structural-separation` | architecture | migrated |
+| `docs-orig/adr/0004-model-msgstr-by-semantics.md` | `/architecture/adr/0004-model-msgstr-by-semantics` | architecture | migrated |
+| `docs-orig/adr/0005-icu-canonical-model-and-gettext-bridge.md` | `/architecture/adr/0005-icu-canonical-model-and-gettext-bridge` | architecture | migrated |
+| `docs-orig/adr/0006-separate-po-core-from-high-level-catalog-api.md` | `/architecture/adr/0006-separate-po-core-from-high-level-catalog-api` | architecture | migrated |
+| `docs-orig/adr/0007-drop-previous-msgid-history.md` | `/architecture/adr/0007-drop-previous-msgid-history` | architecture | migrated |
+| `docs-orig/adr/0008-normalize-headerless-po-output.md` | `/architecture/adr/0008-normalize-headerless-po-output` | architecture | migrated |
+| `docs-orig/adr/0009-runtime-catalog-compiled-key-strategy.md` | `/architecture/adr/0009-runtime-catalog-compiled-key-strategy` | architecture | migrated |
+| `docs-orig/adr/0010-compiled-catalog-artifact-api.md` | `/architecture/adr/0010-compiled-catalog-artifact-api` | architecture | migrated |
+| `docs-orig/adr/0011-ndjson-catalog-storage-format.md` | `/architecture/adr/0011-ndjson-catalog-storage-format` | architecture | migrated |
+| `docs-orig/adr/0012-icu-native-core-and-gettext-compat-semantics.md` | `/architecture/adr/0012-icu-native-core-and-gettext-compat-semantics` | architecture | migrated |
+| `docs-orig/notes/2026-03-14-scan-architecture.md` | `/notes/2026-03-14-scan-architecture` | notes | migrated |
+| `docs-orig/notes/2026-03-17-bundler-aware-message-sidecars.md` | `/notes/2026-03-17-bundler-aware-message-sidecars` | notes | migrated |
+| `docs-orig/plans/2026-03-14-ferrocat-porting-plan.md` | `/archive/plans/2026-03-14-ferrocat-porting-plan` | archive | migrated |

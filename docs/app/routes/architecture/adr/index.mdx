@@ -1,0 +1,23 @@
+---
+title: "ADR Index"
+description: "Index of accepted architecture decision records for Ferrocat."
+---
+
+# ADR Index
+
+This folder contains architecture decision records in a lightweight Nygard-style format.
+
+Current records:
+
+- [0001: Rust-Native, Performance-First Core](/architecture/adr/0001-rust-native-performance-first-core)
+- [0002: Provide Both Owned and Borrowed Parse APIs](/architecture/adr/0002-owned-and-borrowed-parse-apis)
+- [0003: Use Byte-Oriented Scanning and Separate Structure From Semantics](/architecture/adr/0003-byte-oriented-scanning-and-structural-separation)
+- [0004: Model `msgstr` by Semantics Instead of Always Using `Vec<String>`](/architecture/adr/0004-model-msgstr-by-semantics)
+- [0005: Treat ICU as the Canonical Model and Gettext as a Compatibility Bridge](/architecture/adr/0005-icu-canonical-model-and-gettext-bridge)
+- [0006: Separate the PO Core from the High-Level Catalog API](/architecture/adr/0006-separate-po-core-from-high-level-catalog-api)
+- [0007: Do Not Support `previous_msgid` History](/architecture/adr/0007-drop-previous-msgid-history)
+- [0008: Normalize Headerless PO Files on Write](/architecture/adr/0008-normalize-headerless-po-output)
+- [0009: Use Versioned, Truncated SHA-256 Keys for Runtime Catalog Compilation](/architecture/adr/0009-runtime-catalog-compiled-key-strategy)
+- [0010: Add a Locale-Resolved Compiled Catalog Artifact API](/architecture/adr/0010-compiled-catalog-artifact-api)
+- [0011: Add an NDJSON Storage Format for High-Level Catalog Workflows](/architecture/adr/0011-ndjson-catalog-storage-format)
+- [0012: Make the High-Level Catalog API ICU-Native by Default and Move Gettext Plurals Behind an Explicit Compat Mode](/architecture/adr/0012-icu-native-core-and-gettext-compat-semantics)

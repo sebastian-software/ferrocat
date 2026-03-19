@@ -1,0 +1,314 @@
+.ferro-home {
+  display: grid;
+  gap: 4rem;
+  padding-bottom: 3rem;
+}
+
+.ferro-hero,
+.ferro-section,
+.ferro-cta {
+  position: relative;
+}
+
+.ferro-hero {
+  display: grid;
+  gap: 2rem;
+  grid-template-columns: minmax(0, 1.8fr) minmax(280px, 0.95fr);
+  padding: 2.5rem;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 28px;
+  background:
+    radial-gradient(circle at top left, rgba(210, 229, 242, 0.9), transparent 40%),
+    linear-gradient(180deg, rgba(255, 252, 247, 1) 0%, rgba(248, 245, 239, 1) 100%);
+  box-shadow: 0 24px 70px rgba(15, 23, 42, 0.08);
+}
+
+.ferro-hero h1,
+.ferro-section h2,
+.ferro-cta h2 {
+  margin: 0;
+  letter-spacing: -0.04em;
+  line-height: 1.02;
+  color: #112031;
+}
+
+.ferro-hero h1 {
+  max-width: 13ch;
+  font-size: clamp(2.7rem, 6vw, 4.8rem);
+}
+
+.ferro-section h2,
+.ferro-cta h2 {
+  max-width: 18ch;
+  font-size: clamp(1.75rem, 4vw, 2.7rem);
+}
+
+.ferro-lead,
+.ferro-card p,
+.ferro-entry-card p,
+.ferro-proof-card p,
+.ferro-note,
+.ferro-checklist,
+.ferro-cta p {
+  color: #334155;
+  line-height: 1.65;
+}
+
+.ferro-lead {
+  max-width: 64ch;
+  font-size: 1.08rem;
+}
+
+.ferro-eyebrow,
+.ferro-panel-label {
+  margin: 0 0 0.75rem;
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #7c5c2c;
+}
+
+.ferro-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.85rem;
+  margin-top: 1.75rem;
+}
+
+.ferro-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.85rem 1.15rem;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  font-weight: 600;
+  text-decoration: none;
+  transition:
+    transform 180ms ease,
+    box-shadow 180ms ease,
+    background-color 180ms ease,
+    border-color 180ms ease;
+}
+
+.ferro-button:hover,
+.ferro-entry-card:hover {
+  transform: translateY(-2px);
+}
+
+.ferro-button-primary {
+  color: #fff;
+  background: #0f3957;
+  box-shadow: 0 14px 30px rgba(15, 57, 87, 0.18);
+}
+
+.ferro-button-secondary {
+  color: #16324a;
+  background: rgba(255, 255, 255, 0.78);
+  border-color: rgba(15, 57, 87, 0.14);
+}
+
+.ferro-button-tertiary {
+  color: #16324a;
+  background: transparent;
+  border-color: rgba(15, 57, 87, 0.18);
+}
+
+.ferro-hero-aside {
+  display: grid;
+  gap: 1rem;
+}
+
+.ferro-panel,
+.ferro-card,
+.ferro-proof-card,
+.ferro-entry-card,
+.ferro-cta {
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.8);
+}
+
+.ferro-panel {
+  padding: 1.25rem;
+}
+
+.ferro-panel-muted {
+  background: rgba(249, 247, 242, 0.92);
+}
+
+.ferro-code {
+  margin: 0;
+  padding: 1rem;
+  overflow-x: auto;
+  border-radius: 16px;
+  background: #10212f;
+  color: #f8fafc;
+}
+
+.ferro-checklist {
+  margin: 0;
+  padding-left: 1.2rem;
+}
+
+.ferro-section {
+  display: grid;
+  gap: 1.5rem;
+}
+
+.ferro-section-heading {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.ferro-grid,
+.ferro-mode-grid,
+.ferro-proof-grid,
+.ferro-entry-grid {
+  display: grid;
+  gap: 1rem;
+}
+
+.ferro-grid-two {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.ferro-mode-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.ferro-proof-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.ferro-entry-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.ferro-card,
+.ferro-proof-card,
+.ferro-entry-card {
+  padding: 1.35rem;
+}
+
+.ferro-card h3,
+.ferro-entry-card h3 {
+  margin-top: 0.85rem;
+  margin-bottom: 0.5rem;
+  color: #112031;
+}
+
+.ferro-mode-card dl {
+  margin: 1rem 0;
+  display: grid;
+  gap: 0.65rem;
+}
+
+.ferro-mode-card dt {
+  margin-bottom: 0.2rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #516476;
+}
+
+.ferro-mode-card dd {
+  margin: 0;
+  font-weight: 600;
+  color: #17354e;
+}
+
+.ferro-note {
+  margin: 0;
+  font-size: 0.96rem;
+}
+
+.ferro-proof {
+  padding: 2rem;
+  border-radius: 28px;
+  background: linear-gradient(180deg, rgba(248, 245, 239, 0.95), rgba(243, 238, 230, 0.95));
+}
+
+.ferro-proof-card strong {
+  display: block;
+  margin-bottom: 0.5rem;
+  font-size: 1.75rem;
+  color: #0f3957;
+}
+
+.ferro-entry-card {
+  color: inherit;
+  text-decoration: none;
+}
+
+.ferro-entry-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.4rem;
+  height: 2.4rem;
+  border-radius: 999px;
+  color: #0f3957;
+  background: rgba(210, 229, 242, 0.7);
+}
+
+.ferro-entry-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin-top: 0.5rem;
+  font-weight: 600;
+  color: #0f3957;
+}
+
+.ferro-cta {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: minmax(0, 1.6fr) auto;
+  align-items: center;
+  padding: 2rem;
+  background: linear-gradient(135deg, rgba(16, 33, 47, 1), rgba(18, 58, 87, 0.96));
+}
+
+.ferro-cta h2,
+.ferro-cta .ferro-eyebrow {
+  color: #f8fafc;
+}
+
+.ferro-cta .ferro-eyebrow {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.ferro-cta .ferro-button-secondary {
+  color: #f8fafc;
+  border-color: rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.ferro-cta .ferro-button-primary {
+  color: #10212f;
+  background: #f8e4bf;
+  box-shadow: none;
+}
+
+@media (max-width: 960px) {
+  .ferro-hero,
+  .ferro-grid-two,
+  .ferro-mode-grid,
+  .ferro-proof-grid,
+  .ferro-entry-grid,
+  .ferro-cta {
+    grid-template-columns: 1fr;
+  }
+
+  .ferro-hero {
+    padding: 1.5rem;
+  }
+
+  .ferro-proof,
+  .ferro-cta {
+    padding: 1.5rem;
+  }
+}

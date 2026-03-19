@@ -1,0 +1,76 @@
+---
+title: "ADR 0006: Separate the PO Core from the High-Level Catalog API"
+description: "Accepted architecture decision record: separate po core from high level catalog api."
+---
+
+# ADR 0006: Separate the PO Core from the High-Level Catalog API
+
+- Status: Accepted
+- Date: 2026-03-16
+
+## Context
+
+`ferrocat` started as a fast PO parser and serializer with an explicit focus on low-level performance.
+
+That core is still important:
+
+- it maps closely to actual PO file structure
+- it enables owned and borrowed parsing modes
+- it serves benchmark-heavy and tooling-oriented workflows
+
+At the same time, product-facing workflows need a different abstraction level.
+
+Typical tasks such as:
+
+- updating a catalog from extracted messages
+- parsing a catalog into a structured application model
+- reading and writing catalog files as one operation
+
+are not best expressed in terms of raw PO items, `msgstr[n]`, or file-shaped mutation.
+
+These workflows also need a stable surface for future Node/N-API usage, where exposing low-level PO-core structures directly would leak format-centric details and internal ownership choices.
+
+The project now has both layers:
+
+- the PO core (`parse_po`, `parse_po_borrowed`, `stringify_po`, low-level merge helpers)
+- the high-level catalog API (`parse_catalog`, `update_catalog`, `update_catalog_file`)
+
+## Decision
+
+Keep the PO core and the high-level catalog API as distinct layers with different responsibilities.
+
+The PO core is:
+
+- format-oriented
+- performance-oriented
+- suitable for low-level tooling and internal building blocks
+
+The high-level catalog API is:
+
+- task-oriented
+- owned and N-API-friendly
+- centered around canonical catalog semantics rather than raw PO structure
+
+The high-level API may use the PO core internally, but it should not be shaped by PO-core implementation details.
+
+Concretely:
+
+- low-level PO parsing and serialization remain public and supported
+- high-level catalog operations remain the preferred product-facing API
+- borrowed lifetimes and PO-core item details should not leak into the first high-level API surface
+- export format is a configuration choice of the high-level API, not its semantic center
+
+## Consequences
+
+Positive:
+
+- low-level and high-level users both get APIs that fit their actual tasks
+- Node/N-API integration has a cleaner public boundary
+- the PO core can stay aggressively optimized without dictating product-facing ergonomics
+- the catalog layer can evolve toward ICU-oriented semantics without destabilizing the low-level core
+
+Negative:
+
+- there are now two API layers to document and maintain
+- some translation logic exists above the PO core rather than directly inside it
+- contributors need to be clear about which layer a new feature belongs to

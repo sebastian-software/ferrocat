@@ -1,0 +1,30 @@
+---
+title: Catalog Modes
+description: Mental model for Ferrocat's three supported combinations of storage format and message semantics.
+---
+
+# Catalog Modes
+
+At the high-level catalog layer, Ferrocat keeps storage format and message semantics explicit so teams can reason about migrations and runtime behavior without hidden fallback rules.
+
+## The three supported modes
+
+| Mode | Storage format | Message model | Use when you want to... |
+|---|---|---|---|
+| Classic Gettext catalog mode | Gettext PO | Gettext-compatible plurals | stay close to traditional gettext catalogs and `msgid_plural` / `msgstr[n]` workflows |
+| ICU-native Gettext PO mode | Gettext PO | ICU MessageFormat | keep Gettext PO files, comments, and tooling, but author messages with ICU plural/select/formatting features |
+| ICU-native NDJSON catalog mode | NDJSON catalog storage | ICU MessageFormat | store catalogs as line-oriented JSON records that are easier to diff, stream, batch, and hand to external services |
+
+There is intentionally no `NDJSON + Gettext-compatible plurals` mode.
+
+## Why the split matters
+
+- Gettext PO and NDJSON are storage decisions
+- gettext-compatible plurals and ICU MessageFormat are semantics decisions
+- explicit combinations make migrations and runtime compilation easier to reason about
+
+## Recommended reading paths
+
+- Stay close to classic PO workflows: start with [Getting Started](/guide/getting-started), then use [API Overview](/reference/api-overview)
+- Move toward runtime/export tooling: continue to [Runtime Compilation](/guide/runtime-compilation)
+- Evaluate architectural tradeoffs: read the [ADR index](/architecture/adr)

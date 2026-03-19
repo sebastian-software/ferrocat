@@ -1,0 +1,42 @@
+---
+title: "ADR 0002: Provide Both Owned and Borrowed Parse APIs"
+description: "Accepted architecture decision record: owned and borrowed parse apis."
+---
+
+# ADR 0002: Provide Both Owned and Borrowed Parse APIs
+
+- Status: Accepted
+- Date: 2026-03-15
+
+## Context
+
+Typical PO workflows fall into two broad buckets:
+
+- ergonomic application usage, where parsed data should outlive the input and be freely mutated
+- high-throughput internal workflows, where the input buffer stays alive and many fields can be borrowed
+
+Using only an owned AST would force avoidable allocations in read-heavy and transformation-heavy pipelines.
+Using only a borrowed AST would make general application usage and FFI/N-API boundaries awkward.
+
+## Decision
+
+Provide two parse modes:
+
+- `parse_po` returns an owned `PoFile`
+- `parse_po_borrowed` returns `BorrowedPoFile<'a>`
+
+The borrowed model supports `into_owned()` for workflows that start allocation-light and later need ownership.
+
+## Consequences
+
+Positive:
+
+- fast path for internal high-performance operations
+- ergonomic default API remains simple
+- future Node/N-API integrations can keep borrowed parsing internal while exposing stable owned or task-oriented APIs
+
+Negative:
+
+- two parser surfaces must be maintained
+- some logic exists in parallel today
+- documentation must clearly explain when each mode is appropriate

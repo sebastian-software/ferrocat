@@ -1,0 +1,63 @@
+---
+title: "0008: Normalize Headerless PO Files on Write"
+description: "Accepted architecture decision record: normalize headerless po output."
+---
+
+# 0008: Normalize Headerless PO Files on Write
+
+## Status
+
+Accepted
+
+## Context
+
+Some upstream PO parser/writer libraries preserve catalogs that omit the header
+ entry entirely:
+
+```po
+#, fuzzy
+msgid "Save"
+msgstr "Speichern"
+```
+
+`ferrocat-po` currently serializes such catalogs with an explicit empty header:
+
+```po
+msgid ""
+msgstr ""
+
+#, fuzzy
+msgid "Save"
+msgstr "Speichern"
+```
+
+This differs from byte-preserving roundtrip behavior, but it reflects the
+ canonical PO shape used by most gettext-oriented tooling and makes later
+ header population straightforward.
+
+## Decision
+
+`ferrocat-po` will normalize headerless PO files on write.
+
+Specifically:
+
+- parsing headerless PO input remains supported
+- serializing a `PoFile` without headers emits an explicit empty header entry
+- existing headers are preserved rather than regenerated
+
+This is intentional normalization behavior, not a compatibility bug.
+
+## Consequences
+
+- roundtrips for headerless PO files are not text-identical
+- output becomes more uniform and easier to enrich with metadata later
+- source-attributed conformance cases that expect headerless write-back should
+  be treated as intentional divergence rather than `known_gap`
+
+## Rejected Alternatives
+
+- Preserve headerless files exactly on write.
+
+This would improve diff stability for that narrow case, but it would keep a
+ less canonical PO shape and make `ferrocat-po` less opinionated about output
+ normalization.

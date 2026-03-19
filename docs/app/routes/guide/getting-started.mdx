@@ -1,38 +1,61 @@
 ---
 title: Getting Started
+description: Install Ferrocat, run the first parse/stringify workflow, and choose the next docs path.
 ---
 
 # Getting Started
 
-Welcome to your new documentation site!
+`ferrocat` is the umbrella crate for the workspace and the recommended entry point for application code.
 
-## Development
+## Install the crate
 
 ```bash
-# Start development server
-pnpm dev
-
-# Build for production
-pnpm build
-
-# Preview production build
-pnpm preview
+cargo add ferrocat
 ```
 
-## Adding Content
+The public workspace crates currently line up like this:
 
-Create `.md` or `.mdx` files in the `app/routes/` directory. They will automatically become pages.
+- `ferrocat`: umbrella crate and default dependency
+- `ferrocat-po`: PO parsing, serialization, merge helpers, and high-level catalog update APIs
+- `ferrocat-icu`: ICU MessageFormat parsing and structural helpers
 
-## Configuration
+## Quick start
 
-Edit `vite.config.ts` to customize your site:
+```rust
+use ferrocat::{SerializeOptions, parse_po, stringify_po};
 
-- Navigation links
-- Sidebar structure
-- Site title and description
-- Theme options
+let mut file = parse_po(
+    r#"
+msgid "hello"
+msgstr "world"
+"#,
+)?;
 
-## Learn More
+file.items[0].msgstr = "Welt".to_owned().into();
 
-- [Ardo Documentation](https://ardo-docs.dev)
-- [GitHub Repository](https://github.com/sebastian-software/ardo)
+let rendered = stringify_po(&file, &SerializeOptions::default());
+assert!(rendered.contains(r#"msgstr "Welt""#));
+# Ok::<(), Box<dyn std::error::Error>>(())
+```
+
+## Where to go next
+
+- If you need the mental model first, read [Catalog Modes](/guide/catalog-modes).
+- If you already know you need higher-level runtime/export flows, read [Runtime Compilation](/guide/runtime-compilation).
+- If you want a practical API chooser, open [API Overview](/reference/api-overview).
+
+## Compatibility policy
+
+- **MSRV:** Rust `1.85`
+- **Semver:** the public API is treated seriously, but the project is still pre-`1.0`
+- **Docs surface:** README examples, rustdoc, and the site should stay aligned
+
+## Site-specific development
+
+For the documentation site itself:
+
+```bash
+pnpm install
+pnpm dev
+pnpm build
+```

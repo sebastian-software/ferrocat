@@ -1,0 +1,85 @@
+---
+title: Runtime Compilation
+description: Overview of Ferrocat's runtime-facing compile layers for normalized catalogs and locale-resolved artifacts.
+---
+
+# Runtime Compilation
+
+Ferrocat exposes two practical runtime-oriented layers above raw parsing.
+
+## 1. Compile one normalized catalog
+
+Use `NormalizedParsedCatalog::compile` when you want a runtime-facing lookup structure with stable compiled keys, but you are still working from one normalized catalog.
+
+```rust
+use ferrocat::{CompileCatalogOptions, ParseCatalogOptions, parse_catalog};
+
+let parsed = parse_catalog(ParseCatalogOptions {
+    content: "msgid \"Hello\"\nmsgstr \"Hallo\"\n",
+    source_locale: "en",
+    locale: Some("de"),
+    ..ParseCatalogOptions::default()
+})?;
+let normalized = parsed.into_normalized_view()?;
+let compiled = normalized.compile(&CompileCatalogOptions::default())?;
+
+assert_eq!(compiled.len(), 1);
+# Ok::<(), Box<dyn std::error::Error>>(())
+```
+
+Use this layer when you want:
+
+- stable derived runtime keys
+- typed runtime-oriented payloads
+- no locale fallback resolution yet
+
+## 2. Compile a requested-locale artifact
+
+Use `compile_catalog_artifact` when downstream tooling wants the fully resolved locale-specific runtime map, including fallback resolution and missing-message reporting.
+
+```rust
+use ferrocat::{
+    CompileCatalogArtifactOptions, ParseCatalogOptions, compile_catalog_artifact, parse_catalog,
+};
+
+let source = parse_catalog(ParseCatalogOptions {
+    content: "msgid \"Hello\"\nmsgstr \"Hello\"\n",
+    source_locale: "en",
+    locale: Some("en"),
+    ..ParseCatalogOptions::default()
+})?
+.into_normalized_view()?;
+let requested = parse_catalog(ParseCatalogOptions {
+    content: "msgid \"Hello\"\nmsgstr \"Hallo\"\n",
+    source_locale: "en",
+    locale: Some("de"),
+    ..ParseCatalogOptions::default()
+})?
+.into_normalized_view()?;
+
+let artifact = compile_catalog_artifact(
+    &[&requested, &source],
+    &CompileCatalogArtifactOptions {
+        requested_locale: "de",
+        source_locale: "en",
+        ..CompileCatalogArtifactOptions::default()
+    },
+)?;
+
+assert_eq!(artifact.messages.len(), 1);
+assert!(artifact.missing.is_empty());
+# Ok::<(), Box<dyn std::error::Error>>(())
+```
+
+Use this layer when you need:
+
+- one requested-locale runtime map keyed by Ferrocat's compiled IDs
+- locale fallback resolution before host-specific code generation
+- explicit missing-message reporting for non-source locales
+- final ICU-string validation diagnostics
+
+## Related APIs
+
+- [API Overview](/reference/api-overview) for the full chooser
+- [ADR 0009](/architecture/adr/0009-runtime-catalog-compiled-key-strategy) for key derivation
+- [ADR 0010](/architecture/adr/0010-compiled-catalog-artifact-api) for the locale-resolved artifact layer
