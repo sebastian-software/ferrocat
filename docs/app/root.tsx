@@ -12,5 +12,20 @@ export function Layout({ children }: { children: React.ReactNode }) {
 }
 
 export default function Root() {
-  return <ArdoRoot config={config} sidebar={sidebar} />
+  return (
+    <ArdoRoot
+      config={config}
+      sidebar={sidebar}
+      footerProps={{
+        ardoLink: false,
+        project: undefined,
+        children: (
+          <p className="ferro-footer-note">
+            Ferrocat Docs v0.9.0
+            <span>Performance-first localization tooling for Gettext, ICU MessageFormat, and JSON-oriented delivery.</span>
+          </p>
+        ),
+      }}
+    />
+  )
 }

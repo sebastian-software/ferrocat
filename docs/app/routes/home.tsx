@@ -6,81 +6,85 @@ import {
   FileStack,
   Gauge,
   Github,
-  ShieldCheck,
-  Workflow,
 } from "lucide-react"
 import type { MetaFunction } from "react-router"
 import { Link } from "react-router"
 
 export const meta: MetaFunction = () => [
-  { title: "Ferrocat Docs" },
+  { title: "Ferrocat — Performance-first translation catalogs" },
   {
     name: "description",
     content:
-      "Performance-first translation catalogs for teams that need Gettext compatibility, ICU semantics, and JSON-friendly runtime workflows.",
+      "Rust-native translation catalogs for teams that need Gettext compatibility, ICU semantics, and JSON-friendly runtime workflows. Benchmarked, not hand-waved.",
+  },
+]
+
+const perfPillars = [
+  {
+    title: "Byte-oriented scanning",
+    body: "PO parsing operates directly on byte sequences. No intermediate string allocations on the critical path.",
+  },
+  {
+    title: "Borrowed & owned APIs",
+    body: "Zero-copy borrowed access for read-heavy workloads. Owned structures when you need to mutate.",
+  },
+  {
+    title: "Profiling-driven iteration",
+    body: "Performance claims backed by real profiling sessions and published benchmark fixtures — not guesswork.",
   },
 ]
 
 const catalogModes = [
   {
-    title: "Classic Gettext catalog mode",
+    title: "Classic Gettext",
     storage: "Gettext PO",
     semantics: "Gettext-compatible plurals",
     body: "Stay close to traditional gettext catalogs and familiar msgid_plural workflows.",
   },
   {
-    title: "ICU-native Gettext PO mode",
+    title: "ICU-native PO",
     storage: "Gettext PO",
     semantics: "ICU MessageFormat",
     body: "Keep translator-facing PO files while authoring richer ICU plural, select, and formatting messages.",
   },
   {
-    title: "ICU-native NDJSON catalog mode",
-    storage: "NDJSON catalog storage",
+    title: "ICU-native NDJSON",
+    storage: "NDJSON",
     semantics: "ICU MessageFormat",
-    body: "Move runtime-facing and external-tooling workflows to a JSON-friendly line-oriented storage model.",
+    body: "JSON-friendly line-oriented storage for external systems and modern toolchains.",
   },
 ]
 
 const proofPoints = [
-  {
-    value: "55 cases",
-    label: "upstream-derived conformance cases in the current snapshot",
-  },
-  {
-    value: "442 assertions",
-    label: "checked by the conformance harness today",
-  },
-  {
-    value: "3 modes",
-    label: "explicit catalog combinations instead of silent fallback behavior",
-  },
+  { value: "55", label: "conformance cases", detail: "upstream-derived" },
+  { value: "442", label: "assertions", detail: "checked by harness" },
+  { value: "3", label: "catalog modes", detail: "explicit combinations" },
 ]
 
 const entryPoints = [
   {
-    title: "Get started fast",
-    body: "Install the umbrella crate, run the first parse/stringify flow, and learn where the high-level catalog APIs fit.",
+    title: "Get started",
+    body: "Install, parse, serialize. Learn where the high-level catalog APIs fit.",
     link: "/guide/getting-started",
-    icon: <BookOpenText size={18} />,
+    icon: <BookOpenText size={20} />,
   },
   {
-    title: "Read the API surface",
-    body: "Use the practical API overview to choose between PO core, catalog workflows, and ICU helpers.",
+    title: "API surface",
+    body: "Choose between PO core, catalog workflows, and ICU helpers.",
     link: "/reference/api-overview",
-    icon: <Boxes size={18} />,
+    icon: <Boxes size={20} />,
   },
   {
-    title: "Inspect performance evidence",
-    body: "Benchmark methodology, fixtures, and performance history live in one place instead of scattered markdown files.",
+    title: "Performance",
+    body: "Benchmark methodology, fixtures, and performance history.",
     link: "/performance",
-    icon: <Gauge size={18} />,
+    icon: <Gauge size={20} />,
   },
   {
-    title: "Trace architecture decisions",
-    body: "Accepted ADRs and engineering notes show the reasoning behind semantic choices, hot paths, and compatibility boundaries.",
+    title: "Architecture",
+    body: "ADRs and engineering notes behind semantic choices and hot paths.",
     link: "/architecture/adr",
-    icon: <FileStack size={18} />,
+    icon: <FileStack size={20} />,
   },
 ]
 
@@ -88,77 +92,66 @@ export default function HomePage() {
   return (
     <div className="ferro-home">
       <section className="ferro-hero">
-        <div className="ferro-hero-copy">
-          <p className="ferro-eyebrow">Performance-first localization toolkit</p>
-          <h1>Translation catalogs for teams that need Gettext, ICU, and JSON-friendly delivery to coexist cleanly.</h1>
-          <p className="ferro-lead">
-            Ferrocat brings classic PO workflows, ICU MessageFormat semantics, and runtime-oriented catalog compilation into
-            one Rust-native architecture with explicit crate boundaries, conformance evidence, and benchmark discipline.
-          </p>
-          <div className="ferro-actions">
-            <Link className="ferro-button ferro-button-primary" to="/guide/getting-started">
-              Start with the guide
-              <ArrowRight size={16} />
-            </Link>
-            <Link className="ferro-button ferro-button-secondary" to="/reference/api-overview">
-              Browse the API
-              <Workflow size={16} />
-            </Link>
-            <a className="ferro-button ferro-button-tertiary" href="https://github.com/sebastian-software/ferrocat">
-              GitHub
-              <Github size={16} />
-            </a>
-          </div>
-        </div>
-        <div className="ferro-hero-aside">
-          <div className="ferro-panel">
-            <p className="ferro-panel-label">Install</p>
-            <pre className="ferro-code">
-              <code>cargo add ferrocat</code>
-            </pre>
-          </div>
-          <div className="ferro-panel ferro-panel-muted">
-            <p className="ferro-panel-label">What Ferrocat optimizes for</p>
-            <ul className="ferro-checklist">
-              <li>Rust-native hot paths instead of translated legacy abstractions</li>
-              <li>Explicit storage and semantics modes that are easy to reason about</li>
-              <li>Runtime compilation APIs for downstream adapters and bundlers</li>
-            </ul>
-          </div>
+        <p className="ferro-eyebrow">Rust-native localization toolkit</p>
+        <h1>Your localization layer shouldn't be the&nbsp;bottleneck.</h1>
+        <p className="ferro-lead">
+          Ferrocat brings Gettext PO workflows, ICU MessageFormat semantics,
+          and JSON delivery into one Rust-native toolkit — with conformance
+          evidence, benchmark discipline, and explicit architecture boundaries.
+        </p>
+        <pre className="ferro-install">
+          <code>cargo add ferrocat</code>
+        </pre>
+        <div className="ferro-actions">
+          <Link
+            className="ferro-button ferro-button-primary"
+            to="/guide/getting-started"
+          >
+            Get started
+            <ArrowRight size={16} />
+          </Link>
+          <a
+            className="ferro-button ferro-button-tertiary"
+            href="https://github.com/sebastian-software/ferrocat"
+          >
+            GitHub
+            <Github size={16} />
+          </a>
         </div>
       </section>
 
-      <section className="ferro-section">
+      <section className="ferro-perf">
         <div className="ferro-section-heading">
-          <p className="ferro-eyebrow">Why Ferrocat exists</p>
-          <h2>Most teams are forced to choose between workflow compatibility and a modern runtime story.</h2>
+          <p className="ferro-eyebrow">Why it's fast</p>
+          <h2>Speed from structure, not&nbsp;shortcuts.</h2>
         </div>
-        <div className="ferro-grid ferro-grid-two">
-          <article className="ferro-card">
-            <h3>Keep the real translation workflow</h3>
-            <p>
-              Translator comments, references, contexts, and Gettext-shaped catalogs still matter in production systems.
-              Ferrocat keeps that reality visible instead of pretending localization is a flat key-value problem.
-            </p>
-          </article>
-          <article className="ferro-card">
-            <h3>Upgrade semantics and delivery deliberately</h3>
-            <p>
-              Teams can stay in classic PO mode, adopt ICU-native messages inside PO files, or move to NDJSON when external
-              systems want a line-oriented JSON representation.
-            </p>
-          </article>
+        <p className="ferro-sublead">
+          Every hot path in Ferrocat is Rust-native, byte-oriented, and shaped
+          by profiling — not by porting legacy abstractions into a faster
+          language.
+        </p>
+        <div className="ferro-perf-grid">
+          {perfPillars.map((pillar) => (
+            <article className="ferro-perf-card" key={pillar.title}>
+              <h3>{pillar.title}</h3>
+              <p>{pillar.body}</p>
+            </article>
+          ))}
         </div>
+        <Link className="ferro-section-link" to="/performance/benchmarking">
+          Read the benchmark methodology
+          <ArrowRight size={16} />
+        </Link>
       </section>
 
       <section className="ferro-section">
         <div className="ferro-section-heading">
           <p className="ferro-eyebrow">Three catalog modes</p>
-          <h2>Storage and message semantics stay explicit.</h2>
+          <h2>Storage and semantics stay&nbsp;explicit.</h2>
         </div>
         <div className="ferro-mode-grid">
           {catalogModes.map((mode) => (
-            <article className="ferro-card ferro-mode-card" key={mode.title}>
+            <article className="ferro-mode-card" key={mode.title}>
               <h3>{mode.title}</h3>
               <dl>
                 <div>
@@ -174,59 +167,60 @@ export default function HomePage() {
             </article>
           ))}
         </div>
-        <p className="ferro-note">
-          There is intentionally no NDJSON + gettext-compatible plurals mode. The guide explains the boundaries in detail.
-        </p>
       </section>
 
-      <section className="ferro-section ferro-proof">
-        <div className="ferro-section-heading">
-          <p className="ferro-eyebrow">Proof, not vibes</p>
-          <h2>Performance, conformance, and architecture quality are documented as first-class product surfaces.</h2>
-        </div>
-        <div className="ferro-proof-grid">
-          {proofPoints.map((item) => (
-            <article className="ferro-proof-card" key={item.label}>
-              <strong>{item.value}</strong>
-              <p>{item.label}</p>
-            </article>
-          ))}
-        </div>
-        <div className="ferro-grid ferro-grid-two">
-          <article className="ferro-card">
-            <ShieldCheck size={18} />
-            <h3>Trust the compatibility story</h3>
-            <p>
-              The conformance snapshot ties behavior back to upstream ecosystems rather than vague “close enough”
-              compatibility claims.
-            </p>
-            <Link to="/quality/conformance">Read conformance notes</Link>
-          </article>
-          <article className="ferro-card">
-            <Gauge size={18} />
-            <h3>Read the benchmark methodology</h3>
-            <p>
-              Benchmark fixtures, official profiles, and performance history are organized as a coherent documentation
-              trail instead of being buried in one long README.
-            </p>
-            <Link to="/performance/benchmarking">See performance docs</Link>
-          </article>
+      <section className="ferro-proof">
+        <div className="ferro-proof-inner">
+          <div className="ferro-section-heading">
+            <p className="ferro-eyebrow">Proof, not vibes</p>
+            <h2>
+              Conformance and performance are part of the
+              product&nbsp;surface.
+            </h2>
+          </div>
+          <div className="ferro-proof-stats">
+            {proofPoints.map((item) => (
+              <article className="ferro-proof-stat" key={item.label}>
+                <strong>{item.value}</strong>
+                <span>{item.label}</span>
+                <span className="ferro-proof-detail">{item.detail}</span>
+              </article>
+            ))}
+          </div>
+          <div className="ferro-proof-links">
+            <Link to="/quality/conformance">
+              Conformance snapshot
+              <ArrowRight size={16} />
+            </Link>
+            <Link to="/performance/benchmarking">
+              Benchmark methodology
+              <ArrowRight size={16} />
+            </Link>
+            <Link to="/architecture/adr">
+              Architecture decisions
+              <ArrowRight size={16} />
+            </Link>
+          </div>
         </div>
       </section>
 
       <section className="ferro-section">
         <div className="ferro-section-heading">
-          <p className="ferro-eyebrow">Choose a path</p>
-          <h2>Start from the question you actually have.</h2>
+          <p className="ferro-eyebrow">Start here</p>
+          <h2>Pick the path that matches your&nbsp;question.</h2>
         </div>
         <div className="ferro-entry-grid">
           {entryPoints.map((entry) => (
-            <Link className="ferro-entry-card" key={entry.title} to={entry.link}>
+            <Link
+              className="ferro-entry-card"
+              key={entry.title}
+              to={entry.link}
+            >
               <span className="ferro-entry-icon">{entry.icon}</span>
               <h3>{entry.title}</h3>
               <p>{entry.body}</p>
               <span className="ferro-entry-link">
-                Open section
+                Open
                 <ArrowRight size={16} />
               </span>
             </Link>
@@ -235,19 +229,22 @@ export default function HomePage() {
       </section>
 
       <section className="ferro-cta">
-        <div>
-          <p className="ferro-eyebrow">Ready to dig in</p>
-          <h2>Use the curated docs site for the full story, and keep docs.rs plus GitHub close for day-to-day development.</h2>
-        </div>
+        <h2>Ready to dig&nbsp;in?</h2>
         <div className="ferro-actions">
-          <a className="ferro-button ferro-button-primary" href="https://docs.rs/ferrocat">
+          <Link
+            className="ferro-button ferro-button-primary"
+            to="/guide/getting-started"
+          >
+            Get started
+            <ArrowRight size={16} />
+          </Link>
+          <a
+            className="ferro-button ferro-button-secondary"
+            href="https://docs.rs/ferrocat"
+          >
             docs.rs
             <ExternalLink size={16} />
           </a>
-          <Link className="ferro-button ferro-button-secondary" to="/guide/getting-started">
-            Installation and quick start
-            <ArrowRight size={16} />
-          </Link>
         </div>
       </section>
     </div>
