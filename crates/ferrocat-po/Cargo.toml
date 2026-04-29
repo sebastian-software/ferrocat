@@ -22,7 +22,7 @@ icu_plurals = { version = "2.1.1", features = ["compiled_data"] }
 memchr = "2.7.6"
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.145"
-sha2 = "0.10.9"
+sha2 = "0.11.0"
 
 [dev-dependencies]
 ferrocat-conformance = { path = "../ferrocat-conformance" }
