@@ -37,7 +37,7 @@ jobs:
           pnpm config set store-dir "$PNPM_STORE_DIR"
 
       - name: Restore pnpm store
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ${{ env.PNPM_STORE_DIR }}
           key: ${{ runner.os }}-pnpm-store-${{ hashFiles('docs/pnpm-lock.yaml') }}
@@ -45,7 +45,7 @@ jobs:
             ${{ runner.os }}-pnpm-store-
 
       - name: Setup Pages
-        uses: actions/configure-pages@v5
+        uses: actions/configure-pages@v6
 
       - name: Install dependencies
         working-directory: docs
@@ -56,7 +56,7 @@ jobs:
         run: pnpm build
 
       - name: Upload artifact
-        uses: actions/upload-pages-artifact@v4
+        uses: actions/upload-pages-artifact@v5
         with:
           path: docs/build/client
 
@@ -70,4 +70,4 @@ jobs:
     steps:
       - name: Deploy to GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5

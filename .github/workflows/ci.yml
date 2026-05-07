@@ -33,7 +33,7 @@ jobs:
           pnpm config set store-dir "$PNPM_STORE_DIR"
 
       - name: Restore pnpm store
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ${{ env.PNPM_STORE_DIR }}
           key: ${{ runner.os }}-pnpm-store-${{ hashFiles('docs/pnpm-lock.yaml') }}
@@ -116,7 +116,7 @@ jobs:
         run: node scripts/coverage-gate.mjs target/coverage-summary.json ferrocat-po=88 ferrocat-icu=93
 
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@v6
         with:
           files: target/lcov.info
           fail_ci_if_error: true
@@ -124,13 +124,13 @@ jobs:
           verbose: true
 
       - name: Upload LCOV artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: coverage-lcov
           path: target/lcov.info
 
       - name: Upload coverage summary artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: coverage-summary-json
           path: target/coverage-summary.json
