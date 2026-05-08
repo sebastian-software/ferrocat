@@ -217,7 +217,7 @@ pub fn validate_quoted_content(raw: &[u8]) -> Result<(), ParseError> {
     for &byte in raw {
         match byte {
             b'\\' => trailing_backslashes += 1,
-            b'"' if trailing_backslashes % 2 == 0 => {
+            b'"' if has_even_trailing_backslashes(trailing_backslashes) => {
                 return Err(ParseError::new("unescaped quote in string literal"));
             }
             _ => trailing_backslashes = 0,
@@ -225,6 +225,14 @@ pub fn validate_quoted_content(raw: &[u8]) -> Result<(), ParseError> {
     }
 
     Ok(())
+}
+
+#[expect(
+    clippy::manual_is_multiple_of,
+    reason = "`usize::is_multiple_of` would raise the MSRV beyond Rust 1.88."
+)]
+fn has_even_trailing_backslashes(count: usize) -> bool {
+    count % 2 == 0
 }
 
 fn escape_string_from(out: &mut String, input: &str, bytes: &[u8], first_escape: usize) {

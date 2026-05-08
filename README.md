@@ -89,7 +89,8 @@ For the common “merge fresh extracted messages into an existing catalog” wor
 
 ## Compatibility Snapshot
 
-- **MSRV:** Rust `1.85`
+- **MSRV:** Rust `1.88`
+- **MSRV policy:** keep support roughly 9-12 months behind current stable when practical, rather than tracking only the newest stable toolchain
 - **Semver:** the public API is treated seriously, but the project is still pre-`1.0`
 - **Documentation surface:** README examples, rustdoc examples, and the docs site aim to stay aligned
 

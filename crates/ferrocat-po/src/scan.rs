@@ -89,7 +89,11 @@ mod backend {
                 matched = vorrq_u8(matched, vceqq_u8(chunk, vdupq_n_u8(b'\x08')));
                 vorrq_u8(matched, vceqq_u8(chunk, vdupq_n_u8(b'\x0c')))
             };
-            if vmaxvq_u8(matched) != 0 {
+            // SAFETY: Rust 1.88 requires the NEON reduction call to be inside
+            // an unsafe block; newer toolchains treat it as safe.
+            #[allow(unused_unsafe)]
+            let has_match = unsafe { vmaxvq_u8(matched) } != 0;
+            if has_match {
                 return haystack[offset..offset + 16]
                     .iter()
                     .position(|byte| {

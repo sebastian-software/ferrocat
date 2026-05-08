@@ -11,6 +11,14 @@ const TINY_FIXTURE: &str = include_str!("../fixtures/tiny.po");
 const REALISTIC_FIXTURE: &str = include_str!("../fixtures/realistic.po");
 const STRESS_FIXTURE: &str = include_str!("../fixtures/stress.po");
 
+#[expect(
+    clippy::manual_is_multiple_of,
+    reason = "`usize::is_multiple_of` would raise the MSRV beyond Rust 1.88."
+)]
+const fn is_multiple_of(value: usize, divisor: usize) -> bool {
+    value % divisor == 0
+}
+
 #[derive(Debug, Clone, Copy)]
 pub struct FixtureStats {
     pub entries: usize,
@@ -327,7 +335,7 @@ fn merge_fixture_from_existing(
             continue;
         }
         active_index += 1;
-        if active_index % 5 == 0 {
+        if is_multiple_of(active_index, 5) {
             continue;
         }
 
@@ -336,7 +344,7 @@ fn merge_fixture_from_existing(
             active_index,
             (active_index % 200) + 1
         );
-        let extracted_comment = (active_index % 7 == 0)
+        let extracted_comment = is_multiple_of(active_index, 7)
             .then(|| format!("Merged extractor comment {}", active_index % 13));
         let msgctxt = item.msgctxt.clone();
         let msgid = item.msgid.clone();
@@ -352,7 +360,7 @@ fn merge_fixture_from_existing(
                 .into_iter()
                 .map(Cow::Owned)
                 .collect(),
-            flags: if active_index % 11 == 0 {
+            flags: if is_multiple_of(active_index, 11) {
                 vec![Cow::Borrowed("c-format")]
             } else {
                 Vec::new()
@@ -384,17 +392,18 @@ fn merge_fixture_from_existing(
 
     for index in 0..(parsed.items.len() / 10).max(1) {
         let message_index = parsed.items.len() + index;
-        let msgctxt =
-            (message_index % 9 == 0).then(|| format!("merge-context-{}", message_index % 5));
+        let msgctxt = is_multiple_of(message_index, 9)
+            .then(|| format!("merge-context-{}", message_index % 5));
         let msgid = format!("Merged message {message_index}");
         let msgid_plural =
-            (message_index % 8 == 0).then(|| format!("Merged messages {message_index}"));
+            is_multiple_of(message_index, 8).then(|| format!("Merged messages {message_index}"));
         let reference = format!(
             "src/new_merge_{:04}.rs:{}",
             message_index,
             (message_index % 200) + 1
         );
-        let extracted_comment = (message_index % 6 == 0).then(|| "newly extracted".to_owned());
+        let extracted_comment =
+            is_multiple_of(message_index, 6).then(|| "newly extracted".to_owned());
 
         extracted_messages.push(MergeExtractedMessage {
             msgctxt: msgctxt.as_ref().map(|context| Cow::Owned(context.clone())),
@@ -406,7 +415,7 @@ fn merge_fixture_from_existing(
                 .into_iter()
                 .map(Cow::Owned)
                 .collect(),
-            flags: if message_index % 10 == 0 {
+            flags: if is_multiple_of(message_index, 10) {
                 vec![Cow::Borrowed("fuzzy")]
             } else {
                 Vec::new()
@@ -460,9 +469,9 @@ fn generated_catalog_icu_fixture(kind: CatalogIcuFixtureKind, entries: usize) ->
     let mut api_extracted_messages = Vec::with_capacity(entries);
 
     for index in 0..entries {
-        let msgctxt = (index % 9 == 0).then(|| format!("icu-context-{}", index % 5));
+        let msgctxt = is_multiple_of(index, 9).then(|| format!("icu-context-{}", index % 5));
         let reference = format!("src/icu_{:04}.tsx:{}", index, (index % 200) + 1);
-        let comments = if index % 7 == 0 {
+        let comments = if is_multiple_of(index, 7) {
             vec![format!("ICU benchmark extractor note {}", index % 11)]
         } else {
             Vec::new()
@@ -520,9 +529,9 @@ fn generated_catalog_modern_fixture(locale: GettextLocaleProfile, entries: usize
     let mut api_extracted_messages = Vec::with_capacity(entries);
 
     for index in 0..entries {
-        let msgctxt = (index % 11 == 0).then(|| format!("modern-context-{}", index % 5));
+        let msgctxt = is_multiple_of(index, 11).then(|| format!("modern-context-{}", index % 5));
         let reference = format!("src/catalog_{:04}.tsx:{}", index, (index % 200) + 1);
-        let comments = (index % 8 == 0)
+        let comments = is_multiple_of(index, 8)
             .then(|| format!("Modern catalog extractor note {}", index % 13))
             .into_iter()
             .collect::<Vec<_>>();
@@ -545,7 +554,7 @@ fn generated_catalog_modern_fixture(locale: GettextLocaleProfile, entries: usize
         existing_po.push_str("#: ");
         existing_po.push_str(&reference);
         existing_po.push('\n');
-        if index % 17 == 0 {
+        if is_multiple_of(index, 17) {
             existing_po.push_str("#, fuzzy\n");
         }
         if let Some(ref msgctxt) = msgctxt {
@@ -826,14 +835,14 @@ const fn gettext_feature_shape(family: GettextFixtureFamily, index: usize) -> Ge
     };
 
     GettextFeatureShape {
-        is_plural: index % plural_mod == 0,
-        is_multiline: index % multiline_mod == 0,
-        has_escape: index % 17 == 0,
-        has_context: index % context_mod == 0,
-        has_references: index % 2 == 0,
-        has_translator_comment: index % 9 == 0,
-        has_extracted_comment: index % 11 == 0,
-        has_fuzzy: index % 19 == 0,
+        is_plural: is_multiple_of(index, plural_mod),
+        is_multiline: is_multiple_of(index, multiline_mod),
+        has_escape: is_multiple_of(index, 17),
+        has_context: is_multiple_of(index, context_mod),
+        has_references: is_multiple_of(index, 2),
+        has_translator_comment: is_multiple_of(index, 9),
+        has_extracted_comment: is_multiple_of(index, 11),
+        has_fuzzy: is_multiple_of(index, 19),
         has_c_format: true,
     }
 }
@@ -1181,9 +1190,9 @@ fn icu_top_level_plural(variable: &str, one: &str, other: &str) -> String {
 const fn catalog_icu_flavor(kind: CatalogIcuFixtureKind, index: usize) -> CatalogIcuFlavor {
     match kind {
         CatalogIcuFixtureKind::Light => {
-            if index % 12 == 0 {
+            if is_multiple_of(index, 12) {
                 CatalogIcuFlavor::ProjectablePlural
-            } else if index % 5 == 0 {
+            } else if is_multiple_of(index, 5) {
                 CatalogIcuFlavor::Formatters
             } else {
                 CatalogIcuFlavor::Args
@@ -1548,15 +1557,15 @@ fn build_mixed_fixture(entries: usize) -> String {
     out.push_str("\"Plural-Forms: nplurals=2; plural=(n != 1);\\n\"\n\n");
 
     for index in 0..entries {
-        let is_plural = index % 10 == 0;
-        let has_comment = index % 20 == 0;
-        let has_extracted = index % 25 == 0;
-        let has_references = index % 3 == 0;
-        let has_context = index % 12 == 0;
-        let has_metadata = index % 50 == 0;
-        let is_obsolete = index > 0 && index % 100 == 0;
-        let is_multiline = index % 33 == 0;
-        let has_escape = index % 40 == 0;
+        let is_plural = is_multiple_of(index, 10);
+        let has_comment = is_multiple_of(index, 20);
+        let has_extracted = is_multiple_of(index, 25);
+        let has_references = is_multiple_of(index, 3);
+        let has_context = is_multiple_of(index, 12);
+        let has_metadata = is_multiple_of(index, 50);
+        let is_obsolete = index > 0 && is_multiple_of(index, 100);
+        let is_multiline = is_multiple_of(index, 33);
+        let has_escape = is_multiple_of(index, 40);
         let prefix = if is_obsolete { "#~ " } else { "" };
 
         if has_comment {
@@ -1575,7 +1584,7 @@ fn build_mixed_fixture(entries: usize) -> String {
                 &format!("#: src/feature_{:04}.rs:{}", index, (index % 200) + 1),
             );
         }
-        if index % 18 == 0 {
+        if is_multiple_of(index, 18) {
             push_line(&mut out, prefix, "#, fuzzy");
         }
         if has_context {
