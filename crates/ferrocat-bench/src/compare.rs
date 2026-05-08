@@ -244,7 +244,7 @@ fn run_profile(
             samples_by_plan[index].push(sample);
         }
 
-        for (plan, samples) in plans.into_iter().zip(samples_by_plan.into_iter()) {
+        for (plan, samples) in plans.into_iter().zip(samples_by_plan) {
             let statistics = ScenarioStatistics::from_samples(&samples);
             reports.push(ScenarioReport {
                 id: plan.scenario.id.clone(),
