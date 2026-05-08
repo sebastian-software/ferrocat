@@ -24,6 +24,7 @@ Examples:
   - `cargo fmt --all --check`
   - `cargo clippy --workspace --all-targets --all-features -- -D warnings`
 - If you add or change dependencies, make sure `Cargo.lock` is updated and the locked checks still pass before push.
+- Keep the declared MSRV in `Cargo.toml` covered by CI. The policy is to support a Rust stable release roughly 9-12 months behind current stable when practical, rather than only the newest stable toolchain.
 
 ## Public API Changes
 

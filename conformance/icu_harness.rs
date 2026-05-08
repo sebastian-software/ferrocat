@@ -127,13 +127,13 @@ fn evaluate_icu_reject(case: &ConformanceCase) -> Result<String, String> {
     reason = "Conformance expectations are intentionally checked in one linear routine for auditability."
 )]
 fn compare_icu_parse(nodes: &[IcuNode], expected: &IcuParseExpected) -> Result<String, String> {
-    if let Some(count) = expected.top_level_count {
-        if nodes.len() != count {
-            return Err(format!(
-                "top-level node count mismatch: expected {count}, got {}",
-                nodes.len()
-            ));
-        }
+    if let Some(count) = expected.top_level_count
+        && nodes.len() != count
+    {
+        return Err(format!(
+            "top-level node count mismatch: expected {count}, got {}",
+            nodes.len()
+        ));
     }
     if !expected.node_kinds.is_empty() {
         let actual = nodes.iter().map(node_kind).collect::<Vec<_>>();
@@ -188,13 +188,13 @@ fn compare_icu_parse(nodes: &[IcuNode], expected: &IcuParseExpected) -> Result<S
                         ));
                     }
                 }
-                if let Some(expected_count) = expected.first_plural_option_count {
-                    if options.len() != expected_count {
-                        return Err(format!(
-                            "first plural option count mismatch: expected {expected_count}, got {}",
-                            options.len()
-                        ));
-                    }
+                if let Some(expected_count) = expected.first_plural_option_count
+                    && options.len() != expected_count
+                {
+                    return Err(format!(
+                        "first plural option count mismatch: expected {expected_count}, got {}",
+                        options.len()
+                    ));
                 }
             }
             other => return Err(format!("expected first node to be plural, got {other:?}")),
@@ -217,12 +217,12 @@ fn compare_icu_parse(nodes: &[IcuNode], expected: &IcuParseExpected) -> Result<S
                         plural_kind_name(kind)
                     ));
                 }
-                if let Some(expected_count) = expected.second_plural_option_count {
-                    if *option_count != expected_count {
-                        return Err(format!(
-                            "second plural option count mismatch: expected {expected_count}, got {option_count}"
-                        ));
-                    }
+                if let Some(expected_count) = expected.second_plural_option_count
+                    && *option_count != expected_count
+                {
+                    return Err(format!(
+                        "second plural option count mismatch: expected {expected_count}, got {option_count}"
+                    ));
                 }
             }
             None => return Err("expected second plural node but none was found".to_owned()),
@@ -243,19 +243,19 @@ fn compare_icu_reject(
             expected.message_contains, message
         ));
     }
-    if let Some(expected_line) = expected.line {
-        if line != expected_line {
-            return Err(format!(
-                "error line mismatch: expected {expected_line}, got {line}"
-            ));
-        }
+    if let Some(expected_line) = expected.line
+        && line != expected_line
+    {
+        return Err(format!(
+            "error line mismatch: expected {expected_line}, got {line}"
+        ));
     }
-    if let Some(min_column) = expected.min_column {
-        if column < min_column {
-            return Err(format!(
-                "error column mismatch: expected at least {min_column}, got {column}"
-            ));
-        }
+    if let Some(min_column) = expected.min_column
+        && column < min_column
+    {
+        return Err(format!(
+            "error column mismatch: expected at least {min_column}, got {column}"
+        ));
     }
     Ok(String::new())
 }

@@ -244,7 +244,7 @@ fn run_profile(
             samples_by_plan[index].push(sample);
         }
 
-        for (plan, samples) in plans.into_iter().zip(samples_by_plan.into_iter()) {
+        for (plan, samples) in plans.into_iter().zip(samples_by_plan) {
             let statistics = ScenarioStatistics::from_samples(&samples);
             reports.push(ScenarioReport {
                 id: plan.scenario.id.clone(),
@@ -1937,7 +1937,19 @@ fn digest_summary<T: Serialize>(value: &T) -> Result<String, String> {
     let canonical = canonical_json_string(value)?;
     let mut hasher = Sha256::new();
     hasher.update(canonical.as_bytes());
-    Ok(format!("{:x}", hasher.finalize()))
+    let digest = hasher.finalize();
+    Ok(bytes_to_lower_hex(digest.as_ref()))
+}
+
+fn bytes_to_lower_hex(bytes: &[u8]) -> String {
+    const HEX: &[u8; 16] = b"0123456789abcdef";
+
+    let mut out = String::with_capacity(bytes.len() * 2);
+    for &byte in bytes {
+        out.push(HEX[usize::from(byte >> 4)] as char);
+        out.push(HEX[usize::from(byte & 0x0f)] as char);
+    }
+    out
 }
 
 fn canonical_json_string<T: Serialize>(value: &T) -> Result<String, String> {
@@ -2515,28 +2527,26 @@ fn detect_cpu_model(path_override: Option<&OsStr>) -> String {
 
 fn detect_memory_bytes(path_override: Option<&OsStr>) -> u64 {
     let workspace = workspace_root().unwrap_or_else(|_| PathBuf::from("."));
-    if env::consts::OS == "macos" {
-        if let Some(bytes) = read_macos_sysctl_u64("hw.memsize") {
-            return bytes;
-        }
+    if env::consts::OS == "macos"
+        && let Some(bytes) = read_macos_sysctl_u64("hw.memsize")
+    {
+        return bytes;
     }
-    if env::consts::OS == "linux" {
-        if let Ok(meminfo) = fs::read_to_string("/proc/meminfo") {
-            for line in meminfo.lines() {
-                if let Some(value) = line.strip_prefix("MemTotal:") {
-                    let kb = value
-                        .split_whitespace()
-                        .next()
-                        .and_then(|raw| raw.parse::<u64>().ok());
-                    if let Some(kb) = kb {
-                        return kb.saturating_mul(1024);
-                    }
-                }
+    if env::consts::OS == "linux"
+        && let Ok(meminfo) = fs::read_to_string("/proc/meminfo")
+    {
+        for line in meminfo.lines() {
+            if let Some(kb) = line
+                .strip_prefix("MemTotal:")
+                .and_then(|value| value.split_whitespace().next())
+                .and_then(|raw| raw.parse::<u64>().ok())
+            {
+                return kb.saturating_mul(1024);
             }
         }
     }
-    if env::consts::OS == "windows" {
-        if let Ok(output) = run_command_capture_with_path(
+    if env::consts::OS == "windows"
+        && let Ok(output) = run_command_capture_with_path(
             "powershell",
             &[
                 "-NoProfile",
@@ -2545,11 +2555,10 @@ fn detect_memory_bytes(path_override: Option<&OsStr>) -> u64 {
             ],
             &workspace,
             path_override,
-        ) {
-            if let Ok(bytes) = output.stdout.trim().parse::<u64>() {
-                return bytes;
-            }
-        }
+        )
+        && let Ok(bytes) = output.stdout.trim().parse::<u64>()
+    {
+        return bytes;
     }
     0
 }
