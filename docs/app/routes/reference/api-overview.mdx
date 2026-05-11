@@ -33,6 +33,7 @@ At the high-level catalog layer, `ferrocat` supports three explicit combinations
 | Parse a Gettext PO file while borrowing from the input string where possible | `parse_po_borrowed` |
 | Turn a `PoFile` back into Gettext PO text | `stringify_po` |
 | Merge fresh extracted gettext messages into an existing Gettext PO file | `merge_catalog` |
+| Combine multiple catalogs with deterministic conflict and selection rules | `combine_catalogs` |
 | Read a Gettext PO or NDJSON catalog into the higher-level canonical catalog model | `parse_catalog` |
 | Build keyed lookup/helpers on top of a parsed catalog | `ParsedCatalog::into_normalized_view` |
 | Derive the default stable runtime key from `msgid` and `msgctxt` | `compiled_key` |
@@ -106,6 +107,21 @@ This is the closest `ferrocat` equivalent to the core "merge updated template/me
 Choose `merge_catalog` when you want the leaner, more direct merge operation and already have data in classic gettext-like shapes.
 
 In practice this is the "fast path" workflow API: it stays close to classic Gettext PO merge behavior and avoids the extra canonical catalog projection and post-processing done by `update_catalog`.
+
+### `combine_catalogs`
+
+Use this when you have multiple existing catalogs or templates and want one deterministic output catalog.
+
+This is the Rust-native counterpart to the useful parts of GNU `msgcat`, `msgcomm`, and `msguniq`:
+
+- combine N catalogs in one call
+- treat `msgid` plus `msgctxt` as the message identity
+- keep the first translation by default, so existing translations can be listed before newer templates
+- choose `UseLast` or `Error` when overlay or strict-conflict behavior is more appropriate
+- select all, common, less-common, or unique identities with `CatalogCombineSelection`
+- skip obsolete definitions by default, with an explicit opt-in when obsolete entries should participate
+
+Ferrocat does not emit GNU-style conflict-marker translations for differing strings. Non-empty translation conflicts are either resolved with a warning diagnostic or rejected with `ApiError::Conflict`, depending on `CatalogConflictStrategy`.
 
 ### `parse_catalog`
 
@@ -299,6 +315,7 @@ Use this after `parse_icu` when you want the variable names referenced by the me
 - editing raw PO files: `parse_po` + `stringify_po`
 - hot-path PO inspection: `parse_po_borrowed`
 - classic gettext merge step: `merge_catalog`
+- N-way catalog overlays and set operations: `combine_catalogs`
 - full app-level catalog maintenance: `update_catalog` or `update_catalog_file`
 - parsed catalog consumption with keyed accessors: `parse_catalog` + `into_normalized_view`
 - locale-specific runtime artifact generation: `compile_catalog_artifact`

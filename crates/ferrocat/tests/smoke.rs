@@ -1,10 +1,10 @@
 use ferrocat::{
-    CatalogMessageKey, CatalogUpdateInput, CompileCatalogArtifactOptions,
-    CompileSelectedCatalogArtifactOptions, CompiledCatalogIdIndex, CompiledKeyStrategy,
-    EffectiveTranslation, EffectiveTranslationRef, MergeExtractedMessage, ParseCatalogOptions,
-    SerializeOptions, SourceExtractedMessage, compile_catalog_artifact,
-    compile_catalog_artifact_selected, has_select_ordinal, merge_catalog, parse_catalog, parse_icu,
-    parse_po, stringify_po,
+    CatalogCombineInput, CatalogMessageKey, CatalogUpdateInput, CombineCatalogOptions,
+    CompileCatalogArtifactOptions, CompileSelectedCatalogArtifactOptions, CompiledCatalogIdIndex,
+    CompiledKeyStrategy, EffectiveTranslation, EffectiveTranslationRef, MergeExtractedMessage,
+    ParseCatalogOptions, SerializeOptions, SourceExtractedMessage, combine_catalogs,
+    compile_catalog_artifact, compile_catalog_artifact_selected, has_select_ordinal, merge_catalog,
+    parse_catalog, parse_icu, parse_po, stringify_po,
 };
 
 #[test]
@@ -31,6 +31,14 @@ msgstr "world"
     )
     .expect("merge catalog");
     assert!(merged.contains(r#"msgid "hello""#));
+
+    let combine_inputs = [
+        CatalogCombineInput::new("msgid \"hello\"\nmsgstr \"world\"\n"),
+        CatalogCombineInput::new("msgid \"bye\"\nmsgstr \"\"\n"),
+    ];
+    let combined = combine_catalogs(CombineCatalogOptions::new(&combine_inputs, "en"))
+        .expect("combine catalogs");
+    assert!(combined.content.contains(r#"msgid "bye""#));
 
     let message = parse_icu("{count, selectordinal, one {#st} other {#th}}").expect("parse icu");
     assert!(has_select_ordinal(&message));

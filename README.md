@@ -48,7 +48,7 @@ cargo add ferrocat
 The public entry point is the `ferrocat` crate. It re-exports the stable Rust surface from the lower-level workspace crates:
 
 - `ferrocat`: umbrella crate and recommended dependency for application code
-- `ferrocat-po`: PO parsing, serialization, merge helpers, and higher-level catalog update flows
+- `ferrocat-po`: PO parsing, serialization, merge/combine helpers, and higher-level catalog update flows
 - `ferrocat-icu`: ICU MessageFormat parsing and structural helpers
 
 ## Project Goals
@@ -61,7 +61,7 @@ The public entry point is the `ferrocat` crate. It re-exports the stable Rust su
 
 The project goal is to close that gap with a Rust-native implementation that gives you:
 
-- a fast PO parser, serializer, and merge/update engine
+- a fast PO parser, serializer, and merge/combine/update engine
 - a cleaner semantic center for ICU-aware catalog work
 - explicit runtime-oriented compile layers for downstream adapters and bundlers
 - compatibility evidence and benchmark methodology treated as part of the product surface
@@ -85,7 +85,7 @@ assert!(rendered.contains(r#"msgstr "Welt""#));
 # Ok::<(), Box<dyn std::error::Error>>(())
 ```
 
-For the common “merge fresh extracted messages into an existing catalog” workflow, `merge_catalog` is the lean gettext-style entry point. For richer high-level flows across PO and NDJSON storage, the docs site’s [API overview](https://sebastian-software.github.io/ferrocat/reference/api-overview) is the best next stop.
+For the common “merge fresh extracted messages into an existing catalog” workflow, `merge_catalog` is the lean gettext-style entry point. For N-way catalog overlays and `msgcat`-style set operations, use `combine_catalogs`. For richer high-level flows across PO and NDJSON storage, the docs site’s [API overview](https://sebastian-software.github.io/ferrocat/reference/api-overview) is the best next stop.
 
 `parse_po_borrowed` is the allocation-light PO parser for read-heavy paths. It borrows from the source buffer where possible, but it currently requires LF-only input; normalize CRLF input first or use `parse_po`, which handles line-ending normalization internally.
 

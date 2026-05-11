@@ -911,6 +911,279 @@ fn update_catalog_gettext_preserves_existing_complete_plural_forms_header() {
 }
 
 #[test]
+fn combine_catalogs_use_first_preserves_existing_translations_and_adds_missing() {
+    let existing = concat!("msgid \"Hello\"\n", "msgstr \"Hallo\"\n",);
+    let template = concat!(
+        "msgid \"Hello\"\n",
+        "msgstr \"\"\n\n",
+        "#: src/new.rs:7\n",
+        "msgid \"New\"\n",
+        "msgstr \"\"\n",
+    );
+    let inputs = [
+        CatalogCombineInput::labeled(existing, "existing.po"),
+        CatalogCombineInput::labeled(template, "messages.pot"),
+    ];
+
+    let result = combine_catalogs(CombineCatalogOptions {
+        inputs: &inputs,
+        source_locale: "en",
+        locale: Some("de"),
+        ..CombineCatalogOptions::default()
+    })
+    .expect("combine");
+
+    let parsed = parse_po(&result.content).expect("parse output");
+    assert_eq!(parsed.items.len(), 2);
+    assert_eq!(parsed.items[0].msgid, "Hello");
+    assert_eq!(parsed.items[0].msgstr[0], "Hallo");
+    assert_eq!(parsed.items[1].msgid, "New");
+    assert_eq!(parsed.items[1].msgstr[0], "");
+    assert_eq!(parsed.items[1].references, vec!["src/new.rs:7"]);
+    assert_eq!(result.stats.inputs, 2);
+    assert_eq!(result.stats.definitions, 3);
+    assert_eq!(result.stats.selected, 2);
+    assert_eq!(result.stats.conflicts_resolved, 0);
+}
+
+#[test]
+fn combine_catalogs_use_last_overlays_conflicting_translation() {
+    let first = "msgid \"Hello\"\nmsgstr \"Hallo\"\n";
+    let second = "msgid \"Hello\"\nmsgstr \"Servus\"\n";
+    let inputs = [
+        CatalogCombineInput::labeled(first, "first.po"),
+        CatalogCombineInput::labeled(second, "second.po"),
+    ];
+
+    let result = combine_catalogs(CombineCatalogOptions {
+        inputs: &inputs,
+        source_locale: "en",
+        locale: Some("de"),
+        conflict_strategy: CatalogConflictStrategy::UseLast,
+        ..CombineCatalogOptions::default()
+    })
+    .expect("combine");
+
+    let parsed = parse_po(&result.content).expect("parse output");
+    assert_eq!(parsed.items[0].msgstr[0], "Servus");
+    assert_eq!(result.stats.conflicts_resolved, 1);
+    assert!(result.diagnostics.iter().any(|diagnostic| {
+        diagnostic.code == "combine.conflict_resolved"
+            && diagnostic.msgid.as_deref() == Some("Hello")
+    }));
+}
+
+#[test]
+fn combine_catalogs_error_rejects_conflicting_translation() {
+    let inputs = [
+        CatalogCombineInput::new("msgid \"Hello\"\nmsgstr \"Hallo\"\n"),
+        CatalogCombineInput::new("msgid \"Hello\"\nmsgstr \"Servus\"\n"),
+    ];
+
+    let error = combine_catalogs(CombineCatalogOptions {
+        inputs: &inputs,
+        source_locale: "en",
+        locale: Some("de"),
+        conflict_strategy: CatalogConflictStrategy::Error,
+        ..CombineCatalogOptions::default()
+    })
+    .expect_err("conflict");
+
+    assert!(matches!(error, ApiError::Conflict(message) if message.contains("Hello")));
+}
+
+#[test]
+fn combine_catalogs_selection_rules_filter_by_definition_count() {
+    let first = concat!(
+        "msgid \"shared\"\n",
+        "msgstr \"one\"\n\n",
+        "msgid \"only-first\"\n",
+        "msgstr \"one\"\n",
+    );
+    let second = concat!(
+        "msgid \"shared\"\n",
+        "msgstr \"one\"\n\n",
+        "msgid \"only-second\"\n",
+        "msgstr \"two\"\n",
+    );
+    let inputs = [
+        CatalogCombineInput::new(first),
+        CatalogCombineInput::new(second),
+    ];
+
+    let unique = combine_catalogs(CombineCatalogOptions {
+        inputs: &inputs,
+        source_locale: "en",
+        locale: Some("de"),
+        selection: CatalogCombineSelection::Unique,
+        ..CombineCatalogOptions::default()
+    })
+    .expect("unique combine");
+    let unique = parse_po(&unique.content).expect("parse unique");
+    assert_eq!(unique.items.len(), 2);
+    assert!(unique.items.iter().all(|item| item.msgid != "shared"));
+
+    let common = combine_catalogs(CombineCatalogOptions {
+        inputs: &inputs,
+        source_locale: "en",
+        locale: Some("de"),
+        selection: CatalogCombineSelection::MoreThan(1),
+        ..CombineCatalogOptions::default()
+    })
+    .expect("common combine");
+    let common = parse_po(&common.content).expect("parse common");
+    assert_eq!(common.items.len(), 1);
+    assert_eq!(common.items[0].msgid, "shared");
+
+    let less_than_two = combine_catalogs(CombineCatalogOptions {
+        inputs: &inputs,
+        source_locale: "en",
+        locale: Some("de"),
+        selection: CatalogCombineSelection::LessThan(2),
+        ..CombineCatalogOptions::default()
+    })
+    .expect("less-than combine");
+    let less_than_two = parse_po(&less_than_two.content).expect("parse less-than");
+    assert_eq!(less_than_two.items.len(), 2);
+    assert!(
+        less_than_two
+            .items
+            .iter()
+            .all(|item| item.msgid != "shared")
+    );
+}
+
+#[test]
+fn combine_catalogs_treats_contexts_as_distinct_identities() {
+    let first = concat!(
+        "msgctxt \"button\"\n",
+        "msgid \"Open\"\n",
+        "msgstr \"Oeffnen\"\n",
+    );
+    let second = concat!(
+        "msgctxt \"menu\"\n",
+        "msgid \"Open\"\n",
+        "msgstr \"Aufmachen\"\n",
+    );
+    let inputs = [
+        CatalogCombineInput::new(first),
+        CatalogCombineInput::new(second),
+    ];
+
+    let result = combine_catalogs(CombineCatalogOptions {
+        inputs: &inputs,
+        source_locale: "en",
+        locale: Some("de"),
+        ..CombineCatalogOptions::default()
+    })
+    .expect("combine");
+
+    let parsed = parse_po(&result.content).expect("parse output");
+    assert_eq!(parsed.items.len(), 2);
+    assert_eq!(parsed.items[0].msgctxt.as_deref(), Some("button"));
+    assert_eq!(parsed.items[1].msgctxt.as_deref(), Some("menu"));
+}
+
+#[test]
+fn combine_catalogs_rejects_singular_plural_shape_conflicts() {
+    let singular = "msgid \"item\"\nmsgstr \"Ding\"\n";
+    let plural = concat!(
+        "msgid \"item\"\n",
+        "msgid_plural \"items\"\n",
+        "msgstr[0] \"Ding\"\n",
+        "msgstr[1] \"Dinge\"\n",
+    );
+    let inputs = [
+        CatalogCombineInput::new(singular),
+        CatalogCombineInput::new(plural),
+    ];
+
+    let error = combine_catalogs(CombineCatalogOptions {
+        inputs: &inputs,
+        source_locale: "en",
+        locale: Some("de"),
+        semantics: CatalogSemantics::GettextCompat,
+        plural_encoding: PluralEncoding::Gettext,
+        ..CombineCatalogOptions::default()
+    })
+    .expect_err("shape conflict");
+
+    assert!(matches!(error, ApiError::Conflict(message) if message.contains("shape")));
+}
+
+#[test]
+fn combine_catalogs_skips_obsolete_by_default_and_can_include_them() {
+    let active = "msgid \"active\"\nmsgstr \"aktiv\"\n";
+    let obsolete = "#~ msgid \"old\"\n#~ msgstr \"alt\"\n";
+    let inputs = [
+        CatalogCombineInput::new(active),
+        CatalogCombineInput::new(obsolete),
+    ];
+
+    let skipped = combine_catalogs(CombineCatalogOptions {
+        inputs: &inputs,
+        source_locale: "en",
+        locale: Some("de"),
+        ..CombineCatalogOptions::default()
+    })
+    .expect("combine without obsolete");
+    let skipped = parse_po(&skipped.content).expect("parse skipped");
+    assert_eq!(skipped.items.len(), 1);
+    assert_eq!(skipped.items[0].msgid, "active");
+
+    let included = combine_catalogs(CombineCatalogOptions {
+        inputs: &inputs,
+        source_locale: "en",
+        locale: Some("de"),
+        include_obsolete: true,
+        ..CombineCatalogOptions::default()
+    })
+    .expect("combine with obsolete");
+    let included = parse_po(&included.content).expect("parse included");
+    assert_eq!(included.items.len(), 2);
+    assert!(included.items.iter().any(|item| item.obsolete));
+}
+
+#[test]
+fn combine_catalogs_gettext_compat_preserves_plural_slots() {
+    let existing = concat!(
+        "msgid \"\"\n",
+        "msgstr \"\"\n",
+        "\"Plural-Forms: nplurals=2; plural=(n != 1);\\n\"\n\n",
+        "msgid \"item\"\n",
+        "msgid_plural \"items\"\n",
+        "msgstr[0] \"Ding\"\n",
+        "msgstr[1] \"Dinge\"\n",
+    );
+    let template = concat!(
+        "msgid \"item\"\n",
+        "msgid_plural \"items\"\n",
+        "msgstr[0] \"\"\n",
+        "msgstr[1] \"\"\n",
+    );
+    let inputs = [
+        CatalogCombineInput::new(existing),
+        CatalogCombineInput::new(template),
+    ];
+
+    let result = combine_catalogs(CombineCatalogOptions {
+        inputs: &inputs,
+        source_locale: "en",
+        locale: Some("de"),
+        semantics: CatalogSemantics::GettextCompat,
+        plural_encoding: PluralEncoding::Gettext,
+        ..CombineCatalogOptions::default()
+    })
+    .expect("combine");
+
+    let parsed = parse_po(&result.content).expect("parse output");
+    assert_eq!(parsed.items[0].msgid, "item");
+    assert_eq!(parsed.items[0].msgid_plural.as_deref(), Some("items"));
+    assert_eq!(parsed.items[0].msgstr[0], "Ding");
+    assert_eq!(parsed.items[0].msgstr[1], "Dinge");
+}
+
+#[test]
 fn parse_catalog_requires_source_locale() {
     let error = parse_catalog(ParseCatalogOptions {
         content: "",

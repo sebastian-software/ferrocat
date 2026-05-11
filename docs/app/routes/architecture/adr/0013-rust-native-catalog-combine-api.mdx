@@ -1,0 +1,61 @@
+---
+title: "ADR 0013: Add a Rust-Native Catalog Combine API"
+description: "Accepted architecture decision record: rust native catalog combine api."
+order: 130
+---
+
+# ADR 0013: Add a Rust-Native Catalog Combine API
+
+- Status: Accepted
+- Date: 2026-05-11
+
+## Context
+
+GNU gettext includes several catalog manipulation tools for combining, comparing, and filtering PO files. The most relevant behaviors for Ferrocat users are:
+
+- `msgcat`-style N-way catalog concatenation and merge
+- `msgcomm` / `msguniq`-style selection by how often an identity appears
+- `msgmerge`-adjacent overlay workflows where old translations should remain while new source entries are added
+
+Ferrocat already has `merge_catalog` for the lean extractor-to-existing-catalog path and `update_catalog` for full high-level catalog maintenance. What was missing was a task-oriented API for combining several already-materialized catalogs without making callers emulate GNU CLI output rules.
+
+## Decision
+
+Add `combine_catalogs` to the high-level `ferrocat-po` catalog API.
+
+The API is intentionally Rust-native rather than shell-compatible:
+
+- inputs are provided as borrowed `CatalogCombineInput` values
+- message identity is `msgid` plus optional `msgctxt`
+- conflict behavior is explicit through `CatalogConflictStrategy`
+- set selection is explicit through `CatalogCombineSelection`
+- obsolete definitions are skipped by default and included only by opt-in
+- singular/plural shape conflicts fail with `ApiError::Conflict`
+
+The default strategy is `UseFirst`, so callers can pass an existing translated catalog first and newer templates or overlays later. Non-empty translation conflicts resolved by `UseFirst` or `UseLast` produce diagnostics instead of GNU conflict-marker strings.
+
+## Consequences
+
+Positive:
+
+- common N-way overlay workflows are available without invoking gettext binaries
+- conflict behavior is deterministic and machine-readable
+- the implementation stays in the high-level catalog layer, preserving the PO-core/catalog split
+- the same explicit `IcuNative` and `GettextCompat` semantics apply as in parse/update APIs
+
+Negative:
+
+- this is not a byte-for-byte `msgcat` clone
+- callers that expect GNU fuzzy conflict-marker translations must handle diagnostics instead
+- the API introduces another public catalog workflow surface that needs docs, tests, and benchmarks
+
+## Follow-Up Roadmap
+
+High-value gettext-inspired features should be added as task-oriented APIs, not one monolithic compatibility layer:
+
+- `msgattrib` / `msggrep`-style filtering and attribute transforms
+- `msgcmp`-style completeness checks with structured diagnostics
+- `msgfmt`-style validation checks around runtime artifact generation
+- `msgen`-style source-locale initialization helpers
+
+Full `xgettext` parity, encoding conversion, command filters, Java/C#/Tcl output modes, `autopoint`, `gettextize`, and previous-msgid history remain out of scope unless a concrete integration need appears.

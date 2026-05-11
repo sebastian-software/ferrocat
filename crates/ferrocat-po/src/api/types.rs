@@ -338,6 +338,100 @@ pub struct CatalogUpdateResult {
     pub diagnostics: Vec<Diagnostic>,
 }
 
+/// One catalog input passed to [`super::combine_catalogs`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CatalogCombineInput<'a> {
+    /// Catalog content to parse and include in the combine operation.
+    pub content: &'a str,
+    /// Optional human-readable label used in diagnostics.
+    pub label: Option<&'a str>,
+}
+
+impl<'a> CatalogCombineInput<'a> {
+    /// Creates a combine input without a diagnostic label.
+    #[must_use]
+    pub const fn new(content: &'a str) -> Self {
+        Self {
+            content,
+            label: None,
+        }
+    }
+
+    /// Creates a combine input with a diagnostic label.
+    #[must_use]
+    pub const fn labeled(content: &'a str, label: &'a str) -> Self {
+        Self {
+            content,
+            label: Some(label),
+        }
+    }
+}
+
+/// Strategy used when multiple catalogs define conflicting translations for one identity.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum CatalogConflictStrategy {
+    /// Keep the first translation encountered for each `msgid`/`msgctxt`.
+    #[default]
+    UseFirst,
+    /// Replace the current translation with the latest definition.
+    UseLast,
+    /// Return an error when two non-empty translations differ.
+    Error,
+}
+
+/// Selection rule used after definitions from all inputs have been counted.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum CatalogCombineSelection {
+    /// Keep every message identity.
+    #[default]
+    All,
+    /// Keep identities with more than the provided number of definitions.
+    MoreThan(usize),
+    /// Keep identities with less than the provided number of definitions.
+    LessThan(usize),
+    /// Keep identities defined only once.
+    Unique,
+}
+
+impl CatalogCombineSelection {
+    pub(super) const fn includes(self, definitions: usize) -> bool {
+        match self {
+            Self::All => true,
+            Self::MoreThan(limit) => definitions > limit,
+            Self::LessThan(limit) => definitions < limit,
+            Self::Unique => definitions < 2,
+        }
+    }
+}
+
+/// Basic counters describing a catalog combine operation.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct CatalogCombineStats {
+    /// Number of input catalogs parsed.
+    pub inputs: usize,
+    /// Total message definitions considered after obsolete filtering.
+    pub definitions: usize,
+    /// Message identities written to the final catalog.
+    pub selected: usize,
+    /// Message identities removed by the selection rule.
+    pub skipped: usize,
+    /// Translation conflicts resolved according to the selected strategy.
+    pub conflicts_resolved: usize,
+    /// Total messages in the final catalog.
+    pub total: usize,
+}
+
+/// Result returned by catalog combine operations.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CatalogCombineResult {
+    /// Final catalog content after combining the inputs.
+    pub content: String,
+    /// Summary counters for the operation.
+    pub stats: CatalogCombineStats,
+    /// Non-fatal diagnostics collected during processing.
+    pub diagnostics: Vec<Diagnostic>,
+}
+
 /// Parsed catalog plus diagnostics and normalized headers.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ParsedCatalog {
@@ -724,6 +818,68 @@ impl<'a> UpdateCatalogFileOptions<'a> {
     }
 }
 
+/// Options for combining multiple catalogs into one deterministic catalog.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CombineCatalogOptions<'a> {
+    /// Input catalogs in precedence order.
+    pub inputs: &'a [CatalogCombineInput<'a>],
+    /// Locale of the combined catalog. When `None`, Ferrocat uses the first input locale if present.
+    pub locale: Option<&'a str>,
+    /// Source locale used for source-side semantics and validation.
+    pub source_locale: &'a str,
+    /// Storage format used when reading inputs and rendering the result.
+    pub storage_format: CatalogStorageFormat,
+    /// High-level semantics used when parsing, combining, and rendering catalogs.
+    pub semantics: CatalogSemantics,
+    /// Target plural representation for the rendered PO file.
+    pub plural_encoding: PluralEncoding,
+    /// Strategy for resolving conflicting non-empty translations.
+    pub conflict_strategy: CatalogConflictStrategy,
+    /// Message identity selection rule applied after all inputs are read.
+    pub selection: CatalogCombineSelection,
+    /// Sort order for the final rendered catalog.
+    pub order_by: OrderBy,
+    /// Whether source origins should be rendered as references.
+    pub include_origins: bool,
+    /// Whether rendered references should include line numbers.
+    pub include_line_numbers: bool,
+    /// Whether obsolete definitions should participate in the combine operation.
+    pub include_obsolete: bool,
+}
+
+impl Default for CombineCatalogOptions<'_> {
+    fn default() -> Self {
+        Self {
+            inputs: &[],
+            locale: None,
+            source_locale: "",
+            storage_format: CatalogStorageFormat::Po,
+            semantics: CatalogSemantics::IcuNative,
+            plural_encoding: PluralEncoding::Icu,
+            conflict_strategy: CatalogConflictStrategy::UseFirst,
+            selection: CatalogCombineSelection::All,
+            order_by: OrderBy::Msgid,
+            include_origins: true,
+            include_line_numbers: true,
+            include_obsolete: false,
+        }
+    }
+}
+
+impl<'a> CombineCatalogOptions<'a> {
+    /// Creates combine options with required fields set.
+    ///
+    /// Optional fields use the same defaults as [`CombineCatalogOptions::default`].
+    #[must_use]
+    pub fn new(inputs: &'a [CatalogCombineInput<'a>], source_locale: &'a str) -> Self {
+        Self {
+            inputs,
+            source_locale,
+            ..Self::default()
+        }
+    }
+}
+
 /// Options for parsing a catalog into the higher-level message model.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ParseCatalogOptions<'a> {
@@ -819,11 +975,13 @@ mod tests {
     use std::path::Path;
 
     use super::{
-        ApiError, CatalogMessage, CatalogMessageExtra, CatalogMessageKey, CatalogSemantics,
-        CatalogStorageFormat, CatalogUpdateInput, Diagnostic, DiagnosticSeverity,
-        EffectiveTranslation, EffectiveTranslationRef, NormalizedParsedCatalog, ObsoleteStrategy,
-        OrderBy, ParseCatalogOptions, ParsedCatalog, PlaceholderCommentMode, PluralEncoding,
-        PluralSource, TranslationShape, UpdateCatalogFileOptions, UpdateCatalogOptions,
+        ApiError, CatalogCombineInput, CatalogCombineSelection, CatalogConflictStrategy,
+        CatalogMessage, CatalogMessageExtra, CatalogMessageKey, CatalogSemantics,
+        CatalogStorageFormat, CatalogUpdateInput, CombineCatalogOptions, Diagnostic,
+        DiagnosticSeverity, EffectiveTranslation, EffectiveTranslationRef, NormalizedParsedCatalog,
+        ObsoleteStrategy, OrderBy, ParseCatalogOptions, ParsedCatalog, PlaceholderCommentMode,
+        PluralEncoding, PluralSource, TranslationShape, UpdateCatalogFileOptions,
+        UpdateCatalogOptions,
     };
 
     #[test]
@@ -1025,6 +1183,19 @@ mod tests {
         assert_eq!(parse_new.content, "msgid \"Hello\"\nmsgstr \"Hallo\"\n");
         assert_eq!(parse_new.source_locale, "en");
         assert_eq!(parse_new.storage_format, CatalogStorageFormat::Po);
+
+        let inputs = [CatalogCombineInput::labeled(
+            "msgid \"Hello\"\nmsgstr \"Hallo\"\n",
+            "de.po",
+        )];
+        let combine = CombineCatalogOptions::new(&inputs, "en");
+        assert_eq!(combine.inputs, &inputs);
+        assert_eq!(combine.source_locale, "en");
+        assert_eq!(combine.conflict_strategy, CatalogConflictStrategy::UseFirst);
+        assert_eq!(combine.selection, CatalogCombineSelection::All);
+        assert!(combine.include_origins);
+        assert!(combine.include_line_numbers);
+        assert!(!combine.include_obsolete);
     }
 
     #[test]

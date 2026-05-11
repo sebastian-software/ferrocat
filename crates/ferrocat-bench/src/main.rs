@@ -12,9 +12,10 @@ use conformance_harness::{evaluate_all_cases, summarize_evaluations};
 use ferrocat_conformance::{ConformanceCase, Expectation, ExpectedArtifact, load_all_manifests};
 use ferrocat_icu::{extract_variables, parse_icu, validate_icu};
 use ferrocat_po::{
-    CatalogMessage, CatalogMessageExtra, CatalogSemantics, CatalogStorageFormat, Header, MsgStr,
-    ParseCatalogOptions, ParsedCatalog, PluralEncoding, PoFile, PoItem, SerializeOptions,
-    TranslationShape, UpdateCatalogFileOptions, UpdateCatalogOptions, merge_catalog, parse_catalog,
+    CatalogCombineInput, CatalogMessage, CatalogMessageExtra, CatalogSemantics,
+    CatalogStorageFormat, CombineCatalogOptions, Header, MsgStr, ParseCatalogOptions,
+    ParsedCatalog, PluralEncoding, PoFile, PoItem, SerializeOptions, TranslationShape,
+    UpdateCatalogFileOptions, UpdateCatalogOptions, combine_catalogs, merge_catalog, parse_catalog,
     parse_po, parse_po_borrowed, stringify_po, update_catalog, update_catalog_file,
 };
 use fixtures::{
@@ -138,6 +139,14 @@ fn run() -> Result<(), String> {
             let fixture = load_merge_fixture(&fixture_name)?;
             bench_update_catalog_file_ndjson(&fixture, config)
         }
+        "combine-catalogs" => {
+            let fixture_name = args
+                .next()
+                .unwrap_or_else(|| "catalog-modern-de-1000".to_owned());
+            let config = parse_bench_config(args, &fixture_name)?;
+            let fixture = load_merge_fixture(&fixture_name)?;
+            bench_combine_catalogs(&fixture, config)
+        }
         "describe" => {
             let fixture_name = args.next().unwrap_or_else(|| "realistic".to_owned());
             let fixture = load_fixture(&fixture_name)?;
@@ -149,7 +158,7 @@ fn run() -> Result<(), String> {
             Ok(())
         }
         other => Err(format!(
-            "unknown command: {other} (use verify-benchmark-env, compare, parse, parse-borrowed, parse-catalog-po, parse-catalog-ndjson, parse-icu, validate-icu, extract-icu-variables, stringify, stringify-catalog-po, stringify-catalog-ndjson, merge, update-catalog, update-catalog-file, update-catalog-file-ndjson, describe, or conformance-report)"
+            "unknown command: {other} (use verify-benchmark-env, compare, parse, parse-borrowed, parse-catalog-po, parse-catalog-ndjson, parse-icu, validate-icu, extract-icu-variables, stringify, stringify-catalog-po, stringify-catalog-ndjson, merge, update-catalog, update-catalog-file, update-catalog-file-ndjson, combine-catalogs, describe, or conformance-report)"
         )),
     }
 }
@@ -686,6 +695,48 @@ fn bench_update_catalog_file_ndjson(
 
     report_merge(
         "update-catalog-file-ndjson",
+        fixture,
+        bytes_per_iteration,
+        config,
+        &samples,
+    );
+    Ok(())
+}
+
+fn bench_combine_catalogs(fixture: &MergeFixture, config: BenchConfig) -> Result<(), String> {
+    let mut bytes_per_iteration = 0usize;
+    let inputs = [
+        CatalogCombineInput::labeled(fixture.existing_po(), "base"),
+        CatalogCombineInput::labeled(fixture.existing_po(), "overlay"),
+        CatalogCombineInput::labeled(fixture.existing_po(), "fallback"),
+    ];
+
+    let samples = run_bench(config, || {
+        let start = Instant::now();
+        let mut bytes = 0usize;
+        for _ in 0..config.iterations {
+            let rendered = combine_catalogs(CombineCatalogOptions {
+                inputs: &inputs,
+                locale: Some("de"),
+                source_locale: "en",
+                semantics: CatalogSemantics::IcuNative,
+                plural_encoding: PluralEncoding::Icu,
+                ..CombineCatalogOptions::default()
+            })
+            .map_err(|error| error.to_string())?;
+            bytes += rendered.content.len();
+            std::hint::black_box(rendered);
+        }
+        bytes_per_iteration = bytes / config.iterations;
+        Ok(BenchSample::new(
+            start.elapsed(),
+            config.iterations,
+            bytes_per_iteration,
+        ))
+    })?;
+
+    report_merge(
+        "combine-catalogs",
         fixture,
         bytes_per_iteration,
         config,

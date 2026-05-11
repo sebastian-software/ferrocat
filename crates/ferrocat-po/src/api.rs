@@ -7,7 +7,7 @@ mod ndjson;
 mod plural;
 mod types;
 
-pub use self::catalog::{parse_catalog, update_catalog, update_catalog_file};
+pub use self::catalog::{combine_catalogs, parse_catalog, update_catalog, update_catalog_file};
 pub use self::compile::{
     compile_catalog_artifact, compile_catalog_artifact_selected, compiled_key,
 };
@@ -19,13 +19,14 @@ pub use self::compile_types::{
     CompiledMessage, CompiledTranslation, DescribeCompiledIdsReport,
 };
 pub use self::types::{
-    ApiError, CatalogMessage, CatalogMessageExtra, CatalogMessageKey, CatalogOrigin,
-    CatalogSemantics, CatalogStats, CatalogStorageFormat, CatalogUpdateInput, CatalogUpdateResult,
-    Diagnostic, DiagnosticSeverity, EffectiveTranslation, EffectiveTranslationRef,
-    ExtractedMessage, ExtractedPluralMessage, ExtractedSingularMessage, NormalizedParsedCatalog,
-    ObsoleteStrategy, OrderBy, ParseCatalogOptions, ParsedCatalog, PlaceholderCommentMode,
-    PluralEncoding, PluralSource, SourceExtractedMessage, TranslationShape,
-    UpdateCatalogFileOptions, UpdateCatalogOptions,
+    ApiError, CatalogCombineInput, CatalogCombineResult, CatalogCombineSelection,
+    CatalogCombineStats, CatalogConflictStrategy, CatalogMessage, CatalogMessageExtra,
+    CatalogMessageKey, CatalogOrigin, CatalogSemantics, CatalogStats, CatalogStorageFormat,
+    CatalogUpdateInput, CatalogUpdateResult, CombineCatalogOptions, Diagnostic, DiagnosticSeverity,
+    EffectiveTranslation, EffectiveTranslationRef, ExtractedMessage, ExtractedPluralMessage,
+    ExtractedSingularMessage, NormalizedParsedCatalog, ObsoleteStrategy, OrderBy,
+    ParseCatalogOptions, ParsedCatalog, PlaceholderCommentMode, PluralEncoding, PluralSource,
+    SourceExtractedMessage, TranslationShape, UpdateCatalogFileOptions, UpdateCatalogOptions,
 };
 
 fn validate_source_locale(source_locale: &str) -> Result<(), ApiError> {

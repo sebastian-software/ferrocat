@@ -1,13 +1,15 @@
 pub(super) use super::{
-    ApiError, CatalogMessageKey, CatalogOrigin, CatalogSemantics, CatalogStorageFormat,
-    CatalogUpdateInput, CompileCatalogArtifactOptions, CompileCatalogOptions,
+    ApiError, CatalogCombineInput, CatalogCombineSelection, CatalogConflictStrategy,
+    CatalogMessageKey, CatalogOrigin, CatalogSemantics, CatalogStorageFormat, CatalogUpdateInput,
+    CombineCatalogOptions, CompileCatalogArtifactOptions, CompileCatalogOptions,
     CompileSelectedCatalogArtifactOptions, CompiledCatalogIdIndex, CompiledCatalogTranslationKind,
     CompiledKeyStrategy, CompiledTranslation, DiagnosticSeverity, EffectiveTranslation,
     EffectiveTranslationRef, ExtractedMessage, ExtractedPluralMessage, ExtractedSingularMessage,
     ObsoleteStrategy, ParseCatalogOptions, PluralEncoding, PluralSource, SourceExtractedMessage,
-    TranslationShape, UpdateCatalogFileOptions, UpdateCatalogOptions, compile::compiled_key_for,
-    compile_catalog_artifact, compile_catalog_artifact_selected, compiled_key, parse_catalog,
-    plural::cached_icu_plural_categories_for, update_catalog, update_catalog_file,
+    TranslationShape, UpdateCatalogFileOptions, UpdateCatalogOptions, combine_catalogs,
+    compile::compiled_key_for, compile_catalog_artifact, compile_catalog_artifact_selected,
+    compiled_key, parse_catalog, plural::cached_icu_plural_categories_for, update_catalog,
+    update_catalog_file,
 };
 pub(super) use crate::parse_po;
 pub(super) use std::collections::{BTreeMap, HashMap};

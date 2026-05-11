@@ -1,6 +1,7 @@
 ---
 title: "Benchmark Fixtures"
 description: "Reference guide to the generated and static benchmark fixture sets used in ferrocat-bench."
+order: 20
 ---
 
 # Benchmark Fixtures
@@ -82,5 +83,6 @@ cargo run -p ferrocat-bench -- describe mixed-1000
 cargo run -p ferrocat-bench -- parse mixed-1000 200
 cargo run -p ferrocat-bench -- stringify mixed-1000 200
 cargo run -p ferrocat-bench -- describe gettext-ui-de-1000
+cargo run -p ferrocat-bench -- combine-catalogs catalog-modern-de-1000 200
 cargo instruments --no-open -o target/instruments/parse-mixed-1000.trace -t "Time Profiler" --bin ferrocat-bench -- parse mixed-1000 200
 ```
