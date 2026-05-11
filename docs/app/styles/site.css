@@ -7,6 +7,13 @@
   --ferro-warm: #fbf6ee;
   --ferro-accent: #153b5a;
   --ferro-accent-soft: #dfeaf2;
+  --ferro-eyebrow: #8a6430;
+  --ferro-meta: #66798c;
+  --ferro-button-primary-text: #fff;
+  --ferro-button-secondary-bg: rgba(255, 255, 255, 0.74);
+  --ferro-button-border: rgba(21, 59, 90, 0.18);
+  --ferro-entry-icon-bg: rgba(21, 59, 90, 0.07);
+  --ferro-card-shadow: rgba(17, 34, 56, 0.08);
   --ferro-sans:
     system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --ferro-mono:
@@ -39,29 +46,43 @@
 }
 
 .dark {
-  --ardo-color-brand: oklch(72% 0.095 246);
-  --ardo-color-brandLight: oklch(82% 0.085 246);
-  --ardo-color-brandDark: oklch(61% 0.105 246);
-  --ardo-color-brandSubtle: oklch(25.5% 0.03 246);
+  --ferro-ink: #f4f8fc;
+  --ferro-body: #cad7e3;
+  --ferro-line: rgba(218, 231, 241, 0.18);
+  --ferro-line-strong: rgba(218, 231, 241, 0.3);
+  --ferro-warm: #0f1822;
+  --ferro-accent: #9ed3f7;
+  --ferro-accent-soft: #173149;
+  --ferro-eyebrow: #f2c36f;
+  --ferro-meta: #b9c8d6;
+  --ferro-button-primary-text: #08131d;
+  --ferro-button-secondary-bg: rgba(158, 211, 247, 0.12);
+  --ferro-button-border: rgba(158, 211, 247, 0.38);
+  --ferro-entry-icon-bg: rgba(158, 211, 247, 0.14);
+  --ferro-card-shadow: rgba(0, 0, 0, 0.28);
+  --ardo-color-brand: oklch(83% 0.085 246);
+  --ardo-color-brandLight: oklch(91% 0.055 246);
+  --ardo-color-brandDark: oklch(74% 0.095 246);
+  --ardo-color-brandSubtle: oklch(29% 0.035 246);
   --ardo-color-brandGradient: linear-gradient(
     135deg,
-    oklch(72% 0.095 246) 0%,
-    oklch(79% 0.068 262) 100%
+    oklch(83% 0.085 246) 0%,
+    oklch(88% 0.06 262) 100%
   );
-  --ardo-color-bg: oklch(15.5% 0.008 246);
-  --ardo-color-bgSoft: oklch(19.5% 0.009 246);
-  --ardo-color-bgMute: oklch(25.5% 0.01 246);
-  --ardo-color-bgAlt: oklch(33% 0.01 246);
-  --ardo-color-text: oklch(94% 0.004 246);
-  --ardo-color-textLight: oklch(72% 0.007 246);
-  --ardo-color-textLighter: oklch(55% 0.007 246);
-  --ardo-color-border: oklch(28.5% 0.011 246);
-  --ardo-color-borderLight: oklch(35% 0.01 246);
-  --ardo-color-divider: oklch(29% 0.01 246);
-  --ardo-color-sidebarBg: oklch(13% 0.008 246);
-  --ardo-color-sidebarBorder: oklch(26.5% 0.011 246);
-  --ardo-color-codeBg: oklch(19% 0.008 246);
-  --ardo-color-codeBorder: oklch(31% 0.01 246);
+  --ardo-color-bg: oklch(13% 0.01 246);
+  --ardo-color-bgSoft: oklch(18% 0.012 246);
+  --ardo-color-bgMute: oklch(24% 0.012 246);
+  --ardo-color-bgAlt: oklch(32% 0.012 246);
+  --ardo-color-text: oklch(96% 0.004 246);
+  --ardo-color-textLight: oklch(82% 0.006 246);
+  --ardo-color-textLighter: oklch(70% 0.006 246);
+  --ardo-color-border: oklch(37% 0.012 246);
+  --ardo-color-borderLight: oklch(43% 0.012 246);
+  --ardo-color-divider: oklch(38% 0.012 246);
+  --ardo-color-sidebarBg: oklch(10.5% 0.01 246);
+  --ardo-color-sidebarBorder: oklch(36% 0.012 246);
+  --ardo-color-codeBg: oklch(18% 0.01 246);
+  --ardo-color-codeBorder: oklch(40% 0.012 246);
 }
 
 [class*="Layout_home__"] [class*="Layout_main__"] {
@@ -105,7 +126,7 @@
   font-weight: 700;
   letter-spacing: 0.22em;
   text-transform: uppercase;
-  color: #8a6430;
+  color: var(--ferro-eyebrow);
 }
 
 .ferro-lead {
@@ -188,21 +209,21 @@
 }
 
 .ferro-button-primary {
-  color: #fff;
+  color: var(--ferro-button-primary-text);
   background: var(--ferro-accent);
   box-shadow: 0 16px 35px rgba(21, 59, 90, 0.18);
 }
 
 .ferro-button-secondary {
   color: var(--ferro-accent);
-  background: rgba(255, 255, 255, 0.74);
-  border-color: rgba(21, 59, 90, 0.14);
+  background: var(--ferro-button-secondary-bg);
+  border-color: var(--ferro-button-border);
 }
 
 .ferro-button-tertiary {
   color: var(--ferro-accent);
   background: transparent;
-  border-color: rgba(21, 59, 90, 0.18);
+  border-color: var(--ferro-button-border);
 }
 
 /* ── Performance section ── */
@@ -287,7 +308,7 @@
   font-weight: 700;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: #66798c;
+  color: var(--ferro-meta);
 }
 
 .ferro-mode-card dd {
@@ -407,7 +428,7 @@
 
 .ferro-entry-card:hover {
   border-color: var(--ferro-line-strong);
-  box-shadow: 0 12px 32px rgba(17, 34, 56, 0.08);
+  box-shadow: 0 12px 32px var(--ferro-card-shadow);
 }
 
 .ferro-entry-icon {
@@ -418,7 +439,7 @@
   height: 2.5rem;
   border-radius: 12px;
   color: var(--ferro-accent);
-  background: rgba(21, 59, 90, 0.07);
+  background: var(--ferro-entry-icon-bg);
 }
 
 .ferro-entry-card h3 {
