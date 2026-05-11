@@ -5,26 +5,30 @@ description: "A workflow-level map of gettext-inspired catalog jobs, ecosystem p
 
 # Gettext Task Landscape
 
-Ferrocat is not trying to be a command-line clone of GNU gettext. The goal is to understand the jobs that gettext-shaped tooling solves, then expose the useful parts as fast, explicit Rust APIs.
+Ferrocat is not trying to be a command-line clone of GNU gettext. The goal is to understand the jobs gettext-shaped tooling solves, then expose the useful parts as fast, explicit Rust APIs.
 
-That distinction matters. A lot of modern localization stacks use real source strings as message IDs, not opaque keys. This source-string-first style is common in gettext itself and in tools such as Lingui. In that model, fuzzy matching is helpful in some translator-centered workflows, but it is not the foundation of the system. The core promise is simpler: keep source text readable, preserve translations when catalogs evolve, surface conflicts clearly, and compile the result into something applications can use efficiently.
+That distinction matters because catalog jobs are broader than one tool's command-line flags. Some projects use stable IDs, some use real source strings as `msgid`, and many need to preserve translator-facing PO metadata either way. Ferrocat's core promise is simpler: keep catalog identity explicit, preserve translations when catalogs evolve, surface conflicts clearly, and compile the result into something applications can load efficiently.
+
+In the Palamedes ecosystem, that means Ferrocat is the catalog and semantics layer while [Palamedes](/guide/palamedes) is the JS/TS i18n framework layer. The two projects should be read together: one handles the catalog jobs, the other handles application authoring, extraction, adapters, and runtime integration.
 
 ## Task Matrix
 
-| Task | Gettext idea | Common ecosystem pattern | Ferrocat today | What it suggests next |
+| Task | Gettext idea | Common ecosystem pattern | Ferrocat today | Product direction |
 |---|---|---|---|---|
 | Extract source messages | `xgettext` scans code and writes POT files | Babel uses configurable extraction methods for Python apps and templates | Not part of the core crate | Keep extraction host-specific; define clean adapter inputs instead of embedding every language parser |
+| Integrate app frameworks | GNU gettext leaves this mostly to language bindings and application code | Framework packages usually own macros, hooks, loaders, and routing conventions | Ferrocat stays host-neutral; Palamedes owns JS/TS framework integration | Keep Ferrocat focused on catalog semantics and let Palamedes bind those semantics into application frameworks |
 | Parse and write PO files | PO is the human-editable catalog format | `pofile`, `gettext-parser`, and `polib` expose editable object models | `parse_po`, `parse_po_borrowed`, `stringify_po` | Add richer source positions only when the public error model is ready |
 | Update a catalog from new source | `msgmerge` carries existing translations forward into a new template | Many projects script this around gettext binaries or PO libraries | `merge_catalog`, `update_catalog`, `update_catalog_file` | Prefer exact source-string identity and explicit obsolete strategies over fuzzy-first behavior |
-| Combine catalogs | `msgcat`, `msgcomm`, and `msguniq` merge or select messages by occurrence | Usually handled by shell pipelines or ad hoc scripts | `combine_catalogs` with explicit conflict and selection rules | Expand selection/reporting only when real workflows need it |
+| Combine catalogs | `msgcat`, `msgcomm`, and `msguniq` merge or select messages by occurrence | Usually handled by shell pipelines or ad hoc scripts | `combine_catalogs` with explicit conflict and selection rules | Expand selection and reporting when real workflows need it |
+| Reduce Git merge pain | Usually handled outside gettext through file layout, merge drivers, or process rules | Large teams often rely on line-based review and hosted pull request merges | ICU-native NDJSON stores one message per line | Treat storage format as a collaboration feature, not just an interchange detail |
 | Filter or edit message attributes | `msgattrib` and `msggrep` select fuzzy, untranslated, obsolete, or matching messages | `polib`-style object traversal makes this easy but unstructured | Low-level parsed data is available; no high-level predicate API yet | Add structured filtering and transform APIs for CI and translator workflows |
 | Check completeness | `msgcmp` checks whether a translation catalog covers a template | CI often shells out or writes custom checks | Runtime artifact compilation reports missing messages in some flows | Add a focused completeness/check API with machine-readable diagnostics |
 | Validate translations | `msgfmt` checks and compiles catalogs | `gettext-parser` and `polib` can compile PO/MO; app stacks add their own checks | ICU validation exists through catalog artifact compilation | Add task-oriented validation reports before considering full MO parity |
-| Build runtime payloads | `msgfmt` produces MO files for libintl-style runtime lookup | Node/Python libraries often parse or compile PO/MO directly | `compile_catalog_artifact` emits host-neutral runtime maps | Keep MO support optional; prioritize modern bundle/runtime artifacts |
+| Build runtime payloads | `msgfmt` produces MO files for libintl-style runtime lookup | Node/Python libraries often parse or compile PO/MO directly | `compile_catalog_artifact` emits host-neutral runtime maps | Keep MO support optional; prioritize modern bundle and runtime artifacts |
 | Handle plural semantics | Gettext uses `Plural-Forms`, `msgid_plural`, and `msgstr[n]` | Libraries vary in how much plural logic they understand | `GettextCompat` for classic PO, `IcuNative` for ICU messages | Keep semantic mode choices explicit instead of guessing |
 | Work with non-UTF-8 catalogs | GNU gettext has deep charset conversion support | `gettext-parser` handles charset conversion for Buffer input | Ferrocat is UTF-8-oriented today | Document charset boundaries before adding conversion complexity |
 
-## Ecosystem Reference
+## Ecosystem Lessons
 
 | Project | Main role | Useful lesson for Ferrocat |
 |---|---|---|
@@ -38,11 +42,13 @@ That distinction matters. A lot of modern localization stacks use real source st
 
 ## Product Direction
 
-Ferrocat should keep moving toward task-oriented catalog APIs:
+Ferrocat should keep moving toward task-oriented catalog APIs with exact catalog identity, explicit diagnostics, and practical PO interoperability:
 
-- **Source-string-first catalog maintenance.** Real source strings remain the default identity surface. Fuzzy matching can be considered later, but it should not hide source changes or silently rewrite translator intent.
+- **Predictable catalog maintenance.** Whether `msgid` is a stable key or real source copy, updates should use exact identity and clear conflicts. Fuzzy matching can be considered later, but it should not hide source changes or silently rewrite translator intent.
 - **Structured diagnostics over terminal text.** Library users need data they can show in CI, editors, dashboards, and release tooling.
 - **Explicit conflict policy.** Combine and update workflows should make precedence and failure behavior visible in options.
+- **Collaboration-friendly storage.** NDJSON should be positioned as a practical large-team catalog format: one message per line, cleaner pull request diffs, narrower conflicts, and no dependency on custom merge handlers for everyday hosted Git workflows.
+- **Palamedes as the application layer.** Ferrocat should expose the catalog behavior Palamedes needs without absorbing framework-specific extraction, bundling, routing, or runtime concerns.
 - **Host-specific extraction.** JavaScript, Rust, Python, Markdown, templates, and framework conventions deserve adapters, not one oversized parser in the core crate.
 - **Runtime output for modern apps.** MO compatibility is useful to evaluate, but host-neutral compiled artifacts are a better default for bundlers, edge runtimes, and multi-language product stacks.
 
@@ -54,4 +60,5 @@ The most promising gettext-inspired additions are:
 - completeness checks inspired by `msgcmp`
 - broader validation reports inspired by `msgfmt`
 - optional MO read/write evaluation against existing Rust and Node libraries
-- clearer extractor adapter contracts for source-string-first tools
+- clearer extractor adapter contracts for both ID-based and source-as-msgid tools
+- tighter Palamedes documentation links for extraction, runtime artifacts, and future chunk-aware sidecars

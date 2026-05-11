@@ -1,0 +1,97 @@
+---
+title: "ADR 0014: Keep Ferrocat Host-Neutral and Let Palamedes Own JS/TS Application Integration"
+description: "Accepted architecture decision record: ferrocat palamedes boundary."
+order: 140
+---
+
+# ADR 0014: Keep Ferrocat Host-Neutral and Let Palamedes Own JS/TS Application Integration
+
+- Status: Accepted
+- Date: 2026-05-11
+
+## Context
+
+Ferrocat and [Palamedes](https://github.com/sebastian-software/palamedes) are
+part of the same OSS i18n ecosystem, but they solve different layers of the
+problem.
+
+Ferrocat owns catalog infrastructure:
+
+- PO parsing and serialization
+- high-level catalog parse, merge, combine, update, and validation workflows
+- explicit `IcuNative` and `GettextCompat` semantics
+- NDJSON storage for line-oriented catalog collaboration
+- stable compiled runtime IDs
+- locale-resolved runtime artifacts
+
+Palamedes owns JavaScript and TypeScript application integration:
+
+- macros and authoring ergonomics
+- source extraction and transforms
+- framework adapters
+- bundler integration
+- runtime loading policy
+- future chunk-aware message sidecars
+
+Without an explicit boundary, Ferrocat could drift toward framework-specific
+concerns, or Palamedes could duplicate catalog semantics that should stay
+consistent across host environments.
+
+## Decision
+
+Keep Ferrocat host-neutral and make Palamedes the primary JS/TS application
+layer on top of it.
+
+Concretely:
+
+- Ferrocat should expose task-oriented catalog APIs, not framework plugins.
+- Ferrocat should produce host-neutral runtime artifacts and structured
+  diagnostics.
+- Ferrocat should keep storage and semantic contracts documented in ADRs and
+  rustdoc.
+- Palamedes should own JS/TS extraction, transforms, routing conventions,
+  bundler adapters, framework runtime integration, and developer ergonomics.
+- Palamedes may depend on Ferrocat semantics, but Ferrocat should not depend on
+  Palamedes packages or application-framework assumptions.
+
+This relationship should be documented prominently because users can enter the
+ecosystem from either direction: app teams through Palamedes, and tooling or
+platform teams through Ferrocat.
+
+## Consequences
+
+Positive:
+
+- Ferrocat stays useful outside the Palamedes ecosystem.
+- Palamedes can move faster on framework integration without changing catalog
+  contracts.
+- runtime artifact semantics are centralized instead of being reimplemented in
+  every host adapter.
+- the docs can explain a coherent i18n stack without collapsing both projects
+  into one package.
+
+Negative:
+
+- cross-project features need clear coordination and documentation.
+- some users will need to understand two project names instead of one.
+- examples must be careful to distinguish catalog behavior from application
+  integration behavior.
+
+## Alternatives Considered
+
+### Make Ferrocat the Full i18n Framework
+
+Rejected because Ferrocat would absorb JavaScript, TypeScript, framework,
+bundler, and runtime concerns that are outside its catalog-infrastructure
+purpose.
+
+### Keep Palamedes Fully Independent From Ferrocat
+
+Rejected because it would duplicate PO parsing, catalog semantics, runtime key
+contracts, fallback behavior, and validation logic in the JS/TS framework.
+
+### Hide The Relationship In Internal Notes Only
+
+Rejected because users can reasonably discover either project first. The public
+docs should make the relationship clear enough that both entry points lead to
+the right next layer.

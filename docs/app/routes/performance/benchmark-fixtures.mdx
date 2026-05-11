@@ -6,7 +6,7 @@ order: 20
 
 # Benchmark Fixtures
 
-`ferrocat-bench` uses three fixture classes:
+`ferrocat-bench` uses deterministic fixture classes so performance changes can be compared across time instead of explained by changing input data.
 
 - static fixtures
   - small, hand-written PO files for quick smoke runs
@@ -39,7 +39,7 @@ fixture stays deterministic so benchmark history remains comparable.
 
 ## Gettext Compatibility Profiles
 
-The official external benchmark suite uses `gettext-*` fixtures built for classic gettext workflows.
+The official external benchmark suite uses `gettext-*` fixtures built for classic Gettext workflows.
 
 Current family and locale combinations:
 
@@ -52,7 +52,7 @@ Current family and locale combinations:
 - `gettext-content-ar-1000`
 - `gettext-content-ar-10000`
 
-These fixtures intentionally stay within broadly supported gettext features:
+These fixtures intentionally stay within broadly supported Gettext features:
 
 - headers with `Language` and `Plural-Forms`
 - `msgid`, `msgstr`, `msgid_plural`, `msgstr[n]`
@@ -74,7 +74,7 @@ The official external compare profile still applies a support matrix on top of t
 
 - `polib` and `pofile` are currently only used on the most conservative `gettext-ui-de-*` scenarios
 - `msgcat` is used on the broader stringify scenarios, including plural-heavier locale profiles
-- the other gettext families stay valuable as realistic classical workload corpora even when a given third-party parser is not part of that comparison group
+- the other Gettext families stay valuable as realistic classic workload corpora even when a given third-party parser is not part of that comparison group
 
 ## Useful Commands
 

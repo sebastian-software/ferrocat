@@ -5,7 +5,9 @@ description: "Coverage goals, local commands, CI thresholds, and artifact locati
 
 # Test Coverage
 
-`ferrocat` now exposes workspace-local Cargo aliases for coverage reporting through `cargo-llvm-cov`.
+Ferrocat uses coverage reporting to keep regression work visible, especially in the parser, serializer, catalog API, and ICU parser crates. Coverage is not treated as the only quality signal, but it gives maintainers a concrete guardrail for day-to-day changes.
+
+The repository exposes workspace-local Cargo aliases for coverage reporting through `cargo-llvm-cov`.
 
 The long-term goal for the shipped library surface is:
 
@@ -18,7 +20,7 @@ The coverage commands intentionally exclude:
 - `ferrocat-bench`, which is a benchmark harness rather than shipped library code
 - `ferrocat-conformance`, which is fixture data and expectations for the upstream snapshot
 
-That keeps the report focused on the public and internal library crates that matter most in day-to-day changes:
+That keeps the report focused on the public and internal library crates that matter most in day-to-day development:
 
 - `ferrocat`
 - `ferrocat-po`

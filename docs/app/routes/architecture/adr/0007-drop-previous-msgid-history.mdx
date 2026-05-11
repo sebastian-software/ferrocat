@@ -25,7 +25,8 @@ These lines are useful in classic translator-centered merge workflows because th
 
 `ferrocat` is intentionally optimizing for a different center of gravity:
 
-- current source text is the canonical identity surface
+- the current catalog identity is `msgid` plus optional `msgctxt`
+- callers may use `msgid` as a stable ID or as real source copy
 - memory efficiency and hot-path performance matter more than preserving historical merge metadata
 - ICU-oriented and model-assisted localization workflows are the long-term target
 - gettext remains a compatibility bridge, not the architectural center

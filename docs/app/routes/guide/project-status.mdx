@@ -6,11 +6,12 @@ order: 40
 
 # Project Status
 
-`ferrocat` is an actively developed pre-`1.0` Rust project.
+Ferrocat is an actively developed pre-`1.0` Rust project. The public API is already treated with care, but the project is still early enough to make deliberate changes when they improve long-term catalog behavior.
 
 ## Current strengths
 
-- high-performance PO parsing, serialization, and merge/update workflows
+- classic PO workflows with exact `msgid` + `msgctxt` identity and explicit conflict handling
+- high-performance PO parsing, serialization, merge, combine, and update workflows
 - ICU MessageFormat parsing with structural helpers
 - normalized catalog APIs plus runtime compilation and requested-locale artifact generation
 - conformance and benchmark infrastructure treated as product features
@@ -24,13 +25,14 @@ order: 40
 
 ## Roadmap themes
 
+- more catalog workflow APIs inspired by practical Gettext jobs, especially filtering, attribute transforms, and structured completeness checks
 - deeper runtime/catalog workflows on top of the compiled catalog layer
 - broader cross-ecosystem tooling and bindings
 - continued conformance growth and publication-grade benchmarking discipline
 
 ## Why the project direction matters
 
-Today Ferrocat is Rust-first. The longer-term goal is broader: a trustworthy translation core that can serve multiple ecosystems from one implementation, without forcing each host environment to re-implement catalog semantics, compile-time key derivation, and locale resolution separately.
+Today Ferrocat is Rust-first. The longer-term goal is broader: a trustworthy translation core that can serve multiple ecosystems from one implementation, without forcing each host environment to re-implement catalog semantics, compiled key derivation, and locale resolution separately.
 
 ## Follow-up reading
 

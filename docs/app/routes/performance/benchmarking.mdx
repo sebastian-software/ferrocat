@@ -6,9 +6,9 @@ order: 10
 
 # External Benchmarking
 
-`ferrocat-bench` now exposes a manual, reproducible comparison suite for external baselines.
+`ferrocat-bench` exposes a manual, reproducible comparison suite for external baselines.
 
-The internal microbenchmarks remain the fast day-to-day performance loop. The external comparison suite is for serious cross-runtime checkpoints on a documented reference host.
+The internal microbenchmarks remain the fast day-to-day performance loop. The external comparison suite is for serious cross-runtime checkpoints on a documented reference host, especially when comparing Ferrocat against GNU gettext, Node, and Python ecosystem tools.
 
 ## Reproduce A Fast Baseline
 
@@ -18,7 +18,7 @@ For a quick local signal before and after hot-path changes, use the quick offici
 cargo run --release -p ferrocat-bench -- compare gettext-official-quick-v1 --out target/benchmark/gettext-official-quick-v1.json
 ```
 
-Keep the generated JSON report with your notes when a change is performance-motivated. For publication-grade numbers, use the full `gettext-official-v1` profile on the documented reference host instead.
+Keep the generated JSON report with your notes when a change is performance-motivated. For numbers you intend to publish or compare publicly, use the full `gettext-official-v1` profile on the documented reference host.
 
 ## Reference Host Rules
 
@@ -122,12 +122,12 @@ That profile currently uses:
 
 Use it for faster day-to-day checks. Keep `gettext-official-v1` as the primary report for published comparisons.
 
-For GNU gettext CLI scenarios, the report additionally records an `empty-cli-run` baseline using a minimal header-only input. This adds:
+For GNU gettext CLI scenarios, the report also records an `empty-cli-run` baseline using a minimal header-only input. This adds:
 
 - `baseline_elapsed_ns` and adjusted sample fields for `msgcat` / `msgmerge`
 - adjusted median statistics alongside the raw end-to-end statistics
 
-The raw timing remains the primary comparison number. The adjusted timing is a secondary estimate for understanding how much of the CLI measurement is fixed overhead versus actual fixture work.
+The raw timing remains the primary comparison number. The adjusted timing is a secondary estimate for understanding how much of the CLI measurement is fixed overhead and how much is actual fixture work.
 
 For the workflow-oriented suite:
 
@@ -189,7 +189,7 @@ Workflow-only baselines currently wired:
 - `gettext-parser` is intentionally excluded from workflow benchmarking for now because its PO compile/parse path does not preserve obsolete entries in a way that is semantically fair for `msgmerge`-style workflows
 - `update_catalog` is intentionally excluded from the public cross-tool benchmark tables because it is a broader catalog-maintenance API without a clean direct equivalent in the external comparison set
 
-This is intentional. The official profile is meant to answer the small, understandable benchmark question first. The broader `gettext-compat-v1` profile is still available when you want more detail, and the advanced `mixed-*` / ICU-heavy corpora remain separate from the official gettext comparison track.
+This is intentional. The official profile answers the small, understandable benchmark question first. The broader `gettext-compat-v1` profile is available when you want more detail, and the advanced `mixed-*` / ICU-heavy corpora remain separate from the official Gettext comparison track.
 
 ## Reporting Expectations
 

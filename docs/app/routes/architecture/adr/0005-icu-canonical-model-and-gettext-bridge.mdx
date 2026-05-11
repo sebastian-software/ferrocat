@@ -14,6 +14,11 @@ high-level API split is now refined by ADR 0012. The default path is
 ICU-native and raw-text-first; classic gettext plural handling is behind the
 explicit `CatalogSemantics::GettextCompat` bridge mode.
 
+Update: the `ferrocat-icu` MessageFormat parser now exists and is part of the
+workspace. The durable decision remains that ICU-native catalog semantics are
+the long-term center, while classic gettext plural behavior is an explicit
+compatibility mode rather than the default semantic model.
+
 ## Context
 
 `ferrocat` now has a high-level catalog API layered on top of the PO core:
@@ -58,8 +63,6 @@ Concretely:
 - unclear, lossy, or mismatched gettext plural situations should produce diagnostics instead of speculative rewrites
 
 We explicitly do not make full gettext plural/header parity a short-term architectural goal.
-
-Instead, the next major semantic milestone after stabilizing the bridge is a real `ferrocat-icu` MessageFormat v1 parser.
 
 ## Consequences
 

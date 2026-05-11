@@ -6,11 +6,13 @@ order: 30
 
 # Runtime Compilation
 
-Ferrocat exposes two practical runtime-oriented layers above raw parsing.
+Parsing PO files is useful for tooling, but application runtimes usually need something smaller, faster, and easier to validate. Ferrocat exposes two compile layers above raw parsing so you can keep translator-friendly catalogs in the workflow while shipping application-ready artifacts.
+
+This is one of the main handoff points to [Palamedes](/guide/palamedes): Ferrocat resolves catalog semantics and emits host-neutral artifacts, while Palamedes can package those artifacts through framework adapters, bundlers, and runtime loading code.
 
 ## 1. Compile one normalized catalog
 
-Use `NormalizedParsedCatalog::compile` when you want a runtime-facing lookup structure with stable compiled keys, but you are still working from one normalized catalog.
+Use `NormalizedParsedCatalog::compile` when you want a runtime-facing lookup structure with stable compiled keys and you are still working from one normalized catalog.
 
 ```rust
 use ferrocat::{CompileCatalogOptions, ParseCatalogOptions, parse_catalog};
@@ -36,7 +38,7 @@ Use this layer when you want:
 
 ## 2. Compile a requested-locale artifact
 
-Use `compile_catalog_artifact` when downstream tooling wants the fully resolved locale-specific runtime map, including fallback resolution and missing-message reporting.
+Use `compile_catalog_artifact` when downstream tooling wants a fully resolved locale-specific runtime map, including fallback resolution and missing-message reporting.
 
 ```rust
 use ferrocat::{
@@ -82,5 +84,6 @@ Use this layer when you need:
 ## Related APIs
 
 - [API Overview](/reference/api-overview) for the full chooser
+- [Ferrocat And Palamedes](/guide/palamedes) for the framework integration boundary
 - [ADR 0009](/architecture/adr/0009-runtime-catalog-compiled-key-strategy) for key derivation
 - [ADR 0010](/architecture/adr/0010-compiled-catalog-artifact-api) for the locale-resolved artifact layer

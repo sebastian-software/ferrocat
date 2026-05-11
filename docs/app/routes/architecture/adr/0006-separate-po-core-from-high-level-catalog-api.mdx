@@ -34,7 +34,7 @@ These workflows also need a stable surface for future Node/N-API usage, where ex
 The project now has both layers:
 
 - the PO core (`parse_po`, `parse_po_borrowed`, `stringify_po`, low-level merge helpers)
-- the high-level catalog API (`parse_catalog`, `update_catalog`, `update_catalog_file`)
+- the high-level catalog API (`parse_catalog`, `update_catalog`, `update_catalog_file`, `combine_catalogs`, and runtime compile helpers)
 
 ## Decision
 
@@ -49,8 +49,14 @@ The PO core is:
 The high-level catalog API is:
 
 - task-oriented
-- owned and N-API-friendly
+- host-adapter-friendly
 - centered around canonical catalog semantics rather than raw PO structure
+
+Later API work made the option structs borrowing-first for request data such as
+catalog content, locales, paths, fallback chains, and selected IDs. That does
+not change this ADR's boundary: the high-level API still hides raw PO-core
+lifetimes and item internals from product workflows, while avoiding unnecessary
+request-side allocation.
 
 The high-level API may use the PO core internally, but it should not be shaped by PO-core implementation details.
 
@@ -58,7 +64,8 @@ Concretely:
 
 - low-level PO parsing and serialization remain public and supported
 - high-level catalog operations remain the preferred product-facing API
-- borrowed lifetimes and PO-core item details should not leak into the first high-level API surface
+- PO-core item details should not leak into the high-level API surface
+- borrowed request inputs are acceptable when they make host adapters cheaper without exposing PO-core internals
 - export format is a configuration choice of the high-level API, not its semantic center
 
 ## Consequences

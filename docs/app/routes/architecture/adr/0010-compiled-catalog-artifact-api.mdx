@@ -20,7 +20,7 @@ That API is intentionally narrow:
 - it derives stable runtime lookup keys
 - it does not resolve locale fallback chains or report requested-locale gaps
 
-Downstream tools such as Palamedes still need an additional step after parsing:
+Downstream tools such as [Palamedes](/guide/palamedes) still need an additional step after parsing:
 
 - combine requested, fallback, and source locale catalogs
 - resolve effective runtime messages
@@ -51,6 +51,12 @@ The two compile layers now have distinct responsibilities:
 - `NormalizedParsedCatalog::compile`: small typed runtime lookup for one catalog
 - `compile_catalog_artifact`: locale-resolved runtime artifact for downstream host adapters
 
+The public surface later gained a narrow selected-artifact companion,
+`compile_catalog_artifact_selected`, plus `CompiledCatalogIdIndex` helpers. That
+extension keeps the same semantics as `compile_catalog_artifact`, but lets host
+adapters compile only the message IDs they already know a module, route, or
+bundle chunk needs.
+
 Artifact compilation semantics are explicit:
 
 - only non-obsolete messages participate
@@ -68,6 +74,7 @@ Positive:
 
 - locale fallback semantics move into Ferrocat instead of being duplicated downstream
 - host adapters can stay focused on packaging and code generation
+- bundler-aware adapters can ask for selected runtime IDs without rebuilding locale-resolution semantics
 - missing-message reporting becomes consistent with compile behavior
 - final ICU validation happens at the runtime-artifact boundary where it matters
 

@@ -6,31 +6,32 @@ import {
   FileStack,
   Gauge,
   GitBranch,
+  Layers3,
 } from "lucide-react"
 import type { MetaFunction } from "react-router"
 import { Link } from "react-router"
 
 export const meta: MetaFunction = () => [
-  { title: "Ferrocat — Performance-first translation catalogs" },
+  { title: "Ferrocat - Rust-native translation catalogs" },
   {
     name: "description",
     content:
-      "Rust-native translation catalogs for teams that need Gettext compatibility, ICU semantics, and JSON-friendly runtime workflows. Benchmarked, not hand-waved.",
+      "Rust-native translation catalogs for teams that need PO workflows, ICU semantics, JSON-friendly runtime delivery, and measured performance.",
   },
 ]
 
 const perfPillars = [
   {
     title: "Byte-oriented scanning",
-    body: "PO parsing operates directly on byte sequences. No intermediate string allocations on the critical path.",
+    body: "PO parsing works directly on byte sequences, keeping the hot path tight for large catalogs.",
   },
   {
-    title: "Borrowed & owned APIs",
-    body: "Zero-copy borrowed access for read-heavy workloads. Owned structures when you need to mutate.",
+    title: "Borrowed and owned APIs",
+    body: "Read-heavy paths can borrow from the input buffer. Mutation flows use owned catalog structures.",
   },
   {
-    title: "Profiling-driven iteration",
-    body: "Performance claims backed by real profiling sessions and published benchmark fixtures — not guesswork.",
+    title: "Benchmark fixtures",
+    body: "Parser, serializer, merge, combine, and runtime paths are measured against repeatable fixtures.",
   },
 ]
 
@@ -39,7 +40,7 @@ const catalogModes = [
     title: "Classic Gettext",
     storage: "Gettext PO",
     semantics: "Gettext-compatible plurals",
-    body: "Stay close to traditional gettext catalogs and familiar msgid_plural workflows.",
+    body: "Stay close to traditional PO catalogs and familiar msgid_plural workflows.",
   },
   {
     title: "ICU-native PO",
@@ -51,7 +52,7 @@ const catalogModes = [
     title: "ICU-native NDJSON",
     storage: "NDJSON",
     semantics: "ICU MessageFormat",
-    body: "JSON-friendly line-oriented storage for external systems and modern toolchains.",
+    body: "Use one-message-per-line JSON records that are easier to review, merge, stream, and batch.",
   },
 ]
 
@@ -64,13 +65,13 @@ const proofPoints = [
 const entryPoints = [
   {
     title: "Get started",
-    body: "Install, parse, serialize. Learn where the high-level catalog APIs fit.",
+    body: "Install Ferrocat, parse your first PO file, and find the right catalog workflow.",
     link: "/guide/getting-started",
     icon: <BookOpenText size={20} />,
   },
   {
     title: "API surface",
-    body: "Choose between PO core, catalog workflows, and ICU helpers.",
+    body: "Choose between PO core APIs, high-level catalog workflows, and ICU helpers.",
     link: "/reference/api-overview",
     icon: <Boxes size={20} />,
   },
@@ -81,8 +82,14 @@ const entryPoints = [
     icon: <Gauge size={20} />,
   },
   {
+    title: "Palamedes",
+    body: "See how Ferrocat powers the catalog layer for the JS and TS i18n framework.",
+    link: "/guide/palamedes",
+    icon: <Layers3 size={20} />,
+  },
+  {
     title: "Architecture",
-    body: "ADRs and engineering notes behind semantic choices and hot paths.",
+    body: "ADRs and engineering notes behind semantic choices, storage modes, and hot paths.",
     link: "/architecture/adr",
     icon: <FileStack size={20} />,
   },
@@ -92,12 +99,12 @@ export default function HomePage() {
   return (
     <div className="ferro-home">
       <section className="ferro-hero">
-        <p className="ferro-eyebrow">Rust-native localization toolkit</p>
-        <h1>Your localization layer shouldn't be the&nbsp;bottleneck.</h1>
+        <p className="ferro-eyebrow">Rust-native translation catalogs</p>
+        <h1>Localization catalogs that keep up with your product.</h1>
         <p className="ferro-lead">
-          Ferrocat brings Gettext PO workflows, ICU MessageFormat semantics,
-          and JSON delivery into one Rust-native toolkit — with conformance
-          evidence, benchmark discipline, and explicit architecture boundaries.
+          Ferrocat gives Rust teams real PO workflows, explicit ICU and Gettext
+          semantics, deterministic catalog updates, and runtime artifacts that
+          are fast to load.
         </p>
         <pre className="ferro-install">
           <code>cargo add ferrocat</code>
@@ -122,13 +129,13 @@ export default function HomePage() {
 
       <section className="ferro-perf">
         <div className="ferro-section-heading">
-          <p className="ferro-eyebrow">Why it's fast</p>
-          <h2>Speed from structure, not&nbsp;shortcuts.</h2>
+          <p className="ferro-eyebrow">Performance</p>
+          <h2>Fast paths are designed, measured, and&nbsp;documented.</h2>
         </div>
         <p className="ferro-sublead">
-          Every hot path in Ferrocat is Rust-native, byte-oriented, and shaped
-          by profiling — not by porting legacy abstractions into a faster
-          language.
+          Ferrocat avoids treating PO files as tiny configuration blobs. Large
+          catalogs get byte-oriented parsing, borrowed read paths, dedicated
+          runtime compilation, and benchmark coverage.
         </p>
         <div className="ferro-perf-grid">
           {perfPillars.map((pillar) => (
@@ -149,6 +156,12 @@ export default function HomePage() {
           <p className="ferro-eyebrow">Three catalog modes</p>
           <h2>Storage and semantics stay&nbsp;explicit.</h2>
         </div>
+        <p className="ferro-sublead">
+          Ferrocat is the catalog layer Palamedes can build on: PO when you need
+          translator tooling, NDJSON when large-team Git workflows need cleaner
+          diffs, and compiled artifacts when applications need fast runtime
+          loading.
+        </p>
         <div className="ferro-mode-grid">
           {catalogModes.map((mode) => (
             <article className="ferro-mode-card" key={mode.title}>
@@ -172,10 +185,9 @@ export default function HomePage() {
       <section className="ferro-proof">
         <div className="ferro-proof-inner">
           <div className="ferro-section-heading">
-            <p className="ferro-eyebrow">Proof, not vibes</p>
+            <p className="ferro-eyebrow">Evidence</p>
             <h2>
-              Conformance and performance are part of the
-              product&nbsp;surface.
+              Compatibility and performance are treated as product behavior.
             </h2>
           </div>
           <div className="ferro-proof-stats">
@@ -229,7 +241,7 @@ export default function HomePage() {
       </section>
 
       <section className="ferro-cta">
-        <h2>Ready to dig&nbsp;in?</h2>
+        <h2>Build with catalog behavior you can inspect.</h2>
         <div className="ferro-actions">
           <Link
             className="ferro-button ferro-button-primary"

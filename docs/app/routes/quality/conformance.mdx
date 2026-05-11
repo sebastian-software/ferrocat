@@ -5,7 +5,9 @@ description: "Conformance snapshot, methodology, and current upstream-derived co
 
 # Conformance
 
-`ferrocat` now carries a hermetic conformance snapshot under [repository conformance snapshot](https://github.com/sebastian-software/ferrocat/tree/main/conformance), with case definitions in [case definitions](https://github.com/sebastian-software/ferrocat/tree/main/crates/ferrocat-conformance/src/cases).
+Ferrocat's conformance work answers a simple product question: when a catalog uses real-world PO or ICU behavior, do we match the ecosystem expectations that users already depend on?
+
+The repository carries a hermetic conformance snapshot under [repository conformance snapshot](https://github.com/sebastian-software/ferrocat/tree/main/conformance), with case definitions in [case definitions](https://github.com/sebastian-software/ferrocat/tree/main/crates/ferrocat-conformance/src/cases).
 
 Phase 1 intentionally excludes GNU `gettext`. The current snapshot uses:
 
@@ -49,7 +51,7 @@ Existing local tests still provide broad regression coverage in:
 - `parse`, `serialize`, `merge`, and `api` behavior inside `ferrocat-po`
 - parser and utility behavior inside `ferrocat-icu`
 
-The conformance layer is intentionally narrower and source-attributed. It exists to answer a different question: whether `ferrocat` matches independently maintained reference behavior on representative upstream cases.
+The conformance layer is intentionally narrower and source-attributed. It exists to answer a different question: whether Ferrocat matches independently maintained reference behavior on representative upstream cases.
 
 ## Scoreboard
 

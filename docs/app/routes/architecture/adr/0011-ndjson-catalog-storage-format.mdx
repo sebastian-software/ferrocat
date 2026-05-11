@@ -23,6 +23,7 @@ There is also growing interest in a storage format that is:
 
 - simpler to parse than PO
 - easy to diff and stream
+- easier to merge in large repositories because each message can live on its own line
 - friendlier to AI/pipeline-style tooling
 - already close to likely translation exchange payloads
 
@@ -86,8 +87,10 @@ Positive:
 
 - high-level catalog workflows can now read and write a simpler storage format
 - message payloads become easier to stream, diff, batch, and hand to external tooling
+- one-message-per-line records make pull request review and ordinary Git conflict handling more practical for large teams, without requiring custom merge drivers for routine catalog edits
 - the PO core stays specialized and performance-focused
 - NDJSON stays aligned with the canonical model instead of re-encoding gettext slot details
+- Palamedes and other host adapters get a storage option that fits generated app catalogs and large-team review flows better than PO in some projects
 
 Negative:
 

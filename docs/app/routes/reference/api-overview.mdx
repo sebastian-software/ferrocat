@@ -5,15 +5,18 @@ description: "Guide to Ferrocat's public API layers and when to use each entry p
 
 # API Overview
 
-`ferrocat` currently exposes three practical layers of API:
+Ferrocat's public API is organized around jobs, not around command-line tool names. Most callers start in one of four places:
 
 - low-level Gettext PO parsing and writing
-- catalog-level workflows across Gettext PO and NDJSON storage
-- ICU MessageFormat parsing
+- catalog-level merge, combine, update, and runtime compilation workflows
+- explicit storage and semantics choices across PO, NDJSON, Gettext-compatible plurals, and ICU MessageFormat
+- ICU MessageFormat parsing and validation
 
-This page is a lightweight guide for choosing the right function before there is a fuller generated API reference.
+Use this page when you know the catalog task you want to perform and need the right Rust entry point.
 
 If you want the workflow-level view first, read [Gettext Task Landscape](/reference/gettext-task-landscape). It explains how extraction, parsing, merging, combining, filtering, validation, and runtime compilation fit together across GNU gettext, common libraries, and Ferrocat.
+
+If you want the application-framework view, read [Ferrocat And Palamedes](/guide/palamedes). Palamedes owns JS/TS extraction, macros, framework adapters, and runtime integration; Ferrocat owns the catalog semantics those layers should share.
 
 ## Supported Catalog Modes
 
@@ -27,6 +30,8 @@ At the high-level catalog layer, `ferrocat` supports three explicit combinations
 
 `NDJSON + Gettext-compatible plurals` is intentionally unsupported. In API terms, that means `CatalogStorageFormat::Ndjson` is only available with `CatalogSemantics::IcuNative`.
 
+NDJSON is the line-delimited JSON storage choice. It is useful when catalogs are maintained by larger teams, automation, or external systems that benefit from one message per line: diffs stay focused, merge conflicts are easier to isolate, and hosted Git review workflows do not need custom merge-driver support to make routine catalog edits manageable.
+
 ## Quick Choice
 
 | If you want to... | Use |
@@ -34,7 +39,7 @@ At the high-level catalog layer, `ferrocat` supports three explicit combinations
 | Parse a Gettext PO file into an owned Rust structure | `parse_po` |
 | Parse a Gettext PO file while borrowing from the input string where possible | `parse_po_borrowed` |
 | Turn a `PoFile` back into Gettext PO text | `stringify_po` |
-| Merge fresh extracted gettext messages into an existing Gettext PO file | `merge_catalog` |
+| Merge fresh extracted Gettext messages into an existing Gettext PO file | `merge_catalog` |
 | Combine multiple catalogs with deterministic conflict and selection rules | `combine_catalogs` |
 | Read a Gettext PO or NDJSON catalog into the higher-level canonical catalog model | `parse_catalog` |
 | Build keyed lookup/helpers on top of a parsed catalog | `ParsedCatalog::into_normalized_view` |
@@ -96,7 +101,7 @@ For the common required fields, the option structs also provide `new(...)` const
 
 ### `merge_catalog`
 
-Use this for the basic gettext merge step:
+Use this for the basic Gettext-style merge step:
 
 - start from an existing Gettext PO catalog
 - feed in freshly extracted messages
@@ -104,13 +109,13 @@ Use this for the basic gettext merge step:
 - add new entries
 - mark removed entries as obsolete
 
-This is the closest `ferrocat` equivalent to the core "merge updated template/messages into an existing catalog" workflow that users often associate with GNU `msgmerge`.
+This is the closest Ferrocat equivalent to the core "merge updated template/messages into an existing catalog" workflow that users often associate with GNU `msgmerge`.
 
-Choose `merge_catalog` when you want the leaner, more direct merge operation and already have data in classic gettext-like shapes.
+Choose `merge_catalog` when you want the leaner, more direct merge operation and already have data in classic Gettext-like shapes.
 
-In practice this is the "fast path" workflow API: it stays close to classic Gettext PO merge behavior and avoids the extra canonical catalog projection and post-processing done by `update_catalog`.
+In practice this is the fast path workflow API: it stays close to classic Gettext PO merge behavior and avoids the extra canonical catalog projection and post-processing done by `update_catalog`.
 
-Ferrocat assumes exact source-string identity here. If your project uses real product copy as `msgid`, this keeps updates predictable: matching messages keep translations, new source strings are added, and removed source strings follow the obsolete strategy. Fuzzy matching is intentionally not the default center of this workflow.
+Ferrocat assumes exact catalog identity here: `msgid` plus optional `msgctxt`. That works for classic ID-style catalogs and for projects that use real product copy as `msgid`. Matching messages keep translations, new messages are added, and removed messages follow the obsolete strategy. Fuzzy matching is intentionally outside the default workflow.
 
 ### `combine_catalogs`
 
@@ -120,7 +125,7 @@ This is the Rust-native counterpart to the useful parts of GNU `msgcat`, `msgcom
 
 - combine N catalogs in one call
 - treat `msgid` plus `msgctxt` as the message identity
-- keep the first translation by default, so existing translations can be listed before newer templates
+- keep the first translation by default, so existing catalogs can be listed before newer templates
 - choose `UseLast` or `Error` when overlay or strict-conflict behavior is more appropriate
 - select all, common, less-common, or unique identities with `CatalogCombineSelection`
 - skip obsolete definitions by default, with an explicit opt-in when obsolete entries should participate
@@ -138,7 +143,7 @@ Choose this when your application wants semantic catalog data rather than just P
 High-level catalog parsing now also takes an explicit `storage_format`:
 
 - `CatalogStorageFormat::Po` for classic Gettext PO catalogs
-- `CatalogStorageFormat::Ndjson` for Ferrocat's frontmatter + NDJSON catalog storage
+- `CatalogStorageFormat::Ndjson` for Ferrocat's frontmatter + one-message-per-line NDJSON catalog storage
 
 High-level parsing also takes an explicit `CatalogSemantics`:
 
@@ -193,7 +198,7 @@ It corresponds to `CompiledKeyStrategy::FerrocatV1`.
 
 ### `compile_catalog_artifact`
 
-Use this when you want the final host-neutral runtime artifact for one requested locale rather than one catalog's typed lookup payload.
+Use this when you want the final host-neutral runtime artifact for one requested locale instead of one catalog's typed lookup payload.
 
 This sits one step above `NormalizedParsedCatalog::compile`:
 
@@ -205,6 +210,8 @@ This sits one step above `NormalizedParsedCatalog::compile`:
 - validate the final runtime strings as ICU messages
 
 Choose this when your downstream tooling needs locale resolution semantics centralized in Ferrocat instead of rebuilding them in a host adapter.
+
+This is the main boundary for Palamedes-style integrations. Ferrocat should decide the effective locale artifact; Palamedes or another host adapter should decide how that artifact becomes framework modules, sidecars, or runtime payloads.
 
 `CompileCatalogArtifactOptions` borrows locale strings and the fallback-chain slice, which keeps host-side request assembly cheap even when compilation is performance-sensitive.
 
@@ -269,6 +276,8 @@ Compared with `merge_catalog`, this is the "full semantics" path. It is the bett
 
 Like parsing, updates now use an explicit `storage_format`. PO remains the default. NDJSON storage uses a small frontmatter header plus one JSON message record per line.
 
+Choose NDJSON when collaboration and automation matter more than maximum PO fidelity. The one-record-per-line shape keeps large catalog diffs readable and makes ordinary Git conflict handling more practical, including hosted review flows where custom `.gitattributes` merge drivers may not be part of the web merge path.
+
 Updates also use an explicit `CatalogSemantics`:
 
 - `IcuNative` is the default and writes raw ICU/text messages
@@ -286,7 +295,7 @@ It reads the current file if present, runs the full update, and only writes back
 
 Choose this for CLI tools, task runners, or build/dev pipelines that work directly on catalog files on disk.
 
-Like `update_catalog`, it accepts `CatalogUpdateInput`, so source-string-first tooling can choose between a raw source-first path and an explicitly structured plural path without having to write PO/NDJSON itself.
+Like `update_catalog`, it accepts `CatalogUpdateInput`, so extractor tooling can choose between a raw source-first path and an explicitly structured plural path without having to write PO/NDJSON itself.
 
 `UpdateCatalogFileOptions` borrows both the path and the locale/header inputs, so file-based automation can call it without constructing throwaway owned request objects.
 
@@ -316,12 +325,12 @@ Use this after `parse_icu` when you want the variable names referenced by the me
 
 ## Practical Rule Of Thumb
 
-- editing raw PO files: `parse_po` + `stringify_po`
-- hot-path PO inspection: `parse_po_borrowed`
-- classic gettext merge step: `merge_catalog`
+- Editing raw PO files: `parse_po` + `stringify_po`
+- Hot-path PO inspection: `parse_po_borrowed`
+- Classic Gettext merge step: `merge_catalog`
 - N-way catalog overlays and set operations: `combine_catalogs`
-- full app-level catalog maintenance: `update_catalog` or `update_catalog_file`
-- parsed catalog consumption with keyed accessors: `parse_catalog` + `into_normalized_view`
-- locale-specific runtime artifact generation: `compile_catalog_artifact`
-- selected locale artifact generation by compiled ID: `compile_catalog_artifact_selected`
+- Full app-level catalog maintenance: `update_catalog` or `update_catalog_file`
+- Parsed catalog consumption with keyed accessors: `parse_catalog` + `into_normalized_view`
+- Locale-specific runtime artifact generation: `compile_catalog_artifact`
+- Selected locale artifact generation by compiled ID: `compile_catalog_artifact_selected`
 - ICU analysis: `parse_icu`
