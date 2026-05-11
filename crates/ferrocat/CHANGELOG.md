@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.10.0](https://github.com/sebastian-software/ferrocat/compare/ferrocat-v0.9.0...ferrocat-v0.10.0) (2026-05-11)
+
+
+### Features
+
+* **po:** add catalog combine API ([761c291](https://github.com/sebastian-software/ferrocat/commit/761c29145b0aa20fc62b53f70d164dcb27abb027))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * ferrocat-icu bumped from 0.9.0 to 0.10.0
+    * ferrocat-po bumped from 0.9.0 to 0.10.0
+
 ## [0.9.0](https://github.com/sebastian-software/ferrocat/compare/ferrocat-v0.8.0...ferrocat-v0.9.0) (2026-03-19)
 
 

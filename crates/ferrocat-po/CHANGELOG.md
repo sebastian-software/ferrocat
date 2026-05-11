@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.10.0](https://github.com/sebastian-software/ferrocat/compare/ferrocat-po-v0.9.0...ferrocat-po-v0.10.0) (2026-05-11)
+
+
+### Features
+
+* **api:** improve catalog ergonomics and release checks ([210c240](https://github.com/sebastian-software/ferrocat/commit/210c24013c0e27e0e0180c974ab1305103b7aad4))
+* **po:** add catalog combine API ([761c291](https://github.com/sebastian-software/ferrocat/commit/761c29145b0aa20fc62b53f70d164dcb27abb027))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * ferrocat-icu bumped from 0.9.0 to 0.10.0
+
 ## [0.9.0](https://github.com/sebastian-software/ferrocat/compare/ferrocat-po-v0.8.0...ferrocat-po-v0.9.0) (2026-03-19)
 
 

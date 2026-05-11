@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.10.0](https://github.com/sebastian-software/ferrocat/compare/ferrocat-bench-v0.9.0...ferrocat-bench-v0.10.0) (2026-05-11)
+
+
+### Features
+
+* **po:** add catalog combine API ([761c291](https://github.com/sebastian-software/ferrocat/commit/761c29145b0aa20fc62b53f70d164dcb27abb027))
+
+
+### Bug Fixes
+
+* satisfy stable clippy lint ([7941c9a](https://github.com/sebastian-software/ferrocat/commit/7941c9ae1ac4c2ea6b13f9dd7889db4e36dacfba))
+
 ## [0.9.0](https://github.com/sebastian-software/ferrocat/compare/ferrocat-bench-v0.8.0...ferrocat-bench-v0.9.0) (2026-03-19)
 
 
