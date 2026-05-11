@@ -11,6 +11,8 @@ Serious localization systems still depend on Gettext PO catalogs, translator-fac
 
 `ferrocat` brings those concerns into one Rust-native architecture with explicit catalog modes, stable crate boundaries, source-attributed conformance work, and performance tuning grounded in borrowing, byte-oriented hot paths, and profiling instead of hand-waving.
 
+The project is designed for source-string-first teams: use real English product copy as the `msgid`, keep translator context in the catalog, and let tooling preserve existing translations as source catalogs evolve. That is closer to modern workflows popularized by tools like Lingui than to ID-only resource files. Fuzzy matching is therefore not the center of the design; predictable catalog updates, explicit conflicts, and fast runtime artifacts are.
+
 ## What Ferrocat Optimizes For
 
 - **Real translation workflows, not toy dictionaries.** Gettext PO still matters in production, and `ferrocat` treats comments, references, contexts, and plural behavior as first-class concerns.
@@ -36,6 +38,7 @@ The canonical documentation now lives on the docs site:
 - [Getting started](https://sebastian-software.github.io/ferrocat/guide/getting-started)
 - [Catalog modes](https://sebastian-software.github.io/ferrocat/guide/catalog-modes)
 - [API overview](https://sebastian-software.github.io/ferrocat/reference/api-overview)
+- [Gettext task landscape](https://sebastian-software.github.io/ferrocat/reference/gettext-task-landscape)
 - [Performance docs](https://sebastian-software.github.io/ferrocat/performance)
 - [ADR index](https://sebastian-software.github.io/ferrocat/architecture/adr)
 
@@ -65,6 +68,8 @@ The project goal is to close that gap with a Rust-native implementation that giv
 - a cleaner semantic center for ICU-aware catalog work
 - explicit runtime-oriented compile layers for downstream adapters and bundlers
 - compatibility evidence and benchmark methodology treated as part of the product surface
+
+In practical terms, Ferrocat is not trying to clone every GNU gettext command. It studies the jobs those commands solve, then exposes Rust APIs for the parts modern applications need most: parse, inspect, merge, combine, update, validate, and compile catalogs without shelling out to a toolchain.
 
 ## Quick Start
 
@@ -103,6 +108,7 @@ If you already know what kind of question you have, these are the fastest entry 
 
 - [Getting started](https://sebastian-software.github.io/ferrocat/guide/getting-started) for installation, quick start, and the main next steps
 - [API overview](https://sebastian-software.github.io/ferrocat/reference/api-overview) for choosing between PO core, catalog workflows, and ICU helpers
+- [Gettext task landscape](https://sebastian-software.github.io/ferrocat/reference/gettext-task-landscape) for the workflow-level map across GNU gettext, common libraries, and Ferrocat
 - [Performance docs](https://sebastian-software.github.io/ferrocat/performance) for benchmark methodology, fixtures, and history
 - [Quality docs](https://sebastian-software.github.io/ferrocat/quality) for conformance and coverage
 - [ADR index](https://sebastian-software.github.io/ferrocat/architecture/adr) for architecture decisions and longer-term technical direction

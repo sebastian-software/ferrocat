@@ -1,0 +1,57 @@
+---
+title: "Gettext Task Landscape"
+description: "A workflow-level map of gettext-inspired catalog jobs, ecosystem patterns, and Ferrocat's product direction."
+---
+
+# Gettext Task Landscape
+
+Ferrocat is not trying to be a command-line clone of GNU gettext. The goal is to understand the jobs that gettext-shaped tooling solves, then expose the useful parts as fast, explicit Rust APIs.
+
+That distinction matters. A lot of modern localization stacks use real source strings as message IDs, not opaque keys. This source-string-first style is common in gettext itself and in tools such as Lingui. In that model, fuzzy matching is helpful in some translator-centered workflows, but it is not the foundation of the system. The core promise is simpler: keep source text readable, preserve translations when catalogs evolve, surface conflicts clearly, and compile the result into something applications can use efficiently.
+
+## Task Matrix
+
+| Task | Gettext idea | Common ecosystem pattern | Ferrocat today | What it suggests next |
+|---|---|---|---|---|
+| Extract source messages | `xgettext` scans code and writes POT files | Babel uses configurable extraction methods for Python apps and templates | Not part of the core crate | Keep extraction host-specific; define clean adapter inputs instead of embedding every language parser |
+| Parse and write PO files | PO is the human-editable catalog format | `pofile`, `gettext-parser`, and `polib` expose editable object models | `parse_po`, `parse_po_borrowed`, `stringify_po` | Add richer source positions only when the public error model is ready |
+| Update a catalog from new source | `msgmerge` carries existing translations forward into a new template | Many projects script this around gettext binaries or PO libraries | `merge_catalog`, `update_catalog`, `update_catalog_file` | Prefer exact source-string identity and explicit obsolete strategies over fuzzy-first behavior |
+| Combine catalogs | `msgcat`, `msgcomm`, and `msguniq` merge or select messages by occurrence | Usually handled by shell pipelines or ad hoc scripts | `combine_catalogs` with explicit conflict and selection rules | Expand selection/reporting only when real workflows need it |
+| Filter or edit message attributes | `msgattrib` and `msggrep` select fuzzy, untranslated, obsolete, or matching messages | `polib`-style object traversal makes this easy but unstructured | Low-level parsed data is available; no high-level predicate API yet | Add structured filtering and transform APIs for CI and translator workflows |
+| Check completeness | `msgcmp` checks whether a translation catalog covers a template | CI often shells out or writes custom checks | Runtime artifact compilation reports missing messages in some flows | Add a focused completeness/check API with machine-readable diagnostics |
+| Validate translations | `msgfmt` checks and compiles catalogs | `gettext-parser` and `polib` can compile PO/MO; app stacks add their own checks | ICU validation exists through catalog artifact compilation | Add task-oriented validation reports before considering full MO parity |
+| Build runtime payloads | `msgfmt` produces MO files for libintl-style runtime lookup | Node/Python libraries often parse or compile PO/MO directly | `compile_catalog_artifact` emits host-neutral runtime maps | Keep MO support optional; prioritize modern bundle/runtime artifacts |
+| Handle plural semantics | Gettext uses `Plural-Forms`, `msgid_plural`, and `msgstr[n]` | Libraries vary in how much plural logic they understand | `GettextCompat` for classic PO, `IcuNative` for ICU messages | Keep semantic mode choices explicit instead of guessing |
+| Work with non-UTF-8 catalogs | GNU gettext has deep charset conversion support | `gettext-parser` handles charset conversion for Buffer input | Ferrocat is UTF-8-oriented today | Document charset boundaries before adding conversion complexity |
+
+## Ecosystem Reference
+
+| Project | Main role | Useful lesson for Ferrocat |
+|---|---|---|
+| GNU gettext | Full reference toolchain for extraction, merge, manipulation, validation, MO compilation, and runtime lookup | Treat the tools as a catalog of jobs, not as an API shape to copy |
+| `pofile` | JavaScript PO parse and serialize library | A small editable PO object model is valuable when callers want direct control |
+| `gettext-parser` | Node.js PO/MO parse and compile library | MO support, stream parsing, and charset handling are useful comparison points |
+| Python `polib` | Mature PO/POT/MO manipulation library | Entry-level mutation and filtering are important everyday workflows |
+| Babel | Python localization workflow with pluggable extraction | Extraction belongs near the host language and framework |
+| Rust `polib` | Rust PO/MO load, manipulate, and save library | UTF-8-only PO/MO support is a pragmatic baseline to compare against |
+| `gettext-rs` | Safe Rust bindings for gettext runtime APIs | Runtime lookup and catalog authoring are different layers and should stay separate |
+
+## Product Direction
+
+Ferrocat should keep moving toward task-oriented catalog APIs:
+
+- **Source-string-first catalog maintenance.** Real source strings remain the default identity surface. Fuzzy matching can be considered later, but it should not hide source changes or silently rewrite translator intent.
+- **Structured diagnostics over terminal text.** Library users need data they can show in CI, editors, dashboards, and release tooling.
+- **Explicit conflict policy.** Combine and update workflows should make precedence and failure behavior visible in options.
+- **Host-specific extraction.** JavaScript, Rust, Python, Markdown, templates, and framework conventions deserve adapters, not one oversized parser in the core crate.
+- **Runtime output for modern apps.** MO compatibility is useful to evaluate, but host-neutral compiled artifacts are a better default for bundlers, edge runtimes, and multi-language product stacks.
+
+## Near-Term Backlog
+
+The most promising gettext-inspired additions are:
+
+- catalog filtering and attribute transforms inspired by `msgattrib` and `msggrep`
+- completeness checks inspired by `msgcmp`
+- broader validation reports inspired by `msgfmt`
+- optional MO read/write evaluation against existing Rust and Node libraries
+- clearer extractor adapter contracts for source-string-first tools

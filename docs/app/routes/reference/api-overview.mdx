@@ -13,6 +13,8 @@ description: "Guide to Ferrocat's public API layers and when to use each entry p
 
 This page is a lightweight guide for choosing the right function before there is a fuller generated API reference.
 
+If you want the workflow-level view first, read [Gettext Task Landscape](/reference/gettext-task-landscape). It explains how extraction, parsing, merging, combining, filtering, validation, and runtime compilation fit together across GNU gettext, common libraries, and Ferrocat.
+
 ## Supported Catalog Modes
 
 At the high-level catalog layer, `ferrocat` supports three explicit combinations of storage format and message semantics:
@@ -107,6 +109,8 @@ This is the closest `ferrocat` equivalent to the core "merge updated template/me
 Choose `merge_catalog` when you want the leaner, more direct merge operation and already have data in classic gettext-like shapes.
 
 In practice this is the "fast path" workflow API: it stays close to classic Gettext PO merge behavior and avoids the extra canonical catalog projection and post-processing done by `update_catalog`.
+
+Ferrocat assumes exact source-string identity here. If your project uses real product copy as `msgid`, this keeps updates predictable: matching messages keep translations, new source strings are added, and removed source strings follow the obsolete strategy. Fuzzy matching is intentionally not the default center of this workflow.
 
 ### `combine_catalogs`
 
