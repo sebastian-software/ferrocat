@@ -107,13 +107,16 @@ impl PluralProfile {
     ) -> BTreeMap<String, String> {
         let mut translation = BTreeMap::new();
         for category in &self.categories {
-            let value = match category.as_str() {
-                "one" => source.one.clone().unwrap_or_else(|| source.other.clone()),
-                _ => source.other.clone(),
-            };
-            translation.insert(category.clone(), value);
+            translation.insert(category.clone(), self.source_locale_value(category, source));
         }
         translation
+    }
+
+    pub(super) fn source_locale_value(&self, category: &str, source: &PluralSource) -> String {
+        match category {
+            "one" => source.one.clone().unwrap_or_else(|| source.other.clone()),
+            _ => source.other.clone(),
+        }
     }
 
     pub(super) fn empty_translation(&self) -> BTreeMap<String, String> {
@@ -297,9 +300,7 @@ pub(super) fn synthesize_icu_plural(variable: &str, branches: &BTreeMap<String, 
     out.push_str(variable);
     out.push_str(", plural,");
     for category in sorted_plural_keys(branches) {
-        let value = branches
-            .get(&category)
-            .expect("sorted plural keys must exist in the branch map");
+        let value = branches.get(&category).map_or("", String::as_str);
         out.push(' ');
         out.push_str(&category);
         out.push_str(" {");

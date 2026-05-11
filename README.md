@@ -87,11 +87,14 @@ assert!(rendered.contains(r#"msgstr "Welt""#));
 
 For the common “merge fresh extracted messages into an existing catalog” workflow, `merge_catalog` is the lean gettext-style entry point. For richer high-level flows across PO and NDJSON storage, the docs site’s [API overview](https://sebastian-software.github.io/ferrocat/reference/api-overview) is the best next stop.
 
+`parse_po_borrowed` is the allocation-light PO parser for read-heavy paths. It borrows from the source buffer where possible, but it currently requires LF-only input; normalize CRLF input first or use `parse_po`, which handles line-ending normalization internally.
+
 ## Compatibility Snapshot
 
 - **MSRV:** Rust `1.88`
 - **MSRV policy:** keep support roughly 9-12 months behind current stable when practical, rather than tracking only the newest stable toolchain
 - **Semver:** the public API is treated seriously, but the project is still pre-`1.0`
+- **Error surface:** PO parse errors are intentionally compact today and do not yet expose source positions; adding structured positions would be a semver-relevant API change.
 - **Documentation surface:** README examples, rustdoc examples, and the docs site aim to stay aligned
 
 ## Docs Paths

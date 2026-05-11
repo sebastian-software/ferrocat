@@ -27,4 +27,6 @@ Use this crate when you want that surface directly:
 - `compile_catalog_artifact` for requested-locale runtime artifacts with fallback resolution and missing reports
 - `compile_catalog_artifact_selected` for selected compiled-ID subsets of those runtime artifacts
 
+`parse_po_borrowed` keeps many fields as references into the input buffer, so it currently accepts LF-only content. If your source can contain CRLF or bare CR line endings, normalize it before calling `parse_po_borrowed` or use the owned `parse_po` parser.
+
 If you want the umbrella dependency instead, use [`ferrocat`](https://docs.rs/ferrocat).

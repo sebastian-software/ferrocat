@@ -51,6 +51,14 @@ impl Default for CompileCatalogOptions<'_> {
     }
 }
 
+impl CompileCatalogOptions<'_> {
+    /// Creates runtime catalog compile options with default behavior.
+    #[must_use]
+    pub fn new() -> Self {
+        Self::default()
+    }
+}
+
 /// Options controlling high-level compiled catalog artifact generation.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CompileCatalogArtifactOptions<'a> {
@@ -80,6 +88,20 @@ impl Default for CompileCatalogArtifactOptions<'_> {
             source_fallback: false,
             strict_icu: false,
             semantics: CatalogSemantics::IcuNative,
+        }
+    }
+}
+
+impl<'a> CompileCatalogArtifactOptions<'a> {
+    /// Creates artifact compile options with required locales set.
+    ///
+    /// Optional fields use the same defaults as [`CompileCatalogArtifactOptions::default`].
+    #[must_use]
+    pub fn new(requested_locale: &'a str, source_locale: &'a str) -> Self {
+        Self {
+            requested_locale,
+            source_locale,
+            ..Self::default()
         }
     }
 }
@@ -120,7 +142,24 @@ impl Default for CompileSelectedCatalogArtifactOptions<'_> {
     }
 }
 
-impl CompileSelectedCatalogArtifactOptions<'_> {
+impl<'a> CompileSelectedCatalogArtifactOptions<'a> {
+    /// Creates selected artifact compile options with required locales and IDs set.
+    ///
+    /// Optional fields use the same defaults as [`CompileSelectedCatalogArtifactOptions::default`].
+    #[must_use]
+    pub fn new(
+        requested_locale: &'a str,
+        source_locale: &'a str,
+        compiled_ids: &'a [String],
+    ) -> Self {
+        Self {
+            requested_locale,
+            source_locale,
+            compiled_ids,
+            ..Self::default()
+        }
+    }
+
     pub(super) fn artifact_options(&self) -> CompileCatalogArtifactOptions<'_> {
         CompileCatalogArtifactOptions {
             requested_locale: self.requested_locale,
@@ -428,4 +467,33 @@ pub struct CompiledCatalogDiagnostic {
     pub msgctxt: Option<String>,
     /// Locale whose final runtime message produced the diagnostic.
     pub locale: String,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        CompileCatalogArtifactOptions, CompileCatalogOptions,
+        CompileSelectedCatalogArtifactOptions, CompiledKeyStrategy,
+    };
+    use crate::api::CatalogSemantics;
+
+    #[test]
+    fn compile_option_constructors_set_required_fields_and_keep_defaults() {
+        let compile = CompileCatalogOptions::new();
+        assert_eq!(compile.key_strategy, CompiledKeyStrategy::FerrocatV1);
+        assert!(!compile.source_fallback);
+
+        let artifact = CompileCatalogArtifactOptions::new("de", "en");
+        assert_eq!(artifact.requested_locale, "de");
+        assert_eq!(artifact.source_locale, "en");
+        assert_eq!(artifact.key_strategy, CompiledKeyStrategy::FerrocatV1);
+        assert_eq!(artifact.semantics, CatalogSemantics::IcuNative);
+
+        let selected_ids = vec!["abc123".to_owned()];
+        let selected = CompileSelectedCatalogArtifactOptions::new("de", "en", &selected_ids);
+        assert_eq!(selected.requested_locale, "de");
+        assert_eq!(selected.source_locale, "en");
+        assert_eq!(selected.compiled_ids, selected_ids.as_slice());
+        assert_eq!(selected.key_strategy, CompiledKeyStrategy::FerrocatV1);
+    }
 }

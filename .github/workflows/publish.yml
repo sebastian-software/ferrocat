@@ -56,6 +56,9 @@ jobs:
         id: crates-auth
         uses: rust-lang/crates-io-auth-action@v1
 
+      - name: Run locked workspace tests before publish
+        run: cargo test --workspace --all-features --locked
+
       - name: Publish Rust crates in dependency order
         shell: bash
         env:

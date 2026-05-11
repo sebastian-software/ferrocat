@@ -971,13 +971,13 @@ fn import_message_from_po(
             translation_by_category: plural_profile
                 .categories()
                 .iter()
-                .enumerate()
-                .map(|(index, category)| {
-                    (
-                        category.clone(),
-                        item.msgstr.iter().nth(index).cloned().unwrap_or_default(),
-                    )
-                })
+                .zip(
+                    item.msgstr
+                        .iter()
+                        .map(String::as_str)
+                        .chain(std::iter::repeat("")),
+                )
+                .map(|(category, value)| (category.clone(), value.to_owned()))
                 .collect(),
             variable: "count".to_owned(),
         }

@@ -9,6 +9,16 @@ description: "Methodology and operating rules for serious external benchmark com
 
 The internal microbenchmarks remain the fast day-to-day performance loop. The external comparison suite is for serious cross-runtime checkpoints on a documented reference host.
 
+## Reproduce A Fast Baseline
+
+For a quick local signal before and after hot-path changes, use the quick official profile:
+
+```bash
+cargo run --release -p ferrocat-bench -- compare gettext-official-quick-v1 --out target/benchmark/gettext-official-quick-v1.json
+```
+
+Keep the generated JSON report with your notes when a change is performance-motivated. For publication-grade numbers, use the full `gettext-official-v1` profile on the documented reference host instead.
+
 ## Reference Host Rules
 
 - use one documented benchmark machine for official comparisons

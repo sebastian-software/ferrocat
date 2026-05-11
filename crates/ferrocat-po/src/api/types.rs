@@ -223,11 +223,13 @@ impl CatalogMessage {
             } => {
                 let profile = PluralProfile::for_locale(locale);
                 let mut effective = profile.materialize_translation(translation);
-                let fallback = profile.source_locale_translation(source);
-                for (category, source_value) in fallback {
-                    let should_fill = effective.get(&category).is_none_or(String::is_empty);
+                for category in profile.categories() {
+                    let should_fill = effective.get(category).is_none_or(String::is_empty);
                     if should_fill {
-                        effective.insert(category, source_value);
+                        effective.insert(
+                            category.clone(),
+                            profile.source_locale_value(category, source),
+                        );
                     }
                 }
                 EffectiveTranslation::Plural(effective)
@@ -368,12 +370,14 @@ impl ParsedCatalog {
 pub struct NormalizedParsedCatalog {
     pub(super) catalog: ParsedCatalog,
     pub(super) key_index: BTreeMap<CatalogMessageKey, usize>,
+    msgid_index: BTreeMap<String, Vec<usize>>,
 }
 
 impl NormalizedParsedCatalog {
     /// Builds the lookup index once and rejects duplicate gettext identities up front.
     pub(super) fn new(catalog: ParsedCatalog) -> Result<Self, ApiError> {
         let mut key_index = BTreeMap::new();
+        let mut msgid_index = BTreeMap::<String, Vec<usize>>::new();
         for (index, message) in catalog.messages.iter().enumerate() {
             let key = message.key();
             if key_index.insert(key.clone(), index).is_some() {
@@ -382,8 +386,13 @@ impl NormalizedParsedCatalog {
                     key.msgid, key.msgctxt
                 )));
             }
+            msgid_index.entry(key.msgid).or_default().push(index);
         }
-        Ok(Self { catalog, key_index })
+        Ok(Self {
+            catalog,
+            key_index,
+            msgid_index,
+        })
     }
 
     /// Returns the underlying parsed catalog.
@@ -406,10 +415,28 @@ impl NormalizedParsedCatalog {
             .map(|index| &self.catalog.messages[*index])
     }
 
+    /// Returns a message by borrowed `msgid` and optional context parts.
+    ///
+    /// This avoids constructing an owned [`CatalogMessageKey`] when callers
+    /// already have borrowed source identity fields.
+    #[must_use]
+    pub fn get_by_parts(&self, msgid: &str, msgctxt: Option<&str>) -> Option<&CatalogMessage> {
+        self.msgid_index.get(msgid)?.iter().find_map(|index| {
+            let message = &self.catalog.messages[*index];
+            (message.msgctxt.as_deref() == msgctxt).then_some(message)
+        })
+    }
+
     /// Returns `true` if a message for `key` exists.
     #[must_use]
     pub fn contains_key(&self, key: &CatalogMessageKey) -> bool {
         self.key_index.contains_key(key)
+    }
+
+    /// Returns `true` if a message exists for borrowed `msgid` and context parts.
+    #[must_use]
+    pub fn contains_parts(&self, msgid: &str, msgctxt: Option<&str>) -> bool {
+        self.get_by_parts(msgid, msgctxt).is_some()
     }
 
     /// Returns the number of indexed messages.
@@ -433,6 +460,16 @@ impl NormalizedParsedCatalog {
         self.get(key).map(CatalogMessage::effective_translation)
     }
 
+    /// Returns the effective translation for borrowed `msgid` and context parts.
+    pub fn effective_translation_by_parts(
+        &self,
+        msgid: &str,
+        msgctxt: Option<&str>,
+    ) -> Option<EffectiveTranslationRef<'_>> {
+        self.get_by_parts(msgid, msgctxt)
+            .map(CatalogMessage::effective_translation)
+    }
+
     /// Returns the effective translation and fills empty source-locale values
     /// from the source text when appropriate.
     #[must_use]
@@ -442,15 +479,36 @@ impl NormalizedParsedCatalog {
         source_locale: &str,
     ) -> Option<EffectiveTranslation> {
         let message = self.get(key)?;
+        Some(self.effective_translation_for_message(message, source_locale))
+    }
+
+    /// Returns the effective translation for borrowed identity parts and fills
+    /// empty source-locale values from the source text when appropriate.
+    #[must_use]
+    pub fn effective_translation_with_source_fallback_by_parts(
+        &self,
+        msgid: &str,
+        msgctxt: Option<&str>,
+        source_locale: &str,
+    ) -> Option<EffectiveTranslation> {
+        let message = self.get_by_parts(msgid, msgctxt)?;
+        Some(self.effective_translation_for_message(message, source_locale))
+    }
+
+    fn effective_translation_for_message(
+        &self,
+        message: &CatalogMessage,
+        source_locale: &str,
+    ) -> EffectiveTranslation {
         if self
             .catalog
             .locale
             .as_deref()
             .is_none_or(|locale| locale == source_locale)
         {
-            Some(message.source_fallback_translation(self.catalog.locale.as_deref()))
+            message.source_fallback_translation(self.catalog.locale.as_deref())
         } else {
-            Some(message.effective_translation_owned())
+            message.effective_translation_owned()
         }
     }
 }
@@ -579,6 +637,20 @@ impl Default for UpdateCatalogOptions<'_> {
     }
 }
 
+impl<'a> UpdateCatalogOptions<'a> {
+    /// Creates in-memory update options with required fields set.
+    ///
+    /// Optional fields use the same defaults as [`UpdateCatalogOptions::default`].
+    #[must_use]
+    pub fn new(source_locale: &'a str, input: impl Into<CatalogUpdateInput>) -> Self {
+        Self {
+            source_locale,
+            input: input.into(),
+            ..Self::default()
+        }
+    }
+}
+
 /// Options for updating a catalog file on disk.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct UpdateCatalogFileOptions<'a> {
@@ -633,6 +705,25 @@ impl Default for UpdateCatalogFileOptions<'_> {
     }
 }
 
+impl<'a> UpdateCatalogFileOptions<'a> {
+    /// Creates file update options with required fields set.
+    ///
+    /// Optional fields use the same defaults as [`UpdateCatalogFileOptions::default`].
+    #[must_use]
+    pub fn new(
+        target_path: &'a Path,
+        source_locale: &'a str,
+        input: impl Into<CatalogUpdateInput>,
+    ) -> Self {
+        Self {
+            target_path,
+            source_locale,
+            input: input.into(),
+            ..Self::default()
+        }
+    }
+}
+
 /// Options for parsing a catalog into the higher-level message model.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ParseCatalogOptions<'a> {
@@ -662,6 +753,20 @@ impl Default for ParseCatalogOptions<'_> {
             semantics: CatalogSemantics::IcuNative,
             plural_encoding: PluralEncoding::Icu,
             strict: false,
+        }
+    }
+}
+
+impl<'a> ParseCatalogOptions<'a> {
+    /// Creates parse options with required fields set.
+    ///
+    /// Optional fields use the same defaults as [`ParseCatalogOptions::default`].
+    #[must_use]
+    pub fn new(content: &'a str, source_locale: &'a str) -> Self {
+        Self {
+            content,
+            source_locale,
+            ..Self::default()
         }
     }
 }
@@ -807,33 +912,68 @@ mod tests {
             locale: Some("en".to_owned()),
             semantics: CatalogSemantics::IcuNative,
             headers: BTreeMap::new(),
-            messages: vec![CatalogMessage {
-                msgid: "Hello".to_owned(),
-                msgctxt: None,
-                translation: TranslationShape::Singular {
-                    value: String::new(),
+            messages: vec![
+                CatalogMessage {
+                    msgid: "Hello".to_owned(),
+                    msgctxt: None,
+                    translation: TranslationShape::Singular {
+                        value: String::new(),
+                    },
+                    comments: Vec::new(),
+                    origin: Vec::new(),
+                    obsolete: false,
+                    extra: None,
                 },
-                comments: Vec::new(),
-                origin: Vec::new(),
-                obsolete: false,
-                extra: None,
-            }],
+                CatalogMessage {
+                    msgid: "Hello".to_owned(),
+                    msgctxt: Some("button".to_owned()),
+                    translation: TranslationShape::Singular {
+                        value: "Howdy".to_owned(),
+                    },
+                    comments: Vec::new(),
+                    origin: Vec::new(),
+                    obsolete: false,
+                    extra: None,
+                },
+            ],
             diagnostics: Vec::new(),
         };
 
         let normalized = NormalizedParsedCatalog::new(parsed.clone()).expect("normalized");
         let key = CatalogMessageKey::new("Hello", None);
 
-        assert_eq!(normalized.message_count(), 1);
+        assert_eq!(normalized.message_count(), 2);
         assert!(normalized.contains_key(&key));
+        assert!(normalized.contains_parts("Hello", Some("button")));
         assert_eq!(
             normalized.parsed_catalog().semantics,
             CatalogSemantics::IcuNative
         );
         assert!(normalized.get(&key).is_some());
         assert_eq!(
+            normalized
+                .get_by_parts("Hello", Some("button"))
+                .and_then(|message| match message.effective_translation() {
+                    EffectiveTranslationRef::Singular(value) => Some(value),
+                    EffectiveTranslationRef::Plural(_) => None,
+                }),
+            Some("Howdy")
+        );
+        assert!(matches!(
+            normalized.effective_translation_by_parts("Hello", None),
+            Some(EffectiveTranslationRef::Singular(""))
+        ));
+        assert_eq!(
             normalized.effective_translation_with_source_fallback(&key, "en"),
             Some(EffectiveTranslation::Singular("Hello".to_owned()))
+        );
+        assert_eq!(
+            normalized.effective_translation_with_source_fallback_by_parts(
+                "Hello",
+                Some("button"),
+                "en"
+            ),
+            Some(EffectiveTranslation::Singular("Howdy".to_owned()))
         );
         assert_eq!(normalized.into_parsed_catalog(), parsed);
     }
@@ -852,18 +992,39 @@ mod tests {
             update.print_placeholders_in_comments,
             PlaceholderCommentMode::Enabled { limit: 3 }
         );
+        let update_new = UpdateCatalogOptions::new("en", Vec::<super::ExtractedMessage>::new());
+        assert_eq!(update_new.source_locale, "en");
+        assert!(matches!(
+            update_new.input,
+            CatalogUpdateInput::Structured(messages) if messages.is_empty()
+        ));
 
         let update_file = UpdateCatalogFileOptions::default();
         assert_eq!(update_file.target_path, Path::new(""));
         assert_eq!(update_file.storage_format, CatalogStorageFormat::Po);
         assert_eq!(update_file.semantics, CatalogSemantics::IcuNative);
         assert_eq!(update_file.plural_encoding, PluralEncoding::Icu);
+        let update_file_new = UpdateCatalogFileOptions::new(
+            Path::new("locale/de.po"),
+            "en",
+            Vec::<super::SourceExtractedMessage>::new(),
+        );
+        assert_eq!(update_file_new.target_path, Path::new("locale/de.po"));
+        assert_eq!(update_file_new.source_locale, "en");
+        assert!(matches!(
+            update_file_new.input,
+            CatalogUpdateInput::SourceFirst(messages) if messages.is_empty()
+        ));
 
         let parse = ParseCatalogOptions::default();
         assert_eq!(parse.storage_format, CatalogStorageFormat::Po);
         assert_eq!(parse.semantics, CatalogSemantics::IcuNative);
         assert_eq!(parse.plural_encoding, PluralEncoding::Icu);
         assert!(!parse.strict);
+        let parse_new = ParseCatalogOptions::new("msgid \"Hello\"\nmsgstr \"Hallo\"\n", "en");
+        assert_eq!(parse_new.content, "msgid \"Hello\"\nmsgstr \"Hallo\"\n");
+        assert_eq!(parse_new.source_locale, "en");
+        assert_eq!(parse_new.storage_format, CatalogStorageFormat::Po);
     }
 
     #[test]

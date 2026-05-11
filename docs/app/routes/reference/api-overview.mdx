@@ -67,6 +67,8 @@ Typical use cases:
 - performance-sensitive inspection or transformation passes
 - benchmarks or pipelines where borrowing from the source text is helpful
 
+Important input constraint: `parse_po_borrowed` currently requires LF-only input. Use `parse_po` for owned parsing with built-in CRLF normalization, or normalize line endings before calling the borrowed parser.
+
 ### `stringify_po`
 
 Use this when you already have a `PoFile` and want canonical Gettext PO output.
@@ -86,6 +88,8 @@ The high-level catalog request structs are now intentionally borrowing-first:
 - file-oriented updates accept `&Path`
 
 That keeps the API ergonomic for callers while avoiding avoidable request-side allocation and clone pressure before the real catalog work even starts.
+
+For the common required fields, the option structs also provide `new(...)` constructors. They set the required content/path/locale/input fields and leave the rest at the documented defaults, which avoids starting from intentionally invalid empty defaults in normal call sites.
 
 ### `merge_catalog`
 
@@ -135,6 +139,8 @@ That gives you exactly three supported modes:
 - ICU-native NDJSON catalog mode: NDJSON + `IcuNative`
 
 `parse_catalog` intentionally stays as the neutral parse step. If you want keyed lookups or effective-translation helpers, build a richer view explicitly with `ParsedCatalog::into_normalized_view()`.
+
+The normalized view supports both owned-key lookup with `CatalogMessageKey` and borrowed identity lookup with `get_by_parts(msgid, msgctxt)`, which is useful in host adapters that already have borrowed source strings.
 
 ### `NormalizedParsedCatalog::compile`
 
@@ -283,6 +289,10 @@ Use this when you only need a yes/no syntax check with an error surface.
 ### `extract_variables`
 
 Use this after `parse_icu` when you want the variable names referenced by the message.
+
+## Error Surface
+
+`ApiError` and the lower-level `ParseError` are intentionally small today. `ApiError` distinguishes parse, I/O, invalid-argument, conflict, and unsupported-operation failures; PO `ParseError` currently carries a human-readable message but not a line/column position. Adding structured PO error kinds or source positions would be a semver-relevant API change and should ship with matching rustdoc, README/API docs, and an ADR update.
 
 ## Practical Rule Of Thumb
 

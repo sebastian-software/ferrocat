@@ -65,7 +65,23 @@ jobs:
         run: cargo fmt --all --check
 
       - name: Run Clippy
-        run: cargo clippy --workspace --all-targets --all-features -- -D warnings
+        run: cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
+
+  rustdoc:
+    name: Rustdoc warnings
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Build Rust docs with warnings denied
+        env:
+          RUSTDOCFLAGS: -D warnings
+        run: cargo doc --workspace --all-features --no-deps --locked
 
   msrv:
     name: Rust MSRV
@@ -100,7 +116,7 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
 
       - name: Run workspace tests
-        run: cargo test --workspace
+        run: cargo test --workspace --all-features --locked
 
   coverage:
     name: Coverage
