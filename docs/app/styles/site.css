@@ -12,6 +12,56 @@
   --ferro-mono:
     ui-monospace, "SFMono-Regular", Menlo, Monaco, Consolas, "Liberation Mono",
     monospace;
+  --ardo-color-brand: oklch(50.5% 0.085 246);
+  --ardo-color-brandLight: oklch(63% 0.075 246);
+  --ardo-color-brandDark: oklch(39% 0.095 246);
+  --ardo-color-brandSubtle: oklch(96.5% 0.012 246);
+  --ardo-color-brandGradient: linear-gradient(
+    135deg,
+    oklch(50.5% 0.085 246) 0%,
+    oklch(61% 0.058 262) 100%
+  );
+  /* Ardo tints neutral surfaces from its default brand hue, so override the full neutral set. */
+  --ardo-color-bg: oklch(99.2% 0.0015 246);
+  --ardo-color-bgSoft: oklch(97.5% 0.003 246);
+  --ardo-color-bgMute: oklch(95.5% 0.004 246);
+  --ardo-color-bgAlt: oklch(93.5% 0.005 246);
+  --ardo-color-text: oklch(17% 0.008 246);
+  --ardo-color-textLight: oklch(40% 0.007 246);
+  --ardo-color-textLighter: oklch(56% 0.005 246);
+  --ardo-color-border: oklch(88% 0.005 246);
+  --ardo-color-borderLight: oklch(92.5% 0.003 246);
+  --ardo-color-divider: oklch(89% 0.004 246);
+  --ardo-color-sidebarBg: oklch(96.5% 0.004 246);
+  --ardo-color-sidebarBorder: oklch(88.5% 0.005 246);
+  --ardo-color-codeBg: oklch(97.2% 0.003 246);
+  --ardo-color-codeBorder: oklch(89.5% 0.004 246);
+}
+
+.dark {
+  --ardo-color-brand: oklch(72% 0.095 246);
+  --ardo-color-brandLight: oklch(82% 0.085 246);
+  --ardo-color-brandDark: oklch(61% 0.105 246);
+  --ardo-color-brandSubtle: oklch(25.5% 0.03 246);
+  --ardo-color-brandGradient: linear-gradient(
+    135deg,
+    oklch(72% 0.095 246) 0%,
+    oklch(79% 0.068 262) 100%
+  );
+  --ardo-color-bg: oklch(15.5% 0.008 246);
+  --ardo-color-bgSoft: oklch(19.5% 0.009 246);
+  --ardo-color-bgMute: oklch(25.5% 0.01 246);
+  --ardo-color-bgAlt: oklch(33% 0.01 246);
+  --ardo-color-text: oklch(94% 0.004 246);
+  --ardo-color-textLight: oklch(72% 0.007 246);
+  --ardo-color-textLighter: oklch(55% 0.007 246);
+  --ardo-color-border: oklch(28.5% 0.011 246);
+  --ardo-color-borderLight: oklch(35% 0.01 246);
+  --ardo-color-divider: oklch(29% 0.01 246);
+  --ardo-color-sidebarBg: oklch(13% 0.008 246);
+  --ardo-color-sidebarBorder: oklch(26.5% 0.011 246);
+  --ardo-color-codeBg: oklch(19% 0.008 246);
+  --ardo-color-codeBorder: oklch(31% 0.01 246);
 }
 
 [class*="Layout_home__"] [class*="Layout_main__"] {
