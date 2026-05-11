@@ -5,7 +5,7 @@ import {
   ExternalLink,
   FileStack,
   Gauge,
-  Github,
+  GitBranch,
 } from "lucide-react"
 import type { MetaFunction } from "react-router"
 import { Link } from "react-router"
@@ -115,7 +115,7 @@ export default function HomePage() {
             href="https://github.com/sebastian-software/ferrocat"
           >
             GitHub
-            <Github size={16} />
+            <GitBranch size={16} />
           </a>
         </div>
       </section>
