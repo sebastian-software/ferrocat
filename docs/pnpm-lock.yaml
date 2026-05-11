@@ -9,8 +9,8 @@ importers:
   .:
     dependencies:
       ardo:
-        specifier: ^3.2.1
-        version: 3.2.1(@types/node@25.5.0)(esbuild@0.27.4)(lightningcss@1.32.0)(lucide-react@1.14.0(react@19.2.6))(rollup@4.59.0)(typescript@6.0.3)(vite@8.0.11(@types/node@25.5.0)(esbuild@0.27.4)(yaml@2.8.4))(yaml@2.8.4)
+        specifier: ^3.3.0
+        version: 3.3.0(@types/node@25.5.0)(esbuild@0.27.4)(lightningcss@1.32.0)(lucide-react@1.14.0(react@19.2.6))(rollup@4.59.0)(typescript@6.0.3)(vite@8.0.11(@types/node@25.5.0)(esbuild@0.27.4)(yaml@2.8.4))(yaml@2.8.4)
       isbot:
         specifier: ^5.1.40
         version: 5.1.40
@@ -422,6 +422,86 @@ packages:
   '@remix-run/node-fetch-server@0.13.0':
     resolution: {integrity: sha512-1EsNo0ZpgXu/90AWoRZf/oE3RVTUS80tiTUpt+hv5pjtAkw7icN4WskDwz/KdAw5ARbJLMhZBrO1NqThmy/McA==}
 
+  '@resvg/resvg-js-android-arm-eabi@2.6.2':
+    resolution: {integrity: sha512-FrJibrAk6v29eabIPgcTUMPXiEz8ssrAk7TXxsiZzww9UTQ1Z5KAbFJs+Z0Ez+VZTYgnE5IQJqBcoSiMebtPHA==}
+    engines: {node: '>= 10'}
+    cpu: [arm]
+    os: [android]
+
+  '@resvg/resvg-js-android-arm64@2.6.2':
+    resolution: {integrity: sha512-VcOKezEhm2VqzXpcIJoITuvUS/fcjIw5NA/w3tjzWyzmvoCdd+QXIqy3FBGulWdClvp4g+IfUemigrkLThSjAQ==}
+    engines: {node: '>= 10'}
+    cpu: [arm64]
+    os: [android]
+
+  '@resvg/resvg-js-darwin-arm64@2.6.2':
+    resolution: {integrity: sha512-nmok2LnAd6nLUKI16aEB9ydMC6Lidiiq2m1nEBDR1LaaP7FGs4AJ90qDraxX+CWlVuRlvNjyYJTNv8qFjtL9+A==}
+    engines: {node: '>= 10'}
+    cpu: [arm64]
+    os: [darwin]
+
+  '@resvg/resvg-js-darwin-x64@2.6.2':
+    resolution: {integrity: sha512-GInyZLjgWDfsVT6+SHxQVRwNzV0AuA1uqGsOAW+0th56J7Nh6bHHKXHBWzUrihxMetcFDmQMAX1tZ1fZDYSRsw==}
+    engines: {node: '>= 10'}
+    cpu: [x64]
+    os: [darwin]
+
+  '@resvg/resvg-js-linux-arm-gnueabihf@2.6.2':
+    resolution: {integrity: sha512-YIV3u/R9zJbpqTTNwTZM5/ocWetDKGsro0SWp70eGEM9eV2MerWyBRZnQIgzU3YBnSBQ1RcxRZvY/UxwESfZIw==}
+    engines: {node: '>= 10'}
+    cpu: [arm]
+    os: [linux]
+
+  '@resvg/resvg-js-linux-arm64-gnu@2.6.2':
+    resolution: {integrity: sha512-zc2BlJSim7YR4FZDQ8OUoJg5holYzdiYMeobb9pJuGDidGL9KZUv7SbiD4E8oZogtYY42UZEap7dqkkYuA91pg==}
+    engines: {node: '>= 10'}
+    cpu: [arm64]
+    os: [linux]
+    libc: [glibc]
+
+  '@resvg/resvg-js-linux-arm64-musl@2.6.2':
+    resolution: {integrity: sha512-3h3dLPWNgSsD4lQBJPb4f+kvdOSJHa5PjTYVsWHxLUzH4IFTJUAnmuWpw4KqyQ3NA5QCyhw4TWgxk3jRkQxEKg==}
+    engines: {node: '>= 10'}
+    cpu: [arm64]
+    os: [linux]
+    libc: [musl]
+
+  '@resvg/resvg-js-linux-x64-gnu@2.6.2':
+    resolution: {integrity: sha512-IVUe+ckIerA7xMZ50duAZzwf1U7khQe2E0QpUxu5MBJNao5RqC0zwV/Zm965vw6D3gGFUl7j4m+oJjubBVoftw==}
+    engines: {node: '>= 10'}
+    cpu: [x64]
+    os: [linux]
+    libc: [glibc]
+
+  '@resvg/resvg-js-linux-x64-musl@2.6.2':
+    resolution: {integrity: sha512-UOf83vqTzoYQO9SZ0fPl2ZIFtNIz/Rr/y+7X8XRX1ZnBYsQ/tTb+cj9TE+KHOdmlTFBxhYzVkP2lRByCzqi4jQ==}
+    engines: {node: '>= 10'}
+    cpu: [x64]
+    os: [linux]
+    libc: [musl]
+
+  '@resvg/resvg-js-win32-arm64-msvc@2.6.2':
+    resolution: {integrity: sha512-7C/RSgCa+7vqZ7qAbItfiaAWhyRSoD4l4BQAbVDqRRsRgY+S+hgS3in0Rxr7IorKUpGE69X48q6/nOAuTJQxeQ==}
+    engines: {node: '>= 10'}
+    cpu: [arm64]
+    os: [win32]
+
+  '@resvg/resvg-js-win32-ia32-msvc@2.6.2':
+    resolution: {integrity: sha512-har4aPAlvjnLcil40AC77YDIk6loMawuJwFINEM7n0pZviwMkMvjb2W5ZirsNOZY4aDbo5tLx0wNMREp5Brk+w==}
+    engines: {node: '>= 10'}
+    cpu: [ia32]
+    os: [win32]
+
+  '@resvg/resvg-js-win32-x64-msvc@2.6.2':
+    resolution: {integrity: sha512-ZXtYhtUr5SSaBrUDq7DiyjOFJqBVL/dOBN7N/qmi/pO0IgiWW/f/ue3nbvu9joWE5aAKDoIzy/CxsY0suwGosQ==}
+    engines: {node: '>= 10'}
+    cpu: [x64]
+    os: [win32]
+
+  '@resvg/resvg-js@2.6.2':
+    resolution: {integrity: sha512-xBaJish5OeGmniDj9cW5PRa/PtmuVU3ziqrbr5xJj901ZDN4TosrVaNZpEiLZAxdfnhAe7uQ7QFWfjPe9d9K2Q==}
+    engines: {node: '>= 10'}
+
   '@rolldown/binding-android-arm64@1.0.0-rc.18':
     resolution: {integrity: sha512-lIDyUAfD7U3+BWKzdxMbJcsYHuqXqmGz40aeRqvuAm3y5TkJSYTBW2RDrn65DJFPQqVjUAUqq5uz8urzQ8aBdQ==}
     engines: {node: ^20.19.0 || >=22.12.0}
@@ -821,8 +901,8 @@ packages:
     engines: {node: '>=0.4.0'}
     hasBin: true
 
-  ardo@3.2.1:
-    resolution: {integrity: sha512-HMVXWQfM+8LKKxjVCUMefF9sDm0sMIiPtw1P7rYv1ez0U15kvpSbnN/gJACQ4iYe6j110W9GqQWjn8wq8SRgwA==}
+  ardo@3.3.0:
+    resolution: {integrity: sha512-z2uvXg6E30kT5iu8BAKknq1kE4+9NaLQp+XLewlP1y9Bc2zGS0UzquYF2t2ozCgDC+bBT1LC7q/uSoZFUM9sPA==}
     peerDependencies:
       lucide-react: '>=0.400.0 <2.0.0'
       vite: ^6.0.0 || ^7.0.0 || ^8.0.0-beta.0
@@ -2370,6 +2450,57 @@ snapshots:
 
   '@remix-run/node-fetch-server@0.13.0': {}
 
+  '@resvg/resvg-js-android-arm-eabi@2.6.2':
+    optional: true
+
+  '@resvg/resvg-js-android-arm64@2.6.2':
+    optional: true
+
+  '@resvg/resvg-js-darwin-arm64@2.6.2':
+    optional: true
+
+  '@resvg/resvg-js-darwin-x64@2.6.2':
+    optional: true
+
+  '@resvg/resvg-js-linux-arm-gnueabihf@2.6.2':
+    optional: true
+
+  '@resvg/resvg-js-linux-arm64-gnu@2.6.2':
+    optional: true
+
+  '@resvg/resvg-js-linux-arm64-musl@2.6.2':
+    optional: true
+
+  '@resvg/resvg-js-linux-x64-gnu@2.6.2':
+    optional: true
+
+  '@resvg/resvg-js-linux-x64-musl@2.6.2':
+    optional: true
+
+  '@resvg/resvg-js-win32-arm64-msvc@2.6.2':
+    optional: true
+
+  '@resvg/resvg-js-win32-ia32-msvc@2.6.2':
+    optional: true
+
+  '@resvg/resvg-js-win32-x64-msvc@2.6.2':
+    optional: true
+
+  '@resvg/resvg-js@2.6.2':
+    optionalDependencies:
+      '@resvg/resvg-js-android-arm-eabi': 2.6.2
+      '@resvg/resvg-js-android-arm64': 2.6.2
+      '@resvg/resvg-js-darwin-arm64': 2.6.2
+      '@resvg/resvg-js-darwin-x64': 2.6.2
+      '@resvg/resvg-js-linux-arm-gnueabihf': 2.6.2
+      '@resvg/resvg-js-linux-arm64-gnu': 2.6.2
+      '@resvg/resvg-js-linux-arm64-musl': 2.6.2
+      '@resvg/resvg-js-linux-x64-gnu': 2.6.2
+      '@resvg/resvg-js-linux-x64-musl': 2.6.2
+      '@resvg/resvg-js-win32-arm64-msvc': 2.6.2
+      '@resvg/resvg-js-win32-ia32-msvc': 2.6.2
+      '@resvg/resvg-js-win32-x64-msvc': 2.6.2
+
   '@rolldown/binding-android-arm64@1.0.0-rc.18':
     optional: true
 
@@ -2427,7 +2558,7 @@ snapshots:
     dependencies:
       '@types/estree': 1.0.8
       estree-walker: 2.0.2
-      picomatch: 4.0.3
+      picomatch: 4.0.4
     optionalDependencies:
       rollup: 4.59.0
 
@@ -2626,11 +2757,11 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@vanilla-extract/compiler@0.7.0(@types/node@25.5.0)(esbuild@0.27.4)(lightningcss@1.32.0)(yaml@2.8.4)':
+  '@vanilla-extract/compiler@0.7.0(@types/node@25.5.0)(esbuild@0.27.4)(yaml@2.8.4)':
     dependencies:
       '@vanilla-extract/css': 1.20.1
       '@vanilla-extract/integration': 8.0.9
-      vite: 7.3.3(@types/node@25.5.0)(lightningcss@1.32.0)(yaml@2.8.4)
+      vite: 8.0.11(@types/node@25.5.0)(esbuild@0.27.4)(yaml@2.8.4)
       vite-node: 6.0.0(@types/node@25.5.0)(esbuild@0.27.4)(yaml@2.8.4)
     transitivePeerDependencies:
       - '@types/node'
@@ -2639,7 +2770,6 @@ snapshots:
       - esbuild
       - jiti
       - less
-      - lightningcss
       - sass
       - sass-embedded
       - stylus
@@ -2696,9 +2826,9 @@ snapshots:
     dependencies:
       '@vanilla-extract/css': 1.20.1
 
-  '@vanilla-extract/vite-plugin@5.2.2(@types/node@25.5.0)(esbuild@0.27.4)(lightningcss@1.32.0)(vite@8.0.11(@types/node@25.5.0)(esbuild@0.27.4)(yaml@2.8.4))(yaml@2.8.4)':
+  '@vanilla-extract/vite-plugin@5.2.2(@types/node@25.5.0)(esbuild@0.27.4)(vite@8.0.11(@types/node@25.5.0)(esbuild@0.27.4)(yaml@2.8.4))(yaml@2.8.4)':
     dependencies:
-      '@vanilla-extract/compiler': 0.7.0(@types/node@25.5.0)(esbuild@0.27.4)(lightningcss@1.32.0)(yaml@2.8.4)
+      '@vanilla-extract/compiler': 0.7.0(@types/node@25.5.0)(esbuild@0.27.4)(yaml@2.8.4)
       '@vanilla-extract/integration': 8.0.9
       vite: 8.0.11(@types/node@25.5.0)(esbuild@0.27.4)(yaml@2.8.4)
     transitivePeerDependencies:
@@ -2708,7 +2838,6 @@ snapshots:
       - esbuild
       - jiti
       - less
-      - lightningcss
       - sass
       - sass-embedded
       - stylus
@@ -2729,15 +2858,16 @@ snapshots:
 
   acorn@8.16.0: {}
 
-  ardo@3.2.1(@types/node@25.5.0)(esbuild@0.27.4)(lightningcss@1.32.0)(lucide-react@1.14.0(react@19.2.6))(rollup@4.59.0)(typescript@6.0.3)(vite@8.0.11(@types/node@25.5.0)(esbuild@0.27.4)(yaml@2.8.4))(yaml@2.8.4):
+  ardo@3.3.0(@types/node@25.5.0)(esbuild@0.27.4)(lightningcss@1.32.0)(lucide-react@1.14.0(react@19.2.6))(rollup@4.59.0)(typescript@6.0.3)(vite@8.0.11(@types/node@25.5.0)(esbuild@0.27.4)(yaml@2.8.4))(yaml@2.8.4):
     dependencies:
       '@mdx-js/rollup': 3.1.1(rollup@4.59.0)
       '@react-router/dev': 7.15.0(@types/node@25.5.0)(lightningcss@1.32.0)(react-router@7.15.0(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(typescript@6.0.3)(vite@8.0.11(@types/node@25.5.0)(esbuild@0.27.4)(yaml@2.8.4))(yaml@2.8.4)
+      '@resvg/resvg-js': 2.6.2
       '@shikijs/rehype': 4.0.2
       '@vanilla-extract/css': 1.20.1
       '@vanilla-extract/esbuild-plugin': 2.3.22(esbuild@0.27.4)
       '@vanilla-extract/recipes': 0.5.7(@vanilla-extract/css@1.20.1)
-      '@vanilla-extract/vite-plugin': 5.2.2(@types/node@25.5.0)(esbuild@0.27.4)(lightningcss@1.32.0)(vite@8.0.11(@types/node@25.5.0)(esbuild@0.27.4)(yaml@2.8.4))(yaml@2.8.4)
+      '@vanilla-extract/vite-plugin': 5.2.2(@types/node@25.5.0)(esbuild@0.27.4)(vite@8.0.11(@types/node@25.5.0)(esbuild@0.27.4)(yaml@2.8.4))(yaml@2.8.4)
       '@vitejs/plugin-react': 6.0.1(vite@8.0.11(@types/node@25.5.0)(esbuild@0.27.4)(yaml@2.8.4))
       gray-matter: 4.0.3
       hast-util-to-jsx-runtime: 2.3.6
