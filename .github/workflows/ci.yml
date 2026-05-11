@@ -130,7 +130,7 @@ jobs:
         run: node scripts/coverage-gate.mjs target/coverage-summary.json ferrocat-po=88 ferrocat-icu=93
 
       - name: Upload coverage to Codecov
-        if: ${{ github.actor != 'dependabot[bot]' && github.actor != 'app/dependabot' }}
+        if: ${{ github.event_name != 'pull_request' || !startsWith(github.head_ref, 'dependabot/') }}
         uses: codecov/codecov-action@v6
         with:
           files: target/lcov.info
@@ -139,7 +139,7 @@ jobs:
           verbose: true
 
       - name: Skip Codecov upload for Dependabot
-        if: ${{ github.actor == 'dependabot[bot]' || github.actor == 'app/dependabot' }}
+        if: ${{ github.event_name == 'pull_request' && startsWith(github.head_ref, 'dependabot/') }}
         run: echo "Skipping Codecov upload because Dependabot pull requests do not receive repository secrets."
 
       - name: Upload LCOV artifact
