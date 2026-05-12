@@ -1,0 +1,1 @@
+{isTaxed, select, yes {An additional {tax, number, percent} tax will be collected.} other {No taxes apply.}}

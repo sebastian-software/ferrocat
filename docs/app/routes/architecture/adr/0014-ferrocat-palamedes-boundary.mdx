@@ -23,6 +23,7 @@ Ferrocat owns catalog infrastructure:
 - NDJSON storage for line-oriented catalog collaboration
 - stable compiled runtime IDs
 - locale-resolved runtime artifacts
+- host-neutral ICU authoring diagnostics
 
 Palamedes owns JavaScript and TypeScript application integration:
 
@@ -47,6 +48,8 @@ Concretely:
 - Ferrocat should expose task-oriented catalog APIs, not framework plugins.
 - Ferrocat should produce host-neutral runtime artifacts and structured
   diagnostics.
+- Ferrocat should expose ICU source/translation diagnostics that Palamedes can
+  consume without moving JS/TS runtime concerns into Ferrocat.
 - Ferrocat should keep storage and semantic contracts documented in ADRs and
   rustdoc.
 - Palamedes should own JS/TS extraction, transforms, routing conventions,

@@ -18,7 +18,7 @@ The public workspace crates line up by responsibility:
 
 - `ferrocat`: umbrella crate and default dependency
 - `ferrocat-po`: PO parsing, serialization, merge/combine helpers, and high-level catalog update APIs
-- `ferrocat-icu`: ICU MessageFormat parsing and structural helpers
+- `ferrocat-icu`: ICU MessageFormat parsing, structural helpers, and authoring diagnostics
 
 ## Quick start
 
@@ -43,6 +43,7 @@ assert!(rendered.contains(r#"msgstr "Welt""#));
 
 - Read [Catalog Modes](/guide/catalog-modes) when you need the storage and message-semantics model.
 - Read [Runtime Compilation](/guide/runtime-compilation) when your application should load compiled catalog artifacts instead of raw PO files.
+- Use [API Overview](/reference/api-overview#icu-messageformat) when you want ICU analysis or source/translation compatibility diagnostics.
 - Read [Ferrocat And Palamedes](/guide/palamedes) when you want the app-framework view: extraction, macros, runtime adapters, and how Palamedes uses Ferrocat as its catalog layer.
 - Open [API Overview](/reference/api-overview) when you need to choose between low-level PO parsing, high-level catalog workflows, and ICU helpers.
 - Open [Gettext Task Landscape](/reference/gettext-task-landscape) when you are mapping familiar Gettext-style jobs to Ferrocat APIs.

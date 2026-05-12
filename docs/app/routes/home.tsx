@@ -46,7 +46,7 @@ const catalogModes = [
     title: "ICU-native PO",
     storage: "Gettext PO",
     semantics: "ICU MessageFormat",
-    body: "Keep translator-facing PO files while authoring richer ICU plural, select, and formatting messages.",
+    body: "Keep translator-facing PO files while authoring richer ICU messages with structural diagnostics.",
   },
   {
     title: "ICU-native NDJSON",
@@ -57,8 +57,8 @@ const catalogModes = [
 ]
 
 const proofPoints = [
-  { value: "55", label: "conformance cases", detail: "upstream-derived" },
-  { value: "442", label: "assertions", detail: "checked by harness" },
+  { value: "60", label: "conformance cases", detail: "upstream-derived" },
+  { value: "454", label: "assertions", detail: "checked by harness" },
   { value: "3", label: "catalog modes", detail: "explicit combinations" },
 ]
 
@@ -71,7 +71,7 @@ const entryPoints = [
   },
   {
     title: "API surface",
-    body: "Choose between PO core APIs, high-level catalog workflows, and ICU helpers.",
+    body: "Choose between PO core APIs, catalog workflows, ICU helpers, and authoring diagnostics.",
     link: "/reference/api-overview",
     icon: <Boxes size={20} />,
   },
@@ -103,8 +103,8 @@ export default function HomePage() {
         <h1>Localization catalogs that keep up with your product.</h1>
         <p className="ferro-lead">
           Ferrocat gives Rust teams real PO workflows, explicit ICU and Gettext
-          semantics, deterministic catalog updates, and runtime artifacts that
-          are fast to load.
+          semantics, ICU authoring diagnostics, deterministic catalog updates,
+          and runtime artifacts that are fast to load.
         </p>
         <pre className="ferro-install">
           <code>cargo add ferrocat</code>
@@ -135,7 +135,7 @@ export default function HomePage() {
         <p className="ferro-sublead">
           Ferrocat avoids treating PO files as tiny configuration blobs. Large
           catalogs get byte-oriented parsing, borrowed read paths, dedicated
-          runtime compilation, and benchmark coverage.
+          ICU validation, runtime compilation, and benchmark coverage.
         </p>
         <div className="ferro-perf-grid">
           {perfPillars.map((pillar) => (

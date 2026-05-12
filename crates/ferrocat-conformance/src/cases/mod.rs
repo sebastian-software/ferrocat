@@ -1,3 +1,4 @@
+mod icu_ecosystem;
 mod icu_official;
 mod po_babel;
 mod po_pofile;
@@ -11,5 +12,6 @@ pub fn all_manifests() -> Vec<ConformanceManifest> {
         po_pofile::manifest(),
         po_babel::manifest(),
         icu_official::manifest(),
+        icu_ecosystem::manifest(),
     ]
 }

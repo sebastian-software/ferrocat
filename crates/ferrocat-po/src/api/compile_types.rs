@@ -74,6 +74,8 @@ pub struct CompileCatalogArtifactOptions<'a> {
     pub source_fallback: bool,
     /// Whether invalid final ICU messages should fail compilation instead of producing diagnostics.
     pub strict_icu: bool,
+    /// Whether final ICU messages should be checked against source ICU structure.
+    pub icu_compatibility: bool,
     /// High-level semantics used by the input catalog set.
     pub semantics: CatalogSemantics,
 }
@@ -87,6 +89,7 @@ impl Default for CompileCatalogArtifactOptions<'_> {
             key_strategy: CompiledKeyStrategy::FerrocatV1,
             source_fallback: false,
             strict_icu: false,
+            icu_compatibility: false,
             semantics: CatalogSemantics::IcuNative,
         }
     }
@@ -121,6 +124,8 @@ pub struct CompileSelectedCatalogArtifactOptions<'a> {
     pub source_fallback: bool,
     /// Whether invalid final ICU messages should fail compilation instead of producing diagnostics.
     pub strict_icu: bool,
+    /// Whether final ICU messages should be checked against source ICU structure.
+    pub icu_compatibility: bool,
     /// High-level semantics used by the input catalog set.
     pub semantics: CatalogSemantics,
     /// Requested compiled runtime IDs to include in the artifact.
@@ -136,6 +141,7 @@ impl Default for CompileSelectedCatalogArtifactOptions<'_> {
             key_strategy: CompiledKeyStrategy::FerrocatV1,
             source_fallback: false,
             strict_icu: false,
+            icu_compatibility: false,
             semantics: CatalogSemantics::IcuNative,
             compiled_ids: &[],
         }
@@ -168,6 +174,7 @@ impl<'a> CompileSelectedCatalogArtifactOptions<'a> {
             key_strategy: self.key_strategy,
             source_fallback: self.source_fallback,
             strict_icu: self.strict_icu,
+            icu_compatibility: self.icu_compatibility,
             semantics: self.semantics,
         }
     }

@@ -19,6 +19,11 @@ workspace. The durable decision remains that ICU-native catalog semantics are
 the long-term center, while classic gettext plural behavior is an explicit
 compatibility mode rather than the default semantic model.
 
+Update: ADR 0015 adds ICU authoring diagnostics on top of this model. Ferrocat
+can now analyze ICU arguments, formatters, plurals, selects, and tags, and it
+can compare source and translation structure without taking ownership of
+locale-aware runtime formatting.
+
 ## Context
 
 `ferrocat` now has a high-level catalog API layered on top of the PO core:

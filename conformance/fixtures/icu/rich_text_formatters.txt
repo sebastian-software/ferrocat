@@ -1,0 +1,1 @@
+Click <link>{name}</link> to view <b>{count, number, integer}</b> files.

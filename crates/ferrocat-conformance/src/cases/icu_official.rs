@@ -136,6 +136,50 @@ fn cases() -> Vec<ConformanceCase> {
             "https://raw.githubusercontent.com/unicode-org/icu/main/icu4j/main/common_tests/src/test/java/com/ibm/icu/dev/test/format/TestMessageFormat.java",
             "TestMessageFormat: error positions are reported",
         ),
+
+        parse_case(
+            "icu.formatter_skeletons",
+            "icu/formatter_skeletons.txt",
+            IcuParseExpected {
+                node_kinds: strings(["literal", "time", "literal", "date", "literal", "number", "literal"]),
+                top_level_count: Some(7),
+                ..IcuParseExpected::default()
+            },
+        )
+        .source(
+            "https://unicode-org.github.io/icu/userguide/format_parse/messages/",
+            "ICU User Guide: MessageFormat skeletons for number, date, and time arguments",
+        ),
+
+        parse_case(
+            "icu.nested_select_plural",
+            "icu/nested_select_plural.txt",
+            IcuParseExpected {
+                node_kinds: strings(["select", "literal"]),
+                top_level_count: Some(2),
+                ..IcuParseExpected::default()
+            },
+        )
+        .source(
+            "https://unicode-org.github.io/icu/userguide/format_parse/messages/",
+            "ICU User Guide: select outside plural with full sub-messages",
+        ),
+
+        parse_case(
+            "icu.plural_extra_categories",
+            "icu/plural_extra_categories.txt",
+            IcuParseExpected {
+                node_kinds: strings(["plural", "literal"]),
+                top_level_count: Some(2),
+                first_plural_kind: Some("cardinal".to_owned()),
+                first_plural_option_count: Some(4),
+                ..IcuParseExpected::default()
+            },
+        )
+        .source(
+            "https://unicode-org.github.io/icu/userguide/format_parse/messages/",
+            "ICU User Guide: translators add plural categories as needed per target language",
+        ),
     ]
 }
 

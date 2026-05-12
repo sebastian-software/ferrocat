@@ -6,7 +6,9 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use ferrocat_icu::parse_icu;
+use ferrocat_icu::{
+    IcuCompatibilityOptions, IcuDiagnosticSeverity, compare_icu_messages, parse_icu,
+};
 use sha2::{Digest, Sha256};
 
 use super::plural::synthesize_icu_plural;
@@ -512,28 +514,97 @@ where
             continue;
         };
 
-        if let Err(error) = parse_icu(&resolved.message) {
-            if options.strict_icu {
-                return Err(ApiError::Unsupported(format!(
-                    "compiled catalog artifact produced invalid ICU for locale {:?}, msgid {:?}, context {:?}: {}",
-                    resolved.locale, source_key.msgid, source_key.msgctxt, error
-                )));
+        let resolved_icu = match parse_icu(&resolved.message) {
+            Ok(message) => Some(message),
+            Err(error) => {
+                if options.strict_icu {
+                    return Err(ApiError::Unsupported(format!(
+                        "compiled catalog artifact produced invalid ICU for locale {:?}, msgid {:?}, context {:?}: {}",
+                        resolved.locale, source_key.msgid, source_key.msgctxt, error
+                    )));
+                }
+                artifact.diagnostics.push(CompiledCatalogDiagnostic {
+                    severity: DiagnosticSeverity::Error,
+                    code: "compile.invalid_icu_message".to_owned(),
+                    message: format!("Final runtime message failed ICU validation: {error}"),
+                    key: compiled_key.clone(),
+                    msgid: source_key.msgid.clone(),
+                    msgctxt: source_key.msgctxt.clone(),
+                    locale: resolved.locale.clone(),
+                });
+                None
             }
-            artifact.diagnostics.push(CompiledCatalogDiagnostic {
-                severity: DiagnosticSeverity::Error,
-                code: "compile.invalid_icu_message".to_owned(),
-                message: format!("Final runtime message failed ICU validation: {error}"),
-                key: compiled_key.clone(),
-                msgid: source_key.msgid.clone(),
-                msgctxt: source_key.msgctxt.clone(),
-                locale: resolved.locale.clone(),
-            });
+        };
+
+        if let Some(resolved_icu) = resolved_icu.as_ref() {
+            push_icu_compatibility_diagnostics(
+                locales,
+                &source_key,
+                &compiled_key,
+                &resolved,
+                resolved_icu,
+                options,
+                &mut artifact,
+            );
         }
 
         artifact.messages.insert(compiled_key, resolved.message);
     }
 
     Ok(artifact)
+}
+
+fn push_icu_compatibility_diagnostics(
+    locales: &BTreeMap<String, &NormalizedParsedCatalog>,
+    source_key: &CatalogMessageKey,
+    compiled_key: &str,
+    resolved: &ResolvedArtifactMessage,
+    resolved_icu: &ferrocat_icu::IcuMessage,
+    options: &CompileCatalogArtifactOptions<'_>,
+    artifact: &mut CompiledCatalogArtifact,
+) {
+    if !options.icu_compatibility {
+        return;
+    }
+    let Some(source_catalog) = locales.get(options.source_locale) else {
+        return;
+    };
+    let Some(source_message) = rendered_compiled_catalog_artifact_message(
+        source_catalog,
+        source_key,
+        options.source_locale,
+        true,
+    ) else {
+        return;
+    };
+    let Ok(source_icu) = parse_icu(&source_message) else {
+        return;
+    };
+
+    let report = compare_icu_messages(
+        &source_icu,
+        resolved_icu,
+        &IcuCompatibilityOptions::default(),
+    );
+    for diagnostic in report.diagnostics {
+        artifact.diagnostics.push(CompiledCatalogDiagnostic {
+            severity: icu_diagnostic_severity(diagnostic.severity),
+            code: diagnostic.code,
+            message: diagnostic.message,
+            key: compiled_key.to_owned(),
+            msgid: source_key.msgid.clone(),
+            msgctxt: source_key.msgctxt.clone(),
+            locale: resolved.locale.clone(),
+        });
+    }
+}
+
+const fn icu_diagnostic_severity(severity: IcuDiagnosticSeverity) -> DiagnosticSeverity {
+    match severity {
+        IcuDiagnosticSeverity::Info => DiagnosticSeverity::Info,
+        IcuDiagnosticSeverity::Warning => DiagnosticSeverity::Warning,
+        IcuDiagnosticSeverity::Error => DiagnosticSeverity::Error,
+    }
 }
 
 /// Resolves one runtime message by trying requested locale, configured

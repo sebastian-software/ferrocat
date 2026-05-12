@@ -51,6 +51,9 @@ NDJSON is the line-delimited JSON storage choice. It is useful when catalogs are
 | Perform a full catalog update and write the result to disk only when changed | `update_catalog_file` |
 | Parse ICU MessageFormat into a structural AST | `parse_icu` |
 | Only validate ICU syntax | `validate_icu` |
+| Summarize ICU arguments, formatters, plurals, selects, and tags | `analyze_icu` |
+| Compare source and translated ICU message structure | `compare_icu_messages` |
+| Extract only data argument names or only tag names | `extract_argument_names` / `extract_tag_names` |
 | Extract variable names from a parsed ICU message | `extract_variables` |
 
 ## Gettext PO Core
@@ -223,6 +226,7 @@ Important semantics:
 - source-locale compilation always materializes empty source values from source text
 - plural messages are emitted as final ICU plural strings using the preserved plural variable
 - invalid final ICU strings become diagnostics by default and can become hard errors in strict mode
+- source/translation ICU compatibility diagnostics are opt-in with `icu_compatibility`
 
 ### `compile_catalog_artifact_selected`
 
@@ -314,6 +318,29 @@ Typical use cases:
 ### `validate_icu`
 
 Use this when you only need a yes/no syntax check with an error surface.
+
+### `analyze_icu`
+
+Use this after `parse_icu` when you need a structured summary of message
+arguments, formatter kinds and styles, plural/select selectors, and rich-text
+tags.
+
+### `compare_icu_messages`
+
+Use this to compare source and translated ICU messages before shipping a
+runtime artifact. The report uses stable diagnostic codes for missing or extra
+arguments, formatter kind or style changes, tag mismatches, missing select or
+plural selectors, plural offset changes, and discouraged pattern-style
+formatters.
+
+At the catalog artifact layer, set `icu_compatibility: true` on
+`CompileCatalogArtifactOptions` or `CompileSelectedCatalogArtifactOptions` to
+collect the same diagnostics while compiling the final locale artifact.
+
+### `extract_argument_names` / `extract_tag_names`
+
+Use these when data variables and rich-text tags need to be handled separately.
+The older `extract_variables` helper still returns the historical mixed view.
 
 ### `extract_variables`
 

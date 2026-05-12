@@ -57,6 +57,12 @@ extension keeps the same semantics as `compile_catalog_artifact`, but lets host
 adapters compile only the message IDs they already know a module, route, or
 bundle chunk needs.
 
+ADR 0015 later added optional ICU source/translation compatibility diagnostics
+to both artifact APIs through `icu_compatibility`. This is separate from
+`strict_icu`: syntax validation decides whether a final ICU string is valid,
+while compatibility diagnostics report risky authoring drift such as missing
+arguments, tag mismatches, formatter changes, and select/plural branch changes.
+
 Artifact compilation semantics are explicit:
 
 - only non-obsolete messages participate
@@ -65,6 +71,7 @@ Artifact compilation semantics are explicit:
 - source-locale artifacts always materialize empty source values from source text
 - plural messages are emitted as final ICU plural strings using the preserved plural variable
 - invalid final ICU strings are diagnostics by default and hard errors in strict mode
+- ICU source/translation compatibility diagnostics are opt-in
 
 `fuzzy` remains passthrough metadata only and has no special runtime-artifact semantics in this first version.
 

@@ -57,9 +57,12 @@
 
 pub use ferrocat_icu::has_selectordinal as has_select_ordinal;
 pub use ferrocat_icu::{
-    IcuErrorKind, IcuMessage, IcuNode, IcuOption, IcuParseError, IcuParserOptions, IcuPluralKind,
-    IcuPosition, extract_variables, has_plural, has_select, has_selectordinal, has_tag, parse_icu,
-    parse_icu_with_options, validate_icu,
+    IcuAnalysis, IcuArgument, IcuArgumentKind, IcuCompatibilityOptions, IcuCompatibilityReport,
+    IcuDiagnostic, IcuDiagnosticSeverity, IcuErrorKind, IcuFormatter, IcuMessage, IcuNode,
+    IcuOption, IcuParseError, IcuParserOptions, IcuPluralKind, IcuPluralSummary, IcuPosition,
+    IcuSelectSummary, IcuStyleKind, IcuTagSummary, analyze_icu, compare_icu_messages,
+    extract_argument_names, extract_tag_names, extract_variables, has_plural, has_select,
+    has_selectordinal, has_tag, parse_icu, parse_icu_with_options, validate_icu,
 };
 pub use ferrocat_po::{
     ApiError, BorrowedHeader, BorrowedMsgStr, BorrowedPoFile, BorrowedPoItem, CatalogCombineInput,

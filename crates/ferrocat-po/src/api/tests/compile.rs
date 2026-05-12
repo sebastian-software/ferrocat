@@ -593,6 +593,122 @@ fn compile_catalog_artifact_collects_or_raises_invalid_icu_messages() {
 }
 
 #[test]
+fn compile_catalog_artifact_icu_compatibility_is_optional() {
+    let source = normalized_catalog(
+        "msgid \"{count, number, integer} for {name}\"\nmsgstr \"{count, number, integer} for {name}\"\n",
+        Some("en"),
+        PluralEncoding::Icu,
+    );
+    let requested = normalized_catalog(
+        "msgid \"{count, number, integer} for {name}\"\nmsgstr \"{count, number, integer} Dateien\"\n",
+        Some("de"),
+        PluralEncoding::Icu,
+    );
+
+    let default_artifact = compile_catalog_artifact(
+        &[&requested, &source],
+        &CompileCatalogArtifactOptions {
+            requested_locale: "de",
+            source_locale: "en",
+            ..CompileCatalogArtifactOptions::default()
+        },
+    )
+    .expect("compile default artifact");
+    assert!(default_artifact.diagnostics.is_empty());
+
+    let checked_artifact = compile_catalog_artifact(
+        &[&requested, &source],
+        &CompileCatalogArtifactOptions {
+            requested_locale: "de",
+            source_locale: "en",
+            icu_compatibility: true,
+            ..CompileCatalogArtifactOptions::default()
+        },
+    )
+    .expect("compile checked artifact");
+
+    assert!(checked_artifact.diagnostics.iter().any(|diagnostic| {
+        diagnostic.code == "icu.missing_argument"
+            && diagnostic.severity == DiagnosticSeverity::Error
+    }));
+}
+
+#[test]
+fn compile_catalog_artifact_selected_uses_icu_compatibility_diagnostics() {
+    let source = normalized_catalog(
+        "msgid \"<link>{name}</link>\"\nmsgstr \"<link>{name}</link>\"\n",
+        Some("en"),
+        PluralEncoding::Icu,
+    );
+    let requested = normalized_catalog(
+        "msgid \"<link>{name}</link>\"\nmsgstr \"<b>{name}</b>\"\n",
+        Some("de"),
+        PluralEncoding::Icu,
+    );
+    let index =
+        CompiledCatalogIdIndex::new(&[&requested, &source], CompiledKeyStrategy::FerrocatV1)
+            .expect("index");
+    let compiled_ids = index
+        .iter()
+        .map(|(id, _)| id.to_owned())
+        .collect::<Vec<_>>();
+
+    let artifact = compile_catalog_artifact_selected(
+        &[&requested, &source],
+        &index,
+        &CompileSelectedCatalogArtifactOptions {
+            requested_locale: "de",
+            source_locale: "en",
+            compiled_ids: &compiled_ids,
+            icu_compatibility: true,
+            ..CompileSelectedCatalogArtifactOptions::default()
+        },
+    )
+    .expect("compile selected artifact");
+
+    assert!(
+        artifact
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == "icu.missing_tag")
+    );
+    assert!(
+        artifact
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == "icu.extra_tag")
+    );
+}
+
+#[test]
+fn strict_icu_remains_a_hard_syntax_error_with_compatibility_enabled() {
+    let source = normalized_catalog(
+        "msgid \"Hello {name}\"\nmsgstr \"Hello {name}\"\n",
+        Some("en"),
+        PluralEncoding::Icu,
+    );
+    let requested = normalized_catalog(
+        "msgid \"Hello {name}\"\nmsgstr \"{unclosed\"\n",
+        Some("de"),
+        PluralEncoding::Icu,
+    );
+
+    let error = compile_catalog_artifact(
+        &[&requested, &source],
+        &CompileCatalogArtifactOptions {
+            requested_locale: "de",
+            source_locale: "en",
+            strict_icu: true,
+            icu_compatibility: true,
+            ..CompileCatalogArtifactOptions::default()
+        },
+    )
+    .expect_err("strict syntax failure");
+
+    assert!(matches!(error, ApiError::Unsupported(_)));
+}
+
+#[test]
 fn compiled_catalog_id_index_indexes_non_obsolete_compiled_ids() {
     let requested = normalized_catalog(
         concat!(

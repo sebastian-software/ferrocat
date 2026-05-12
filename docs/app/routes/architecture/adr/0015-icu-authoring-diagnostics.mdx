@@ -1,0 +1,83 @@
+---
+title: "ADR 0015: Add ICU Authoring Diagnostics Without Owning Runtime Formatting"
+description: "Accepted architecture decision record: icu authoring diagnostics."
+order: 150
+---
+
+# ADR 0015: Add ICU Authoring Diagnostics Without Owning Runtime Formatting
+
+- Status: Accepted
+- Date: 2026-05-12
+
+## Context
+
+Ferrocat already treats ICU MessageFormat v1 as the native semantic center for
+modern catalog workflows. The existing parser validates syntax and exposes a
+compact AST, and runtime artifact compilation validates final ICU strings.
+
+The next useful product layer is not a full formatter. Teams need earlier
+authoring feedback while catalogs are still being reviewed or packaged:
+
+- source and translation argument sets should stay compatible
+- formatter kinds and styles should not drift silently
+- rich-text tags should remain balanced and available
+- select and plural structures should preserve required source branches
+- opaque number/date/time pattern styles should be visible because ICU
+  recommends predefined styles or skeletons for portable formatting
+
+ICU MessageFormat 2 is visible and important, but ICU still documents it as a
+Technical Preview successor to the long-standing MessageFormat API. It is not
+the right stable contract for Ferrocat's default catalog surface yet.
+
+## Decision
+
+Add host-neutral ICU authoring diagnostics around MessageFormat v1.
+
+Concretely:
+
+- `ferrocat-icu` exposes structural analysis helpers for arguments,
+  formatters, plurals, selects, and rich-text tags.
+- `ferrocat-icu` exposes source/translation compatibility checks with stable
+  diagnostic codes.
+- `ferrocat-po` artifact compilation can opt into those checks with
+  `icu_compatibility`.
+- syntax validation remains separate: `strict_icu` still controls whether an
+  invalid final ICU string is a hard compile error.
+- Ferrocat does not format locale-aware runtime output for number, date, time,
+  list, or plural values.
+
+## Consequences
+
+Positive:
+
+- catalog CI can catch risky ICU translation drift before runtime packaging.
+- Palamedes and other host adapters can reuse one diagnostic contract instead
+  of reimplementing ICU QA.
+- Ferrocat's runtime artifact boundary gets stronger without becoming a
+  framework runtime.
+- MF2 can be tracked deliberately without destabilizing the current API.
+
+Negative:
+
+- the public ICU API surface grows.
+- compatibility checks are structural and conservative, not a proof that a
+  translated sentence is linguistically correct.
+- callers that want full runtime formatting still need a host/runtime layer.
+
+## Alternatives Considered
+
+### Implement a Full ICU Runtime Formatter
+
+Rejected because locale-aware formatting would pull Ferrocat into CLDR data
+loading, formatter lifecycles, number/date/time skeleton semantics, BiDi policy,
+and host-specific output handling. That belongs above the catalog layer.
+
+### Wait for MessageFormat 2
+
+Rejected because the practical MF1 authoring problems exist today and can be
+handled without committing Ferrocat to MF2 syntax or runtime semantics.
+
+### Keep ICU Checks in Palamedes Only
+
+Rejected because the checks are catalog semantics and should stay available to
+Rust users and non-Palamedes host adapters.

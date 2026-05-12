@@ -80,6 +80,13 @@ Use this layer when you need:
 - locale fallback resolution before host-specific code generation
 - explicit missing-message reporting for non-source locales
 - final ICU-string validation diagnostics
+- optional ICU source/translation compatibility diagnostics with `icu_compatibility`
+
+`strict_icu` and `icu_compatibility` solve different problems. `strict_icu`
+turns invalid final ICU syntax into a hard compile error. `icu_compatibility`
+keeps compilation non-fatal and reports structural translation drift such as
+missing arguments, formatter changes, tag mismatches, select/plural branch
+changes, and discouraged formatter patterns.
 
 ## Related APIs
 

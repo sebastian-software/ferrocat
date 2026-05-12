@@ -6,7 +6,7 @@ pub struct IcuMessage {
 }
 
 /// Distinguishes cardinal and ordinal plural forms.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum IcuPluralKind {
     /// Cardinal plural categories such as `one` and `other`.
     Cardinal,

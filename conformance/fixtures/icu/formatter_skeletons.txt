@@ -1,0 +1,1 @@
+At {created, time, ::jmm} on {created, date, ::dMMMM}, total {value, number, ::currency/USD compact-short}.
