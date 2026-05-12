@@ -754,6 +754,7 @@ mod unit_tests {
             comments: Vec::new(),
             origin: Vec::new(),
             obsolete: false,
+            machine_translation: None,
             extra: None,
         }
     }
@@ -776,6 +777,7 @@ mod unit_tests {
             comments: Vec::new(),
             origin: Vec::new(),
             obsolete: false,
+            machine_translation: None,
             extra: None,
         }
     }

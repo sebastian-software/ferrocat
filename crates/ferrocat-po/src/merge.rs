@@ -330,7 +330,12 @@ fn parse_comment_line<'a>(
             .push(trimmed_str(&line_bytes[2..])),
         CommentKind::Metadata => {
             let trimmed = trim_ascii(&line_bytes[2..]);
-            if let Some((key_bytes, value_bytes)) = split_once_byte(trimmed, b':') {
+            if let Some(value_bytes) = ferrocat_mt_metadata_value(trimmed) {
+                state
+                    .item
+                    .metadata
+                    .push(("ferrocat-mt", trimmed_str(value_bytes)));
+            } else if let Some((key_bytes, value_bytes)) = split_once_byte(trimmed, b':') {
                 let key = trimmed_str(key_bytes);
                 if !key.is_empty() {
                     state.item.metadata.push((key, trimmed_str(value_bytes)));
@@ -340,6 +345,14 @@ fn parse_comment_line<'a>(
         CommentKind::Translator => state.item.comments.push(trimmed_str(&line_bytes[1..])),
         CommentKind::Other => {}
     }
+}
+
+fn ferrocat_mt_metadata_value(trimmed: &[u8]) -> Option<&[u8]> {
+    const KEY: &[u8] = b"ferrocat-mt";
+    let rest = trimmed.strip_prefix(KEY)?;
+    rest.first()
+        .is_some_and(u8::is_ascii_whitespace)
+        .then(|| trim_ascii(rest))
 }
 
 fn parse_keyword_line<'a>(
@@ -842,12 +855,20 @@ fn write_prefixed_lines<T: AsRef<str>>(
 fn write_metadata_lines(out: &mut String, obsolete_prefix: &str, values: &[(&str, &str)]) {
     for (key, value) in values {
         out.push_str(obsolete_prefix);
-        out.push_str("#@ ");
-        out.push_str(key);
-        out.push_str(": ");
-        out.push_str(value);
+        write_metadata_line(out, key, value);
         out.push('\n');
     }
+}
+
+fn write_metadata_line(out: &mut String, key: &str, value: &str) {
+    out.push_str("#@ ");
+    out.push_str(key);
+    if key == "ferrocat-mt" {
+        out.push(' ');
+    } else {
+        out.push_str(": ");
+    }
+    out.push_str(value);
 }
 
 fn write_flags_line<T: AsRef<str>>(out: &mut String, obsolete_prefix: &str, values: &[T]) {

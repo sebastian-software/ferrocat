@@ -6,11 +6,16 @@ use super::catalog::{
     CanonicalMessage, CanonicalTranslation, Catalog, append_placeholder_comments,
     plural_source_branches, split_placeholder_comments,
 };
+use super::mt::{
+    MachineTranslationMetadata, machine_translation_hash, validate_machine_translation_metadata,
+};
 use super::plural::synthesize_icu_plural;
-use super::{ApiError, CatalogOrigin, CatalogSemantics, PlaceholderCommentMode};
+use super::{
+    ApiError, CatalogOrigin, CatalogSemantics, EffectiveTranslationRef, PlaceholderCommentMode,
+};
 
 const FRONTMATTER_DELIMITER: &str = "---";
-const NDJSON_FORMAT: &str = "ferrocat.ndjson.v1";
+const NDJSON_FORMAT_V1: &str = "ferrocat.ndjson.v1";
 
 #[derive(Debug, Default)]
 struct Frontmatter {
@@ -33,6 +38,8 @@ struct NdjsonRecord {
     obsolete: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     extra: Option<NdjsonExtra>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    mt: Option<MachineTranslationMetadata>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -103,6 +110,9 @@ pub(super) fn parse_catalog_to_internal_ndjson(
 
         let (comments, placeholders) = split_placeholder_comments(record.comments);
         let extra = record.extra.unwrap_or_default();
+        if let Some(metadata) = &record.mt {
+            validate_machine_translation_metadata(metadata)?;
+        }
         messages.push(CanonicalMessage {
             msgid: record.id,
             msgctxt: record.ctx,
@@ -118,6 +128,7 @@ pub(super) fn parse_catalog_to_internal_ndjson(
                 .collect(),
             placeholders,
             obsolete: record.obsolete,
+            machine_translation: record.mt,
             translator_comments: extra.translator_comments,
             flags: extra.flags,
         });
@@ -139,11 +150,42 @@ pub(super) fn stringify_catalog_ndjson(
     source_locale: &str,
     placeholder_comment_mode: &PlaceholderCommentMode,
 ) -> String {
+    let records = catalog
+        .messages
+        .iter()
+        .map(|message| {
+            let mut comments = message.comments.clone();
+            append_placeholder_comments(
+                &mut comments,
+                &message.placeholders,
+                placeholder_comment_mode,
+            );
+
+            NdjsonRecord {
+                id: ndjson_id(message),
+                str: ndjson_translation(message),
+                ctx: message.msgctxt.clone(),
+                comments,
+                origin: message
+                    .origins
+                    .iter()
+                    .map(|origin| NdjsonOrigin {
+                        file: origin.file.clone(),
+                        line: origin.line,
+                    })
+                    .collect(),
+                obsolete: message.obsolete,
+                extra: ndjson_extra(message),
+                mt: ndjson_machine_translation(message),
+            }
+        })
+        .collect::<Vec<_>>();
+
     let mut rendered = String::new();
     rendered.push_str(FRONTMATTER_DELIMITER);
     rendered.push('\n');
     rendered.push_str("format: ");
-    rendered.push_str(NDJSON_FORMAT);
+    rendered.push_str(NDJSON_FORMAT_V1);
     rendered.push('\n');
     if let Some(locale) = locale {
         rendered.push_str("locale: ");
@@ -156,30 +198,7 @@ pub(super) fn stringify_catalog_ndjson(
     rendered.push_str(FRONTMATTER_DELIMITER);
     rendered.push('\n');
 
-    for message in &catalog.messages {
-        let mut comments = message.comments.clone();
-        append_placeholder_comments(
-            &mut comments,
-            &message.placeholders,
-            placeholder_comment_mode,
-        );
-
-        let record = NdjsonRecord {
-            id: ndjson_id(message),
-            str: ndjson_translation(message),
-            ctx: message.msgctxt.clone(),
-            comments,
-            origin: message
-                .origins
-                .iter()
-                .map(|origin| NdjsonOrigin {
-                    file: origin.file.clone(),
-                    line: origin.line,
-                })
-                .collect(),
-            obsolete: message.obsolete,
-            extra: ndjson_extra(message),
-        };
+    for record in records {
         rendered.push_str(
             &serde_json::to_string(&record).expect("NDJSON record serialization must succeed"),
         );
@@ -187,6 +206,25 @@ pub(super) fn stringify_catalog_ndjson(
     }
 
     rendered
+}
+
+fn ndjson_machine_translation(message: &CanonicalMessage) -> Option<MachineTranslationMetadata> {
+    let metadata = message.machine_translation.as_ref()?;
+    if validate_machine_translation_metadata(metadata).is_err() {
+        return None;
+    }
+    (metadata.hash == machine_translation_hash(ndjson_translation_ref(message)))
+        .then(|| metadata.clone())
+}
+
+fn ndjson_translation_ref(message: &CanonicalMessage) -> EffectiveTranslationRef<'_> {
+    match &message.translation {
+        CanonicalTranslation::Singular { value } => EffectiveTranslationRef::Singular(value),
+        CanonicalTranslation::Plural {
+            translation_by_category,
+            ..
+        } => EffectiveTranslationRef::Plural(translation_by_category),
+    }
 }
 
 fn ndjson_id(message: &CanonicalMessage) -> String {
@@ -263,10 +301,10 @@ fn parse_frontmatter(input: &str) -> Result<(Frontmatter, &str), ApiError> {
 
         match key {
             "format" => {
-                if value != NDJSON_FORMAT {
+                if value != NDJSON_FORMAT_V1 {
                     return Err(ApiError::InvalidArguments(format!(
                         "unsupported NDJSON format {:?}; expected {:?}",
-                        value, NDJSON_FORMAT
+                        value, NDJSON_FORMAT_V1
                     )));
                 }
             }
@@ -318,8 +356,8 @@ mod tests {
 
     use super::{
         CanonicalMessage, CanonicalTranslation, Catalog, CatalogOrigin, CatalogSemantics,
-        NDJSON_FORMAT, PlaceholderCommentMode, normalize_input, parse_catalog_to_internal_ndjson,
-        parse_frontmatter, stringify_catalog_ndjson, take_line,
+        NDJSON_FORMAT_V1, PlaceholderCommentMode, normalize_input,
+        parse_catalog_to_internal_ndjson, parse_frontmatter, stringify_catalog_ndjson, take_line,
     };
 
     fn sample_catalog() -> Catalog {
@@ -342,6 +380,7 @@ mod tests {
                     }],
                     placeholders: BTreeMap::new(),
                     obsolete: false,
+                    machine_translation: None,
                     translator_comments: vec!["Keep short".to_owned()],
                     flags: vec!["fuzzy".to_owned()],
                 },
@@ -363,6 +402,7 @@ mod tests {
                     origins: Vec::new(),
                     placeholders: BTreeMap::new(),
                     obsolete: true,
+                    machine_translation: None,
                     translator_comments: Vec::new(),
                     flags: Vec::new(),
                 },
@@ -414,7 +454,7 @@ mod tests {
             "en",
             &PlaceholderCommentMode::Disabled,
         );
-        assert!(rendered.contains(&format!("format: {NDJSON_FORMAT}")));
+        assert!(rendered.contains(&format!("format: {NDJSON_FORMAT_V1}")));
         assert!(rendered.contains("\"ctx\":\"nav\""));
         assert!(rendered.contains("\"translator_comments\":[\"Keep short\"]"));
         assert!(rendered.contains("{count, plural, one {# Datei} other {# Dateien}}"));

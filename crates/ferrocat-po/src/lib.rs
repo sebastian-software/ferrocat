@@ -100,12 +100,12 @@ pub use api::{
     CompiledCatalogMissingMessage, CompiledCatalogTranslationKind, CompiledCatalogUnavailableId,
     CompiledKeyStrategy, CompiledMessage, CompiledTranslation, DescribeCompiledIdsReport,
     Diagnostic, DiagnosticSeverity, EffectiveTranslation, EffectiveTranslationRef,
-    ExtractedMessage, ExtractedPluralMessage, ExtractedSingularMessage, NormalizedParsedCatalog,
-    ObsoleteStrategy, OrderBy, ParseCatalogOptions, ParsedCatalog, PlaceholderCommentMode,
-    PluralEncoding, PluralSource, SourceExtractedMessage, TranslationShape,
+    ExtractedMessage, ExtractedPluralMessage, ExtractedSingularMessage, MachineTranslationMetadata,
+    NormalizedParsedCatalog, ObsoleteStrategy, OrderBy, ParseCatalogOptions, ParsedCatalog,
+    PlaceholderCommentMode, PluralEncoding, PluralSource, SourceExtractedMessage, TranslationShape,
     UpdateCatalogFileOptions, UpdateCatalogOptions, audit_catalogs, combine_catalogs,
-    compile_catalog_artifact, compile_catalog_artifact_selected, compiled_key, parse_catalog,
-    update_catalog, update_catalog_file,
+    compile_catalog_artifact, compile_catalog_artifact_selected, compiled_key,
+    machine_translation_hash, parse_catalog, update_catalog, update_catalog_file,
 };
 pub use borrowed::{
     BorrowedHeader, BorrowedMsgStr, BorrowedPoFile, BorrowedPoItem, parse_po_borrowed,

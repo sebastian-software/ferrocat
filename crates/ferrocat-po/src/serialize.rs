@@ -86,10 +86,7 @@ fn write_item(out: &mut String, scratch: &mut String, item: &PoItem, options: &S
     }
     for (key, value) in &item.metadata {
         out.push_str(obsolete_prefix);
-        out.push_str("#@ ");
-        out.push_str(key);
-        out.push_str(": ");
-        out.push_str(value);
+        write_metadata_line(out, key, value);
         out.push('\n');
     }
     for reference in &item.references {
@@ -175,6 +172,17 @@ fn write_item(out: &mut String, scratch: &mut String, item: &PoItem, options: &S
             options,
         );
     }
+}
+
+fn write_metadata_line(out: &mut String, key: &str, value: &str) {
+    out.push_str("#@ ");
+    out.push_str(key);
+    if key == "ferrocat-mt" {
+        out.push(' ');
+    } else {
+        out.push_str(": ");
+    }
+    out.push_str(value);
 }
 
 pub fn write_prefixed_line(out: &mut String, obsolete_prefix: &str, prefix: &str, value: &str) {

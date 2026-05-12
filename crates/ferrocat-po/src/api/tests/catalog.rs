@@ -43,6 +43,180 @@ fn update_catalog_preserves_non_source_translations() {
 }
 
 #[test]
+fn parse_catalog_reads_po_machine_translation_metadata() {
+    let hash = machine_translation_hash(EffectiveTranslationRef::Singular("Hallo"));
+    let content = format!(
+        "#@ ferrocat-mt model=openai/gpt-5.5-high modified=2026-05-12T10:30:00Z confidence=95 hash={hash}\nmsgid \"Hello\"\nmsgstr \"Hallo\"\n"
+    );
+    let parsed = parse_catalog(ParseCatalogOptions {
+        content: &content,
+        source_locale: "en",
+        locale: Some("de"),
+        ..ParseCatalogOptions::default()
+    })
+    .expect("parse");
+
+    let metadata = parsed.messages[0]
+        .machine_translation
+        .as_ref()
+        .expect("machine translation metadata");
+    assert_eq!(metadata.model, "openai/gpt-5.5-high");
+    assert_eq!(metadata.modified.as_deref(), Some("2026-05-12T10:30:00Z"));
+    assert_eq!(metadata.confidence, Some(95));
+    assert_eq!(metadata.hash, hash);
+}
+
+#[test]
+fn update_catalog_keeps_valid_po_machine_translation_metadata() {
+    let hash = machine_translation_hash(EffectiveTranslationRef::Singular("Hallo"));
+    let existing = format!(
+        "#@ ferrocat-mt model=openai/gpt-5.5-high confidence=95 hash={hash}\nmsgid \"Hello\"\nmsgstr \"Hallo\"\n"
+    );
+
+    let result = update_catalog(UpdateCatalogOptions {
+        source_locale: "en",
+        locale: Some("de"),
+        existing: Some(&existing),
+        input: structured_input(vec![ExtractedMessage::Singular(ExtractedSingularMessage {
+            msgid: "Hello".to_owned(),
+            ..ExtractedSingularMessage::default()
+        })]),
+        ..UpdateCatalogOptions::default()
+    })
+    .expect("update");
+
+    assert!(
+        result
+            .content
+            .contains("#@ ferrocat-mt model=openai/gpt-5.5-high confidence=95 hash=")
+    );
+    let parsed = parse_po(&result.content).expect("parse output");
+    assert_eq!(parsed.items[0].metadata[0].0, "ferrocat-mt");
+}
+
+#[test]
+fn update_catalog_drops_stale_po_machine_translation_metadata() {
+    let existing = concat!(
+        "#@ ferrocat-mt model=openai/gpt-5.5-high confidence=95 hash=stale\n",
+        "msgid \"Hello\"\n",
+        "msgstr \"Hallo\"\n",
+    );
+
+    let result = update_catalog(UpdateCatalogOptions {
+        source_locale: "en",
+        locale: Some("de"),
+        existing: Some(existing),
+        input: structured_input(vec![ExtractedMessage::Singular(ExtractedSingularMessage {
+            msgid: "Hello".to_owned(),
+            ..ExtractedSingularMessage::default()
+        })]),
+        ..UpdateCatalogOptions::default()
+    })
+    .expect("update");
+
+    assert!(!result.content.contains("#@ ferrocat-mt"));
+    let parsed = parse_catalog(ParseCatalogOptions {
+        content: existing,
+        source_locale: "en",
+        locale: Some("de"),
+        ..ParseCatalogOptions::default()
+    })
+    .expect("parse stale metadata");
+    assert!(parsed.messages[0].machine_translation.is_some());
+}
+
+#[test]
+fn parse_catalog_rejects_machine_translation_confidence_above_100() {
+    let error = parse_catalog(ParseCatalogOptions {
+        content: concat!(
+            "#@ ferrocat-mt model=openai/gpt-5.5-high confidence=101 hash=abc\n",
+            "msgid \"Hello\"\n",
+            "msgstr \"Hallo\"\n",
+        ),
+        source_locale: "en",
+        locale: Some("de"),
+        ..ParseCatalogOptions::default()
+    })
+    .expect_err("confidence above 100 should fail");
+
+    assert!(matches!(
+        error,
+        ApiError::InvalidArguments(message) if message.contains("confidence")
+    ));
+}
+
+#[test]
+fn update_catalog_roundtrips_valid_ndjson_machine_translation_metadata() {
+    let hash = machine_translation_hash(EffectiveTranslationRef::Singular("Hallo"));
+    let existing = format!(
+        "---\n\
+         format: ferrocat.ndjson.v1\n\
+         locale: de\n\
+         source_locale: en\n\
+         ---\n\
+         {{\"id\":\"Hello\",\"str\":\"Hallo\",\"mt\":{{\"model\":\"openai/gpt-5.5-high\",\"modified\":\"2026-05-12T10:30:00Z\",\"confidence\":95,\"hash\":\"{hash}\"}}}}\n"
+    );
+
+    let result = update_catalog(UpdateCatalogOptions {
+        source_locale: "en",
+        locale: Some("de"),
+        existing: Some(&existing),
+        storage_format: CatalogStorageFormat::Ndjson,
+        input: structured_input(vec![ExtractedMessage::Singular(ExtractedSingularMessage {
+            msgid: "Hello".to_owned(),
+            ..ExtractedSingularMessage::default()
+        })]),
+        ..UpdateCatalogOptions::default()
+    })
+    .expect("update");
+
+    assert!(result.content.contains("format: ferrocat.ndjson.v1"));
+    assert!(result.content.contains("\"mt\""));
+    let parsed = normalized_ndjson_catalog(&result.content, Some("de"));
+    assert!(
+        parsed
+            .get_by_parts("Hello", None)
+            .and_then(|message| message.machine_translation.as_ref())
+            .is_some()
+    );
+}
+
+#[test]
+fn update_catalog_drops_stale_ndjson_machine_translation_metadata() {
+    let existing = concat!(
+        "---\n",
+        "format: ferrocat.ndjson.v1\n",
+        "locale: de\n",
+        "source_locale: en\n",
+        "---\n",
+        "{\"id\":\"Hello\",\"str\":\"Hallo\",\"mt\":{\"model\":\"openai/gpt-5.5-high\",\"confidence\":95,\"hash\":\"stale\"}}\n",
+    );
+
+    let result = update_catalog(UpdateCatalogOptions {
+        source_locale: "en",
+        locale: Some("de"),
+        existing: Some(existing),
+        storage_format: CatalogStorageFormat::Ndjson,
+        input: structured_input(vec![ExtractedMessage::Singular(ExtractedSingularMessage {
+            msgid: "Hello".to_owned(),
+            ..ExtractedSingularMessage::default()
+        })]),
+        ..UpdateCatalogOptions::default()
+    })
+    .expect("update");
+
+    assert!(result.content.contains("format: ferrocat.ndjson.v1"));
+    assert!(!result.content.contains("\"mt\""));
+    let parsed = normalized_ndjson_catalog(existing, Some("de"));
+    assert!(
+        parsed
+            .get_by_parts("Hello", None)
+            .and_then(|message| message.machine_translation.as_ref())
+            .is_some()
+    );
+}
+
+#[test]
 fn overwrite_source_translations_refreshes_source_locale() {
     let existing = "msgid \"Hello\"\nmsgstr \"Old\"\n";
     let result = update_catalog(UpdateCatalogOptions {

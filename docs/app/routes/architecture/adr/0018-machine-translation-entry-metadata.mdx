@@ -1,0 +1,98 @@
+---
+title: "ADR 0018: Add Machine-Translation Metadata to Catalog Entries"
+description: "Accepted architecture decision record: machine-translation entry metadata."
+order: 180
+---
+
+# ADR 0018: Add Machine-Translation Metadata to Catalog Entries
+
+- Status: Accepted
+- Date: 2026-05-12
+
+## Context
+
+Ferrocat already has source-side semantic message metadata, but automatic
+translation workflows need translation-side provenance. In automation-centered
+catalogs, most translations may be produced by a machine translation pipeline,
+and the important question is not review state. It is whether the machine
+translation facts still describe the current translation text.
+
+The metadata should stay compact in PO files, fit naturally in NDJSON records,
+and not require Ferrocat to call any translation model itself.
+
+## Decision
+
+Add optional machine-translation metadata to each high-level catalog entry.
+
+The public model contains:
+
+- `model`, a caller-defined model identifier such as `openai/gpt-5.5-high`
+- optional `modified`, the time when the machine-generated translation was last
+  modified
+- optional `confidence`, an integer from 0 to 100
+- `hash`, a change-detection hash for the current translation payload
+
+Ferrocat does not store `provider`, `review`, or source-message digest fields.
+If machine-translation metadata is absent, the translation is no longer
+machine-provenance-tracked.
+
+The hash contract is:
+
+- SHA-256 over a canonical, length-delimited translation payload
+- prefixed with the fixed `ferrocat:mt:v1` namespace
+- truncated to 128 bits
+- encoded as unpadded Base64URL
+
+The namespace avoids a plain hash of only the translated string, but it is not
+secret. The hash is a change-detection marker, not a signature or tamper-proof
+security boundary.
+
+PO stores the metadata in one compact line:
+
+```po
+#@ ferrocat-mt model=openai/gpt-5.5-high modified=2026-05-12T10:30:00Z confidence=95 hash=...
+```
+
+NDJSON stores it under the optional `mt` field in `format:
+ferrocat.ndjson.v1`. The format is still new enough that this field can be part
+of the v1 record contract without introducing a v2 marker.
+
+Parsing preserves stale metadata. High-level catalog writers verify the hash
+against the current translation and drop the whole metadata block when it no
+longer matches.
+
+## Consequences
+
+Positive:
+
+- machine translation provenance becomes first-class catalog data
+- human edits are represented by removing stale machine-translation metadata
+- PO remains compact and readable
+- NDJSON gets a versioned storage contract for the new field
+
+Negative:
+
+- the high-level catalog model and NDJSON storage contract grow a new public
+  field
+- callers must recompute the hash when they update machine-generated
+  translations
+- the fixed namespace can be reproduced from open source code, so it must not be
+  treated as a secret
+
+## Alternatives Considered
+
+### Add Review State
+
+Rejected for this phase. The current workflow treats missing or stale
+machine-translation metadata as sufficient evidence that the translation is no
+longer machine-provenance-tracked.
+
+### Track Provider Separately
+
+Rejected because the `model` string can include provider information without
+requiring Ferrocat to standardize provider naming.
+
+### Store One PO Metadata Line Per Field
+
+Rejected because the compact single-line `#@ ferrocat-mt ...` form is easier to
+scan in ordinary PO review.

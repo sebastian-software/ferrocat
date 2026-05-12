@@ -229,7 +229,12 @@ fn parse_comment_line(
             .push(trimmed_string(&line_bytes[2..])),
         CommentKind::Metadata => {
             let trimmed = trim_ascii(&line_bytes[2..]);
-            if let Some((key_bytes, value_bytes)) = split_once_byte(trimmed, b':') {
+            if let Some(value_bytes) = ferrocat_mt_metadata_value(trimmed) {
+                state.item.metadata.push((
+                    "ferrocat-mt".to_owned(),
+                    trimmed_str(value_bytes).to_owned(),
+                ));
+            } else if let Some((key_bytes, value_bytes)) = split_once_byte(trimmed, b':') {
                 let key = trimmed_str(key_bytes);
                 if !key.is_empty() {
                     let value = trimmed_str(value_bytes);
@@ -240,6 +245,14 @@ fn parse_comment_line(
         CommentKind::Translator => state.item.comments.push(trimmed_string(&line_bytes[1..])),
         CommentKind::Other => {}
     }
+}
+
+fn ferrocat_mt_metadata_value(trimmed: &[u8]) -> Option<&[u8]> {
+    const KEY: &[u8] = b"ferrocat-mt";
+    let rest = trimmed.strip_prefix(KEY)?;
+    rest.first()
+        .is_some_and(u8::is_ascii_whitespace)
+        .then(|| trim_ascii(rest))
 }
 
 fn parse_keyword_line(

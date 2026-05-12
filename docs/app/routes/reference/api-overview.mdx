@@ -51,6 +51,7 @@ NDJSON is the line-delimited JSON storage choice. It is useful when catalogs are
 | Compile only a selected subset of compiled runtime IDs | `compile_catalog_artifact_selected` |
 | Perform a full in-memory catalog update | `update_catalog` |
 | Perform a full catalog update and write the result to disk only when changed | `update_catalog_file` |
+| Compute the metadata hash for a machine-generated translation | `machine_translation_hash` |
 | Parse ICU MessageFormat into a structural AST | `parse_icu` |
 | Only validate ICU syntax | `validate_icu` |
 | Summarize ICU arguments, formatters, plurals, selects, and tags | `analyze_icu` |
@@ -341,7 +342,35 @@ Updates also use an explicit `CatalogSemantics`:
 
 In native mode, `CatalogUpdateInput::SourceFirst` stays source-text-first; it no longer auto-projects ICU strings into structured plural messages. Use `CatalogUpdateInput::Structured` when you want explicit plural structure.
 
-In `NDJSON` storage, arbitrary gettext-style custom headers are intentionally out of scope for `v1`; only the explicit frontmatter metadata is persisted.
+In `NDJSON` storage, arbitrary gettext-style custom headers are intentionally out of scope for `v1`; only the explicit frontmatter metadata and per-record fields are persisted. Machine-translation metadata uses the optional `mt` record field and remains part of `ferrocat.ndjson.v1`.
+
+### Machine-translation metadata
+
+`CatalogMessage::machine_translation` stores optional translation-side metadata
+for machine-generated catalog entries. The metadata contains `model`, optional
+`modified`, optional `confidence`, and `hash`.
+
+Use `machine_translation_hash` to compute the hash for the current translation.
+Ferrocat uses SHA-256 over a canonical translation payload plus the fixed
+`ferrocat:mt:v1` namespace, truncates the digest to 128 bits, and encodes it
+as unpadded Base64URL. This is a change-detection marker, not a security
+signature.
+
+PO catalogs store the metadata as one compact metadata comment:
+
+```po
+#@ ferrocat-mt model=openai/gpt-5.5-high modified=2026-05-12T10:30:00Z confidence=95 hash=...
+```
+
+NDJSON catalogs store the same metadata under `mt`:
+
+```json
+{"id":"Hello","str":"Hallo","mt":{"model":"openai/gpt-5.5-high","confidence":95,"hash":"..."}}
+```
+
+Parsing preserves metadata even when the hash no longer matches. High-level
+writers such as `update_catalog` verify the hash while rendering and omit the
+whole machine-translation metadata block when the translation has changed.
 
 ### `update_catalog_file`
 

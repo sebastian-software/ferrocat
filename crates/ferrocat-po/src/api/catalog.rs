@@ -13,14 +13,19 @@ use super::helpers::{
     dedupe_origins, dedupe_placeholders, dedupe_strings, merge_placeholders, merge_unique_origins,
     merge_unique_strings,
 };
+use super::mt::{
+    MachineTranslationMetadata, PO_MACHINE_TRANSLATION_KEY, format_po_machine_translation_metadata,
+    machine_translation_hash, parse_po_machine_translation_metadata,
+    validate_machine_translation_metadata,
+};
 use super::ndjson::{parse_catalog_to_internal_ndjson, stringify_catalog_ndjson};
 use super::plural::{PluralProfile, derive_plural_variable, synthesize_icu_plural};
 use super::{
     ApiError, CatalogCombineResult, CatalogCombineStats, CatalogConflictStrategy, CatalogMessage,
     CatalogMessageExtra, CatalogOrigin, CatalogSemantics, CatalogStats, CatalogStorageFormat,
     CatalogUpdateInput, CatalogUpdateResult, CombineCatalogOptions, Diagnostic, DiagnosticSeverity,
-    ExtractedMessage, ObsoleteStrategy, OrderBy, ParseCatalogOptions, ParsedCatalog,
-    PlaceholderCommentMode, PluralEncoding, PluralSource, TranslationShape,
+    EffectiveTranslationRef, ExtractedMessage, ObsoleteStrategy, OrderBy, ParseCatalogOptions,
+    ParsedCatalog, PlaceholderCommentMode, PluralEncoding, PluralSource, TranslationShape,
     UpdateCatalogFileOptions, UpdateCatalogOptions,
 };
 use crate::{Header, MsgStr, PoFile, PoItem, SerializeOptions, parse_po, stringify_po};
@@ -44,6 +49,7 @@ pub(super) struct CanonicalMessage {
     pub(super) origins: Vec<CatalogOrigin>,
     pub(super) placeholders: BTreeMap<String, Vec<String>>,
     pub(super) obsolete: bool,
+    pub(super) machine_translation: Option<MachineTranslationMetadata>,
     pub(super) translator_comments: Vec<String>,
     pub(super) flags: Vec<String>,
 }
@@ -404,6 +410,7 @@ fn merge_combine_message(
 
     if conflict_strategy == CatalogConflictStrategy::UseLast {
         entry.message.translation = message.translation.clone();
+        entry.message.machine_translation = message.machine_translation.clone();
     }
 
     merge_combine_metadata(&mut entry.message, message);
@@ -416,6 +423,9 @@ fn merge_combine_metadata(target: &mut CanonicalMessage, source: CanonicalMessag
     merge_placeholders(&mut target.placeholders, source.placeholders);
     merge_unique_strings(&mut target.translator_comments, source.translator_comments);
     merge_unique_strings(&mut target.flags, source.flags);
+    if target.machine_translation.is_none() {
+        target.machine_translation = source.machine_translation;
+    }
     target.obsolete = target.obsolete && source.obsolete;
 }
 
@@ -824,10 +834,11 @@ fn merge_message(
         }
     };
 
-    let (translator_comments, flags, obsolete) = previous.map_or_else(
-        || (Vec::new(), Vec::new(), false),
+    let (machine_translation, translator_comments, flags, obsolete) = previous.map_or_else(
+        || (None, Vec::new(), Vec::new(), false),
         |message| {
             (
+                message.machine_translation.clone(),
                 message.translator_comments.clone(),
                 message.flags.clone(),
                 false,
@@ -843,6 +854,7 @@ fn merge_message(
         origins: next.origins.clone(),
         placeholders: next.placeholders.clone(),
         obsolete,
+        machine_translation,
         translator_comments,
         flags,
     }
@@ -1096,6 +1108,12 @@ fn base_po_item(
         &message.placeholders,
         &options.print_placeholders_in_comments,
     );
+    if let Some(metadata) = valid_machine_translation_metadata(message) {
+        item.metadata.push((
+            PO_MACHINE_TRANSLATION_KEY.to_owned(),
+            format_po_machine_translation_metadata(metadata),
+        ));
+    }
     item.references = if options.include_origins {
         message
             .origins
@@ -1115,6 +1133,27 @@ fn base_po_item(
         Vec::new()
     };
     item
+}
+
+fn valid_machine_translation_metadata(
+    message: &CanonicalMessage,
+) -> Option<&MachineTranslationMetadata> {
+    let metadata = message.machine_translation.as_ref()?;
+    if validate_machine_translation_metadata(metadata).is_err() {
+        return None;
+    }
+    (metadata.hash == machine_translation_hash(canonical_translation_ref(&message.translation)))
+        .then_some(metadata)
+}
+
+fn canonical_translation_ref(translation: &CanonicalTranslation) -> EffectiveTranslationRef<'_> {
+    match translation {
+        CanonicalTranslation::Singular { value } => EffectiveTranslationRef::Singular(value),
+        CanonicalTranslation::Plural {
+            translation_by_category,
+            ..
+        } => EffectiveTranslationRef::Plural(translation_by_category),
+    }
 }
 
 /// Builds the minimal category map needed to re-synthesize a source ICU plural.
@@ -1309,9 +1348,29 @@ fn import_message_from_po(
         origins,
         placeholders,
         obsolete: item.obsolete,
+        machine_translation: import_machine_translation_metadata(&item.metadata)?,
         translator_comments: item.comments,
         flags: item.flags,
     })
+}
+
+fn import_machine_translation_metadata(
+    metadata: &[(String, String)],
+) -> Result<Option<MachineTranslationMetadata>, ApiError> {
+    let mut value = None;
+    for (key, next_value) in metadata {
+        if key != PO_MACHINE_TRANSLATION_KEY {
+            continue;
+        }
+        if value.replace(next_value).is_some() {
+            return Err(ApiError::InvalidArguments(
+                "duplicate machine translation metadata for PO item".to_owned(),
+            ));
+        }
+    }
+    value
+        .map(|value| parse_po_machine_translation_metadata(value))
+        .transpose()
 }
 
 /// Splits extractor-style placeholder comments back out of the generic
@@ -1444,6 +1503,7 @@ fn public_message_from_canonical(message: CanonicalMessage) -> CatalogMessage {
         comments: message.comments,
         origin: message.origins,
         obsolete: message.obsolete,
+        machine_translation: message.machine_translation,
         extra: Some(CatalogMessageExtra {
             translator_comments: message.translator_comments,
             flags: message.flags,

@@ -4,6 +4,7 @@ use std::path::Path;
 
 use crate::ParseError;
 
+use super::mt::MachineTranslationMetadata;
 use super::plural::PluralProfile;
 
 /// File and line information for an extracted message origin.
@@ -168,6 +169,8 @@ pub struct CatalogMessage {
     pub origin: Vec<CatalogOrigin>,
     /// Whether the message is marked obsolete.
     pub obsolete: bool,
+    /// Optional machine-translation metadata for the current translation.
+    pub machine_translation: Option<MachineTranslationMetadata>,
     /// Optional additional translator-facing PO metadata.
     pub extra: Option<CatalogMessageExtra>,
 }
@@ -1011,6 +1014,7 @@ mod tests {
             comments: vec!["Shown in toolbar".to_owned()],
             origin: Vec::new(),
             obsolete: false,
+            machine_translation: None,
             extra: Some(CatalogMessageExtra {
                 translator_comments: vec!["Imperative".to_owned()],
                 flags: vec!["fuzzy".to_owned()],
@@ -1047,6 +1051,7 @@ mod tests {
             comments: Vec::new(),
             origin: Vec::new(),
             obsolete: false,
+            machine_translation: None,
             extra: None,
         };
 
@@ -1080,6 +1085,7 @@ mod tests {
                     comments: Vec::new(),
                     origin: Vec::new(),
                     obsolete: false,
+                    machine_translation: None,
                     extra: None,
                 },
                 CatalogMessage {
@@ -1091,6 +1097,7 @@ mod tests {
                     comments: Vec::new(),
                     origin: Vec::new(),
                     obsolete: false,
+                    machine_translation: None,
                     extra: None,
                 },
             ],

@@ -4,6 +4,7 @@ mod compile;
 mod compile_types;
 mod file_io;
 mod helpers;
+mod mt;
 mod ndjson;
 mod plural;
 mod types;
@@ -23,6 +24,7 @@ pub use self::compile_types::{
     CompiledCatalogTranslationKind, CompiledCatalogUnavailableId, CompiledKeyStrategy,
     CompiledMessage, CompiledTranslation, DescribeCompiledIdsReport,
 };
+pub use self::mt::{MachineTranslationMetadata, machine_translation_hash};
 pub use self::types::{
     ApiError, CatalogCombineInput, CatalogCombineResult, CatalogCombineSelection,
     CatalogCombineStats, CatalogConflictStrategy, CatalogMessage, CatalogMessageExtra,
