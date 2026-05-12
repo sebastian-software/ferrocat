@@ -30,6 +30,12 @@ Ferrocat is an actively developed pre-`1.0` Rust project. The public API is alre
 - broader cross-ecosystem tooling and bindings
 - continued conformance growth and publication-grade benchmarking discipline
 
+MessageFormat 2 is deliberately not a near-term roadmap item. Ferrocat tracks
+it as an important future standard, but the current implementation focus stays
+on ICU MessageFormat v1 parsing, authoring diagnostics, conformance, and
+runtime artifact validation because those solve the more immediate catalog
+problems without taking on a second transitional message syntax.
+
 ## Why the project direction matters
 
 Today Ferrocat is Rust-first. The longer-term goal is broader: a trustworthy translation core that can serve multiple ecosystems from one implementation, without forcing each host environment to re-implement catalog semantics, compiled key derivation, and locale resolution separately.

@@ -305,6 +305,12 @@ Like `update_catalog`, it accepts `CatalogUpdateInput`, so extractor tooling can
 
 ## ICU MessageFormat
 
+Ferrocat's ICU APIs currently target ICU MessageFormat v1. MessageFormat 2 is
+not parsed, validated, converted, or formatted by the public API. That is a
+deliberate scope boundary: MF2 is worth tracking, but the current catalog
+surface gets more practical value from robust MF1 parsing, authoring
+diagnostics, and artifact validation.
+
 ### `parse_icu`
 
 Use this when you need the parsed ICU AST.

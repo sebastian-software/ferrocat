@@ -99,6 +99,8 @@ For the common "merge fresh extracted messages into an existing catalog" workflo
 
 ICU-native workflows can use `analyze_icu` and `compare_icu_messages` to catch missing arguments, formatter changes, tag mismatches, select/plural branch drift, and discouraged pattern-style formatters. Runtime artifact compilation can opt into the same source/translation checks with `icu_compatibility`.
 
+Ferrocat's ICU scope is currently MessageFormat v1. MessageFormat 2 is tracked as a future standard, but it is not a near-term implementation target because the implementation surface is still transitional and MF1 authoring diagnostics solve the more immediate catalog problems.
+
 ## Compatibility Snapshot
 
 - **MSRV:** Rust `1.88`

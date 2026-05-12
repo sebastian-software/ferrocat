@@ -25,9 +25,15 @@ authoring feedback while catalogs are still being reviewed or packaged:
 - opaque number/date/time pattern styles should be visible because ICU
   recommends predefined styles or skeletons for portable formatting
 
-ICU MessageFormat 2 is visible and important, but ICU still documents it as a
-Technical Preview successor to the long-standing MessageFormat API. It is not
-the right stable contract for Ferrocat's default catalog surface yet.
+ICU MessageFormat 2 is visible and important, but it is not a current Ferrocat
+implementation target. ICU still documents its `MessageFormatter` surface as a
+Technical Preview successor to the long-standing MessageFormat API, and ICU's
+own guide notes that implementation support may lag the MF2 specification in
+early releases. For Ferrocat's catalog layer, the immediate product value is
+also not urgent enough to justify taking on a second message syntax now: MF1
+already covers the practical plural/select/formatter workflows users are most
+likely to need, and authoring diagnostics around MF1 close the more immediate
+quality gap.
 
 ## Decision
 
@@ -45,6 +51,13 @@ Concretely:
   invalid final ICU string is a hard compile error.
 - Ferrocat does not format locale-aware runtime output for number, date, time,
   list, or plural values.
+- Ferrocat does not implement MessageFormat 2 parsing, conversion, validation,
+  or runtime formatting in this phase.
+
+MF2 should only be reconsidered when there is a stable, widely deployed
+implementation surface that materially improves Ferrocat's catalog workflows
+over MF1 plus diagnostics. A future MF2 investigation should start with a new
+ADR instead of being added implicitly to the existing ICU parser.
 
 ## Consequences
 
@@ -55,7 +68,8 @@ Positive:
   of reimplementing ICU QA.
 - Ferrocat's runtime artifact boundary gets stronger without becoming a
   framework runtime.
-- MF2 can be tracked deliberately without destabilizing the current API.
+- MF2 remains a deliberate future decision instead of scope creep inside the
+  current ICU parser.
 
 Negative:
 
@@ -75,7 +89,10 @@ and host-specific output handling. That belongs above the catalog layer.
 ### Wait for MessageFormat 2
 
 Rejected because the practical MF1 authoring problems exist today and can be
-handled without committing Ferrocat to MF2 syntax or runtime semantics.
+handled without committing Ferrocat to MF2 syntax or runtime semantics. Even
+though MF2 is promising, the current Ferrocat value proposition does not depend
+on it: catalog teams get more near-term benefit from MF1 compatibility checks,
+artifact diagnostics, conformance growth, and clear Palamedes handoff points.
 
 ### Keep ICU Checks in Palamedes Only
 

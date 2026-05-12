@@ -37,6 +37,10 @@ The high-level catalog API now exposes two explicit semantic modes:
 - `CatalogSemantics::IcuNative` as the default
 - `CatalogSemantics::GettextCompat` as the explicit PO interoperability mode
 
+`IcuNative` means ICU MessageFormat v1 in this ADR. MessageFormat 2 is not an
+implicit extension of this mode and should not be accepted through the same
+parser or catalog semantics without a separate ADR.
+
 This is a semantic split, not just a formatting option.
 
 The public contracts are:

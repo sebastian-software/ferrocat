@@ -24,6 +24,12 @@ can now analyze ICU arguments, formatters, plurals, selects, and tags, and it
 can compare source and translation structure without taking ownership of
 locale-aware runtime formatting.
 
+MessageFormat 2 is intentionally not part of this accepted model today. The
+project continues to target ICU MessageFormat v1 for catalog semantics because
+the MF2 implementation surface is still too transitional for Ferrocat's stable
+catalog contracts, and the near-term user value is better served by stronger
+MF1 validation, diagnostics, and runtime artifact checks.
+
 ## Context
 
 `ferrocat` now has a high-level catalog API layered on top of the PO core:
