@@ -88,9 +88,17 @@ keeps compilation non-fatal and reports structural translation drift such as
 missing arguments, formatter changes, tag mismatches, select/plural branch
 changes, and discouraged formatter patterns.
 
+For broader release QA, use `audit_catalogs` before compilation. Audit reports
+missing locales, missing or empty translations, stale target-only entries,
+visible `fuzzy` flags, obsolete entries, ICU syntax, ICU compatibility, and
+semantic metadata conflicts across a catalog set. Artifact compilation stays
+focused on producing one resolved runtime payload; audit answers whether the
+source and target catalogs are shippable.
+
 ## Related APIs
 
 - [API Overview](/reference/api-overview) for the full chooser
 - [Ferrocat And Palamedes](/guide/palamedes) for the framework integration boundary
 - [ADR 0009](/architecture/adr/0009-runtime-catalog-compiled-key-strategy) for key derivation
 - [ADR 0010](/architecture/adr/0010-compiled-catalog-artifact-api) for the locale-resolved artifact layer
+- [ADR 0017](/architecture/adr/0017-catalog-audit-reports) for catalog audit reports

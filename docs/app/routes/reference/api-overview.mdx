@@ -9,6 +9,7 @@ Ferrocat's public API is organized around jobs, not around command-line tool nam
 
 - low-level Gettext PO parsing and writing
 - catalog-level merge, combine, update, and runtime compilation workflows
+- catalog audit reports for release QA
 - explicit storage and semantics choices across PO, NDJSON, Gettext-compatible plurals, and ICU MessageFormat
 - ICU MessageFormat parsing and validation
 
@@ -43,6 +44,7 @@ NDJSON is the line-delimited JSON storage choice. It is useful when catalogs are
 | Combine multiple catalogs with deterministic conflict and selection rules | `combine_catalogs` |
 | Read a Gettext PO or NDJSON catalog into the higher-level canonical catalog model | `parse_catalog` |
 | Build keyed lookup/helpers on top of a parsed catalog | `ParsedCatalog::into_normalized_view` |
+| Audit source and target catalogs for release readiness | `audit_catalogs` |
 | Derive the default stable runtime key from `msgid` and `msgctxt` | `compiled_key` |
 | Compile a normalized catalog into runtime lookup entries | `NormalizedParsedCatalog::compile` |
 | Compile a requested-locale runtime artifact with fallbacks and missing reports | `compile_catalog_artifact` |
@@ -189,6 +191,56 @@ The built-in `CompiledKeyStrategy::FerrocatV1` contract is intentionally compact
 - encoded as unpadded Base64URL
 - no visible version prefix in the emitted key
 - hard compile failure on collisions
+
+### `audit_catalogs`
+
+Use this when you want a read-only catalog QA report before a release or CI
+gate. The audit API accepts normalized catalogs, a required source locale, an
+optional target-locale filter, optional semantic metadata, and explicit check
+flags through `CatalogAuditOptions`.
+
+Default checks cover:
+
+- source locale presence
+- requested target locale presence
+- missing and empty target translations
+- target-only active messages that look stale
+- visible `fuzzy` flags
+- obsolete entries
+- ICU syntax in active source and target messages
+- ICU source/translation compatibility
+- semantic metadata duplication, unknown source keys, and source conflicts
+
+Diagnostics are machine-readable. Examples include:
+
+```json
+{
+  "severity": "error",
+  "code": "catalog.missing_translation",
+  "message": "Locale `de` is missing translation for `Hello {name}`."
+}
+```
+
+```json
+{
+  "severity": "warning",
+  "code": "catalog.extra_translation",
+  "message": "Locale `de` contains translation `Old CTA` that is not present in the source catalog."
+}
+```
+
+```json
+{
+  "severity": "info",
+  "code": "catalog.fuzzy_flag",
+  "message": "Message `Checkout` in locale `de` is marked fuzzy."
+}
+```
+
+ICU and metadata checks reuse the stable `icu.*` and `metadata.*` diagnostic
+codes emitted by the underlying validation helpers. The audit layer does not
+compile runtime artifacts, infer fuzzy matches, use `previous_msgid`, or repair
+catalogs.
 
 ### `compiled_key`
 
@@ -397,4 +449,5 @@ part of this source-side metadata format.
 - Parsed catalog consumption with keyed accessors: `parse_catalog` + `into_normalized_view`
 - Locale-specific runtime artifact generation: `compile_catalog_artifact`
 - Selected locale artifact generation by compiled ID: `compile_catalog_artifact_selected`
+- Release QA across catalog sets: `audit_catalogs`
 - ICU analysis: `parse_icu`

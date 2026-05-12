@@ -11,7 +11,7 @@ Most i18n stacks force a tradeoff: Gettext gives you mature translator tooling, 
 
 The project is young, but the goal is practical: give Rust teams a catalog layer they can inspect, test, benchmark, and migrate gradually.
 
-Ferrocat is also part of the [Palamedes](https://github.com/sebastian-software/palamedes) ecosystem. Palamedes is the OSS i18n framework for JavaScript and TypeScript apps; Ferrocat is the catalog engine underneath the workflows that need strict PO handling, deterministic updates, NDJSON storage, runtime artifact compilation, and clear semantic boundaries.
+Ferrocat is also part of the [Palamedes](https://github.com/sebastian-software/palamedes) ecosystem. Palamedes is the OSS i18n framework for JavaScript and TypeScript apps; Ferrocat is the catalog engine underneath the workflows that need strict PO handling, deterministic updates, NDJSON storage, catalog QA, runtime artifact compilation, and clear semantic boundaries.
 
 ## Why Teams Use Ferrocat
 
@@ -22,6 +22,7 @@ Ferrocat is also part of the [Palamedes](https://github.com/sebastian-software/p
 - **Modern runtime delivery is built in.** Compile catalogs into a runtime model that avoids reparsing PO files on every request and fits JSON-friendly delivery workflows.
 - **ICU authoring diagnostics catch risky translations.** Analyze ICU arguments, formatters, plurals, selects, and tags, then compare source and translated messages before runtime packaging.
 - **Semantic message metadata stays source-first.** Describe optional argument, tag, selector, and origin facts around `msgid + msgctxt` without forcing simple source-as-msgid messages into an ID-only schema.
+- **Catalog audit reports answer release questions.** Check completeness, stale translations, ICU syntax, ICU compatibility, semantic metadata conflicts, obsolete entries, and visible `fuzzy` flags with machine-readable diagnostics.
 - **Palamedes can build on the same core.** Use Palamedes for application-facing JS/TS framework integrations, and Ferrocat for the catalog semantics that should stay consistent underneath them.
 - **Migration can be incremental.** Use Gettext-compatible behavior where you need it, move selected catalogs toward ICU-style semantics where it helps, and keep the behavior visible in code and CI.
 - **Performance is measured.** Parser, serializer, merge, combine, and runtime paths are covered by fixtures, conformance checks, and benchmark commands.
@@ -36,6 +37,7 @@ Ferrocat focuses on the work that happens around real translation catalogs:
 - Validate plural behavior and catalog structure.
 - Analyze ICU message structure and compare source/translation compatibility.
 - Normalize semantic message metadata around `msgid + msgctxt`.
+- Audit catalog sets before release with structured diagnostics.
 - Compile catalogs into runtime artifacts for application delivery.
 - Compare performance and conformance behavior across fixtures.
 
@@ -95,13 +97,15 @@ assert!(rendered.contains(r#"msgstr "Welt""#));
 # Ok::<(), Box<dyn std::error::Error>>(())
 ```
 
-For the common "merge fresh extracted messages into an existing catalog" workflow, `merge_catalog` is the lean Gettext-style entry point. For N-way catalog overlays and `msgcat`-style set operations, use `combine_catalogs`. For richer high-level flows across PO and NDJSON storage, the docs site's [API overview](https://sebastian-software.github.io/ferrocat/reference/api-overview) is the best next stop.
+For the common "merge fresh extracted messages into an existing catalog" workflow, `merge_catalog` is the lean Gettext-style entry point. For N-way catalog overlays and `msgcat`-style set operations, use `combine_catalogs`. For release checks across a source catalog and target catalogs, use `audit_catalogs`. For richer high-level flows across PO and NDJSON storage, the docs site's [API overview](https://sebastian-software.github.io/ferrocat/reference/api-overview) is the best next stop.
 
 `parse_po_borrowed` is the allocation-light PO parser for read-heavy paths. It borrows from the source buffer where possible, but it currently requires LF-only input; normalize CRLF input first or use `parse_po`, which handles line-ending normalization internally.
 
 ICU-native workflows can use `analyze_icu` and `compare_icu_messages` to catch missing arguments, formatter changes, tag mismatches, select/plural branch drift, and discouraged pattern-style formatters. Runtime artifact compilation can opt into the same source/translation checks with `icu_compatibility`.
 
 Semantic metadata workflows can use `normalize_message_metadata` to keep simple source-as-msgid records small while deriving argument, tag, and selector facts from ICU MessageFormat v1 when needed. The metadata model keeps `msgid + msgctxt` as catalog identity, so it fits both Palamedes-style source strings and ID-style catalogs.
+
+Catalog QA workflows can use `audit_catalogs` to produce a read-only report over source and target catalogs. The default checks cover missing locales, missing or empty translations, extra target-only messages, ICU syntax, ICU source/translation compatibility, semantic metadata conflicts, obsolete entries, and visible `fuzzy` flags. The audit API reports what is shippable; it does not infer fuzzy matches or rewrite catalogs.
 
 Ferrocat's ICU scope is currently MessageFormat v1. MessageFormat 2 is tracked as a future standard, but it is not a near-term implementation target because the implementation surface is still transitional and MF1 authoring diagnostics solve the more immediate catalog problems.
 

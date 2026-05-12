@@ -24,8 +24,14 @@ Use this crate when you want that surface directly:
 - `stringify_po` for Gettext PO serialization
 - `merge_catalog` for lightweight gettext-style merges
 - `parse_catalog`, `update_catalog`, and `NormalizedParsedCatalog::compile` for higher-level catalog workflows across Gettext PO and NDJSON storage
+- `audit_catalogs` for read-only release QA across source and target catalogs
 - `compile_catalog_artifact` for requested-locale runtime artifacts with fallback resolution and missing reports
 - `compile_catalog_artifact_selected` for selected compiled-ID subsets of those runtime artifacts
+
+`audit_catalogs` answers whether a catalog set is ready to ship without rewriting
+anything. The default report checks completeness, target-only stale messages,
+ICU syntax, ICU source/translation compatibility, semantic metadata conflicts,
+obsolete entries, and visible `fuzzy` flags.
 
 `parse_po_borrowed` keeps many fields as references into the input buffer, so it currently accepts LF-only content. If your source can contain CRLF or bare CR line endings, normalize it before calling `parse_po_borrowed` or use the owned `parse_po` parser.
 

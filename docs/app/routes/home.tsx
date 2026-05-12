@@ -16,7 +16,7 @@ export const meta: MetaFunction = () => [
   {
     name: "description",
     content:
-      "Rust-native translation catalogs for teams that need PO workflows, ICU semantics, JSON-friendly runtime delivery, and measured performance.",
+      "Rust-native translation catalogs for teams that need PO workflows, ICU semantics, catalog QA, JSON-friendly runtime delivery, and measured performance.",
   },
 ]
 
@@ -71,7 +71,7 @@ const entryPoints = [
   },
   {
     title: "API surface",
-    body: "Choose between PO core APIs, catalog workflows, ICU helpers, and authoring diagnostics.",
+    body: "Choose between PO core APIs, catalog workflows, audit reports, ICU helpers, and authoring diagnostics.",
     link: "/reference/api-overview",
     icon: <Boxes size={20} />,
   },
@@ -103,8 +103,9 @@ export default function HomePage() {
         <h1>Localization catalogs that keep up with your product.</h1>
         <p className="ferro-lead">
           Ferrocat gives Rust teams real PO workflows, explicit ICU and Gettext
-          semantics, ICU authoring diagnostics, deterministic catalog updates,
-          and runtime artifacts that are fast to load.
+          semantics, ICU authoring diagnostics, catalog audit reports,
+          deterministic catalog updates, and runtime artifacts that are fast to
+          load.
         </p>
         <pre className="ferro-install">
           <code>cargo add ferrocat</code>
@@ -135,7 +136,8 @@ export default function HomePage() {
         <p className="ferro-sublead">
           Ferrocat avoids treating PO files as tiny configuration blobs. Large
           catalogs get byte-oriented parsing, borrowed read paths, dedicated
-          ICU validation, runtime compilation, and benchmark coverage.
+          ICU validation, structured audit reports, runtime compilation, and
+          benchmark coverage.
         </p>
         <div className="ferro-perf-grid">
           {perfPillars.map((pillar) => (
@@ -159,8 +161,8 @@ export default function HomePage() {
         <p className="ferro-sublead">
           Ferrocat is the catalog layer Palamedes can build on: PO when you need
           translator tooling, NDJSON when large-team Git workflows need cleaner
-          diffs, and compiled artifacts when applications need fast runtime
-          loading.
+          diffs, audit reports when releases need QA, and compiled artifacts
+          when applications need fast runtime loading.
         </p>
         <div className="ferro-mode-grid">
           {catalogModes.map((mode) => (

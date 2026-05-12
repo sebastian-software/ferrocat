@@ -24,7 +24,7 @@ At the catalog layer, `ferrocat` supports three explicit modes:
 Use it when you want one dependency for:
 
 - Gettext PO parsing and serialization
-- catalog normalization, updating, runtime compilation, and requested-locale artifact generation
+- catalog normalization, updating, audit reports, runtime compilation, and requested-locale artifact generation
 - ICU `MessageFormat` parsing, inspection, diagnostics, and semantic message metadata
 
 Repository, docs, and contribution guidelines:

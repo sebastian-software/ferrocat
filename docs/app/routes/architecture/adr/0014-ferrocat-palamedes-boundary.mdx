@@ -25,6 +25,8 @@ Ferrocat owns catalog infrastructure:
 - locale-resolved runtime artifacts
 - host-neutral ICU authoring diagnostics
 - host-neutral semantic message metadata around `msgid + msgctxt`
+- host-neutral catalog audit reports for completeness, ICU, metadata, stale,
+  obsolete, and visible `fuzzy` diagnostics
 
 Palamedes owns JavaScript and TypeScript application integration:
 
@@ -53,6 +55,8 @@ Concretely:
   consume without moving JS/TS runtime concerns into Ferrocat.
 - Ferrocat should expose semantic metadata types and validation that Palamedes
   can populate from JS/TS extraction without Ferrocat owning that extraction.
+- Ferrocat should expose catalog audit reports that Palamedes can use for CI
+  and release workflows without Palamedes reimplementing generic catalog QA.
 - Ferrocat should keep storage and semantic contracts documented in ADRs and
   rustdoc.
 - Palamedes should own JS/TS extraction, transforms, routing conventions,

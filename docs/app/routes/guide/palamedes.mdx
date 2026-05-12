@@ -6,7 +6,7 @@ order: 35
 
 # Ferrocat And Palamedes
 
-[Palamedes](https://github.com/sebastian-software/palamedes) is the OSS i18n framework for JavaScript and TypeScript applications. Ferrocat is the Rust-native catalog engine underneath the parts that need strict PO handling, catalog semantics, update workflows, runtime compilation, and storage-format discipline.
+[Palamedes](https://github.com/sebastian-software/palamedes) is the OSS i18n framework for JavaScript and TypeScript applications. Ferrocat is the Rust-native catalog engine underneath the parts that need strict PO handling, catalog semantics, update workflows, catalog QA, runtime compilation, and storage-format discipline.
 
 Most people arrive from one of two directions:
 
@@ -20,9 +20,9 @@ They are meant to connect. Palamedes owns the application integration. Ferrocat 
 | Layer | Palamedes | Ferrocat |
 |---|---|---|
 | Authoring | Macros, message collection, framework-facing developer experience | Stable message identity inputs and catalog semantics |
-| Extraction | JavaScript/TypeScript transforms and host-aware source scanning | Adapter-ready catalog update inputs and semantic metadata validation |
+| Extraction | JavaScript/TypeScript transforms and host-aware source scanning | Adapter-ready catalog update inputs, placeholder hints, and semantic metadata validation |
 | Catalog storage | Uses catalogs as part of the app workflow | PO, ICU-native PO, and NDJSON catalog modes |
-| Catalog maintenance | CLI workflows and project conventions | Parse, serialize, merge, combine, update, and validate |
+| Catalog maintenance | CLI workflows and project conventions | Parse, serialize, merge, combine, update, audit, and validate |
 | Runtime delivery | Framework adapters, bundler integration, client/server loading | Host-neutral compiled catalog artifacts and fallback semantics |
 | Future scaling | Chunk-aware sidecars and app-specific delivery policy | Stable compiled IDs and locale-resolved payload generation |
 
@@ -37,11 +37,18 @@ types, enum values, tags, component names, and source origins from JS/TS code;
 Ferrocat can normalize and validate those facts against `msgid + msgctxt`
 without owning the JS/TS parser.
 
+Catalog audit reports follow that boundary too. Palamedes can run audit in CI,
+editors, or release commands and enrich it with project context; Ferrocat owns
+the generic checks for completeness, stale target messages, ICU syntax, ICU
+source/translation compatibility, semantic metadata conflicts, obsolete entries,
+and visible `fuzzy` flags.
+
 That split also makes the ecosystem easier to evaluate. If you need a full app-facing i18n framework, start with Palamedes. If you need catalog infrastructure, start with Ferrocat. If you need both, Palamedes is the natural application layer on top of Ferrocat.
 
 ## Where To Go Next
 
 - [Palamedes repository](https://github.com/sebastian-software/palamedes) for the JS/TS framework, packages, examples, and quickstarts
 - [Ferrocat API Overview](/reference/api-overview) for catalog APIs and runtime compilation
+- [Gettext Task Landscape](/reference/gettext-task-landscape) for the catalog QA and audit direction
 - [Catalog Modes](/guide/catalog-modes) for PO, ICU-native PO, and NDJSON storage choices
 - [Bundler-Aware Message Sidecars](/notes/2026-03-17-bundler-aware-message-sidecars) for the future delivery model where Palamedes uses Ferrocat artifacts at chunk boundaries

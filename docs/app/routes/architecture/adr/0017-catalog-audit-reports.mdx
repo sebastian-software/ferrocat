@@ -1,0 +1,108 @@
+---
+title: "ADR 0017: Add Catalog Audit Reports Without Reintroducing Fuzzy Matching"
+description: "Accepted architecture decision record: catalog audit reports."
+order: 170
+---
+
+# ADR 0017: Add Catalog Audit Reports Without Reintroducing Fuzzy Matching
+
+- Status: Accepted
+- Date: 2026-05-12
+
+## Context
+
+Real catalog workflows need a release question that is broader than parsing:
+is this catalog set shippable?
+
+Existing ecosystems show useful patterns:
+
+- FormatJS has verification-oriented tooling around extracted ICU messages.
+- Weblate exposes many translation checks as visible workflow feedback.
+- Translate Toolkit `pofilter` treats catalog QA as a set of named tests.
+- Lingui-style tooling connects extraction, catalog status, and compile steps.
+
+Ferrocat already has exact catalog identity, high-level parsing, update flows,
+ICU syntax validation, ICU source/translation compatibility diagnostics, and
+semantic message metadata validation. What was missing was one host-neutral
+report API that combines those checks across a source catalog and target
+catalogs.
+
+This is especially important for source-as-`msgid` workflows such as
+Palamedes. In those workflows, `fuzzy` is useful metadata when it already
+exists in a PO file, but automatic fuzzy matching can hide source changes and
+create ambiguous translator intent.
+
+## Decision
+
+Add `audit_catalogs` to `ferrocat-po` and re-export it through `ferrocat`.
+
+The audit API is read-only. It accepts normalized parsed catalogs, a required
+source locale, an optional locale filter, optional semantic metadata inputs, and
+explicit check flags. It returns a `CatalogAuditReport` with machine-readable
+diagnostics and a severity summary.
+
+The default report checks:
+
+- source locale presence
+- requested target locale presence
+- missing target translations
+- empty target translations
+- target-only active messages
+- visible `fuzzy` flags
+- obsolete entries
+- ICU syntax
+- ICU source/translation compatibility
+- semantic metadata duplicates, unknown messages, and source conflicts
+
+Audit diagnostics use `catalog.*` codes for catalog-level findings and mirror
+the existing stable `icu.*` and `metadata.*` codes from lower-level validators.
+
+The audit API does not infer fuzzy matches, rewrite catalogs, use
+`previous_msgid`, parse or format MessageFormat 2, implement a full
+`pofilter`/`msgattrib` predicate language, or perform pseudolocalization.
+
+## Consequences
+
+Positive:
+
+- CI, editors, dashboards, and Palamedes can consume one structured report.
+- generic catalog QA stays in Ferrocat instead of being reimplemented in host
+  adapters.
+- `fuzzy` becomes visible without becoming a hidden matching strategy.
+- artifact compilation can remain focused on resolved runtime payloads.
+
+Negative:
+
+- audit introduces another public report shape that must stay stable enough for
+  consumers.
+- some checks overlap conceptually with artifact diagnostics, so docs must
+  explain when to audit and when to compile.
+- future filter or repair APIs need to avoid overloading this read-only report.
+
+## Alternatives Considered
+
+### Put All Checks Into Artifact Compilation
+
+Rejected because artifact compilation answers a different question: what is the
+resolved runtime payload for one requested locale? Audit needs to check source
+coverage, target-only messages, obsolete entries, metadata, and locale sets even
+when no runtime artifact is being produced.
+
+### Let Palamedes Own Catalog QA
+
+Rejected because Palamedes is the JS/TS application layer. It should feed
+extraction facts into Ferrocat and present reports to users, but the generic
+catalog rules belong with the catalog model.
+
+### Reintroduce Fuzzy Matching
+
+Rejected for this slice. Fuzzy matching can be useful in translator workflows,
+but it is risky in source-as-`msgid` catalogs because a source change is also an
+identity change. The audit API may surface existing `fuzzy` flags, but it does
+not generate them or use them to satisfy completeness.
+
+### Implement A Full Predicate Language
+
+Rejected for now. Translate Toolkit and gettext show that predicate-style
+filtering is useful, but Ferrocat first needs a small, stable diagnostic
+vocabulary that downstream tools can trust.
