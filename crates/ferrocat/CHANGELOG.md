@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.11.0](https://github.com/sebastian-software/ferrocat/compare/ferrocat-v0.10.0...ferrocat-v0.11.0) (2026-05-12)
+
+
+### Features
+
+* **icu:** add authoring diagnostics ([ea53674](https://github.com/sebastian-software/ferrocat/commit/ea5367412fcfcd636a9ae1b3e08a3a33ecae9f74))
+* **icu:** add semantic message metadata ([1a0a7bc](https://github.com/sebastian-software/ferrocat/commit/1a0a7bcb477d8643d63175c4f4584911572fb934))
+* **po:** add catalog audit reports ([e1b3591](https://github.com/sebastian-software/ferrocat/commit/e1b3591bbb5291539133d40d421bf5e5ceb84f0e))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * ferrocat-icu bumped from 0.10.0 to 0.11.0
+    * ferrocat-po bumped from 0.10.0 to 0.11.0
+
 ## [0.10.0](https://github.com/sebastian-software/ferrocat/compare/ferrocat-v0.9.0...ferrocat-v0.10.0) (2026-05-11)
 
 
