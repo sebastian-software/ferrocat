@@ -14,6 +14,7 @@ Use this crate when you want the ICU-specific surface directly:
 - `validate_icu` for lightweight validation
 - `analyze_icu` for structured argument, formatter, plural, select, and tag summaries
 - `compare_icu_messages` for source/translation compatibility diagnostics
+- `normalize_message_metadata` for progressive source-side metadata around `msgid + msgctxt`
 - `extract_argument_names` and `extract_tag_names` when tags should not be mixed with data arguments
 - `extract_variables`, `has_plural`, `has_select`, and related helpers for AST inspection
 
@@ -30,6 +31,28 @@ fn main() -> Result<(), ferrocat_icu::IcuParseError> {
     );
 
     assert!(report.has_errors());
+    Ok(())
+}
+```
+
+Semantic metadata stays small for simple messages and expands only when the
+message or extractor knows more:
+
+```rust
+use ferrocat_icu::{
+    MessageArgumentKind, MessageMetadataInput, normalize_message_metadata,
+};
+
+fn main() -> Result<(), ferrocat_icu::IcuParseError> {
+    let metadata = normalize_message_metadata(MessageMetadataInput::new(
+        "{count, plural, one {One item} other {# items}}",
+    ))?;
+
+    assert_eq!(
+        metadata.args.get("count").map(|argument| argument.kind),
+        Some(MessageArgumentKind::Number)
+    );
+    assert!(metadata.selectors.contains_key("count"));
     Ok(())
 }
 ```

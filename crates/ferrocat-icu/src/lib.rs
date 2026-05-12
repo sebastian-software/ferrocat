@@ -30,10 +30,28 @@
 //! assert!(report.has_errors());
 //! # Ok::<(), ferrocat_icu::IcuParseError>(())
 //! ```
+//!
+//! ```rust
+//! use ferrocat_icu::{
+//!     MessageArgumentKind, MessageMetadataInput, normalize_message_metadata,
+//! };
+//!
+//! let metadata = normalize_message_metadata(MessageMetadataInput::new(
+//!     "{count, plural, one {One item} other {# items}}",
+//! ))?;
+//!
+//! assert_eq!(
+//!     metadata.args.get("count").map(|argument| argument.kind),
+//!     Some(MessageArgumentKind::Number)
+//! );
+//! assert!(metadata.selectors.contains_key("count"));
+//! # Ok::<(), ferrocat_icu::IcuParseError>(())
+//! ```
 
 mod analysis;
 mod ast;
 mod error;
+mod metadata;
 mod parser;
 mod utils;
 
@@ -45,6 +63,13 @@ pub use analysis::{
 };
 pub use ast::{IcuMessage, IcuNode, IcuOption, IcuPluralKind};
 pub use error::{IcuErrorKind, IcuParseError, IcuPosition};
+pub use metadata::{
+    MessageArgumentFormatMetadata, MessageArgumentKind, MessageArgumentMetadata,
+    MessageArgumentMetadataInput, MessageFormatStyleKind, MessageMetadata,
+    MessageMetadataDiagnostic, MessageMetadataInput, MessageMetadataValidationReport,
+    MessageOriginMetadata, MessageSelectorKind, MessageSelectorMetadata,
+    derive_message_metadata_from_icu, normalize_message_metadata, validate_message_metadata,
+};
 pub use parser::{IcuParserOptions, parse_icu, parse_icu_with_options};
 pub use utils::{
     extract_variables, has_plural, has_select, has_selectordinal, has_tag, validate_icu,

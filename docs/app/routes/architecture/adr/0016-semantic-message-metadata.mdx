@@ -1,0 +1,110 @@
+---
+title: "ADR 0016: Add Progressive Semantic Message Metadata Around `msgid`"
+description: "Accepted architecture decision record: semantic message metadata."
+order: 160
+---
+
+# ADR 0016: Add Progressive Semantic Message Metadata Around `msgid`
+
+- Status: Accepted
+- Date: 2026-05-12
+
+## Context
+
+Ferrocat already treats catalog identity as `msgid` plus optional `msgctxt`.
+That identity works for both common workflows:
+
+- source-as-msgid catalogs, including the Palamedes direction
+- ID-style catalogs where `msgid` is an opaque stable key
+
+ICU MessageFormat v1 diagnostics can infer arguments, formatters, plurals,
+selects, and tags from the message string, but host extractors often know more:
+source origins, broad argument types, enum values, semantic roles, rich-text
+tags, and component context. That information should be expressible without
+forcing simple messages into a verbose schema or moving JavaScript/TypeScript
+AST concerns into Ferrocat.
+
+MessageFormat 2 is relevant to the shape because it has explicit input
+annotations, matchers, and markup, but Ferrocat is not implementing MF2 parsing
+or formatting in this phase.
+
+## Decision
+
+Add a progressive semantic message metadata model around `msgid + msgctxt`.
+
+The required source-side shape is intentionally small:
+
+```json
+{ "msgid": "Cart" }
+```
+
+The same format can carry optional semantic facts:
+
+```json
+{
+  "msgid": "{count, plural, one {One item} other {# items}}",
+  "args": {
+    "count": {
+      "kind": "number",
+      "role": "count"
+    }
+  },
+  "selectors": {
+    "count": {
+      "kind": "plural",
+      "cases": ["one", "other"]
+    }
+  }
+}
+```
+
+Concretely:
+
+- `msgid` remains exact catalog identity and authored source payload.
+- `msgctxt` remains the optional disambiguator.
+- `msgstr` is not part of source metadata; translations remain catalog data.
+- `args`, `tags`, `selectors`, `description`, and `origin` are optional.
+- shorthand argument metadata such as `"name": "string"` normalizes to object
+  form.
+- Ferrocat can derive normalized metadata from ICU MessageFormat v1.
+- explicit metadata can be validated against the parsed `msgid`.
+- Palamedes and other host adapters may enrich the metadata, but Ferrocat does
+  not parse TypeScript or own framework extraction.
+
+This model is independent from runtime `compiled_id`; compiled IDs continue to
+derive from `msgid + msgctxt` as defined in ADR 0009.
+
+## Consequences
+
+Positive:
+
+- simple source-as-msgid messages stay simple.
+- Ferrocat gets a host-neutral way to accept richer extraction facts.
+- Palamedes can produce metadata without duplicating Ferrocat's ICU analysis.
+- the structure maps naturally to future MF2 concepts without committing to MF2
+  implementation now.
+
+Negative:
+
+- the public API now has another source-side representation to document.
+- callers need to understand that metadata is not a translation storage format.
+- validation rules must distinguish omitted facts from conflicting explicit
+  facts.
+
+## Alternatives Considered
+
+### Introduce a Separate `id` Field
+
+Rejected because it privileges ID-style catalogs and makes Palamedes
+source-as-msgid examples harder to read. Ferrocat's existing catalog identity is
+already `msgid + msgctxt`.
+
+### Make Every Metadata Record Fully Explicit
+
+Rejected because simple messages should not need empty `args`, `tags`,
+`selectors`, or version fields.
+
+### Put TypeScript Extraction in Ferrocat
+
+Rejected because ADR 0014 keeps Ferrocat host-neutral. Palamedes should own
+JS/TS extraction and pass host-neutral metadata into Ferrocat.

@@ -20,7 +20,7 @@ They are meant to connect. Palamedes owns the application integration. Ferrocat 
 | Layer | Palamedes | Ferrocat |
 |---|---|---|
 | Authoring | Macros, message collection, framework-facing developer experience | Stable message identity inputs and catalog semantics |
-| Extraction | JavaScript/TypeScript transforms and host-aware source scanning | Adapter-ready catalog update inputs |
+| Extraction | JavaScript/TypeScript transforms and host-aware source scanning | Adapter-ready catalog update inputs and semantic metadata validation |
 | Catalog storage | Uses catalogs as part of the app workflow | PO, ICU-native PO, and NDJSON catalog modes |
 | Catalog maintenance | CLI workflows and project conventions | Parse, serialize, merge, combine, update, and validate |
 | Runtime delivery | Framework adapters, bundler integration, client/server loading | Host-neutral compiled catalog artifacts and fallback semantics |
@@ -31,6 +31,11 @@ They are meant to connect. Palamedes owns the application integration. Ferrocat 
 Keeping Ferrocat and Palamedes separate gives both projects cleaner boundaries.
 
 Ferrocat can focus on catalog correctness, performance, conformance, and storage contracts without becoming a JavaScript framework plugin. Palamedes can focus on application ergonomics, framework integrations, transforms, runtime wiring, and bundler behavior without duplicating PO parsing or catalog semantics.
+
+Semantic message metadata follows the same split. Palamedes can infer argument
+types, enum values, tags, component names, and source origins from JS/TS code;
+Ferrocat can normalize and validate those facts against `msgid + msgctxt`
+without owning the JS/TS parser.
 
 That split also makes the ecosystem easier to evaluate. If you need a full app-facing i18n framework, start with Palamedes. If you need catalog infrastructure, start with Ferrocat. If you need both, Palamedes is the natural application layer on top of Ferrocat.
 

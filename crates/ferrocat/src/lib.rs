@@ -60,9 +60,14 @@ pub use ferrocat_icu::{
     IcuAnalysis, IcuArgument, IcuArgumentKind, IcuCompatibilityOptions, IcuCompatibilityReport,
     IcuDiagnostic, IcuDiagnosticSeverity, IcuErrorKind, IcuFormatter, IcuMessage, IcuNode,
     IcuOption, IcuParseError, IcuParserOptions, IcuPluralKind, IcuPluralSummary, IcuPosition,
-    IcuSelectSummary, IcuStyleKind, IcuTagSummary, analyze_icu, compare_icu_messages,
+    IcuSelectSummary, IcuStyleKind, IcuTagSummary, MessageArgumentFormatMetadata,
+    MessageArgumentKind, MessageArgumentMetadata, MessageArgumentMetadataInput,
+    MessageFormatStyleKind, MessageMetadata, MessageMetadataDiagnostic, MessageMetadataInput,
+    MessageMetadataValidationReport, MessageOriginMetadata, MessageSelectorKind,
+    MessageSelectorMetadata, analyze_icu, compare_icu_messages, derive_message_metadata_from_icu,
     extract_argument_names, extract_tag_names, extract_variables, has_plural, has_select,
-    has_selectordinal, has_tag, parse_icu, parse_icu_with_options, validate_icu,
+    has_selectordinal, has_tag, normalize_message_metadata, parse_icu, parse_icu_with_options,
+    validate_icu, validate_message_metadata,
 };
 pub use ferrocat_po::{
     ApiError, BorrowedHeader, BorrowedMsgStr, BorrowedPoFile, BorrowedPoItem, CatalogCombineInput,

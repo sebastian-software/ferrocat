@@ -352,6 +352,37 @@ The older `extract_variables` helper still returns the historical mixed view.
 
 Use this after `parse_icu` when you want the variable names referenced by the message.
 
+### Semantic message metadata
+
+Use `MessageMetadataInput` and `normalize_message_metadata` when an extractor
+or host adapter wants to describe source-side facts around a message without
+inventing a separate stable ID scheme. The required identity is still `msgid`
+plus optional `msgctxt`; in Palamedes-style workflows the `msgid` is usually the
+source string, while ID-style catalogs can still use an opaque key as `msgid`.
+
+The metadata shape is progressive. A simple record can be just:
+
+```json
+{ "msgid": "Cart" }
+```
+
+Argument metadata can use a shorthand when the host knows only the broad kind:
+
+```json
+{
+  "msgid": "Hello {name}",
+  "args": {
+    "name": "string"
+  }
+}
+```
+
+For ICU MessageFormat v1 messages, Ferrocat can derive normalized arguments,
+rich-text tags, and select/plural selector metadata from the `msgid`. Use
+`validate_message_metadata` to report conflicts between explicit metadata and
+the parsed source message. Translations remain catalog data; `msgstr` is not
+part of this source-side metadata format.
+
 ## Error Surface
 
 `ApiError` and the lower-level `ParseError` are intentionally small today. `ApiError` distinguishes parse, I/O, invalid-argument, conflict, and unsupported-operation failures; PO `ParseError` currently carries a human-readable message but not a line/column position. Adding structured PO error kinds or source positions would be a semver-relevant API change and should ship with matching rustdoc, README/API docs, and an ADR update.

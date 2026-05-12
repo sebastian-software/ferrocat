@@ -138,6 +138,8 @@ name = "ferrocat-icu"
 version = "0.10.0"
 dependencies = [
  "ferrocat-conformance",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
