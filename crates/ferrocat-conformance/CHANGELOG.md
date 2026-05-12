@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.11.0](https://github.com/sebastian-software/ferrocat/compare/ferrocat-conformance-v0.10.0...ferrocat-conformance-v0.11.0) (2026-05-12)
+
+
+### Features
+
+* **icu:** add authoring diagnostics ([ea53674](https://github.com/sebastian-software/ferrocat/commit/ea5367412fcfcd636a9ae1b3e08a3a33ecae9f74))
+
 ## [0.10.0](https://github.com/sebastian-software/ferrocat/compare/ferrocat-conformance-v0.9.0...ferrocat-conformance-v0.10.0) (2026-05-11)
 
 
