@@ -85,6 +85,31 @@ fn obsolete_strategy_delete_removes_missing_messages() {
 }
 
 #[test]
+fn obsolete_strategy_mark_marks_missing_active_messages() {
+    let existing = "msgid \"keep\"\nmsgstr \"x\"\n\nmsgid \"drop\"\nmsgstr \"y\"\n";
+    let result = update_catalog(UpdateCatalogOptions {
+        source_locale: "en",
+        locale: Some("de"),
+        existing: Some(existing),
+        input: structured_input(vec![ExtractedMessage::Singular(ExtractedSingularMessage {
+            msgid: "keep".to_owned(),
+            ..ExtractedSingularMessage::default()
+        })]),
+        ..UpdateCatalogOptions::default()
+    })
+    .expect("update");
+
+    let parsed = parse_po(&result.content).expect("parse output");
+    assert!(
+        parsed
+            .items
+            .iter()
+            .any(|item| item.msgid == "drop" && item.obsolete)
+    );
+    assert_eq!(result.stats.obsolete_marked, 1);
+}
+
+#[test]
 fn duplicate_conflicts_fail_hard() {
     let error = update_catalog(UpdateCatalogOptions {
         source_locale: "en",
@@ -908,6 +933,340 @@ fn update_catalog_gettext_preserves_existing_complete_plural_forms_header() {
         .find(|header| header.key == "Plural-Forms")
         .map(|header| header.value.as_str());
     assert_eq!(plural_forms, Some("nplurals=2; plural=(n > 1);"));
+}
+
+#[test]
+fn update_catalog_gettext_preserves_previous_plural_variable_and_translations() {
+    let existing = concat!(
+        "msgid \"book\"\n",
+        "msgid_plural \"books\"\n",
+        "msgstr[0] \"Buch\"\n",
+        "msgstr[1] \"Buecher\"\n",
+    );
+    let result = update_catalog(UpdateCatalogOptions {
+        source_locale: "en",
+        locale: Some("de"),
+        existing: Some(existing),
+        semantics: CatalogSemantics::GettextCompat,
+        plural_encoding: PluralEncoding::Gettext,
+        input: structured_input(vec![ExtractedMessage::Plural(ExtractedPluralMessage {
+            msgid: "books".to_owned(),
+            source: PluralSource {
+                one: Some("book".to_owned()),
+                other: "books".to_owned(),
+            },
+            ..ExtractedPluralMessage::default()
+        })]),
+        ..UpdateCatalogOptions::default()
+    })
+    .expect("update");
+
+    let parsed = parse_catalog(ParseCatalogOptions {
+        content: &result.content,
+        locale: Some("de"),
+        source_locale: "en",
+        storage_format: CatalogStorageFormat::Po,
+        semantics: CatalogSemantics::GettextCompat,
+        plural_encoding: PluralEncoding::Gettext,
+        strict: false,
+    })
+    .expect("parse updated catalog");
+
+    match &parsed.messages[0].translation {
+        TranslationShape::Plural {
+            translation,
+            variable,
+            ..
+        } => {
+            assert_eq!(variable, "count");
+            assert_eq!(translation.get("one").map(String::as_str), Some("Buch"));
+            assert_eq!(
+                translation.get("other").map(String::as_str),
+                Some("Buecher")
+            );
+        }
+        other => panic!("expected plural translation, got {other:?}"),
+    }
+}
+
+#[test]
+fn update_catalog_applies_custom_header_attributes() {
+    let headers = BTreeMap::from([
+        ("Language-Team".to_owned(), "Core".to_owned()),
+        ("X-Generator".to_owned(), "custom-tool".to_owned()),
+    ]);
+
+    let result = update_catalog(UpdateCatalogOptions {
+        source_locale: "en",
+        locale: Some("de"),
+        custom_header_attributes: Some(&headers),
+        input: structured_input(vec![ExtractedMessage::Singular(ExtractedSingularMessage {
+            msgid: "Hello".to_owned(),
+            ..ExtractedSingularMessage::default()
+        })]),
+        ..UpdateCatalogOptions::default()
+    })
+    .expect("update");
+
+    let parsed = parse_po(&result.content).expect("parse output");
+    assert_eq!(
+        parsed
+            .headers
+            .iter()
+            .find(|header| header.key == "Language-Team")
+            .map(|header| header.value.as_str()),
+        Some("Core")
+    );
+    assert_eq!(
+        parsed
+            .headers
+            .iter()
+            .find(|header| header.key == "X-Generator")
+            .map(|header| header.value.as_str()),
+        Some("custom-tool")
+    );
+}
+
+#[test]
+fn update_catalog_rejects_empty_extracted_msgid() {
+    let error = update_catalog(UpdateCatalogOptions {
+        source_locale: "en",
+        locale: Some("en"),
+        input: structured_input(vec![ExtractedMessage::Singular(ExtractedSingularMessage {
+            msgid: String::new(),
+            ..ExtractedSingularMessage::default()
+        })]),
+        ..UpdateCatalogOptions::default()
+    })
+    .expect_err("empty msgid should fail");
+
+    assert!(matches!(error, ApiError::InvalidArguments(message) if message.contains("msgid")));
+}
+
+#[test]
+fn update_catalog_merges_duplicate_source_first_metadata() {
+    let result = update_catalog(UpdateCatalogOptions {
+        source_locale: "en",
+        locale: Some("en"),
+        input: source_first_input(vec![
+            SourceExtractedMessage {
+                msgid: "Hello {name}".to_owned(),
+                comments: vec!["First comment".to_owned()],
+                origin: vec![CatalogOrigin {
+                    file: "src/a.rs".to_owned(),
+                    line: Some(1),
+                }],
+                placeholders: BTreeMap::from([("0".to_owned(), vec!["customer".to_owned()])]),
+                ..SourceExtractedMessage::default()
+            },
+            SourceExtractedMessage {
+                msgid: "Hello {name}".to_owned(),
+                comments: vec!["Second comment".to_owned()],
+                origin: vec![CatalogOrigin {
+                    file: "src/b.rs".to_owned(),
+                    line: Some(2),
+                }],
+                placeholders: BTreeMap::from([(
+                    "0".to_owned(),
+                    vec!["account".to_owned(), "customer".to_owned()],
+                )]),
+                ..SourceExtractedMessage::default()
+            },
+        ]),
+        ..UpdateCatalogOptions::default()
+    })
+    .expect("merge duplicates");
+
+    let parsed = parse_po(&result.content).expect("parse output");
+    assert_eq!(parsed.items.len(), 1);
+    assert_eq!(
+        parsed.items[0].extracted_comments,
+        vec![
+            "First comment".to_owned(),
+            "Second comment".to_owned(),
+            "placeholder {0}: customer".to_owned(),
+            "placeholder {0}: account".to_owned(),
+        ]
+    );
+    assert_eq!(
+        parsed.items[0].references,
+        vec!["src/a.rs:1".to_owned(), "src/b.rs:2".to_owned()]
+    );
+}
+
+#[test]
+fn update_catalog_obsolete_keep_reactivates_missing_messages() {
+    let existing = "#~ msgid \"Old\"\n#~ msgstr \"Alt\"\n";
+
+    let result = update_catalog(UpdateCatalogOptions {
+        source_locale: "en",
+        locale: Some("de"),
+        existing: Some(existing),
+        obsolete_strategy: ObsoleteStrategy::Keep,
+        input: structured_input(Vec::new()),
+        ..UpdateCatalogOptions::default()
+    })
+    .expect("keep obsolete");
+
+    let parsed = parse_po(&result.content).expect("parse output");
+    assert_eq!(parsed.items.len(), 1);
+    assert!(!parsed.items[0].obsolete);
+    assert_eq!(parsed.items[0].msgid, "Old");
+}
+
+#[test]
+fn update_catalog_origin_sort_and_placeholder_options_are_applied() {
+    let result = update_catalog(UpdateCatalogOptions {
+        source_locale: "en",
+        locale: Some("en"),
+        order_by: OrderBy::Origin,
+        include_line_numbers: false,
+        print_placeholders_in_comments: PlaceholderCommentMode::Enabled { limit: 1 },
+        input: structured_input(vec![
+            ExtractedMessage::Singular(ExtractedSingularMessage {
+                msgid: "Second".to_owned(),
+                origin: vec![CatalogOrigin {
+                    file: "src/z.rs".to_owned(),
+                    line: Some(9),
+                }],
+                placeholders: BTreeMap::from([(
+                    "0".to_owned(),
+                    vec!["first".to_owned(), "second".to_owned()],
+                )]),
+                ..ExtractedSingularMessage::default()
+            }),
+            ExtractedMessage::Singular(ExtractedSingularMessage {
+                msgid: "First".to_owned(),
+                origin: vec![CatalogOrigin {
+                    file: "src/a.rs".to_owned(),
+                    line: Some(3),
+                }],
+                ..ExtractedSingularMessage::default()
+            }),
+        ]),
+        ..UpdateCatalogOptions::default()
+    })
+    .expect("update with origin sort");
+
+    let parsed = parse_po(&result.content).expect("parse output");
+    assert_eq!(parsed.items[0].msgid, "First");
+    assert_eq!(parsed.items[1].msgid, "Second");
+    assert_eq!(parsed.items[1].references, vec!["src/z.rs"]);
+    assert_eq!(
+        parsed.items[1].extracted_comments,
+        vec!["placeholder {0}: first".to_owned()]
+    );
+
+    let without_placeholders = update_catalog(UpdateCatalogOptions {
+        source_locale: "en",
+        locale: Some("en"),
+        print_placeholders_in_comments: PlaceholderCommentMode::Disabled,
+        input: structured_input(vec![ExtractedMessage::Singular(ExtractedSingularMessage {
+            msgid: "Hello".to_owned(),
+            placeholders: BTreeMap::from([("name".to_owned(), vec!["name".to_owned()])]),
+            ..ExtractedSingularMessage::default()
+        })]),
+        ..UpdateCatalogOptions::default()
+    })
+    .expect("update without placeholder comments");
+    assert!(!without_placeholders.content.contains("placeholder"));
+}
+
+#[test]
+fn update_catalog_ndjson_rejects_custom_header_attributes() {
+    let headers = BTreeMap::from([("X-Product".to_owned(), "Ferrocat".to_owned())]);
+
+    let error = update_catalog(UpdateCatalogOptions {
+        source_locale: "en",
+        locale: Some("en"),
+        storage_format: CatalogStorageFormat::Ndjson,
+        custom_header_attributes: Some(&headers),
+        input: structured_input(vec![ExtractedMessage::Singular(ExtractedSingularMessage {
+            msgid: "Hello".to_owned(),
+            ..ExtractedSingularMessage::default()
+        })]),
+        ..UpdateCatalogOptions::default()
+    })
+    .expect_err("custom ndjson headers should fail");
+
+    assert!(matches!(error, ApiError::Unsupported(message) if message.contains("NDJSON")));
+}
+
+#[test]
+fn update_catalog_file_rejects_empty_target_path() {
+    let error = update_catalog_file(UpdateCatalogFileOptions {
+        target_path: std::path::Path::new(""),
+        source_locale: "en",
+        input: structured_input(Vec::new()),
+        ..UpdateCatalogFileOptions::default()
+    })
+    .expect_err("empty path should fail");
+
+    assert!(
+        matches!(error, ApiError::InvalidArguments(message) if message.contains("target_path"))
+    );
+}
+
+#[test]
+fn parse_catalog_rejects_classic_plural_shape_in_native_mode() {
+    let with_plural_source = parse_catalog(ParseCatalogOptions {
+        content: concat!(
+            "msgid \"item\"\n",
+            "msgid_plural \"items\"\n",
+            "msgstr[0] \"item\"\n",
+            "msgstr[1] \"items\"\n",
+        ),
+        locale: Some("en"),
+        source_locale: "en",
+        storage_format: CatalogStorageFormat::Po,
+        semantics: CatalogSemantics::IcuNative,
+        plural_encoding: PluralEncoding::Icu,
+        strict: false,
+    })
+    .expect_err("classic plural should fail in native mode");
+    assert!(matches!(with_plural_source, ApiError::Unsupported(_)));
+
+    let plural_msgstr_only = parse_catalog(ParseCatalogOptions {
+        content: concat!(
+            "msgid \"item\"\n",
+            "msgstr[0] \"item\"\n",
+            "msgstr[1] \"items\"\n",
+        ),
+        locale: Some("en"),
+        source_locale: "en",
+        storage_format: CatalogStorageFormat::Po,
+        semantics: CatalogSemantics::IcuNative,
+        plural_encoding: PluralEncoding::Icu,
+        strict: false,
+    })
+    .expect_err("plural msgstr should fail in native mode");
+    assert!(matches!(plural_msgstr_only, ApiError::Unsupported(_)));
+}
+
+#[test]
+fn parse_catalog_reports_plural_expression_without_nplurals() {
+    let parsed = parse_catalog(ParseCatalogOptions {
+        content: concat!(
+            "msgid \"\"\n",
+            "msgstr \"\"\n",
+            "\"Language: de\\n\"\n",
+            "\"Plural-Forms: plural=(n != 1);\\n\"\n",
+        ),
+        locale: Some("de"),
+        source_locale: "en",
+        storage_format: CatalogStorageFormat::Po,
+        semantics: CatalogSemantics::GettextCompat,
+        plural_encoding: PluralEncoding::Gettext,
+        strict: false,
+    })
+    .expect("parse");
+
+    assert!(
+        parsed
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == "parse.invalid_plural_forms_header")
+    );
 }
 
 #[test]

@@ -26,28 +26,25 @@ That keeps the report focused on the public and internal library crates that mat
 - `ferrocat-po`
 - `ferrocat-icu`
 
-## Baseline
+## Current Gate
 
-Measured locally on `2026-03-18` with `cargo coverage-summary` plus a JSON summary export:
+Measured locally on `2026-05-12` with `cargo coverage-lcov`, a JSON summary export, and the crate-aware gate script:
 
-- `ferrocat-po`: `88.10%` line coverage
-- `ferrocat-icu`: `93.98%` line coverage
+- `ferrocat-po`: `95.08%` line coverage
+- `ferrocat-icu`: `96.00%` line coverage
 - `ferrocat`: `N/A` in `llvm-cov` today because the umbrella crate is almost entirely re-exports and does not currently surface measurable executable lines in the report
 
-That means the current rollout is intentionally staged:
+The CI coverage job enforces these crate-level thresholds:
 
-- Phase 1: standardized local commands and CI artifact publication
-- Phase 2: crate-level guardrails close to the measured baseline
-  - `ferrocat-po >= 88%`
-  - `ferrocat-icu >= 93%`
-  - `ferrocat` is still reported, but not percentage-gated until `llvm-cov` has measurable lines for the crate
-- Phase 3: raise the measurable core crates to `95%+`
+- `ferrocat-po >= 95%`
+- `ferrocat-icu >= 95%`
+- `ferrocat` is still reported, but not percentage-gated until `llvm-cov` has measurable lines for the crate
 
-The next high-yield test targets after the current baseline are still:
+The next high-yield test targets are:
 
 - `ferrocat-po/src/api/catalog.rs`
 - `ferrocat-po/src/api/compile.rs`
-- `ferrocat-po/src/api/plural.rs`
+- `ferrocat-po/src/api/audit.rs`
 - `ferrocat-po/src/merge.rs`
 - `ferrocat-po/src/borrowed.rs`
 - `ferrocat-icu/src/parser.rs`
@@ -97,7 +94,7 @@ target/lcov.info
 
 The GitHub Actions CI workflow runs a dedicated coverage job on Ubuntu, installs the required LLVM tooling, uploads the generated LCOV report to Codecov, and stores the same `lcov.info` file as a workflow artifact.
 
-That same job now also exports `target/coverage-summary.json` and runs a small crate-aware gate script so the staged thresholds are enforced per crate instead of through one global blended percentage.
+That same job now also exports `target/coverage-summary.json` and runs a small crate-aware gate script so the `95%` thresholds are enforced per crate instead of through one global blended percentage.
 
 For private repositories, add a GitHub Actions repository secret named `CODECOV_TOKEN`.
 

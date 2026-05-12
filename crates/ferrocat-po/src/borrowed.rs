@@ -790,4 +790,41 @@ msgstr "world"
         );
         assert_eq!(file.items[0].nplurals, 3);
     }
+
+    #[test]
+    fn parses_sparse_plural_slots_and_multiline_context_plural_and_msgstr() {
+        let input = concat!(
+            "msgid \"\"\n",
+            "msgstr \"\"\n",
+            "\"Plural-Forms: nplurals=3; plural=(n > 1);\\n\"\n",
+            "\n",
+            "msgctxt \"ct\"\n",
+            "\"a\"\n",
+            "msgid \"item\"\n",
+            "msgid_plural \"items\"\n",
+            "\" total\"\n",
+            "msgstr[1] \"two\"\n",
+            "\" plus\"\n",
+            "msgstr[0] \"one\"\n",
+            "\" plus\"\n",
+            "\n",
+            "msgid \"missing translation\"\n",
+        );
+
+        let file = parse_po_borrowed(input).expect("parse sparse plural");
+
+        assert_eq!(file.items.len(), 2);
+        let plural = &file.items[0];
+        assert_eq!(plural.msgctxt.as_deref(), Some("cta"));
+        assert_eq!(plural.msgid_plural.as_deref(), Some("items total"));
+        assert_eq!(
+            plural.msgstr,
+            BorrowedMsgStr::Plural(vec![Cow::Borrowed("one plus"), Cow::Borrowed("two plus"),])
+        );
+        assert_eq!(file.items[1].msgid, Cow::Borrowed("missing translation"));
+        assert_eq!(
+            file.items[1].msgstr,
+            BorrowedMsgStr::Singular(Cow::Borrowed(""))
+        );
+    }
 }

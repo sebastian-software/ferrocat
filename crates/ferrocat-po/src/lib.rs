@@ -417,4 +417,31 @@ mod tests {
         assert_eq!(msgstr.get(1), Some("viele"));
         assert_eq!(msgstr.get(2), None);
     }
+
+    #[test]
+    fn msgstr_helpers_cover_empty_singular_and_plural_shapes() {
+        let empty = MsgStr::from(Vec::<String>::new());
+        assert!(empty.is_empty());
+        assert_eq!(empty.len(), 0);
+        assert_eq!(empty.first(), None);
+        assert_eq!(empty.first_str(), None);
+        assert_eq!(empty.iter().count(), 0);
+        assert_eq!(empty.into_vec(), Vec::<String>::new());
+
+        let singular = MsgStr::from(vec!["Hallo".to_owned()]);
+        assert!(!singular.is_empty());
+        assert_eq!(singular.len(), 1);
+        assert_eq!(singular.first().map(String::as_str), Some("Hallo"));
+        assert_eq!(singular.first_str(), Some("Hallo"));
+        assert_eq!((&singular).into_iter().collect::<Vec<_>>(), vec!["Hallo"]);
+        assert_eq!(singular[0], "Hallo");
+        assert_eq!(singular.into_vec(), vec!["Hallo"]);
+
+        let plural = MsgStr::from(vec!["eins".to_owned(), "viele".to_owned()]);
+        assert_eq!(plural.len(), 2);
+        assert_eq!(plural.first_str(), Some("eins"));
+        assert_eq!(plural.iter().collect::<Vec<_>>(), vec!["eins", "viele"]);
+        assert_eq!(plural[1], "viele");
+        assert_eq!(plural.into_vec(), vec!["eins", "viele"]);
+    }
 }

@@ -799,6 +799,47 @@ mod tests {
     }
 
     #[test]
+    fn project_icu_plural_renders_supported_nested_leaf_nodes() {
+        let projection = project_icu_plural(
+            "{count, plural, one {It''s '{'one'}' <b>{name}</b> {price, number, integer} {created, date, short} {time, time, HH:mm} {items, list, conjunction} {elapsed, duration} {since, ago} {person, name}} other {# files}}",
+        );
+
+        match projection {
+            IcuPluralProjection::Projected(parsed) => {
+                assert_eq!(parsed.variable, "count");
+                assert_eq!(
+                    parsed.branches.get("one").map(String::as_str),
+                    Some(
+                        "It''s '{'one'}' <b>{name}</b> {price, number, integer} {created, date, short} {time, time, HH:mm} {items, list, conjunction} {elapsed, duration} {since, ago} {person, name}"
+                    )
+                );
+                assert_eq!(
+                    parsed.branches.get("other").map(String::as_str),
+                    Some("# files")
+                );
+            }
+            _ => panic!("expected projected plural"),
+        }
+    }
+
+    #[test]
+    fn project_icu_plural_reports_malformed_and_non_plural_candidates() {
+        assert!(matches!(
+            project_icu_plural("{count, plural, one {# file} other {# files}"),
+            IcuPluralProjection::Malformed
+        ));
+        assert!(matches!(
+            project_icu_plural("{rank, selectordinal, one {#st} other {#th}}"),
+            IcuPluralProjection::NotPlural
+        ));
+        assert!(!looks_like_projectable_icu_plural(b""));
+        assert!(!looks_like_projectable_icu_plural(b"{"));
+        assert!(looks_like_projectable_icu_plural(b"{, plural"));
+        assert!(looks_like_projectable_icu_plural(b"{count,"));
+        assert!(looks_like_projectable_icu_plural(b"{count, unknown"));
+    }
+
+    #[test]
     fn locale_normalization_and_cache_helpers_cover_hits_and_misses() {
         assert_eq!(normalize_plural_locale(" pt_BR "), "pt-BR");
         assert_eq!(
@@ -814,6 +855,20 @@ mod tests {
                 .expect("categories")
                 .iter()
                 .any(|category| category == "other")
+        );
+        let synthetic = PluralProfile::for_gettext_slots(Some("fr"), Some(4));
+        assert_eq!(
+            synthetic.categories(),
+            &[
+                "one".to_owned(),
+                "few".to_owned(),
+                "many".to_owned(),
+                "other".to_owned()
+            ]
+        );
+        assert_eq!(
+            PluralProfile::for_gettext_slots(Some("und"), Some(1)).nplurals(),
+            1
         );
     }
 }

@@ -686,7 +686,8 @@ mod tests {
     use std::collections::BTreeMap;
 
     use crate::{
-        IcuDiagnosticSeverity, MessageArgumentKind, MessageArgumentMetadataInput,
+        IcuDiagnosticSeverity, MessageArgumentFormatMetadata, MessageArgumentKind,
+        MessageArgumentMetadata, MessageArgumentMetadataInput, MessageFormatStyleKind,
         MessageMetadataInput, MessageSelectorKind, MessageSelectorMetadata,
         derive_message_metadata_from_icu, normalize_message_metadata, validate_message_metadata,
     };
@@ -871,5 +872,207 @@ mod tests {
             metadata.args.get("name").map(|argument| argument.kind),
             Some(MessageArgumentKind::String)
         );
+    }
+
+    #[test]
+    fn explicit_details_origin_tags_and_selectors_are_preserved_and_enriched() {
+        let mut args = BTreeMap::new();
+        args.insert(
+            "name".to_owned(),
+            MessageArgumentMetadata {
+                kind: MessageArgumentKind::String,
+                ..MessageArgumentMetadata::default()
+            }
+            .into(),
+        );
+        let mut selectors = BTreeMap::new();
+        selectors.insert(
+            "status".to_owned(),
+            MessageSelectorMetadata {
+                kind: MessageSelectorKind::Select,
+                cases: vec!["open".to_owned(), "other".to_owned()],
+                offset: None,
+            },
+        );
+        let mut input = MessageMetadataInput::new(
+            "<link>{status, select, open {Hello {name}} other {Done}}</link> <strong>!</strong>",
+        );
+        input.description = Some("Shown in the activity feed.".to_owned());
+        input.origin.push(crate::MessageOriginMetadata {
+            file: Some("src/app.rs".to_owned()),
+            line: Some(12),
+            component: Some("ActivityFeed".to_owned()),
+            route: Some("/activity".to_owned()),
+        });
+        input.args = Some(args);
+        input.tags = Some(vec!["link".to_owned(), "link".to_owned()]);
+        input.selectors = Some(selectors);
+
+        let metadata = normalize_message_metadata(input).expect("normalize metadata");
+
+        assert_eq!(
+            metadata.args.get("name").map(|argument| argument.kind),
+            Some(MessageArgumentKind::String)
+        );
+        assert_eq!(
+            metadata.args.get("status").map(|argument| argument.kind),
+            Some(MessageArgumentKind::Enum)
+        );
+        assert_eq!(metadata.tags, vec!["link", "strong"]);
+        assert_eq!(
+            metadata.description.as_deref(),
+            Some("Shown in the activity feed.")
+        );
+        assert_eq!(metadata.origin[0].file.as_deref(), Some("src/app.rs"));
+        assert_eq!(
+            metadata
+                .selectors
+                .get("status")
+                .map(|selector| selector.cases.as_slice()),
+            Some(&["open".to_owned(), "other".to_owned()][..])
+        );
+    }
+
+    #[test]
+    fn formatter_metadata_derives_kinds_styles_roles_and_selector_offsets() {
+        let metadata = derive_message_metadata_from_icu(
+            "{price, number, ::currency/USD} {created, date, short} {time, time, HH:mm} \
+             {items, list, conjunction} {elapsed, duration} {since, ago} {person, name} \
+             {rank, selectordinal, offset:1 one {#st} other {#th}}",
+            None,
+        )
+        .expect("derive metadata");
+
+        assert_eq!(
+            metadata
+                .args
+                .get("price")
+                .and_then(|argument| argument.format.as_ref()),
+            Some(&MessageArgumentFormatMetadata {
+                style: Some("::currency/USD".to_owned()),
+                style_kind: Some(MessageFormatStyleKind::Skeleton),
+            })
+        );
+        assert_eq!(
+            metadata
+                .args
+                .get("created")
+                .and_then(|argument| argument.format.as_ref()),
+            Some(&MessageArgumentFormatMetadata {
+                style: Some("short".to_owned()),
+                style_kind: Some(MessageFormatStyleKind::Predefined),
+            })
+        );
+        assert_eq!(
+            metadata
+                .args
+                .get("time")
+                .and_then(|argument| argument.format.as_ref()),
+            Some(&MessageArgumentFormatMetadata {
+                style: Some("HH:mm".to_owned()),
+                style_kind: Some(MessageFormatStyleKind::Pattern),
+            })
+        );
+        assert_eq!(
+            metadata.args.get("items").map(|argument| argument.kind),
+            Some(MessageArgumentKind::List)
+        );
+        assert_eq!(
+            metadata.args.get("elapsed").map(|argument| argument.kind),
+            Some(MessageArgumentKind::Duration)
+        );
+        assert_eq!(
+            metadata.args.get("since").map(|argument| argument.kind),
+            Some(MessageArgumentKind::RelativeTime)
+        );
+        assert_eq!(
+            metadata.args.get("person").map(|argument| argument.kind),
+            Some(MessageArgumentKind::Name)
+        );
+        let rank = metadata.args.get("rank").expect("rank argument");
+        assert_eq!(rank.kind, MessageArgumentKind::Number);
+        assert_eq!(rank.role.as_deref(), Some("ordinal"));
+        let selector = metadata.selectors.get("rank").expect("rank selector");
+        assert_eq!(selector.kind, MessageSelectorKind::SelectOrdinal);
+        assert_eq!(selector.offset, Some(1));
+    }
+
+    #[test]
+    fn invalid_msgid_reports_metadata_diagnostic() {
+        let input = MessageMetadataInput::new("{count, plural, one {One item}}");
+
+        let report = validate_message_metadata(&input);
+
+        assert_eq!(
+            report
+                .diagnostics
+                .iter()
+                .map(|diagnostic| diagnostic.code.as_str())
+                .collect::<Vec<_>>(),
+            vec!["metadata.invalid_msgid"]
+        );
+        assert!(report.has_errors());
+    }
+
+    #[test]
+    fn validation_reports_missing_and_extra_tags_and_selectors() {
+        let mut selectors = BTreeMap::new();
+        selectors.insert(
+            "status".to_owned(),
+            MessageSelectorMetadata {
+                kind: MessageSelectorKind::Plural,
+                cases: vec!["open".to_owned(), "closed".to_owned(), "other".to_owned()],
+                offset: Some(1),
+            },
+        );
+        selectors.insert(
+            "unused".to_owned(),
+            MessageSelectorMetadata {
+                kind: MessageSelectorKind::Select,
+                cases: vec!["other".to_owned()],
+                offset: None,
+            },
+        );
+        let mut input =
+            MessageMetadataInput::new("<link>{status, select, open {Open} other {Other}}</link>");
+        input.tags = Some(vec!["button".to_owned()]);
+        input.selectors = Some(selectors);
+
+        let report = validate_message_metadata(&input);
+        let codes = report
+            .diagnostics
+            .iter()
+            .map(|diagnostic| diagnostic.code.as_str())
+            .collect::<Vec<_>>();
+
+        assert!(report.has_errors());
+        assert!(codes.contains(&"metadata.missing_tag"));
+        assert!(codes.contains(&"metadata.extra_tag"));
+        assert!(codes.contains(&"metadata.selector_kind_mismatch"));
+        assert!(codes.contains(&"metadata.extra_selector"));
+        assert!(codes.contains(&"metadata.extra_selector_case"));
+        assert!(codes.contains(&"metadata.selector_offset_mismatch"));
+    }
+
+    #[test]
+    fn validation_reports_missing_argument_tag_and_selector_metadata() {
+        let mut input = MessageMetadataInput::new(
+            "<link>{count, plural, one {{name} has one item} other {{name} has # items}}</link>",
+        );
+        input.args = Some(BTreeMap::new());
+        input.tags = Some(Vec::new());
+        input.selectors = Some(BTreeMap::new());
+
+        let report = validate_message_metadata(&input);
+        let codes = report
+            .diagnostics
+            .iter()
+            .map(|diagnostic| diagnostic.code.as_str())
+            .collect::<Vec<_>>();
+
+        assert!(!report.has_errors());
+        assert!(codes.contains(&"metadata.missing_argument"));
+        assert!(codes.contains(&"metadata.missing_tag"));
+        assert!(codes.contains(&"metadata.missing_selector"));
     }
 }

@@ -1240,4 +1240,158 @@ mod tests {
             BorrowedMsgStr::None
         ));
     }
+
+    #[test]
+    fn merge_preserves_context_comments_metadata_and_marks_removed_items_obsolete() {
+        let existing = concat!(
+            "# Header translator\n",
+            "#. Header extracted\n",
+            "msgid \"\"\n",
+            "msgstr \"\"\n",
+            "\"Language: de\\n\"\n",
+            "\"Plural-Forms: nplurals=2; plural=(n != 1);\\n\"\n",
+            "\n",
+            "# Translator note\n",
+            "#. Old extracted note\n",
+            "#@ owner: checkout\n",
+            "#: old.rs:1\n",
+            "#, fuzzy,php-format\n",
+            "msgctxt \"button\"\n",
+            "msgid \"Save\"\n",
+            "\" now\"\n",
+            "msgstr \"Speichern\"\n",
+            "\n",
+            "# Translator old only\n",
+            "msgid \"Remove me\"\n",
+            "msgstr \"Entferne mich\"\n",
+        );
+        let extracted = vec![ExtractedMessage {
+            msgctxt: Some(Cow::Borrowed("button")),
+            msgid: Cow::Borrowed("Save now"),
+            references: vec![Cow::Borrowed("new.rs:2")],
+            extracted_comments: vec![Cow::Borrowed("Fresh extracted note")],
+            flags: vec![Cow::Borrowed("fuzzy"), Cow::Borrowed("rust-format")],
+            ..ExtractedMessage::default()
+        }];
+
+        let merged = merge_catalog(existing, &extracted).expect("merge context item");
+
+        assert!(merged.contains("# Header translator\n#. Header extracted\nmsgid \"\""));
+        assert!(merged.contains("# Translator note\n#. Fresh extracted note\n#@ owner: checkout"));
+        assert!(merged.contains("#: new.rs:2\n#, fuzzy,php-format,rust-format"));
+        assert!(merged.contains("msgctxt \"button\"\nmsgid \"Save now\"\nmsgstr \"Speichern\""));
+        assert!(merged.contains("#~ # Translator old only\n#~ msgid \"Remove me\""));
+    }
+
+    #[test]
+    fn merge_materializes_plural_slots_from_header_and_resets_shape_changes() {
+        let existing = concat!(
+            "msgid \"\"\n",
+            "msgstr \"\"\n",
+            "\"Plural-Forms: nplurals=3; plural=(n > 1);\\n\"\n",
+            "\n",
+            "msgid \"One file\"\n",
+            "msgid_plural \"{count} files\"\n",
+            "msgstr \"Eine Datei\"\n",
+            "\n",
+            "msgid \"Plain\"\n",
+            "msgid_plural \"Plains\"\n",
+            "msgstr[0] \"Singular\"\n",
+            "msgstr[1] \"Plural\"\n",
+            "msgstr[2] \"Viele\"\n",
+        );
+        let extracted = vec![
+            ExtractedMessage {
+                msgid: Cow::Borrowed("One file"),
+                msgid_plural: Some(Cow::Borrowed("{count} files")),
+                ..ExtractedMessage::default()
+            },
+            ExtractedMessage {
+                msgid: Cow::Borrowed("Plain"),
+                ..ExtractedMessage::default()
+            },
+        ];
+
+        let merged = merge_catalog(existing, &extracted).expect("merge shape changes");
+        let reparsed = parse_po(&merged).expect("reparse");
+
+        let files = reparsed
+            .items
+            .iter()
+            .find(|item| item.msgid == "One file")
+            .expect("files item");
+        assert_eq!(files.msgstr.len(), 3);
+        assert_eq!(files.msgstr[0], "Eine Datei");
+        assert_eq!(files.msgstr[1], "");
+        assert_eq!(files.msgstr[2], "");
+        let plain = reparsed
+            .items
+            .iter()
+            .find(|item| item.msgid == "Plain")
+            .expect("plain item");
+        assert!(plain.msgid_plural.is_none());
+        assert_eq!(plain.msgstr.len(), 1);
+        assert_eq!(plain.msgstr[0], "");
+    }
+
+    #[test]
+    fn merge_writes_new_context_plural_and_obsoletes_unmatched_context_plural() {
+        let existing = concat!(
+            "msgid \"\"\n",
+            "msgstr \"\"\n",
+            "\"Plural-Forms: nplurals=2; plural=(n != 1);\\n\"\n",
+            "\n",
+            "# Translator plural\n",
+            "#. Extracted plural\n",
+            "#@ owner: files\n",
+            "#: old.rs:4\n",
+            "#, fuzzy\n",
+            "msgctxt \"files\"\n",
+            "msgid \"Old file\"\n",
+            "msgid_plural \"Old files\"\n",
+            "msgstr[0] \"Alte Datei\"\n",
+            "msgstr[1] \"Alte Dateien\"\n",
+        );
+        let extracted = vec![ExtractedMessage {
+            msgctxt: Some(Cow::Borrowed("files")),
+            msgid: Cow::Borrowed("New file"),
+            msgid_plural: Some(Cow::Borrowed("New files")),
+            references: vec![Cow::Borrowed("new.rs:8")],
+            extracted_comments: vec![Cow::Borrowed("Fresh plural")],
+            flags: vec![Cow::Borrowed("rust-format")],
+        }];
+
+        let merged = merge_catalog(existing, &extracted).expect("merge context plural");
+
+        assert!(merged.contains("#. Fresh plural\n#: new.rs:8\n#, rust-format\nmsgctxt \"files\"\nmsgid \"New file\"\nmsgid_plural \"New files\"\nmsgstr[0] \"\"\nmsgstr[1] \"\""));
+        assert!(merged.contains("#~ # Translator plural\n#~ #. Extracted plural\n#~ #@ owner: files\n#~ #: old.rs:4\n#~ #, fuzzy\n#~ msgctxt \"files\"\n#~ msgid \"Old file\"\n#~ msgid_plural \"Old files\"\n#~ msgstr[0] \"Alte Datei\"\n#~ msgstr[1] \"Alte Dateien\""));
+    }
+
+    #[test]
+    fn merge_handles_owned_header_fragments_and_missing_quotes() {
+        assert_eq!(
+            parse_header_fragment(br#""Language: de\\nPlural-Forms: nplurals=2;\\n""#)
+                .expect("owned escaped header fragment"),
+            vec![MergeHeader {
+                key: Cow::Owned("Language".to_owned()),
+                value: Cow::Owned("de\\nPlural-Forms: nplurals=2;\\n".to_owned()),
+            }]
+        );
+        assert_eq!(
+            parse_header_fragment(b"msgstr").expect("missing quotes"),
+            Vec::new()
+        );
+        assert_eq!(
+            extract_merge_quoted_cow(b"msgid").expect("missing quote"),
+            ""
+        );
+        assert_eq!(parse_nplurals(&[]), None);
+        assert_eq!(
+            parse_nplurals(&[MergeHeader {
+                key: Cow::Borrowed("Plural-Forms"),
+                value: Cow::Borrowed("plural=(n != 1); nplurals=two;"),
+            }]),
+            None
+        );
+    }
 }

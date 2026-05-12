@@ -142,8 +142,8 @@ jobs:
       - name: Generate JSON coverage summary
         run: cargo llvm-cov report --json --summary-only --output-path target/coverage-summary.json
 
-      - name: Enforce staged crate coverage thresholds
-        run: node scripts/coverage-gate.mjs target/coverage-summary.json ferrocat-po=88 ferrocat-icu=93
+      - name: Enforce crate coverage thresholds
+        run: node scripts/coverage-gate.mjs target/coverage-summary.json ferrocat-po=95 ferrocat-icu=95
 
       - name: Upload coverage to Codecov
         if: ${{ github.event_name != 'pull_request' || !startsWith(github.head_ref, 'dependabot/') }}

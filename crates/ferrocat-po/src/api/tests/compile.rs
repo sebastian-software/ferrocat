@@ -553,6 +553,132 @@ fn compile_catalog_artifact_requires_requested_and_unique_catalog_locales() {
 }
 
 #[test]
+fn compile_catalog_artifact_rejects_invalid_locale_sets_and_fallback_chains() {
+    let source = normalized_catalog(
+        "msgid \"Hello\"\nmsgstr \"Hello\"\n",
+        Some("en"),
+        PluralEncoding::Icu,
+    );
+    let requested = normalized_catalog(
+        "msgid \"Hello\"\nmsgstr \"Hallo\"\n",
+        Some("de"),
+        PluralEncoding::Icu,
+    );
+    let fallback = normalized_catalog(
+        "msgid \"Hello\"\nmsgstr \"Servus\"\n",
+        Some("de-AT"),
+        PluralEncoding::Icu,
+    );
+    let no_locale = parse_catalog(ParseCatalogOptions {
+        content: "msgid \"Hello\"\nmsgstr \"Hallo\"\n",
+        source_locale: "en",
+        storage_format: CatalogStorageFormat::Po,
+        semantics: CatalogSemantics::IcuNative,
+        plural_encoding: PluralEncoding::Icu,
+        ..ParseCatalogOptions::default()
+    })
+    .expect("parse no-locale catalog")
+    .into_normalized_view()
+    .expect("normalize no-locale catalog");
+    let empty_locale = parse_catalog(ParseCatalogOptions {
+        content: "msgid \"Hello\"\nmsgstr \"Hallo\"\n",
+        locale: Some("  "),
+        source_locale: "en",
+        storage_format: CatalogStorageFormat::Po,
+        semantics: CatalogSemantics::IcuNative,
+        plural_encoding: PluralEncoding::Icu,
+        ..ParseCatalogOptions::default()
+    })
+    .expect("parse empty-locale catalog")
+    .into_normalized_view()
+    .expect("normalize empty-locale catalog");
+
+    let cases = [
+        (
+            Vec::new(),
+            CompileCatalogArtifactOptions {
+                requested_locale: "de",
+                source_locale: "en",
+                ..CompileCatalogArtifactOptions::default()
+            },
+        ),
+        (
+            vec![&requested, &source],
+            CompileCatalogArtifactOptions {
+                requested_locale: "",
+                source_locale: "en",
+                ..CompileCatalogArtifactOptions::default()
+            },
+        ),
+        (
+            vec![&no_locale],
+            CompileCatalogArtifactOptions {
+                requested_locale: "de",
+                source_locale: "en",
+                ..CompileCatalogArtifactOptions::default()
+            },
+        ),
+        (
+            vec![&empty_locale],
+            CompileCatalogArtifactOptions {
+                requested_locale: "de",
+                source_locale: "en",
+                ..CompileCatalogArtifactOptions::default()
+            },
+        ),
+        (
+            vec![&requested],
+            CompileCatalogArtifactOptions {
+                requested_locale: "de",
+                source_locale: "en",
+                ..CompileCatalogArtifactOptions::default()
+            },
+        ),
+        (
+            vec![&requested, &source],
+            CompileCatalogArtifactOptions {
+                requested_locale: "de",
+                source_locale: "en",
+                fallback_chain: &["de".to_owned()],
+                ..CompileCatalogArtifactOptions::default()
+            },
+        ),
+        (
+            vec![&requested, &source],
+            CompileCatalogArtifactOptions {
+                requested_locale: "de",
+                source_locale: "en",
+                fallback_chain: &["en".to_owned()],
+                ..CompileCatalogArtifactOptions::default()
+            },
+        ),
+        (
+            vec![&requested, &source, &fallback],
+            CompileCatalogArtifactOptions {
+                requested_locale: "de",
+                source_locale: "en",
+                fallback_chain: &["de-AT".to_owned(), "de-AT".to_owned()],
+                ..CompileCatalogArtifactOptions::default()
+            },
+        ),
+        (
+            vec![&requested, &source],
+            CompileCatalogArtifactOptions {
+                requested_locale: "de",
+                source_locale: "en",
+                fallback_chain: &["fr".to_owned()],
+                ..CompileCatalogArtifactOptions::default()
+            },
+        ),
+    ];
+
+    for (catalogs, options) in cases {
+        let error = compile_catalog_artifact(&catalogs, &options).expect_err("invalid locale set");
+        assert!(matches!(error, ApiError::InvalidArguments(_)));
+    }
+}
+
+#[test]
 fn compile_catalog_artifact_collects_or_raises_invalid_icu_messages() {
     let source = normalized_catalog(
         "msgid \"Hello\"\nmsgstr \"Hello\"\n",
@@ -987,6 +1113,44 @@ fn compile_catalog_artifact_selected_reports_unknown_compiled_ids() {
     .expect_err("unknown compiled id");
 
     assert!(matches!(error, ApiError::InvalidArguments(_)));
+}
+
+#[test]
+fn compile_catalog_artifact_selected_rejects_ids_absent_from_catalog_set() {
+    let indexed_source = normalized_catalog(
+        "msgid \"Hello\"\nmsgstr \"Hello\"\n",
+        Some("en"),
+        PluralEncoding::Icu,
+    );
+    let indexed_requested = normalized_catalog(
+        "msgid \"Hello\"\nmsgstr \"Hallo\"\n",
+        Some("de"),
+        PluralEncoding::Icu,
+    );
+    let source = normalized_catalog("", Some("en"), PluralEncoding::Icu);
+    let requested = normalized_catalog("", Some("de"), PluralEncoding::Icu);
+    let index = CompiledCatalogIdIndex::new(
+        &[&indexed_requested, &indexed_source],
+        CompiledKeyStrategy::FerrocatV1,
+    )
+    .expect("compiled id index");
+    let hello_id = compiled_key("Hello", None);
+
+    let error = compile_catalog_artifact_selected(
+        &[&requested, &source],
+        &index,
+        &CompileSelectedCatalogArtifactOptions {
+            requested_locale: "de",
+            source_locale: "en",
+            compiled_ids: &[hello_id],
+            ..CompileSelectedCatalogArtifactOptions::default()
+        },
+    )
+    .expect_err("compiled id absent from provided catalogs");
+
+    assert!(
+        matches!(error, ApiError::InvalidArguments(message) if message.contains("not present"))
+    );
 }
 
 #[test]
