@@ -1,3 +1,4 @@
+mod audit;
 mod catalog;
 mod compile;
 mod compile_types;
@@ -7,6 +8,10 @@ mod ndjson;
 mod plural;
 mod types;
 
+pub use self::audit::{
+    CatalogAuditChecks, CatalogAuditDiagnostic, CatalogAuditMessageRef, CatalogAuditOptions,
+    CatalogAuditReport, CatalogAuditSummary, audit_catalogs,
+};
 pub use self::catalog::{combine_catalogs, parse_catalog, update_catalog, update_catalog_file};
 pub use self::compile::{
     compile_catalog_artifact, compile_catalog_artifact_selected, compiled_key,

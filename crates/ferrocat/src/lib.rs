@@ -54,6 +54,29 @@
 //! assert_eq!(compiled.messages.len(), 1);
 //! # Ok::<(), Box<dyn std::error::Error>>(())
 //! ```
+//!
+//! ```rust
+//! use ferrocat::{CatalogAuditOptions, ParseCatalogOptions, audit_catalogs, parse_catalog};
+//!
+//! let source = parse_catalog(ParseCatalogOptions {
+//!     content: "msgid \"Checkout\"\nmsgstr \"Checkout\"\n",
+//!     source_locale: "en",
+//!     locale: Some("en"),
+//!     ..ParseCatalogOptions::default()
+//! })?
+//! .into_normalized_view()?;
+//! let target = parse_catalog(ParseCatalogOptions {
+//!     content: "",
+//!     source_locale: "en",
+//!     locale: Some("de"),
+//!     ..ParseCatalogOptions::default()
+//! })?
+//! .into_normalized_view()?;
+//! let report = audit_catalogs(&[&source, &target], &CatalogAuditOptions::new("en"))?;
+//!
+//! assert!(report.has_errors());
+//! # Ok::<(), Box<dyn std::error::Error>>(())
+//! ```
 
 pub use ferrocat_icu::has_selectordinal as has_select_ordinal;
 pub use ferrocat_icu::{
@@ -70,22 +93,23 @@ pub use ferrocat_icu::{
     validate_icu, validate_message_metadata,
 };
 pub use ferrocat_po::{
-    ApiError, BorrowedHeader, BorrowedMsgStr, BorrowedPoFile, BorrowedPoItem, CatalogCombineInput,
-    CatalogCombineResult, CatalogCombineSelection, CatalogCombineStats, CatalogConflictStrategy,
-    CatalogMessage, CatalogMessageExtra, CatalogMessageKey, CatalogOrigin, CatalogStats,
-    CatalogStorageFormat, CatalogUpdateInput, CatalogUpdateResult, CombineCatalogOptions,
-    CompileCatalogArtifactOptions, CompileCatalogOptions, CompileSelectedCatalogArtifactOptions,
-    CompiledCatalog, CompiledCatalogArtifact, CompiledCatalogDiagnostic,
-    CompiledCatalogIdDescription, CompiledCatalogIdIndex, CompiledCatalogMissingMessage,
-    CompiledCatalogTranslationKind, CompiledCatalogUnavailableId, CompiledKeyStrategy,
-    CompiledMessage, CompiledTranslation, DescribeCompiledIdsReport, Diagnostic,
-    DiagnosticSeverity, EffectiveTranslation, EffectiveTranslationRef, ExtractedMessage,
-    ExtractedPluralMessage, ExtractedSingularMessage, Header, MergeExtractedMessage, MsgStr,
-    MsgStrIter, NormalizedParsedCatalog, ObsoleteStrategy, OrderBy, ParseCatalogOptions,
-    ParseError, ParsedCatalog, PlaceholderCommentMode, PluralEncoding, PluralSource, PoFile,
-    PoItem, SerializeOptions, SourceExtractedMessage, TranslationShape, UpdateCatalogFileOptions,
-    UpdateCatalogOptions, combine_catalogs, compile_catalog_artifact,
-    compile_catalog_artifact_selected, compiled_key, escape_string, extract_quoted,
-    extract_quoted_cow, merge_catalog, parse_catalog, parse_po, parse_po_borrowed, stringify_po,
-    unescape_string, update_catalog, update_catalog_file,
+    ApiError, BorrowedHeader, BorrowedMsgStr, BorrowedPoFile, BorrowedPoItem, CatalogAuditChecks,
+    CatalogAuditDiagnostic, CatalogAuditMessageRef, CatalogAuditOptions, CatalogAuditReport,
+    CatalogAuditSummary, CatalogCombineInput, CatalogCombineResult, CatalogCombineSelection,
+    CatalogCombineStats, CatalogConflictStrategy, CatalogMessage, CatalogMessageExtra,
+    CatalogMessageKey, CatalogOrigin, CatalogStats, CatalogStorageFormat, CatalogUpdateInput,
+    CatalogUpdateResult, CombineCatalogOptions, CompileCatalogArtifactOptions,
+    CompileCatalogOptions, CompileSelectedCatalogArtifactOptions, CompiledCatalog,
+    CompiledCatalogArtifact, CompiledCatalogDiagnostic, CompiledCatalogIdDescription,
+    CompiledCatalogIdIndex, CompiledCatalogMissingMessage, CompiledCatalogTranslationKind,
+    CompiledCatalogUnavailableId, CompiledKeyStrategy, CompiledMessage, CompiledTranslation,
+    DescribeCompiledIdsReport, Diagnostic, DiagnosticSeverity, EffectiveTranslation,
+    EffectiveTranslationRef, ExtractedMessage, ExtractedPluralMessage, ExtractedSingularMessage,
+    Header, MergeExtractedMessage, MsgStr, MsgStrIter, NormalizedParsedCatalog, ObsoleteStrategy,
+    OrderBy, ParseCatalogOptions, ParseError, ParsedCatalog, PlaceholderCommentMode,
+    PluralEncoding, PluralSource, PoFile, PoItem, SerializeOptions, SourceExtractedMessage,
+    TranslationShape, UpdateCatalogFileOptions, UpdateCatalogOptions, audit_catalogs,
+    combine_catalogs, compile_catalog_artifact, compile_catalog_artifact_selected, compiled_key,
+    escape_string, extract_quoted, extract_quoted_cow, merge_catalog, parse_catalog, parse_po,
+    parse_po_borrowed, stringify_po, unescape_string, update_catalog, update_catalog_file,
 };

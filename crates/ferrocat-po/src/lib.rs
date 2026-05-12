@@ -55,6 +55,29 @@
 //! assert_eq!(compiled.messages.len(), 1);
 //! # Ok::<(), Box<dyn std::error::Error>>(())
 //! ```
+//!
+//! ```rust
+//! use ferrocat_po::{CatalogAuditOptions, ParseCatalogOptions, audit_catalogs, parse_catalog};
+//!
+//! let source = parse_catalog(ParseCatalogOptions {
+//!     content: "msgid \"Hello {name}\"\nmsgstr \"Hello {name}\"\n",
+//!     source_locale: "en",
+//!     locale: Some("en"),
+//!     ..ParseCatalogOptions::default()
+//! })?
+//! .into_normalized_view()?;
+//! let target = parse_catalog(ParseCatalogOptions {
+//!     content: "msgid \"Hello {name}\"\nmsgstr \"Hallo\"\n",
+//!     source_locale: "en",
+//!     locale: Some("de"),
+//!     ..ParseCatalogOptions::default()
+//! })?
+//! .into_normalized_view()?;
+//! let report = audit_catalogs(&[&source, &target], &CatalogAuditOptions::new("en"))?;
+//!
+//! assert!(report.has_errors());
+//! # Ok::<(), Box<dyn std::error::Error>>(())
+//! ```
 
 mod api;
 mod borrowed;
@@ -66,21 +89,23 @@ mod text;
 mod utf8;
 
 pub use api::{
-    ApiError, CatalogCombineInput, CatalogCombineResult, CatalogCombineSelection,
-    CatalogCombineStats, CatalogConflictStrategy, CatalogMessage, CatalogMessageExtra,
-    CatalogMessageKey, CatalogOrigin, CatalogSemantics, CatalogStats, CatalogStorageFormat,
-    CatalogUpdateInput, CatalogUpdateResult, CombineCatalogOptions, CompileCatalogArtifactOptions,
-    CompileCatalogOptions, CompileSelectedCatalogArtifactOptions, CompiledCatalog,
-    CompiledCatalogArtifact, CompiledCatalogDiagnostic, CompiledCatalogIdDescription,
-    CompiledCatalogIdIndex, CompiledCatalogMissingMessage, CompiledCatalogTranslationKind,
-    CompiledCatalogUnavailableId, CompiledKeyStrategy, CompiledMessage, CompiledTranslation,
-    DescribeCompiledIdsReport, Diagnostic, DiagnosticSeverity, EffectiveTranslation,
-    EffectiveTranslationRef, ExtractedMessage, ExtractedPluralMessage, ExtractedSingularMessage,
-    NormalizedParsedCatalog, ObsoleteStrategy, OrderBy, ParseCatalogOptions, ParsedCatalog,
-    PlaceholderCommentMode, PluralEncoding, PluralSource, SourceExtractedMessage, TranslationShape,
-    UpdateCatalogFileOptions, UpdateCatalogOptions, combine_catalogs, compile_catalog_artifact,
-    compile_catalog_artifact_selected, compiled_key, parse_catalog, update_catalog,
-    update_catalog_file,
+    ApiError, CatalogAuditChecks, CatalogAuditDiagnostic, CatalogAuditMessageRef,
+    CatalogAuditOptions, CatalogAuditReport, CatalogAuditSummary, CatalogCombineInput,
+    CatalogCombineResult, CatalogCombineSelection, CatalogCombineStats, CatalogConflictStrategy,
+    CatalogMessage, CatalogMessageExtra, CatalogMessageKey, CatalogOrigin, CatalogSemantics,
+    CatalogStats, CatalogStorageFormat, CatalogUpdateInput, CatalogUpdateResult,
+    CombineCatalogOptions, CompileCatalogArtifactOptions, CompileCatalogOptions,
+    CompileSelectedCatalogArtifactOptions, CompiledCatalog, CompiledCatalogArtifact,
+    CompiledCatalogDiagnostic, CompiledCatalogIdDescription, CompiledCatalogIdIndex,
+    CompiledCatalogMissingMessage, CompiledCatalogTranslationKind, CompiledCatalogUnavailableId,
+    CompiledKeyStrategy, CompiledMessage, CompiledTranslation, DescribeCompiledIdsReport,
+    Diagnostic, DiagnosticSeverity, EffectiveTranslation, EffectiveTranslationRef,
+    ExtractedMessage, ExtractedPluralMessage, ExtractedSingularMessage, NormalizedParsedCatalog,
+    ObsoleteStrategy, OrderBy, ParseCatalogOptions, ParsedCatalog, PlaceholderCommentMode,
+    PluralEncoding, PluralSource, SourceExtractedMessage, TranslationShape,
+    UpdateCatalogFileOptions, UpdateCatalogOptions, audit_catalogs, combine_catalogs,
+    compile_catalog_artifact, compile_catalog_artifact_selected, compiled_key, parse_catalog,
+    update_catalog, update_catalog_file,
 };
 pub use borrowed::{
     BorrowedHeader, BorrowedMsgStr, BorrowedPoFile, BorrowedPoItem, parse_po_borrowed,

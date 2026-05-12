@@ -1,21 +1,22 @@
 pub(super) use super::{
-    ApiError, CatalogCombineInput, CatalogCombineSelection, CatalogConflictStrategy,
-    CatalogMessageKey, CatalogOrigin, CatalogSemantics, CatalogStorageFormat, CatalogUpdateInput,
-    CombineCatalogOptions, CompileCatalogArtifactOptions, CompileCatalogOptions,
-    CompileSelectedCatalogArtifactOptions, CompiledCatalogIdIndex, CompiledCatalogTranslationKind,
-    CompiledKeyStrategy, CompiledTranslation, DiagnosticSeverity, EffectiveTranslation,
-    EffectiveTranslationRef, ExtractedMessage, ExtractedPluralMessage, ExtractedSingularMessage,
-    ObsoleteStrategy, ParseCatalogOptions, PluralEncoding, PluralSource, SourceExtractedMessage,
-    TranslationShape, UpdateCatalogFileOptions, UpdateCatalogOptions, combine_catalogs,
-    compile::compiled_key_for, compile_catalog_artifact, compile_catalog_artifact_selected,
-    compiled_key, parse_catalog, plural::cached_icu_plural_categories_for, update_catalog,
-    update_catalog_file,
+    ApiError, CatalogAuditOptions, CatalogCombineInput, CatalogCombineSelection,
+    CatalogConflictStrategy, CatalogMessageKey, CatalogOrigin, CatalogSemantics,
+    CatalogStorageFormat, CatalogUpdateInput, CombineCatalogOptions, CompileCatalogArtifactOptions,
+    CompileCatalogOptions, CompileSelectedCatalogArtifactOptions, CompiledCatalogIdIndex,
+    CompiledCatalogTranslationKind, CompiledKeyStrategy, CompiledTranslation, DiagnosticSeverity,
+    EffectiveTranslation, EffectiveTranslationRef, ExtractedMessage, ExtractedPluralMessage,
+    ExtractedSingularMessage, ObsoleteStrategy, ParseCatalogOptions, PluralEncoding, PluralSource,
+    SourceExtractedMessage, TranslationShape, UpdateCatalogFileOptions, UpdateCatalogOptions,
+    audit_catalogs, combine_catalogs, compile::compiled_key_for, compile_catalog_artifact,
+    compile_catalog_artifact_selected, compiled_key, parse_catalog,
+    plural::cached_icu_plural_categories_for, update_catalog, update_catalog_file,
 };
 pub(super) use crate::parse_po;
 pub(super) use std::collections::{BTreeMap, HashMap};
 pub(super) use std::fs;
 pub(super) use std::sync::Mutex;
 
+mod audit;
 mod catalog;
 mod compile;
 mod plural;
