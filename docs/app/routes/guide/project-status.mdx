@@ -6,13 +6,14 @@ order: 40
 
 # Project Status
 
-Ferrocat is an actively developed pre-`1.0` Rust project. The public API is already treated with care, but the project is still early enough to make deliberate changes when they improve long-term catalog behavior.
+Ferrocat is an actively developed pre-`1.0` Rust project. The goal is stable and product-facing: make translation catalogs easier to update, validate, audit, compile, and ship. The public API is already treated with care, but the project is still early enough to make deliberate changes when they improve long-term catalog behavior.
 
 ## Current strengths
 
-- classic PO workflows with exact `msgid` + `msgctxt` identity and explicit conflict handling
-- high-performance PO parsing, serialization, merge, combine, and update workflows
-- ICU MessageFormat parsing with structural helpers
+- translation catalogs that preserve source identity, translator context, comments, references, flags, plural entries, and obsolete entries
+- deterministic parsing, serialization, merge, combine, and update workflows
+- release-oriented catalog audit reports for completeness, stale entries, ICU issues, metadata conflicts, and visible fuzzy flags
+- rich-message parsing and diagnostics for placeholders, formatters, plurals, selects, and tags
 - normalized catalog APIs plus runtime compilation and requested-locale artifact generation
 - conformance and benchmark infrastructure treated as product features
 
@@ -25,7 +26,7 @@ Ferrocat is an actively developed pre-`1.0` Rust project. The public API is alre
 
 ## Roadmap themes
 
-- more catalog workflow APIs inspired by practical Gettext jobs, especially filtering, attribute transforms, and structured completeness checks
+- more catalog workflow APIs inspired by practical translation-maintenance jobs, especially filtering, attribute transforms, and structured completeness checks
 - deeper runtime/catalog workflows on top of the compiled catalog layer
 - broader cross-ecosystem tooling and bindings
 - continued conformance growth and publication-grade benchmarking discipline

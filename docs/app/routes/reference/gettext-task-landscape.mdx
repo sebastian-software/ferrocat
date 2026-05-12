@@ -5,7 +5,9 @@ description: "A workflow-level map of gettext-inspired catalog jobs, ecosystem p
 
 # Gettext Task Landscape
 
-Ferrocat is not trying to be a command-line clone of GNU gettext. The goal is to understand the jobs gettext-shaped tooling solves, then expose the useful parts as fast, explicit Rust APIs.
+This is an advanced reference page. You do not need to know GNU gettext to use Ferrocat; start with the [Guide](/guide) if you want the product-level path first.
+
+Ferrocat is not trying to be a command-line clone of GNU gettext. It is a new catalog engine that learns from the jobs established translation tooling already proved useful: extract messages, update catalogs, preserve translator context, check release readiness, and produce runtime data applications can load.
 
 That distinction matters because catalog jobs are broader than one tool's command-line flags. Some projects use stable IDs, some use real source strings as `msgid`, and many need to preserve translator-facing PO metadata either way. Ferrocat's core promise is simpler: keep catalog identity explicit, preserve translations when catalogs evolve, surface conflicts clearly, and compile the result into something applications can load efficiently.
 

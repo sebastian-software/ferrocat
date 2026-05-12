@@ -5,17 +5,17 @@ description: "Guide to Ferrocat's public API layers and when to use each entry p
 
 # API Overview
 
-Ferrocat's public API is organized around jobs, not around command-line tool names. Most callers start in one of four places:
+Ferrocat's public API is organized around jobs, not around command-line tool names. Start from the catalog problem you need to solve:
 
-- low-level Gettext PO parsing and writing
-- catalog-level merge, combine, update, and runtime compilation workflows
-- catalog audit reports for release QA
-- explicit storage and semantics choices across PO, NDJSON, Gettext-compatible plurals, and ICU MessageFormat
-- ICU MessageFormat parsing and validation
+- read or write translator-friendly catalog files
+- merge newly extracted messages into existing translations
+- audit whether a source and target catalog set is ready to ship
+- compile runtime payloads with stable keys and explicit fallback behavior
+- analyze richer messages that contain placeholders, formatting, plurals, selects, or tags
 
 Use this page when you know the catalog task you want to perform and need the right Rust entry point.
 
-If you want the workflow-level view first, read [Gettext Task Landscape](/reference/gettext-task-landscape). It explains how extraction, parsing, merging, combining, filtering, validation, and runtime compilation fit together across GNU gettext, common libraries, and Ferrocat.
+If you want the product-level view first, read [Getting Started](/guide/getting-started) or [Catalog Modes](/guide/catalog-modes). If you already know established Gettext-style tooling and want to map those jobs to Ferrocat, read [Gettext Task Landscape](/reference/gettext-task-landscape).
 
 If you want the application-framework view, read [Ferrocat And Palamedes](/guide/palamedes). Palamedes owns JS/TS extraction, macros, framework adapters, and runtime integration; Ferrocat owns the catalog semantics those layers should share.
 

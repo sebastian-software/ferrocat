@@ -152,6 +152,7 @@
 
 .ferro-section h2,
 .ferro-perf h2,
+.ferro-positioning h2,
 .ferro-cta h2 {
   margin: 0;
   max-width: 24ch;
@@ -226,7 +227,41 @@
   border-color: var(--ferro-button-border);
 }
 
-/* ── Performance section ── */
+/* ── Positioning section ── */
+
+.ferro-positioning {
+  display: grid;
+  gap: 2.5rem;
+}
+
+.ferro-positioning .ferro-section-heading h2 {
+  max-width: 32ch;
+}
+
+.ferro-positioning-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 2rem;
+}
+
+.ferro-positioning-card {
+  padding-top: 1.4rem;
+  border-top: 1px solid var(--ferro-line-strong);
+}
+
+.ferro-positioning-card h3 {
+  margin: 0 0 0.7rem;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--ferro-ink);
+}
+
+.ferro-positioning-card p {
+  margin: 0;
+  font-size: 0.96rem;
+  line-height: 1.7;
+  color: var(--ferro-body);
+}
 
 .ferro-perf {
   display: grid;
@@ -511,6 +546,7 @@
 
   .ferro-perf-grid,
   .ferro-mode-grid,
+  .ferro-positioning-grid,
   .ferro-proof-stats,
   .ferro-entry-grid {
     grid-template-columns: 1fr;

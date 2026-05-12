@@ -6,7 +6,9 @@ order: 10
 
 # Getting Started
 
-Use Ferrocat when you want real translation catalogs without giving up Rust-native APIs, classic PO workflows, or runtime-friendly delivery. The umbrella `ferrocat` crate is the recommended entry point for application code.
+Use Ferrocat when translations need to behave like product data. A catalog should be easy to update, review, validate, audit, and compile for runtime delivery. The umbrella `ferrocat` crate is the recommended entry point for application code.
+
+You do not need to know every translation-system term before starting. Ferrocat can work with translator-friendly PO files, richer ICU-style messages, and reviewable NDJSON records, but the first workflow is simple: parse a catalog, change it deliberately, write it back, and build from there.
 
 ## Install the crate
 
@@ -41,13 +43,13 @@ assert!(rendered.contains(r#"msgstr "Welt""#));
 
 ## Where to go next
 
-- Read [Catalog Modes](/guide/catalog-modes) when you need the storage and message-semantics model.
-- Read [Runtime Compilation](/guide/runtime-compilation) when your application should load compiled catalog artifacts instead of raw PO files.
-- Use [API Overview](/reference/api-overview#icu-messageformat) when you want ICU analysis or source/translation compatibility diagnostics.
-- Use [API Overview](/reference/api-overview#audit_catalogs) when you want catalog QA for completeness, stale messages, ICU checks, semantic metadata conflicts, obsolete entries, and visible `fuzzy` flags.
+- Read [Catalog Modes](/guide/catalog-modes) when you want to understand the storage choices behind translator-friendly files, rich messages, and line-oriented catalog records.
+- Read [Runtime Compilation](/guide/runtime-compilation) when your application should load compiled catalog artifacts instead of raw translator files.
+- Use [API Overview](/reference/api-overview#audit_catalogs) when you want catalog QA for release readiness: missing translations, stale messages, ICU checks, semantic metadata conflicts, obsolete entries, and visible `fuzzy` flags.
+- Use [API Overview](/reference/api-overview#icu-messageformat) when you want richer-message analysis or source/translation compatibility diagnostics.
 - Read [Ferrocat And Palamedes](/guide/palamedes) when you want the app-framework view: extraction, macros, runtime adapters, and how Palamedes uses Ferrocat as its catalog layer.
 - Open [API Overview](/reference/api-overview) when you need to choose between low-level PO parsing, high-level catalog workflows, and ICU helpers.
-- Open [Gettext Task Landscape](/reference/gettext-task-landscape) when you are mapping familiar Gettext-style jobs to Ferrocat APIs.
+- Open [Gettext Task Landscape](/reference/gettext-task-landscape) when you already know established Gettext-style jobs and want to map them to Ferrocat APIs.
 
 ## Compatibility policy
 

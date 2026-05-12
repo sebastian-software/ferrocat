@@ -6,12 +6,14 @@ order: 35
 
 # Ferrocat And Palamedes
 
-[Palamedes](https://github.com/sebastian-software/palamedes) is the OSS i18n framework for JavaScript and TypeScript applications. Ferrocat is the Rust-native catalog engine underneath the parts that need strict PO handling, catalog semantics, update workflows, catalog QA, runtime compilation, and storage-format discipline.
+[Palamedes](https://github.com/sebastian-software/palamedes) is the OSS i18n framework for JavaScript and TypeScript applications. Ferrocat is the Rust-native catalog engine underneath it: the place where translation catalogs are parsed, updated, audited, validated, and compiled into runtime-ready data.
+
+In plain terms: Palamedes helps application developers write and extract messages. Ferrocat makes the resulting catalog trustworthy.
 
 Most people arrive from one of two directions:
 
 - **Application teams** start with Palamedes because they need macros, extraction, framework adapters, runtime loading, and a clear authoring model.
-- **Tooling and platform teams** start with Ferrocat because they need fast catalog parsing, deterministic updates, NDJSON storage, conformance evidence, and host-neutral runtime artifacts.
+- **Tooling and platform teams** start with Ferrocat because they need fast catalog parsing, deterministic updates, catalog QA, conformance evidence, and host-neutral runtime artifacts.
 
 They are meant to connect. Palamedes owns the application integration. Ferrocat owns the catalog behavior that should not be reimplemented separately in every framework adapter.
 

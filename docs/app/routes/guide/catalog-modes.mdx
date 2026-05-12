@@ -6,27 +6,34 @@ order: 20
 
 # Catalog Modes
 
-Ferrocat separates two decisions that are often mixed together: how a catalog is stored and how its messages behave. Keeping those choices explicit makes migrations safer, runtime compilation clearer, and PO interoperability easier to reason about.
+Ferrocat is one catalog engine with a few explicit ways to store and interpret messages. You can start with the format that fits your team today and still keep a path toward richer messages, cleaner diffs, release audits, and runtime artifacts.
+
+The two choices Ferrocat keeps visible are simple:
+
+- **Storage:** where catalog records live and how they are reviewed.
+- **Message behavior:** whether a message is plain text, classic plural data, or a richer message with placeholders, formatting, plurals, selects, and tags.
+
+Keeping those choices explicit makes migrations safer, runtime compilation clearer, and translator-tool interoperability easier to reason about.
 
 ## The three supported modes
 
 | Mode | Storage format | Message model | Use when you want to... |
 |---|---|---|---|
-| Classic Gettext catalog mode | Gettext PO | Gettext-compatible plurals | stay close to traditional gettext catalogs and `msgid_plural` / `msgstr[n]` workflows |
-| ICU-native Gettext PO mode | Gettext PO | ICU MessageFormat | keep Gettext PO files, comments, and tooling, but author messages with ICU plural/select/formatting features |
+| Classic Gettext catalog mode | Gettext PO | Gettext-compatible plurals | stay close to existing PO catalogs and traditional plural workflows |
+| ICU-native Gettext PO mode | Gettext PO | ICU MessageFormat | keep translator-facing PO files, comments, and tooling, but author richer messages with placeholders, plural/select logic, and formatting |
 | ICU-native NDJSON catalog mode | NDJSON catalog storage | ICU MessageFormat | store catalogs as one-message-per-line JSON records that are easier to diff, merge, stream, batch, and hand to external services |
 
 There is intentionally no `NDJSON + Gettext-compatible plurals` mode. Gettext-compatible plural behavior belongs to PO-shaped catalogs, while NDJSON is the native storage path for ICU-style catalog records.
 
 ## Why NDJSON matters for larger teams
 
-PO is the right compatibility format when you need traditional Gettext workflows and translator tooling. NDJSON solves a different collaboration problem: every message is its own line-delimited JSON record.
+PO is the right compatibility format when you need translator tools that already understand source strings, translations, comments, references, flags, and plural entries. NDJSON solves a different collaboration problem: every message is its own line-delimited JSON record.
 
 That shape makes catalog changes easier to review in pull requests and easier to merge when several people or automated jobs touch the same locale. Unrelated message edits do not land inside one large PO block, conflicts are usually narrower, and the repository does not have to depend on a custom Git merge driver being available in every hosted review or web-merge path.
 
 Use NDJSON when your catalog workflow is more application- and pipeline-centered than PO-tooling-centered, especially for large teams, generated updates, or external systems that already work naturally with JSON records.
 
-That application-centered path is where [Palamedes](/guide/palamedes) becomes important: Palamedes can own extraction, framework adapters, and runtime packaging while Ferrocat owns the PO/NDJSON catalog semantics underneath.
+That application-centered path is where [Palamedes](/guide/palamedes) becomes important: Palamedes can own extraction, framework adapters, and runtime packaging while Ferrocat owns the catalog semantics underneath.
 
 ## Why the split matters
 

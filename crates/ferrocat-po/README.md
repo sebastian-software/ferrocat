@@ -1,6 +1,8 @@
 # ferrocat-po
 
-Performance-first Gettext PO parsing, serialization, merge helpers, and high-level catalog workflows for `ferrocat`.
+Performance-first catalog parsing, serialization, merge helpers, release audits, and runtime compilation for `ferrocat`.
+
+This crate is the catalog-workflow layer. Use it when translation files need to be updated, reviewed, checked for release readiness, or compiled into application-facing payloads.
 
 Add it with:
 
@@ -8,7 +10,7 @@ Add it with:
 cargo add ferrocat-po
 ```
 
-This crate covers both the low-level Gettext PO surface and the higher-level catalog layer.
+This crate covers both the low-level PO surface and the higher-level catalog layer.
 
 At the catalog layer, it supports three explicit modes:
 
@@ -20,9 +22,9 @@ At the catalog layer, it supports three explicit modes:
 
 Use this crate when you want that surface directly:
 
-- `parse_po` / `parse_po_borrowed` for raw Gettext PO parsing
-- `stringify_po` for Gettext PO serialization
-- `merge_catalog` for lightweight gettext-style merges
+- `parse_po` / `parse_po_borrowed` for raw PO parsing
+- `stringify_po` for PO serialization
+- `merge_catalog` for lightweight catalog merges
 - `parse_catalog`, `update_catalog`, and `NormalizedParsedCatalog::compile` for higher-level catalog workflows across Gettext PO and NDJSON storage
 - `audit_catalogs` for read-only release QA across source and target catalogs
 - `compile_catalog_artifact` for requested-locale runtime artifacts with fallback resolution and missing reports

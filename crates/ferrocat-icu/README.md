@@ -1,6 +1,8 @@
 # ferrocat-icu
 
-Compact, Rust-native ICU `MessageFormat` parsing primitives for `ferrocat`.
+Compact, Rust-native rich-message parsing and diagnostics for `ferrocat`, based on ICU `MessageFormat` v1.
+
+This crate is for messages that contain runtime values: placeholders, number/date/time formatting, plural logic, select branches, or rich-text tags. It helps catalog tooling understand those structures before translations ship.
 
 Add it with:
 

@@ -5,6 +5,8 @@
 
 Public umbrella crate for the `ferrocat` workspace.
 
+Ferrocat is a Rust-native translation catalog engine. It gives applications and host-language adapters one place to parse, update, audit, validate, and compile translation catalogs into runtime-ready data.
+
 Add it with:
 
 ```bash
@@ -13,6 +15,14 @@ cargo add ferrocat
 
 It re-exports the stable Rust API from `ferrocat-po` and `ferrocat-icu`.
 
+Use the umbrella crate when you want one dependency for the full catalog workflow:
+
+- translator-friendly catalog parsing and serialization
+- deterministic catalog updates and combination
+- release QA through structured audit reports
+- rich-message diagnostics for placeholders, plural/select logic, formatters, and tags
+- host-neutral runtime artifact compilation
+
 At the catalog layer, `ferrocat` supports three explicit modes:
 
 - classic Gettext catalog mode: Gettext PO + gettext-compatible plurals
@@ -20,12 +30,6 @@ At the catalog layer, `ferrocat` supports three explicit modes:
 - ICU-native NDJSON catalog mode: NDJSON catalog storage + ICU MessageFormat
 
 `NDJSON + gettext-compatible plurals` is intentionally unsupported.
-
-Use it when you want one dependency for:
-
-- Gettext PO parsing and serialization
-- catalog normalization, updating, audit reports, runtime compilation, and requested-locale artifact generation
-- ICU `MessageFormat` parsing, inspection, diagnostics, and semantic message metadata
 
 Repository, docs, and contribution guidelines:
 
