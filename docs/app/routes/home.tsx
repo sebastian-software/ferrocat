@@ -67,6 +67,10 @@ const positioningPoints = [
     body: "Run structured audits for missing translations, empty strings, stale target entries, ICU drift, metadata conflicts, and fuzzy flags before release.",
   },
   {
+    title: "Stay ready for AI translation",
+    body: "Keep machine-generated entries traceable with model, confidence, modified time, and a hash that clears stale metadata after human edits.",
+  },
+  {
     title: "Keep runtime delivery predictable",
     body: "Compile locale-resolved artifacts with stable keys and explicit fallback behavior instead of reparsing translator files in production.",
   },

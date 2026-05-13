@@ -19,6 +19,7 @@ Use the umbrella crate when you want one dependency for the full catalog workflo
 
 - translator-friendly catalog parsing and serialization
 - deterministic catalog updates and combination
+- AI translation metadata for machine-generated entries, including stale-metadata cleanup after manual edits
 - release QA through structured audit reports
 - rich-message diagnostics for placeholders, plural/select logic, formatters, and tags
 - host-neutral runtime artifact compilation

@@ -6,7 +6,7 @@ order: 20
 
 # Catalog Modes
 
-Ferrocat is one catalog engine with a few explicit ways to store and interpret messages. You can start with the format that fits your team today and still keep a path toward richer messages, cleaner diffs, release audits, and runtime artifacts.
+Ferrocat is one catalog engine with a few explicit ways to store and interpret messages. You can start with the format that fits your team today and still keep a path toward richer messages, cleaner diffs, AI translation metadata, release audits, and runtime artifacts.
 
 The two choices Ferrocat keeps visible are simple:
 
@@ -32,6 +32,8 @@ PO is the right compatibility format when you need translator tools that already
 That shape makes catalog changes easier to review in pull requests and easier to merge when several people or automated jobs touch the same locale. Unrelated message edits do not land inside one large PO block, conflicts are usually narrower, and the repository does not have to depend on a custom Git merge driver being available in every hosted review or web-merge path.
 
 Use NDJSON when your catalog workflow is more application- and pipeline-centered than PO-tooling-centered, especially for large teams, generated updates, or external systems that already work naturally with JSON records.
+
+Both PO and NDJSON can carry machine-translation metadata for AI-assisted workflows. Ferrocat keeps the storage compact, verifies the translation hash when writing, and drops stale metadata once the translated text has been edited.
 
 That application-centered path is where [Palamedes](/guide/palamedes) becomes important: Palamedes can own extraction, framework adapters, and runtime packaging while Ferrocat owns the catalog semantics underneath.
 

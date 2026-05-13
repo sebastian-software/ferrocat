@@ -26,6 +26,7 @@ Use this crate when you want that surface directly:
 - `stringify_po` for PO serialization
 - `merge_catalog` for lightweight catalog merges
 - `parse_catalog`, `update_catalog`, and `NormalizedParsedCatalog::compile` for higher-level catalog workflows across Gettext PO and NDJSON storage
+- `MachineTranslationMetadata` and `machine_translation_hash` for AI translation metadata that can be preserved in PO or NDJSON and removed when the translated text changes
 - `audit_catalogs` for read-only release QA across source and target catalogs
 - `compile_catalog_artifact` for requested-locale runtime artifacts with fallback resolution and missing reports
 - `compile_catalog_artifact_selected` for selected compiled-ID subsets of those runtime artifacts

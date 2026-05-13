@@ -19,6 +19,7 @@ Ferrocat is also part of the [Palamedes](https://github.com/sebastian-software/p
 - **Predictable updates.** Merge newly extracted messages into existing catalogs without fuzzy guessing, hidden identity changes, or silent conflict resolution.
 - **Release-ready QA.** Audit catalog sets for missing locales, missing translations, empty translations, stale target messages, ICU mistakes, metadata conflicts, obsolete entries, and visible `fuzzy` flags.
 - **Safer rich messages.** Analyze placeholders, formatters, plural/select branches, and rich-text tags so a translation cannot accidentally drop a required runtime value.
+- **AI translation metadata ready.** Track machine-generated translations with model, modification time, confidence, and a change-detection hash, then drop stale metadata automatically when a human edits the text.
 - **Runtime artifacts.** Compile catalogs into host-neutral payloads with stable keys, fallback behavior, missing reports, and optional ICU compatibility diagnostics.
 - **Reviewable storage.** Use PO when translator tooling matters, or NDJSON when large teams and automation need one message per line for cleaner diffs.
 - **Room for host frameworks.** Palamedes can own JS/TS extraction and framework integration while Ferrocat owns the catalog behavior that should stay consistent underneath.
@@ -31,6 +32,7 @@ Ferrocat is a new catalog layer, but it is not invented in a vacuum. It keeps th
 - **PO catalogs** for translator-friendly source, translation, context, comment, reference, flag, plural, and obsolete-entry handling.
 - **ICU MessageFormat v1** for richer messages with arguments, formatting, plurals, selects, and rich-text tags.
 - **NDJSON catalogs** for line-oriented storage that works well with Git review, automation, and external systems.
+- **Machine-translation metadata** for AI-assisted localization workflows that need to know which model produced a translation and whether that metadata still matches the current text.
 - **Structured diagnostics** instead of ad hoc text output, so CI, editors, and host frameworks can consume the same report.
 
 ## Where Ferrocat Fits
@@ -54,6 +56,7 @@ Ferrocat focuses on the work that happens around real translation catalogs:
 - Validate plural behavior and catalog structure.
 - Analyze ICU message structure and compare source/translation compatibility.
 - Normalize semantic message metadata around `msgid + msgctxt`.
+- Preserve AI translation metadata in PO and NDJSON catalogs, including stale-metadata cleanup when translations are edited.
 - Audit catalog sets before release with structured diagnostics.
 - Compile catalogs into runtime artifacts for application delivery.
 - Compare performance and conformance behavior across fixtures.
@@ -121,6 +124,8 @@ For the common "merge fresh extracted messages into an existing catalog" workflo
 ICU-native workflows can use `analyze_icu` and `compare_icu_messages` to catch missing arguments, formatter changes, tag mismatches, select/plural branch drift, and discouraged pattern-style formatters. Runtime artifact compilation can opt into the same source/translation checks with `icu_compatibility`.
 
 Semantic metadata workflows can use `normalize_message_metadata` to keep simple source-as-msgid records small while deriving argument, tag, and selector facts from ICU MessageFormat v1 when needed. The metadata model keeps `msgid + msgctxt` as catalog identity, so it fits both Palamedes-style source strings and ID-style catalogs.
+
+AI translation workflows can attach `MachineTranslationMetadata` to catalog entries. Ferrocat stores `model`, optional `modified`, optional `confidence`, and a translation hash in PO (`#@ ferrocat-mt ...`) or NDJSON (`mt`), and high-level writers remove that metadata when the hash no longer matches the current translation.
 
 Catalog QA workflows can use `audit_catalogs` to produce a read-only report over source and target catalogs. The default checks cover missing locales, missing or empty translations, extra target-only messages, ICU syntax, ICU source/translation compatibility, semantic metadata conflicts, obsolete entries, and visible `fuzzy` flags. The audit API reports what is shippable; it does not infer fuzzy matches or rewrite catalogs.
 
