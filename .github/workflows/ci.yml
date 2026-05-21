@@ -91,11 +91,11 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v6
 
-      - name: Set up Rust 1.88
-        uses: dtolnay/rust-toolchain@1.88.0
+      - name: Set up Rust 1.93.0
+        uses: dtolnay/rust-toolchain@1.93.0
 
       - name: Check workspace with MSRV
-        run: cargo +1.88.0 check --workspace --all-targets --all-features --locked
+        run: cargo +1.93.0 check --workspace --all-targets --all-features --locked
 
   test:
     name: ${{ matrix.os }}

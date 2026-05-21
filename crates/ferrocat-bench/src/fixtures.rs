@@ -11,12 +11,8 @@ const TINY_FIXTURE: &str = include_str!("../fixtures/tiny.po");
 const REALISTIC_FIXTURE: &str = include_str!("../fixtures/realistic.po");
 const STRESS_FIXTURE: &str = include_str!("../fixtures/stress.po");
 
-#[expect(
-    clippy::manual_is_multiple_of,
-    reason = "`usize::is_multiple_of` would raise the MSRV beyond Rust 1.88."
-)]
 const fn is_multiple_of(value: usize, divisor: usize) -> bool {
-    value % divisor == 0
+    value.is_multiple_of(divisor)
 }
 
 #[derive(Debug, Clone, Copy)]

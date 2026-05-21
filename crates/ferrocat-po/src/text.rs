@@ -227,12 +227,8 @@ pub fn validate_quoted_content(raw: &[u8]) -> Result<(), ParseError> {
     Ok(())
 }
 
-#[expect(
-    clippy::manual_is_multiple_of,
-    reason = "`usize::is_multiple_of` would raise the MSRV beyond Rust 1.88."
-)]
 fn has_even_trailing_backslashes(count: usize) -> bool {
-    count % 2 == 0
+    count.is_multiple_of(2)
 }
 
 fn escape_string_from(out: &mut String, input: &str, bytes: &[u8], first_escape: usize) {
