@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.12.0](https://github.com/sebastian-software/ferrocat/compare/ferrocat-po-v0.11.0...ferrocat-po-v0.12.0) (2026-05-21)
+
+
+### Features
+
+* **po:** add machine translation metadata ([275c4b0](https://github.com/sebastian-software/ferrocat/commit/275c4b0fb2a598ce3f21e48929a01e5a7d68aecb))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * ferrocat-icu bumped from 0.11.0 to 0.12.0
+
 ## [0.11.0](https://github.com/sebastian-software/ferrocat/compare/ferrocat-po-v0.10.0...ferrocat-po-v0.11.0) (2026-05-12)
 
 
