@@ -350,4 +350,78 @@ mod tests {
             metadata
         );
     }
+
+    #[test]
+    fn po_machine_translation_metadata_rejects_invalid_inputs() {
+        for (input, expected) in [
+            (
+                "model= hash=abc",
+                "machine translation model must not be empty",
+            ),
+            (
+                "model=gpt hash=",
+                "machine translation hash must not be empty",
+            ),
+            (
+                "model=gpt confidence=101 hash=abc",
+                "machine translation confidence must be between 0 and 100",
+            ),
+            (
+                "model=gpt confidence=high hash=abc",
+                "invalid machine translation confidence value \"high\"",
+            ),
+            (
+                "model=gpt model=other hash=abc",
+                "duplicate machine translation metadata key \"model\"",
+            ),
+            (
+                "model=gpt provider=openai hash=abc",
+                "unknown machine translation metadata key \"provider\"",
+            ),
+            (
+                "model=gpt",
+                "machine translation metadata is missing `hash`",
+            ),
+            (
+                "hash=abc",
+                "machine translation metadata is missing `model`",
+            ),
+            (
+                "model",
+                "invalid machine translation metadata key-value syntax",
+            ),
+            (
+                "model=\"gpt",
+                "unterminated quoted machine translation metadata value",
+            ),
+            (
+                "model=\"gpt\\",
+                "unterminated escape in machine translation metadata value",
+            ),
+        ] {
+            assert_eq!(
+                parse_po_machine_translation_metadata(input)
+                    .expect_err("expected invalid machine translation metadata")
+                    .to_string(),
+                expected
+            );
+        }
+    }
+
+    #[test]
+    fn po_machine_translation_metadata_handles_escape_sequences() {
+        let parsed = parse_po_machine_translation_metadata(
+            "model=\"gpt\\nmini\" modified=\"line\\rnext\\ttab\" hash=\"a\\\\b\"",
+        )
+        .expect("parse escaped metadata");
+
+        assert_eq!(parsed.model, "gpt\nmini");
+        assert_eq!(parsed.modified.as_deref(), Some("line\rnext\ttab"));
+        assert_eq!(parsed.hash, "a\\b");
+
+        assert_eq!(
+            format_po_machine_translation_metadata(&parsed),
+            "model=\"gpt\\nmini\" modified=\"line\\rnext\\ttab\" hash=\"a\\\\b\""
+        );
+    }
 }

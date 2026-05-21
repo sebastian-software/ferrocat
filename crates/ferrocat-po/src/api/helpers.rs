@@ -205,6 +205,38 @@ mod tests {
     }
 
     #[test]
+    fn merge_origins_uses_set_path_for_larger_inputs() {
+        let mut merged = (0..6)
+            .map(|index| CatalogOrigin {
+                file: format!("src/{index}.rs"),
+                line: Some(index),
+            })
+            .collect::<Vec<_>>();
+
+        merge_unique_origins(
+            &mut merged,
+            vec![
+                CatalogOrigin {
+                    file: "src/1.rs".to_owned(),
+                    line: Some(1),
+                },
+                CatalogOrigin {
+                    file: "src/6.rs".to_owned(),
+                    line: Some(6),
+                },
+                CatalogOrigin {
+                    file: "src/7.rs".to_owned(),
+                    line: None,
+                },
+            ],
+        );
+
+        assert_eq!(merged.len(), 8);
+        assert_eq!(merged[6].file, "src/6.rs");
+        assert_eq!(merged[7].line, None);
+    }
+
+    #[test]
     fn placeholder_helpers_dedupe_and_merge_per_key() {
         let deduped = dedupe_placeholders(BTreeMap::from([
             (

@@ -324,11 +324,26 @@ mod tests {
     }
 
     #[test]
+    fn escapes_all_po_control_sequences_and_plain_strings() {
+        assert_eq!(escape_string("plain"), "plain");
+        assert_eq!(
+            escape_string("\u{0007}\u{0008}\u{000b}\u{000c}\r\\"),
+            "\\a\\b\\v\\f\\r\\\\"
+        );
+    }
+
+    #[test]
     fn unescapes_c_sequences() {
         assert_eq!(
             unescape_string("\\a\\b\\t\\n\\v\\f\\r\\'\\\"\\\\\\?").as_deref(),
             Ok("\u{0007}\u{0008}\t\n\u{000b}\u{000c}\r'\"\\?")
         );
+    }
+
+    #[test]
+    fn unescapes_plain_unicode_and_uppercase_hex_sequences() {
+        assert_eq!(unescape_string("plain").as_deref(), Ok("plain"));
+        assert_eq!(unescape_string("\\351\\x41").as_deref(), Ok("\u{00e9}A"));
     }
 
     #[test]
@@ -369,6 +384,9 @@ mod tests {
         let mut out = String::from("prefix:");
         escape_string_into_with_first_escape(&mut out, "plain", None);
         assert_eq!(out, "prefix:plain");
+
+        escape_string_into(&mut out, "-more");
+        assert_eq!(out, "prefix:plain-more");
     }
 
     #[test]
