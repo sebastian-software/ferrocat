@@ -61,6 +61,9 @@ jobs:
         with:
           components: rustfmt, clippy
 
+      - name: Cache Rust build artifacts
+        uses: Swatinem/rust-cache@v2
+
       - name: Check Rust formatting
         run: cargo fmt --all --check
 
@@ -78,6 +81,9 @@ jobs:
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@stable
 
+      - name: Cache Rust build artifacts
+        uses: Swatinem/rust-cache@v2
+
       - name: Build Rust docs with warnings denied
         env:
           RUSTDOCFLAGS: -D warnings
@@ -94,6 +100,9 @@ jobs:
       - name: Set up Rust 1.93.0
         uses: dtolnay/rust-toolchain@1.93.0
 
+      - name: Cache Rust build artifacts
+        uses: Swatinem/rust-cache@v2
+
       - name: Check workspace with MSRV
         run: cargo +1.93.0 check --workspace --all-targets --all-features --locked
 
@@ -104,7 +113,6 @@ jobs:
       fail-fast: false
       matrix:
         os:
-          - ubuntu-24.04
           - macos-14
           - windows-2025
 
@@ -115,11 +123,14 @@ jobs:
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@stable
 
+      - name: Cache Rust build artifacts
+        uses: Swatinem/rust-cache@v2
+
       - name: Run workspace tests
         run: cargo test --workspace --all-features --locked
 
   coverage:
-    name: Coverage
+    name: Linux test + coverage
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -133,14 +144,25 @@ jobs:
         with:
           components: llvm-tools-preview
 
+      - name: Cache Rust build artifacts
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: coverage
+
       - name: Install cargo-llvm-cov
         uses: taiki-e/install-action@cargo-llvm-cov
 
-      - name: Generate LCOV coverage report
-        run: cargo coverage-lcov
+      - name: Run instrumented workspace tests
+        run: >-
+          cargo llvm-cov --workspace --all-features --locked
+          --lcov --output-path target/lcov.info
+          --ignore-filename-regex 'crates/ferrocat-(bench|conformance)/'
 
       - name: Generate JSON coverage summary
-        run: cargo llvm-cov report --json --summary-only --output-path target/coverage-summary.json
+        run: >-
+          cargo llvm-cov report --json --summary-only
+          --output-path target/coverage-summary.json
+          --ignore-filename-regex 'crates/ferrocat-(bench|conformance)/'
 
       - name: Enforce crate coverage thresholds
         run: node scripts/coverage-gate.mjs target/coverage-summary.json ferrocat-po=95 ferrocat-icu=95
