@@ -60,6 +60,7 @@ pub use analysis::{
     IcuDiagnostic, IcuDiagnosticSeverity, IcuFormatter, IcuFormatterSupport, IcuPluralSummary,
     IcuSelectSummary, IcuStyleKind, IcuTagSummary, analyze_icu, compare_icu_messages,
     extract_argument_names, extract_tag_names, validate_icu_formatter_support,
+    validate_icu_formatter_support_from_analysis,
 };
 pub use ast::{IcuMessage, IcuNode, IcuOption, IcuPluralKind};
 pub use error::{IcuErrorKind, IcuParseError, IcuPosition};

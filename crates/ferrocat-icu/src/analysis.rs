@@ -1,4 +1,7 @@
-use std::collections::{BTreeMap, BTreeSet};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    fmt,
+};
 
 use crate::ast::{IcuMessage, IcuNode, IcuOption, IcuPluralKind};
 
@@ -38,6 +41,24 @@ pub enum IcuArgumentKind {
     Plural,
     /// Ordinal plural expression.
     SelectOrdinal,
+}
+
+impl fmt::Display for IcuArgumentKind {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(match self {
+            Self::Argument => "argument",
+            Self::Number => "number",
+            Self::Date => "date",
+            Self::Time => "time",
+            Self::List => "list",
+            Self::Duration => "duration",
+            Self::Ago => "ago",
+            Self::Name => "name",
+            Self::Select => "select",
+            Self::Plural => "plural",
+            Self::SelectOrdinal => "selectordinal",
+        })
+    }
 }
 
 /// Classification of an optional formatter style segment.
@@ -81,11 +102,18 @@ pub enum IcuFormatterSupport {
     /// The formatter kind and style are supported by the consumer.
     Supported,
     /// The formatter kind is not supported by the consumer.
+    ///
+    /// Use this when a runtime cannot handle the formatter category at all,
+    /// such as rejecting every `list` formatter.
     UnsupportedKind {
         /// Severity to attach to the emitted diagnostic.
         severity: IcuDiagnosticSeverity,
     },
     /// The formatter style is not supported by the consumer.
+    ///
+    /// Use this when a runtime accepts the formatter kind but rejects the
+    /// specific style. A missing style is treated as the formatter's default
+    /// style; reject it with this variant when the default style is unsupported.
     UnsupportedStyle {
         /// Severity to attach to the emitted diagnostic.
         severity: IcuDiagnosticSeverity,
@@ -235,9 +263,23 @@ pub fn extract_tag_names(message: &IcuMessage) -> Vec<String> {
 #[must_use]
 pub fn validate_icu_formatter_support(
     message: &IcuMessage,
-    mut support: impl FnMut(&IcuFormatter) -> IcuFormatterSupport,
+    support: impl FnMut(&IcuFormatter) -> IcuFormatterSupport,
 ) -> IcuCompatibilityReport {
     let analysis = analyze_icu(message);
+    validate_icu_formatter_support_from_analysis(&analysis, support)
+}
+
+/// Validates analyzed ICU formatter usage against a consumer support policy.
+///
+/// Use this when the caller already has an [`IcuAnalysis`] from [`analyze_icu`]
+/// and wants to avoid walking the parsed message a second time. The callback is
+/// invoked only for formatter arguments such as `number`, `date`, `time`, or
+/// `list`; plural and select selector arguments are not formatter callbacks.
+#[must_use]
+pub fn validate_icu_formatter_support_from_analysis(
+    analysis: &IcuAnalysis,
+    mut support: impl FnMut(&IcuFormatter) -> IcuFormatterSupport,
+) -> IcuCompatibilityReport {
     let mut report = IcuCompatibilityReport::default();
 
     for formatter in &analysis.formatters {
@@ -248,7 +290,7 @@ pub fn validate_icu_formatter_support(
                     severity,
                     "icu.unsupported_formatter_kind",
                     format!(
-                        "ICU formatter `{}` uses unsupported formatter kind {:?}.",
+                        "ICU formatter `{}` uses unsupported formatter kind `{}`.",
                         formatter.name, formatter.kind
                     ),
                     Some(formatter.name.clone()),
@@ -259,7 +301,7 @@ pub fn validate_icu_formatter_support(
                     severity,
                     "icu.unsupported_formatter_style",
                     format!(
-                        "ICU formatter `{}` uses unsupported {:?} formatter style `{}`.",
+                        "ICU formatter `{}` uses unsupported `{}` formatter style `{}`.",
                         formatter.name,
                         formatter.kind,
                         formatter_style_label(formatter.style.as_deref())
@@ -704,7 +746,7 @@ mod tests {
     use crate::{
         IcuArgumentKind, IcuCompatibilityOptions, IcuDiagnosticSeverity, IcuFormatterSupport,
         IcuStyleKind, analyze_icu, compare_icu_messages, extract_argument_names, extract_tag_names,
-        parse_icu, validate_icu_formatter_support,
+        parse_icu, validate_icu_formatter_support, validate_icu_formatter_support_from_analysis,
     };
 
     #[test]
@@ -849,6 +891,10 @@ mod tests {
 
         assert_eq!(report.diagnostics.len(), 1);
         assert_eq!(report.diagnostics[0].code, "icu.unsupported_formatter_kind");
+        assert_eq!(
+            report.diagnostics[0].message,
+            "ICU formatter `items` uses unsupported formatter kind `list`."
+        );
         assert_eq!(report.diagnostics[0].severity, IcuDiagnosticSeverity::Error);
         assert_eq!(report.diagnostics[0].name.as_deref(), Some("items"));
     }
@@ -873,9 +919,99 @@ mod tests {
             "icu.unsupported_formatter_style"
         );
         assert_eq!(
+            report.diagnostics[0].message,
+            "ICU formatter `total` uses unsupported `number` formatter style `::compact-short`."
+        );
+        assert_eq!(
             report.diagnostics[0].severity,
             IcuDiagnosticSeverity::Warning
         );
         assert_eq!(report.diagnostics[0].name.as_deref(), Some("total"));
+    }
+
+    #[test]
+    fn formatter_support_validation_reports_mixed_kind_and_style_decisions() {
+        let message = parse_icu(
+            "{total, number, ::compact-short} {created, date} {items, list, conjunction}",
+        )
+        .expect("parse");
+
+        let report = validate_icu_formatter_support(&message, |formatter| match formatter.kind {
+            IcuArgumentKind::Number if formatter.style_kind == IcuStyleKind::Skeleton => {
+                IcuFormatterSupport::UnsupportedStyle {
+                    severity: IcuDiagnosticSeverity::Warning,
+                }
+            }
+            IcuArgumentKind::Date if formatter.style.is_none() => {
+                IcuFormatterSupport::UnsupportedStyle {
+                    severity: IcuDiagnosticSeverity::Error,
+                }
+            }
+            IcuArgumentKind::List => IcuFormatterSupport::UnsupportedKind {
+                severity: IcuDiagnosticSeverity::Error,
+            },
+            _ => IcuFormatterSupport::Supported,
+        });
+
+        assert_eq!(
+            report
+                .diagnostics
+                .iter()
+                .map(|diagnostic| {
+                    (
+                        diagnostic.code.as_str(),
+                        diagnostic.severity,
+                        diagnostic.name.as_deref(),
+                    )
+                })
+                .collect::<Vec<_>>(),
+            vec![
+                (
+                    "icu.unsupported_formatter_style",
+                    IcuDiagnosticSeverity::Warning,
+                    Some("total")
+                ),
+                (
+                    "icu.unsupported_formatter_style",
+                    IcuDiagnosticSeverity::Error,
+                    Some("created")
+                ),
+                (
+                    "icu.unsupported_formatter_kind",
+                    IcuDiagnosticSeverity::Error,
+                    Some("items")
+                ),
+            ]
+        );
+    }
+
+    #[test]
+    fn formatter_support_validation_accepts_precomputed_analysis() {
+        let message = parse_icu("{total, number, integer} {created, date, short}").expect("parse");
+        let analysis = analyze_icu(&message);
+
+        let report = validate_icu_formatter_support_from_analysis(&analysis, |_| {
+            IcuFormatterSupport::Supported
+        });
+
+        assert!(report.diagnostics.is_empty());
+    }
+
+    #[test]
+    fn formatter_support_validation_does_not_visit_plural_or_select_arguments() {
+        let message = parse_icu(
+            "{gender, select, other {{count, plural, one {# file} other {# files}}}} {created, date, short}",
+        )
+        .expect("parse");
+        let analysis = analyze_icu(&message);
+        let mut visited = Vec::new();
+
+        let report = validate_icu_formatter_support_from_analysis(&analysis, |formatter| {
+            visited.push((formatter.name.clone(), formatter.kind));
+            IcuFormatterSupport::Supported
+        });
+
+        assert!(report.diagnostics.is_empty());
+        assert_eq!(visited, vec![("created".to_owned(), IcuArgumentKind::Date)]);
     }
 }
