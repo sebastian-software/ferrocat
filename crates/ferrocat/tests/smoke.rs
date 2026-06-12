@@ -1,10 +1,11 @@
 use ferrocat::{
-    CatalogCombineInput, CatalogMessageKey, CatalogUpdateInput, CombineCatalogOptions,
-    CompileCatalogArtifactOptions, CompileSelectedCatalogArtifactOptions, CompiledCatalogIdIndex,
-    CompiledKeyStrategy, EffectiveTranslation, EffectiveTranslationRef, MergeExtractedMessage,
-    ParseCatalogOptions, SerializeOptions, SourceExtractedMessage, combine_catalogs,
-    compile_catalog_artifact, compile_catalog_artifact_selected, has_select_ordinal, merge_catalog,
-    parse_catalog, parse_icu, parse_po, stringify_po,
+    CatalogCombineInput, CatalogMessageKey, CatalogSemantics, CatalogUpdateInput,
+    CombineCatalogOptions, CompileCatalogArtifactOptions, CompileSelectedCatalogArtifactOptions,
+    CompiledCatalogIdIndex, CompiledKeyStrategy, EffectiveTranslation, EffectiveTranslationRef,
+    MergeExtractedMessage, ParseCatalogOptions, PluralEncoding, SerializeOptions,
+    SourceExtractedMessage, combine_catalogs, compile_catalog_artifact,
+    compile_catalog_artifact_selected, has_select_ordinal, merge_catalog, parse_catalog, parse_icu,
+    parse_po, stringify_po,
 };
 
 #[test]
@@ -47,6 +48,17 @@ msgstr "world"
         msgid: "hello".into(),
         ..SourceExtractedMessage::default()
     }]);
+
+    // Every catalog mode must be selectable through umbrella re-exports alone.
+    parse_catalog(ParseCatalogOptions {
+        content: "msgid \"hello\"\nmsgstr \"world\"\n",
+        locale: Some("de"),
+        source_locale: "en",
+        semantics: CatalogSemantics::GettextCompat,
+        plural_encoding: PluralEncoding::Gettext,
+        ..ParseCatalogOptions::default()
+    })
+    .expect("parse gettext-compat catalog");
 
     let parsed_catalog = parse_catalog(ParseCatalogOptions {
         content: "msgid \"hello\"\nmsgstr \"world\"\n",
