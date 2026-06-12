@@ -75,6 +75,23 @@ pub struct IcuFormatter {
     pub style_kind: IcuStyleKind,
 }
 
+/// Consumer-defined support decision for an ICU formatter.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum IcuFormatterSupport {
+    /// The formatter kind and style are supported by the consumer.
+    Supported,
+    /// The formatter kind is not supported by the consumer.
+    UnsupportedKind {
+        /// Severity to attach to the emitted diagnostic.
+        severity: IcuDiagnosticSeverity,
+    },
+    /// The formatter style is not supported by the consumer.
+    UnsupportedStyle {
+        /// Severity to attach to the emitted diagnostic.
+        severity: IcuDiagnosticSeverity,
+    },
+}
+
 /// One select expression discovered in an ICU message.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct IcuSelectSummary {
@@ -207,6 +224,53 @@ pub fn extract_argument_names(message: &IcuMessage) -> Vec<String> {
 #[must_use]
 pub fn extract_tag_names(message: &IcuMessage) -> Vec<String> {
     unique_names(analyze_icu(message).tags.iter().map(|tag| &tag.name))
+}
+
+/// Validates ICU formatter usage against a consumer-provided support policy.
+///
+/// The support callback receives each formatter discovered by [`analyze_icu`]
+/// and decides whether the formatter is supported, has an unsupported kind, or
+/// has an unsupported style. This keeps runtime-specific support policy outside
+/// of `ferrocat-icu` while standardizing emitted diagnostics.
+#[must_use]
+pub fn validate_icu_formatter_support(
+    message: &IcuMessage,
+    mut support: impl FnMut(&IcuFormatter) -> IcuFormatterSupport,
+) -> IcuCompatibilityReport {
+    let analysis = analyze_icu(message);
+    let mut report = IcuCompatibilityReport::default();
+
+    for formatter in &analysis.formatters {
+        match support(formatter) {
+            IcuFormatterSupport::Supported => {}
+            IcuFormatterSupport::UnsupportedKind { severity } => {
+                report.diagnostics.push(IcuDiagnostic::new(
+                    severity,
+                    "icu.unsupported_formatter_kind",
+                    format!(
+                        "ICU formatter `{}` uses unsupported formatter kind {:?}.",
+                        formatter.name, formatter.kind
+                    ),
+                    Some(formatter.name.clone()),
+                ));
+            }
+            IcuFormatterSupport::UnsupportedStyle { severity } => {
+                report.diagnostics.push(IcuDiagnostic::new(
+                    severity,
+                    "icu.unsupported_formatter_style",
+                    format!(
+                        "ICU formatter `{}` uses unsupported {:?} formatter style `{}`.",
+                        formatter.name,
+                        formatter.kind,
+                        formatter_style_label(formatter.style.as_deref())
+                    ),
+                    Some(formatter.name.clone()),
+                ));
+            }
+        }
+    }
+
+    report
 }
 
 /// Compares source and translation ICU messages for authoring compatibility.
@@ -389,6 +453,13 @@ fn formatter_map(analysis: &IcuAnalysis) -> BTreeMap<(String, IcuArgumentKind), 
 
 fn selector_set(selectors: &[String]) -> BTreeSet<String> {
     selectors.iter().cloned().collect()
+}
+
+fn formatter_style_label(style: Option<&str>) -> &str {
+    style
+        .map(str::trim)
+        .filter(|style| !style.is_empty())
+        .unwrap_or("<none>")
 }
 
 fn compare_arguments(
@@ -631,8 +702,9 @@ fn report_pattern_styles(analysis: &IcuAnalysis, label: &str, report: &mut IcuCo
 #[cfg(test)]
 mod tests {
     use crate::{
-        IcuArgumentKind, IcuCompatibilityOptions, IcuDiagnosticSeverity, IcuStyleKind, analyze_icu,
-        compare_icu_messages, extract_argument_names, extract_tag_names, parse_icu,
+        IcuArgumentKind, IcuCompatibilityOptions, IcuDiagnosticSeverity, IcuFormatterSupport,
+        IcuStyleKind, analyze_icu, compare_icu_messages, extract_argument_names, extract_tag_names,
+        parse_icu, validate_icu_formatter_support,
     };
 
     #[test]
@@ -750,5 +822,60 @@ mod tests {
             diagnostic.code == "icu.pattern_style_discouraged"
                 && diagnostic.severity == IcuDiagnosticSeverity::Warning
         }));
+    }
+
+    #[test]
+    fn formatter_support_validation_allows_supported_formatters() {
+        let message = parse_icu("{total, number, percent} {created, date, short}").expect("parse");
+
+        let report = validate_icu_formatter_support(&message, |_| IcuFormatterSupport::Supported);
+
+        assert!(report.diagnostics.is_empty());
+    }
+
+    #[test]
+    fn formatter_support_validation_reports_unsupported_kinds() {
+        let message = parse_icu("{items, list, conjunction}").expect("parse");
+
+        let report = validate_icu_formatter_support(&message, |formatter| {
+            if formatter.kind == IcuArgumentKind::List {
+                IcuFormatterSupport::UnsupportedKind {
+                    severity: IcuDiagnosticSeverity::Error,
+                }
+            } else {
+                IcuFormatterSupport::Supported
+            }
+        });
+
+        assert_eq!(report.diagnostics.len(), 1);
+        assert_eq!(report.diagnostics[0].code, "icu.unsupported_formatter_kind");
+        assert_eq!(report.diagnostics[0].severity, IcuDiagnosticSeverity::Error);
+        assert_eq!(report.diagnostics[0].name.as_deref(), Some("items"));
+    }
+
+    #[test]
+    fn formatter_support_validation_reports_unsupported_styles() {
+        let message = parse_icu("{total, number, ::compact-short}").expect("parse");
+
+        let report = validate_icu_formatter_support(&message, |formatter| {
+            if formatter.style.as_deref() == Some("::compact-short") {
+                IcuFormatterSupport::UnsupportedStyle {
+                    severity: IcuDiagnosticSeverity::Warning,
+                }
+            } else {
+                IcuFormatterSupport::Supported
+            }
+        });
+
+        assert_eq!(report.diagnostics.len(), 1);
+        assert_eq!(
+            report.diagnostics[0].code,
+            "icu.unsupported_formatter_style"
+        );
+        assert_eq!(
+            report.diagnostics[0].severity,
+            IcuDiagnosticSeverity::Warning
+        );
+        assert_eq!(report.diagnostics[0].name.as_deref(), Some("total"));
     }
 }
