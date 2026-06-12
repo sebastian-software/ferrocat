@@ -145,6 +145,7 @@ If you already know what kind of question you have, these are the fastest entry 
 
 - [Getting started](https://sebastian-software.github.io/ferrocat/guide/getting-started) for installation, quick start, and the main next steps
 - [Ferrocat and Palamedes](https://sebastian-software.github.io/ferrocat/guide/palamedes) for the relationship between the catalog engine and the JS/TS i18n framework
+- [Releases and upgrading](https://sebastian-software.github.io/ferrocat/guide/upgrading) for changelogs, lockstep versions, and pre-`1.0` upgrade notes
 - [API overview](https://sebastian-software.github.io/ferrocat/reference/api-overview) for choosing between PO core, catalog workflows, and ICU helpers
 - [Gettext task landscape](https://sebastian-software.github.io/ferrocat/reference/gettext-task-landscape) for the workflow-level map across GNU gettext, common libraries, and Ferrocat
 - [Performance docs](https://sebastian-software.github.io/ferrocat/performance) for benchmark methodology, fixtures, and history
@@ -154,6 +155,8 @@ If you already know what kind of question you have, these are the fastest entry 
 ## Core Links
 
 - [docs.rs crate docs](https://docs.rs/ferrocat)
+- [`ferrocat` changelog](https://github.com/sebastian-software/ferrocat/blob/main/crates/ferrocat/CHANGELOG.md)
+- [GitHub Releases](https://github.com/sebastian-software/ferrocat/releases)
 - [GitHub repository](https://github.com/sebastian-software/ferrocat)
 - [Palamedes i18n framework](https://github.com/sebastian-software/palamedes)
 - [Contributing guide](https://github.com/sebastian-software/ferrocat/blob/main/CONTRIBUTING.md)
