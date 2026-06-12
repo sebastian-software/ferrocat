@@ -57,9 +57,9 @@ mod utils;
 
 pub use analysis::{
     IcuAnalysis, IcuArgument, IcuArgumentKind, IcuCompatibilityOptions, IcuCompatibilityReport,
-    IcuDiagnostic, IcuDiagnosticSeverity, IcuFormatter, IcuPluralSummary, IcuSelectSummary,
-    IcuStyleKind, IcuTagSummary, analyze_icu, compare_icu_messages, extract_argument_names,
-    extract_tag_names,
+    IcuDiagnostic, IcuDiagnosticSeverity, IcuFormatter, IcuFormatterSupport, IcuPluralSummary,
+    IcuSelectSummary, IcuStyleKind, IcuTagSummary, analyze_icu, compare_icu_messages,
+    extract_argument_names, extract_tag_names, validate_icu_formatter_support,
 };
 pub use ast::{IcuMessage, IcuNode, IcuOption, IcuPluralKind};
 pub use error::{IcuErrorKind, IcuParseError, IcuPosition};

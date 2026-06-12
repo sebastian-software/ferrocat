@@ -16,6 +16,7 @@ Use this crate when you want the ICU-specific surface directly:
 - `validate_icu` for lightweight validation
 - `analyze_icu` for structured argument, formatter, plural, select, and tag summaries
 - `compare_icu_messages` for source/translation compatibility diagnostics
+- `validate_icu_formatter_support` for mapping consumer runtime support policies to diagnostics
 - `normalize_message_metadata` for progressive source-side metadata around `msgid + msgctxt`
 - `extract_argument_names` and `extract_tag_names` when tags should not be mixed with data arguments
 - `extract_variables`, `has_plural`, `has_select`, and related helpers for AST inspection
