@@ -1,4 +1,5 @@
 use std::fs;
+use std::io::Write;
 use std::path::Path;
 
 use super::ApiError;
@@ -7,15 +8,27 @@ pub(super) fn atomic_write(path: &Path, content: &str) -> Result<(), ApiError> {
     let directory = path.parent().unwrap_or_else(|| Path::new("."));
     fs::create_dir_all(directory)?;
 
-    let file_name = path
-        .file_name()
-        .and_then(|name| name.to_str())
-        .ok_or_else(|| {
-            ApiError::InvalidArguments("target_path must have a file name".to_owned())
-        })?;
-    let temp_path = directory.join(format!(".{file_name}.ferrocat.tmp"));
-    fs::write(&temp_path, content)?;
-    fs::rename(&temp_path, path)?;
+    if path.file_name().is_none() {
+        return Err(ApiError::InvalidArguments(
+            "target_path must have a file name".to_owned(),
+        ));
+    }
+    let mut temp_file = tempfile::NamedTempFile::new_in(directory)?;
+    temp_file.write_all(content.as_bytes())?;
+    temp_file.as_file().sync_all()?;
+    temp_file.persist(path).map_err(|error| error.error)?;
+    sync_directory(directory)?;
+    Ok(())
+}
+
+#[cfg(unix)]
+fn sync_directory(directory: &Path) -> Result<(), ApiError> {
+    fs::File::open(directory)?.sync_all()?;
+    Ok(())
+}
+
+#[cfg(not(unix))]
+fn sync_directory(_directory: &Path) -> Result<(), ApiError> {
     Ok(())
 }
 
@@ -48,16 +61,33 @@ mod tests {
         assert_eq!(fs::read_to_string(&target).expect("read second"), "second");
 
         let parent = target.parent().expect("parent");
-        let temp_file = parent.join(format!(
-            ".{}.ferrocat.tmp",
-            target
-                .file_name()
-                .and_then(|name| name.to_str())
-                .expect("file name")
-        ));
-        assert!(!temp_file.exists());
+        let files = fs::read_dir(parent)
+            .expect("read parent")
+            .map(|entry| entry.expect("dir entry").file_name())
+            .collect::<Vec<_>>();
+        assert_eq!(files, vec![std::ffi::OsString::from("catalog.po")]);
 
         let root = target.ancestors().nth(2).expect("temp root").to_path_buf();
+        fs::remove_dir_all(root).expect("cleanup");
+    }
+
+    #[test]
+    fn atomic_write_does_not_use_the_legacy_fixed_temp_name() {
+        let target = unique_temp_path("atomic-write-fixed-temp").join("catalog.po");
+        let parent = target.parent().expect("parent");
+        fs::create_dir_all(parent).expect("create parent");
+        let legacy_temp = parent.join(".catalog.po.ferrocat.tmp");
+        fs::write(&legacy_temp, "sentinel").expect("write legacy temp");
+
+        atomic_write(&target, "content").expect("write target");
+
+        assert_eq!(fs::read_to_string(&target).expect("read target"), "content");
+        assert_eq!(
+            fs::read_to_string(&legacy_temp).expect("read legacy temp"),
+            "sentinel"
+        );
+
+        let root = target.ancestors().nth(1).expect("temp root").to_path_buf();
         fs::remove_dir_all(root).expect("cleanup");
     }
 
