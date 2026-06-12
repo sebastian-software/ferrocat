@@ -40,6 +40,15 @@ pub struct MachineTranslationMetadata {
 /// changes and is not a cryptographic signature.
 ///
 /// The emitted value is the first 128 bits encoded as unpadded Base64URL.
+///
+/// # Examples
+///
+/// ```rust
+/// use ferrocat_po::{EffectiveTranslationRef, machine_translation_hash};
+///
+/// let hash = machine_translation_hash(EffectiveTranslationRef::Singular("Hallo"));
+/// assert!(!hash.is_empty());
+/// ```
 #[must_use]
 pub fn machine_translation_hash(translation: EffectiveTranslationRef<'_>) -> String {
     let mut payload = Vec::new();

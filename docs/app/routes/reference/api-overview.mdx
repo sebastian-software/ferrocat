@@ -124,6 +124,26 @@ In practice this is the fast path workflow API: it stays close to classic Gettex
 
 Ferrocat assumes exact catalog identity here: `msgid` plus optional `msgctxt`. That works for classic ID-style catalogs and for projects that use real product copy as `msgid`. Matching messages keep translations, new messages are added, and removed messages follow the obsolete strategy. Fuzzy matching is intentionally outside the default workflow.
 
+```rust
+use std::borrow::Cow;
+
+use ferrocat::{MergeExtractedMessage, merge_catalog};
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let existing = "msgid \"Hello\"\nmsgstr \"Hallo\"\n";
+    let extracted = [MergeExtractedMessage {
+        msgid: Cow::Borrowed("Hello"),
+        references: vec![Cow::Borrowed("src/app.rs:10")],
+        ..MergeExtractedMessage::default()
+    }];
+
+    let merged = merge_catalog(existing, &extracted)?;
+    assert!(merged.contains("msgstr \"Hallo\""));
+    assert!(merged.contains("#: src/app.rs:10"));
+    Ok(())
+}
+```
+
 ### `combine_catalogs`
 
 Use this when you have multiple existing catalogs or templates and want one deterministic output catalog.
@@ -138,6 +158,24 @@ This is the Rust-native counterpart to the useful parts of GNU `msgcat`, `msgcom
 - skip obsolete definitions by default, with an explicit opt-in when obsolete entries should participate
 
 Ferrocat does not emit GNU-style conflict-marker translations for differing strings. Non-empty translation conflicts are either resolved with a warning diagnostic or rejected with `ApiError::Conflict`, depending on `CatalogConflictStrategy`.
+
+```rust
+use ferrocat::{CatalogCombineInput, CombineCatalogOptions, combine_catalogs};
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let base = "msgid \"Checkout\"\nmsgstr \"Zur Kasse\"\n";
+    let template = "msgid \"Checkout\"\nmsgstr \"\"\n\nmsgid \"Cart\"\nmsgstr \"\"\n";
+    let inputs = [
+        CatalogCombineInput::labeled(base, "de.po"),
+        CatalogCombineInput::labeled(template, "messages.pot"),
+    ];
+
+    let combined = combine_catalogs(CombineCatalogOptions::new(&inputs, "en"))?;
+    assert!(combined.content.contains("msgstr \"Zur Kasse\""));
+    assert!(combined.content.contains("msgid \"Cart\""));
+    Ok(())
+}
+```
 
 ### `parse_catalog`
 
@@ -173,6 +211,23 @@ That gives you exactly three supported modes:
 `parse_catalog` intentionally stays as the neutral parse step. If you want keyed lookups or effective-translation helpers, build a richer view explicitly with `ParsedCatalog::into_normalized_view()`.
 
 The normalized view supports both owned-key lookup with `CatalogMessageKey` and borrowed identity lookup with `get_by_parts(msgid, msgctxt)`, which is useful in host adapters that already have borrowed source strings.
+
+```rust
+use ferrocat::{ParseCatalogOptions, parse_catalog};
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let catalog = parse_catalog(ParseCatalogOptions {
+        content: "msgid \"Checkout\"\nmsgstr \"Zur Kasse\"\n",
+        locale: Some("de"),
+        source_locale: "en",
+        ..ParseCatalogOptions::default()
+    })?;
+
+    let view = catalog.into_normalized_view()?;
+    assert!(view.contains_parts("Checkout", None));
+    Ok(())
+}
+```
 
 ### `NormalizedParsedCatalog::compile`
 
@@ -214,6 +269,31 @@ Default checks cover:
 - semantic metadata duplication, unknown source keys, and source conflicts
 
 Diagnostics are machine-readable. Examples include:
+
+```rust
+use ferrocat::{CatalogAuditOptions, ParseCatalogOptions, audit_catalogs, parse_catalog};
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let source = parse_catalog(ParseCatalogOptions {
+        content: "msgid \"Checkout\"\nmsgstr \"Checkout\"\n",
+        locale: Some("en"),
+        source_locale: "en",
+        ..ParseCatalogOptions::default()
+    })?
+    .into_normalized_view()?;
+    let target = parse_catalog(ParseCatalogOptions {
+        content: "msgid \"Checkout\"\nmsgstr \"\"\n",
+        locale: Some("de"),
+        source_locale: "en",
+        ..ParseCatalogOptions::default()
+    })?
+    .into_normalized_view()?;
+
+    let report = audit_catalogs(&[&source, &target], &CatalogAuditOptions::new("en"))?;
+    assert!(report.has_errors());
+    Ok(())
+}
+```
 
 ```json
 {
@@ -271,6 +351,38 @@ Choose this when your downstream tooling needs locale resolution semantics centr
 This is the main boundary for Palamedes-style integrations. Ferrocat should decide the effective locale artifact; Palamedes or another host adapter should decide how that artifact becomes framework modules, sidecars, or runtime payloads.
 
 `CompileCatalogArtifactOptions` borrows locale strings and the fallback-chain slice, which keeps host-side request assembly cheap even when compilation is performance-sensitive.
+
+```rust
+use ferrocat::{
+    CompileCatalogArtifactOptions, ParseCatalogOptions, compile_catalog_artifact, parse_catalog,
+};
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let source = parse_catalog(ParseCatalogOptions {
+        content: "msgid \"Checkout\"\nmsgstr \"Checkout\"\n\nmsgid \"Cart\"\nmsgstr \"Cart\"\n",
+        locale: Some("en"),
+        source_locale: "en",
+        ..ParseCatalogOptions::default()
+    })?
+    .into_normalized_view()?;
+    let german = parse_catalog(ParseCatalogOptions {
+        content: "msgid \"Checkout\"\nmsgstr \"Zur Kasse\"\n",
+        locale: Some("de"),
+        source_locale: "en",
+        ..ParseCatalogOptions::default()
+    })?
+    .into_normalized_view()?;
+
+    let options = CompileCatalogArtifactOptions {
+        source_fallback: true,
+        ..CompileCatalogArtifactOptions::new("de", "en")
+    };
+    let artifact = compile_catalog_artifact(&[&source, &german], &options)?;
+    assert_eq!(artifact.messages.len(), 2);
+    assert_eq!(artifact.missing.len(), 1);
+    Ok(())
+}
+```
 
 Important semantics:
 
@@ -345,6 +457,30 @@ In native mode, `CatalogUpdateInput::SourceFirst` stays source-text-first; it no
 
 In `NDJSON` storage, arbitrary gettext-style custom headers are intentionally out of scope for `v1`; only the explicit frontmatter metadata and per-record fields are persisted. Machine-translation metadata uses the optional `mt` record field and remains part of `ferrocat.ndjson.v1`.
 
+```rust
+use ferrocat::{
+    CatalogStorageFormat, CatalogUpdateInput, SourceExtractedMessage, UpdateCatalogOptions,
+    update_catalog,
+};
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let result = update_catalog(UpdateCatalogOptions {
+        locale: Some("de"),
+        source_locale: "en",
+        storage_format: CatalogStorageFormat::Ndjson,
+        input: CatalogUpdateInput::SourceFirst(vec![SourceExtractedMessage {
+            msgid: "Checkout".to_owned(),
+            ..SourceExtractedMessage::default()
+        }]),
+        ..UpdateCatalogOptions::default()
+    })?;
+
+    assert!(result.content.starts_with("---\nformat: ferrocat.ndjson.v1\n"));
+    assert!(result.content.contains("\"id\":\"Checkout\""));
+    Ok(())
+}
+```
+
 ### Machine-translation metadata
 
 `CatalogMessage::machine_translation` stores optional translation-side metadata
@@ -372,6 +508,17 @@ NDJSON catalogs store the same metadata under `mt`:
 Parsing preserves metadata even when the hash no longer matches. High-level
 writers such as `update_catalog` verify the hash while rendering and omit the
 whole machine-translation metadata block when the translation has changed.
+
+```rust
+use ferrocat::{
+    EffectiveTranslationRef, machine_translation_hash,
+};
+
+fn main() {
+    let hash = machine_translation_hash(EffectiveTranslationRef::Singular("Hallo"));
+    assert!(!hash.is_empty());
+}
+```
 
 ### `update_catalog_file`
 
