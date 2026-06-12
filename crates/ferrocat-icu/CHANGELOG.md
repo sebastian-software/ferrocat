@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.13.0](https://github.com/sebastian-software/ferrocat/compare/ferrocat-icu-v0.12.0...ferrocat-icu-v0.13.0) (2026-06-12)
+
+
+### Features
+
+* validate icu formatter runtime support ([#44](https://github.com/sebastian-software/ferrocat/issues/44)) ([1ede8b3](https://github.com/sebastian-software/ferrocat/commit/1ede8b376f693bdc3f0b3bb2ad70308d7b6a19bb))
+
 ## [0.12.0](https://github.com/sebastian-software/ferrocat/compare/ferrocat-icu-v0.11.0...ferrocat-icu-v0.12.0) (2026-05-21)
 
 

@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.13.0](https://github.com/sebastian-software/ferrocat/compare/ferrocat-v0.12.0...ferrocat-v0.13.0) (2026-06-12)
+
+
+### Features
+
+* validate icu formatter runtime support ([#44](https://github.com/sebastian-software/ferrocat/issues/44)) ([1ede8b3](https://github.com/sebastian-software/ferrocat/commit/1ede8b376f693bdc3f0b3bb2ad70308d7b6a19bb))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * ferrocat-icu bumped from 0.12.0 to 0.13.0
+    * ferrocat-po bumped from 0.12.0 to 0.13.0
+
 ## [0.12.0](https://github.com/sebastian-software/ferrocat/compare/ferrocat-v0.11.0...ferrocat-v0.12.0) (2026-05-21)
 
 
