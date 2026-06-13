@@ -1,0 +1,62 @@
+---
+title: Releases And Upgrading
+description: Where Ferrocat changelogs live and how to upgrade pre-1.0 versions safely.
+order: 45
+---
+
+# Releases And Upgrading
+
+Ferrocat is still pre-`1.0`, so public APIs are treated carefully but minor
+version upgrades can still carry semver-relevant changes. Start every upgrade
+from the changelog and keep the workspace crate versions aligned.
+
+## Where release notes live
+
+- [GitHub Releases](https://github.com/sebastian-software/ferrocat/releases)
+  gives the repository-level release view.
+- [`ferrocat` CHANGELOG](https://github.com/sebastian-software/ferrocat/blob/main/crates/ferrocat/CHANGELOG.md)
+  is the best starting point for application users of the umbrella crate.
+- Direct sub-crate users should also read the matching `ferrocat-po` or
+  `ferrocat-icu` changelog for low-level parser, catalog, or ICU changes.
+
+Release Please generates these changelogs from Conventional Commits. Breaking
+changes should be marked with `feat!:` or a `BREAKING CHANGE` note so they are
+visible in release notes and changelog sections.
+
+## Lockstep versions
+
+The public library crates are released in lockstep. In normal application code,
+prefer depending on the umbrella crate:
+
+```toml
+[dependencies]
+ferrocat = "0.13"
+```
+
+If you depend on lower-level crates directly, keep every Ferrocat crate on the
+same minor version:
+
+```toml
+[dependencies]
+ferrocat-po = "0.13"
+ferrocat-icu = "0.13"
+```
+
+Do not mix the umbrella crate and direct sub-crate dependencies at different
+pre-`1.0` minors, for example `ferrocat = "0.13"` with
+`ferrocat-po = "0.12"`. Cargo treats `0.12` and `0.13` as incompatible version
+lines, so the build can contain two copies of the Ferrocat types and then fail
+with confusing type-mismatch errors.
+
+## Upgrade routine
+
+1. Read the `ferrocat` changelog for the target version.
+2. If you use direct sub-crates, read their matching changelogs too.
+3. Update all Ferrocat crate requirements to the same minor version.
+4. Run `cargo update -p ferrocat -p ferrocat-po -p ferrocat-icu` when those
+   packages are present in your lockfile.
+5. Run your normal test suite plus the Ferrocat APIs you call in release or CI
+   paths.
+
+When a future `0.x` release needs a durable migration note, this page should
+link that note from the upgrade routine instead of leaving it buried in a PR.
