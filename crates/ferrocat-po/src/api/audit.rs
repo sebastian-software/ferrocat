@@ -167,6 +167,31 @@ impl CatalogAuditReport {
 /// Returns [`ApiError::InvalidArguments`] when `source_locale` is empty or when
 /// catalogs cannot be inspected because their declared locales are missing or
 /// duplicated.
+///
+/// # Examples
+///
+/// ```rust
+/// use ferrocat_po::{CatalogAuditOptions, ParseCatalogOptions, audit_catalogs, parse_catalog};
+///
+/// let source = parse_catalog(ParseCatalogOptions {
+///     content: "msgid \"Checkout\"\nmsgstr \"Checkout\"\n",
+///     locale: Some("en"),
+///     source_locale: "en",
+///     ..ParseCatalogOptions::default()
+/// })?
+/// .into_normalized_view()?;
+/// let target = parse_catalog(ParseCatalogOptions {
+///     content: "msgid \"Checkout\"\nmsgstr \"\"\n",
+///     locale: Some("de"),
+///     source_locale: "en",
+///     ..ParseCatalogOptions::default()
+/// })?
+/// .into_normalized_view()?;
+///
+/// let report = audit_catalogs(&[&source, &target], &CatalogAuditOptions::new("en"))?;
+/// assert!(report.has_errors());
+/// # Ok::<(), ferrocat_po::ApiError>(())
+/// ```
 pub fn audit_catalogs(
     catalogs: &[&NormalizedParsedCatalog],
     options: &CatalogAuditOptions<'_>,

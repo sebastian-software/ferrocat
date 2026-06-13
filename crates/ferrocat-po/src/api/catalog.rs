@@ -105,6 +105,28 @@ struct CombineEntry {
 ///
 /// Returns [`ApiError`] when the source locale is missing, the existing catalog
 /// cannot be parsed, or the requested storage format cannot be rendered safely.
+///
+/// # Examples
+///
+/// ```rust
+/// use ferrocat_po::{
+///     CatalogUpdateInput, SourceExtractedMessage, UpdateCatalogOptions, update_catalog,
+/// };
+///
+/// let result = update_catalog(UpdateCatalogOptions {
+///     source_locale: "en",
+///     locale: Some("de"),
+///     input: CatalogUpdateInput::SourceFirst(vec![SourceExtractedMessage {
+///         msgid: "Checkout".to_owned(),
+///         ..SourceExtractedMessage::default()
+///     }]),
+///     ..UpdateCatalogOptions::default()
+/// })?;
+///
+/// assert!(result.created);
+/// assert!(result.content.contains("msgid \"Checkout\""));
+/// # Ok::<(), ferrocat_po::ApiError>(())
+/// ```
 #[expect(
     clippy::needless_pass_by_value,
     reason = "Public API takes owned option structs so callers can build and move them ergonomically."
@@ -229,6 +251,24 @@ pub fn update_catalog_file(
 /// Returns [`ApiError`] when required options are missing, an input cannot be
 /// parsed, a singular/plural shape conflict is encountered, or the selected
 /// conflict strategy rejects differing translations.
+///
+/// # Examples
+///
+/// ```rust
+/// use ferrocat_po::{CatalogCombineInput, CombineCatalogOptions, combine_catalogs};
+///
+/// let base = "msgid \"Checkout\"\nmsgstr \"Zur Kasse\"\n";
+/// let template = "msgid \"Checkout\"\nmsgstr \"\"\n\nmsgid \"Cart\"\nmsgstr \"\"\n";
+/// let inputs = [
+///     CatalogCombineInput::labeled(base, "de.po"),
+///     CatalogCombineInput::labeled(template, "messages.pot"),
+/// ];
+///
+/// let combined = combine_catalogs(CombineCatalogOptions::new(&inputs, "en"))?;
+/// assert!(combined.content.contains("msgstr \"Zur Kasse\""));
+/// assert!(combined.content.contains("msgid \"Cart\""));
+/// # Ok::<(), ferrocat_po::ApiError>(())
+/// ```
 #[expect(
     clippy::needless_pass_by_value,
     reason = "Public API takes owned option structs so callers can build and move them ergonomically."
@@ -528,6 +568,23 @@ fn export_catalog_content_for_combine(
 ///
 /// Returns [`ApiError`] when the catalog content cannot be parsed, the source
 /// locale is missing, or strict ICU projection fails.
+///
+/// # Examples
+///
+/// ```rust
+/// use ferrocat_po::{ParseCatalogOptions, parse_catalog};
+///
+/// let catalog = parse_catalog(ParseCatalogOptions {
+///     content: "msgid \"Checkout\"\nmsgstr \"Zur Kasse\"\n",
+///     locale: Some("de"),
+///     source_locale: "en",
+///     ..ParseCatalogOptions::default()
+/// })?;
+///
+/// assert_eq!(catalog.locale.as_deref(), Some("de"));
+/// assert_eq!(catalog.messages.len(), 1);
+/// # Ok::<(), ferrocat_po::ApiError>(())
+/// ```
 #[expect(
     clippy::needless_pass_by_value,
     reason = "Public API takes owned option structs so callers can build and move them ergonomically."

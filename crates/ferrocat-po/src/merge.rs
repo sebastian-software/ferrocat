@@ -182,6 +182,26 @@ struct MergeLine<'a> {
 /// # Errors
 ///
 /// Returns [`ParseError`] when the existing PO file cannot be parsed.
+///
+/// # Examples
+///
+/// ```rust
+/// use std::borrow::Cow;
+///
+/// use ferrocat_po::{MergeExtractedMessage, merge_catalog};
+///
+/// let existing = "msgid \"Hello\"\nmsgstr \"Hallo\"\n";
+/// let extracted = [MergeExtractedMessage {
+///     msgid: Cow::Borrowed("Hello"),
+///     references: vec![Cow::Borrowed("src/app.rs:10")],
+///     ..MergeExtractedMessage::default()
+/// }];
+///
+/// let merged = merge_catalog(existing, &extracted)?;
+/// assert!(merged.contains("msgstr \"Hallo\""));
+/// assert!(merged.contains("#: src/app.rs:10"));
+/// # Ok::<(), ferrocat_po::ParseError>(())
+/// ```
 pub fn merge_catalog<'a>(
     existing_po: &'a str,
     extracted_messages: &[ExtractedMessage<'a>],
