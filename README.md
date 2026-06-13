@@ -103,25 +103,28 @@ The public entry point is the `ferrocat` crate. It re-exports the stable Rust su
 ```rust
 use ferrocat::{SerializeOptions, parse_po, stringify_po};
 
-let mut file = parse_po(
-    r#"
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let mut file = parse_po(
+        r#"
 msgid "hello"
 msgstr "world"
 "#,
-)?;
+    )?;
 
-file.items[0].msgstr = "Welt".to_owned().into();
+    file.items[0].msgstr = "Welt".to_owned().into();
 
-let rendered = stringify_po(&file, &SerializeOptions::default());
-assert!(rendered.contains(r#"msgstr "Welt""#));
-# Ok::<(), Box<dyn std::error::Error>>(())
+    let rendered = stringify_po(&file, &SerializeOptions::default());
+    assert!(rendered.contains(r#"msgstr "Welt""#));
+
+    Ok(())
+}
 ```
 
 For the common "merge fresh extracted messages into an existing catalog" workflow, `merge_catalog` is the lean Gettext-style entry point. For N-way catalog overlays and `msgcat`-style set operations, use `combine_catalogs`. For release checks across a source catalog and target catalogs, use `audit_catalogs`. For application delivery, compile requested-locale artifacts with fallback and ICU diagnostics. For richer high-level flows across PO and NDJSON storage, the docs site's [API overview](https://sebastian-software.github.io/ferrocat/reference/api-overview) is the best next stop.
 
 `parse_po_borrowed` is the allocation-light PO parser for read-heavy paths. It borrows from the source buffer where possible, but it currently requires LF-only input; normalize CRLF input first or use `parse_po`, which handles line-ending normalization internally.
 
-ICU-native workflows can use `analyze_icu` and `compare_icu_messages` to catch missing arguments, formatter changes, tag mismatches, select/plural branch drift, and discouraged pattern-style formatters. Runtime artifact compilation can opt into the same source/translation checks with `icu_compatibility`.
+ICU-native workflows can use `analyze_icu`, `compare_icu_messages`, and `validate_icu_formatter_support` to catch missing arguments, formatter changes, unsupported runtime formatter kinds or styles, tag mismatches, select/plural branch drift, and discouraged pattern-style formatters. Runtime artifact compilation can opt into the same source/translation checks with `icu_compatibility`.
 
 Semantic metadata workflows can use `normalize_message_metadata` to keep simple source-as-msgid records small while deriving argument, tag, and selector facts from ICU MessageFormat v1 when needed. The metadata model keeps `msgid + msgctxt` as catalog identity, so it fits both Palamedes-style source strings and ID-style catalogs.
 

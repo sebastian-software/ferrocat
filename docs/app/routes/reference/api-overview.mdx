@@ -57,6 +57,7 @@ NDJSON is the line-delimited JSON storage choice. It is useful when catalogs are
 | Only validate ICU syntax | `validate_icu` |
 | Summarize ICU arguments, formatters, plurals, selects, and tags | `analyze_icu` |
 | Compare source and translated ICU message structure | `compare_icu_messages` |
+| Validate discovered ICU formatters against a runtime support policy | `validate_icu_formatter_support` |
 | Extract only data argument names or only tag names | `extract_argument_names` / `extract_tag_names` |
 | Extract variable names from a parsed ICU message | `extract_variables` |
 
@@ -571,6 +572,19 @@ formatters.
 At the catalog artifact layer, set `icu_compatibility: true` on
 `CompileCatalogArtifactOptions` or `CompileSelectedCatalogArtifactOptions` to
 collect the same diagnostics while compiling the final locale artifact.
+
+### `validate_icu_formatter_support`
+
+Use this when a host runtime supports only a subset of ICU formatter kinds or
+styles. The API analyzes a parsed message, passes each discovered formatter to a
+caller-provided support callback, and returns standard `icu.*` diagnostics for
+unsupported formatter kinds or styles.
+
+This keeps runtime-specific support policy in the host adapter while giving
+CI, editors, and build tools the same diagnostic shape as the rest of
+Ferrocat's ICU compatibility checks. For example, a JavaScript adapter can
+accept `number` and `date`, reject `list`, or reject pattern-style date formats
+before the catalog artifact ships.
 
 ### `extract_argument_names` / `extract_tag_names`
 

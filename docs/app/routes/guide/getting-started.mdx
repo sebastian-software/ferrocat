@@ -27,18 +27,21 @@ The public workspace crates line up by responsibility:
 ```rust
 use ferrocat::{SerializeOptions, parse_po, stringify_po};
 
-let mut file = parse_po(
-    r#"
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let mut file = parse_po(
+        r#"
 msgid "hello"
 msgstr "world"
 "#,
-)?;
+    )?;
 
-file.items[0].msgstr = "Welt".to_owned().into();
+    file.items[0].msgstr = "Welt".to_owned().into();
 
-let rendered = stringify_po(&file, &SerializeOptions::default());
-assert!(rendered.contains(r#"msgstr "Welt""#));
-# Ok::<(), Box<dyn std::error::Error>>(())
+    let rendered = stringify_po(&file, &SerializeOptions::default());
+    assert!(rendered.contains(r#"msgstr "Welt""#));
+
+    Ok(())
+}
 ```
 
 ## Where to go next
