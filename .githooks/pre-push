@@ -7,5 +7,5 @@ printf '%s\n' "Running Rust pre-push checks for the full workspace..."
 printf '%s\n' "- cargo fmt --all --check"
 cargo fmt --all --check
 
-printf '%s\n' "- cargo clippy --workspace --all-targets --all-features -- -D warnings"
-cargo clippy --workspace --all-targets --all-features -- -D warnings
+printf '%s\n' "- cargo clippy --workspace --all-targets --all-features --locked -- -D warnings"
+cargo clippy --workspace --all-targets --all-features --locked -- -D warnings

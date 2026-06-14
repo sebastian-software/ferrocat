@@ -13,6 +13,9 @@ concurrency:
   group: publish-${{ github.ref }}
   cancel-in-progress: false
 
+permissions:
+  contents: read
+
 jobs:
   release-please:
     runs-on: ubuntu-24.04

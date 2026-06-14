@@ -14,18 +14,10 @@ git config core.hooksPath .githooks
 
 `pre-push` always runs for the full workspace before a push.
 
-Both hooks run the same Rust linting shape as CI, without the CI-only
-`--locked` flag:
+Both hooks run the same locked Rust linting shape as CI:
 
 ```bash
 cargo fmt --all --check
-cargo clippy --workspace --all-targets --all-features -- -D warnings
-```
-
-CI runs the locked Clippy command, so use the locked form before opening a PR
-when dependencies or lockfile resolution matter:
-
-```bash
 cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
 ```
 
@@ -77,6 +69,11 @@ Do not use `cargo package --workspace` as the release packaging check. The
 workspace includes private `publish = false` crates for conformance fixtures and
 benchmarking, and Cargo still validates those manifests during whole-workspace
 packaging.
+
+The coverage gate reports the umbrella `ferrocat` crate but intentionally does
+not enforce a threshold for it while that crate only re-exports lower-level
+APIs plus smoke tests. Add an explicit threshold when executable umbrella code
+grows.
 
 Docs site:
 
