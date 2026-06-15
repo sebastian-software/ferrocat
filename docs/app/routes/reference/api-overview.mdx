@@ -54,6 +54,7 @@ NDJSON is the line-delimited JSON storage choice. It is useful when catalogs are
 | Perform a full catalog update and write the result to disk only when changed | `update_catalog_file` |
 | Compute the metadata hash for a machine-generated translation | `machine_translation_hash` |
 | Parse ICU MessageFormat into a structural AST | `parse_icu` |
+| Render a parsed ICU AST back to canonical MessageFormat text | `stringify_icu` |
 | Only validate ICU syntax | `validate_icu` |
 | Summarize ICU arguments, formatters, plurals, selects, and tags | `analyze_icu` |
 | Compare source and translated ICU message structure | `compare_icu_messages` |
@@ -550,6 +551,13 @@ Typical use cases:
 - inspecting plural/select structure
 - converting ICU messages into another internal representation
 - extracting semantic information from messages
+
+### `stringify_icu`
+
+Use this when you already have an `IcuMessage` AST and need ICU MessageFormat
+text again. The serializer is canonical rather than byte-preserving: whitespace
+and apostrophe quoting may differ from the source, but parse -> stringify ->
+parse preserves the supported AST structure.
 
 ### `validate_icu`
 

@@ -90,7 +90,7 @@ pub use ferrocat_icu::{
     MessageOriginMetadata, MessageSelectorKind, MessageSelectorMetadata, analyze_icu,
     compare_icu_messages, derive_message_metadata_from_icu, extract_argument_names,
     extract_tag_names, extract_variables, has_plural, has_select, has_selectordinal, has_tag,
-    normalize_message_metadata, parse_icu, parse_icu_with_options, validate_icu,
+    normalize_message_metadata, parse_icu, parse_icu_with_options, stringify_icu, validate_icu,
     validate_icu_formatter_support, validate_icu_formatter_support_from_analysis,
     validate_message_metadata,
 };
