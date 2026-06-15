@@ -930,9 +930,46 @@ mod tests {
     }
 
     #[test]
+    fn icu_argument_kind_display_uses_icu_formatter_names() {
+        let labels = [
+            IcuArgumentKind::Argument,
+            IcuArgumentKind::Number,
+            IcuArgumentKind::Date,
+            IcuArgumentKind::Time,
+            IcuArgumentKind::List,
+            IcuArgumentKind::Duration,
+            IcuArgumentKind::Ago,
+            IcuArgumentKind::Name,
+            IcuArgumentKind::Select,
+            IcuArgumentKind::Plural,
+            IcuArgumentKind::SelectOrdinal,
+        ]
+        .into_iter()
+        .map(|kind| kind.to_string())
+        .collect::<Vec<_>>();
+
+        assert_eq!(
+            labels,
+            vec![
+                "argument",
+                "number",
+                "date",
+                "time",
+                "list",
+                "duration",
+                "ago",
+                "name",
+                "select",
+                "plural",
+                "selectordinal",
+            ]
+        );
+    }
+
+    #[test]
     fn formatter_support_validation_reports_mixed_kind_and_style_decisions() {
         let message = parse_icu(
-            "{total, number, ::compact-short} {created, date} {items, list, conjunction}",
+            "{total, number, ::compact-short} {created, date} {started, time, short} {items, list, conjunction}",
         )
         .expect("parse");
 
