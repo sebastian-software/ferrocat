@@ -33,6 +33,7 @@ Palamedes owns JavaScript and TypeScript application integration:
 - macros and authoring ergonomics
 - source extraction and transforms
 - framework adapters
+- JS/TS package surfaces and the `palamedes-node` N-API bridge
 - bundler integration
 - runtime loading policy
 - future chunk-aware message sidecars
@@ -51,6 +52,9 @@ Concretely:
 - Ferrocat should expose task-oriented catalog APIs, not framework plugins.
 - Ferrocat should produce host-neutral runtime artifacts and structured
   diagnostics.
+- Ferrocat should remain a pure-Rust engine and should not ship first-party
+  JS/TS, WebAssembly, or N-API bindings from this repository under the current
+  architecture.
 - Ferrocat should expose ICU source/translation diagnostics that Palamedes can
   consume without moving JS/TS runtime concerns into Ferrocat.
 - Ferrocat should expose semantic metadata types and validation that Palamedes
@@ -60,9 +64,12 @@ Concretely:
 - Ferrocat should keep storage and semantic contracts documented in ADRs and
   rustdoc.
 - Palamedes should own JS/TS extraction, transforms, routing conventions,
-  bundler adapters, framework runtime integration, and developer ergonomics.
+  bundler adapters, framework runtime integration, host packaging, bindings,
+  and developer ergonomics.
 - Palamedes may depend on Ferrocat semantics, but Ferrocat should not depend on
   Palamedes packages or application-framework assumptions.
+- Other host environments should integrate through the Rust crates, a future
+  Ferrocat CLI surface, or host-specific binding projects at that layer.
 
 This relationship should be documented prominently because users can enter the
 ecosystem from either direction: app teams through Palamedes, and tooling or
@@ -75,6 +82,8 @@ Positive:
 - Ferrocat stays useful outside the Palamedes ecosystem.
 - Palamedes can move faster on framework integration without changing catalog
   contracts.
+- users can tell where to look for JS/TS access: Palamedes and
+  `palamedes-node`, not a hidden Ferrocat binding crate.
 - runtime artifact semantics are centralized instead of being reimplemented in
   every host adapter.
 - the docs can explain a coherent i18n stack without collapsing both projects
@@ -84,6 +93,8 @@ Negative:
 
 - cross-project features need clear coordination and documentation.
 - some users will need to understand two project names instead of one.
+- non-JS host ecosystems need to bring their own bindings or wait for a CLI or
+  adapter project instead of expecting one from the Ferrocat core repository.
 - examples must be careful to distinguish catalog behavior from application
   integration behavior.
 
@@ -94,6 +105,13 @@ Negative:
 Rejected because Ferrocat would absorb JavaScript, TypeScript, framework,
 bundler, and runtime concerns that are outside its catalog-infrastructure
 purpose.
+
+### Ship Ferrocat-Level N-API Or WebAssembly Bindings Now
+
+Rejected for the current architecture because it would blur the same boundary
+under a different package name. JS/TS access belongs with Palamedes, including
+the `palamedes-node` bridge, and a future host binding should have its own ADR
+if it becomes a Ferrocat repository concern.
 
 ### Keep Palamedes Fully Independent From Ferrocat
 

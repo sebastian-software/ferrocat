@@ -11,7 +11,7 @@ The practical problem is simple: translations change constantly, and most projec
 
 Under the hood, Ferrocat builds on proven ideas from PO catalogs, ICU MessageFormat, line-delimited JSON, and deterministic runtime compilation. You do not need to start with all of that terminology. The important part is that the catalog remains inspectable, testable, benchmarked, and portable across host-language adapters.
 
-Ferrocat is also part of the [Palamedes](https://github.com/sebastian-software/palamedes) ecosystem. Palamedes is the OSS i18n framework for JavaScript and TypeScript apps; Ferrocat supplies the shared catalog engine underneath it: exact updates, storage choices, release QA, runtime artifact compilation, and clear boundaries between catalog data and application integration.
+Ferrocat is also part of the [Palamedes](https://github.com/sebastian-software/palamedes) ecosystem. Palamedes is the OSS i18n framework for JavaScript and TypeScript apps; Ferrocat supplies the shared catalog engine underneath it: exact updates, storage choices, release QA, runtime artifact compilation, and clear boundaries between catalog data and application integration. JavaScript and TypeScript access is a Palamedes concern, including the `palamedes-node` N-API bridge in that repository; this repository stays the pure-Rust catalog engine.
 
 ## What Ferrocat Gives You
 
@@ -22,7 +22,7 @@ Ferrocat is also part of the [Palamedes](https://github.com/sebastian-software/p
 - **AI translation metadata ready.** Track machine-generated translations with model, modification time, confidence, and a change-detection hash, then drop stale metadata automatically when a human edits the text.
 - **Runtime artifacts.** Compile catalogs into host-neutral payloads with stable keys, fallback behavior, missing reports, and optional ICU compatibility diagnostics.
 - **Reviewable storage.** Use PO when translator tooling matters, or NDJSON when large teams and automation need one message per line for cleaner diffs.
-- **Room for host frameworks.** Palamedes can own JS/TS extraction and framework integration while Ferrocat owns the catalog behavior that should stay consistent underneath.
+- **Room for host frameworks.** Palamedes can own JS/TS extraction, bindings, and framework integration while Ferrocat owns the catalog behavior that should stay consistent underneath.
 - **Measured behavior.** Parser, serializer, merge, combine, audit, and runtime paths are covered by fixtures, conformance checks, and benchmark commands.
 
 ## Technical Foundation
@@ -45,6 +45,13 @@ Ferrocat is not trying to replace every part of an i18n stack. If you already kn
 | Framework-specific i18n packages | Great authoring ergonomics and runtime adapters inside one host ecosystem | Shared catalog semantics that can be reused by Palamedes or other adapters instead of reimplemented per framework |
 | Custom JSON catalogs | Easy loading and deployment | Stronger update semantics, reviewable NDJSON storage, source/translation QA, and a path back to translator-friendly PO workflows |
 | ICU-only message handling | Powerful plural, select, formatter, and rich-text syntax | Structural analysis and compatibility checks that catch missing arguments, formatter drift, tag mismatch, and branch changes before shipping |
+
+Ferrocat does not currently ship first-party WebAssembly, N-API, Python, Go, or
+other host-language bindings from this repository. Host integration is layered
+on top of the Rust API: JS/TS applications should look to Palamedes and its
+`palamedes-node` bridge, while other ecosystems can use the Rust crates
+directly, a future CLI surface, or host-specific bindings maintained at that
+layer.
 
 ## Core Workflows
 
