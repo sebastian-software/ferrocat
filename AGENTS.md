@@ -32,6 +32,7 @@ Examples:
   - `cargo llvm-cov --workspace --all-features --locked --lcov --output-path target/lcov.info --ignore-filename-regex 'crates/ferrocat-(bench|conformance)/'`
   - `cargo llvm-cov report --json --summary-only --output-path target/coverage-summary.json --ignore-filename-regex 'crates/ferrocat-(bench|conformance)/'`
   - `node scripts/coverage-gate.mjs target/coverage-summary.json ferrocat-po=95 ferrocat-icu=95`
+  - `cargo package -p ferrocat-icu -p ferrocat-po -p ferrocat --locked`
   - from `docs/`: `pnpm install --frozen-lockfile`
   - from `docs/`: `pnpm build`
 - If you add or change dependencies, make sure `Cargo.lock` is updated and the locked checks still pass before push.
@@ -53,6 +54,15 @@ Examples:
 - Run docs-site checks from `docs/`:
   - `pnpm install --frozen-lockfile`
   - `pnpm build`
+
+## Packaging
+
+- Release packaging checks should target the published crates explicitly:
+  `cargo package -p ferrocat-icu -p ferrocat-po -p ferrocat --locked`.
+- Do not use `cargo package --workspace` as the release check. The workspace
+  includes private `publish = false` crates for conformance fixtures and
+  benchmarking, and Cargo still validates those manifests during workspace
+  packaging.
 
 ## Performance And Benchmarking
 

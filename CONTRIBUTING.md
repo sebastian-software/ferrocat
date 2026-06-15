@@ -67,6 +67,17 @@ cargo llvm-cov report --json --summary-only --output-path target/coverage-summar
 node scripts/coverage-gate.mjs target/coverage-summary.json ferrocat-po=95 ferrocat-icu=95
 ```
 
+Published crate packaging:
+
+```bash
+cargo package -p ferrocat-icu -p ferrocat-po -p ferrocat --locked
+```
+
+Do not use `cargo package --workspace` as the release packaging check. The
+workspace includes private `publish = false` crates for conformance fixtures and
+benchmarking, and Cargo still validates those manifests during whole-workspace
+packaging.
+
 Docs site:
 
 ```bash
