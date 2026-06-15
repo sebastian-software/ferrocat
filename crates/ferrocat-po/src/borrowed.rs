@@ -431,10 +431,8 @@ fn parse_keyword_line<'a>(
                 at_line_position(extract_quoted_bytes_cow(line_bytes), position)?,
             );
             if is_header_candidate(state) {
-                state.header_entries.extend(at_line_position(
-                    parse_header_fragment(line_bytes),
-                    position,
-                )?);
+                let headers = at_line_position(parse_header_fragment(line_bytes), position)?;
+                state.header_entries.extend(headers);
             }
             state.context = Some(Context::Str);
             state.content_line_count += 1;
@@ -470,10 +468,8 @@ fn append_continuation<'a>(
         Some(Context::Str) => {
             state.append_msgstr(state.plural_index, value);
             if is_header_candidate(state) {
-                state.header_entries.extend(at_line_position(
-                    parse_header_fragment(line_bytes),
-                    position,
-                )?);
+                let headers = at_line_position(parse_header_fragment(line_bytes), position)?;
+                state.header_entries.extend(headers);
             }
         }
         Some(Context::Id) => state.item.msgid.to_mut().push_str(value.as_ref()),
@@ -761,6 +757,49 @@ msgstr "world"
         assert_eq!(position.offset(), 11);
         assert_eq!(position.line(), 2);
         assert_eq!(position.column(), 1);
+    }
+
+    #[test]
+    fn parse_errors_include_line_position_for_plural_and_context_keywords() {
+        let plural_error =
+            parse_po_borrowed("msgid \"file\"\nmsgid_plural \"bad\"quote\"\nmsgstr[0] \"\"\n")
+                .expect_err("unescaped plural quote should fail");
+        let plural_position = plural_error.position().expect("plural position metadata");
+        assert_eq!(plural_error.message(), "unescaped quote in string literal");
+        assert_eq!(plural_position.line(), 2);
+        assert_eq!(plural_position.column(), 1);
+
+        let context_error = parse_po_borrowed("msgctxt \"bad\"quote\"\nmsgid \"x\"\nmsgstr \"\"\n")
+            .expect_err("unescaped context quote should fail");
+        let context_position = context_error.position().expect("context position metadata");
+        assert_eq!(context_error.message(), "unescaped quote in string literal");
+        assert_eq!(context_position.line(), 1);
+        assert_eq!(context_position.column(), 1);
+    }
+
+    #[test]
+    fn parses_owned_header_fragments_in_keyword_and_continuation_lines() {
+        let input = concat!(
+            "msgid \"\"\n",
+            "msgstr \"Project-Id-Version: ferrocat\\t1\\n\"\n",
+            "\"Language: de\\t\\n\"\n",
+        );
+        let file = parse_po_borrowed(input).expect("borrowed parse with owned headers");
+
+        assert_eq!(file.headers.len(), 2);
+        assert_eq!(
+            file.headers[0].key,
+            Cow::<str>::Owned("Project-Id-Version".to_owned())
+        );
+        assert_eq!(
+            file.headers[0].value,
+            Cow::<str>::Owned("ferrocat\t1".to_owned())
+        );
+        assert_eq!(
+            file.headers[1].key,
+            Cow::<str>::Owned("Language".to_owned())
+        );
+        assert_eq!(file.headers[1].value, Cow::<str>::Owned("de".to_owned()));
     }
 
     #[test]
