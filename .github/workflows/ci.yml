@@ -92,6 +92,23 @@ jobs:
           RUSTDOCFLAGS: -D warnings
         run: cargo doc --workspace --all-features --no-deps --locked
 
+  package:
+    name: Published crate packaging
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust build artifacts
+        uses: Swatinem/rust-cache@v2
+
+      - name: Package published crates
+        run: cargo package -p ferrocat-icu -p ferrocat-po -p ferrocat --locked
+
   msrv:
     name: Rust MSRV
     runs-on: ubuntu-24.04
