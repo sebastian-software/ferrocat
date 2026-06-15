@@ -1,0 +1,32 @@
+[graph]
+all-features = true
+
+[advisories]
+yanked = "deny"
+ignore = []
+
+[licenses]
+confidence-threshold = 0.8
+allow = [
+  "Apache-2.0",
+  "MIT",
+  "Unicode-3.0",
+]
+
+[bans]
+multiple-versions = "deny"
+wildcards = "allow"
+highlight = "all"
+deny = []
+# tempfile pulls getrandom, which currently includes both wasi preview 2 and
+# preview 3 dependency paths with different wit-bindgen versions.
+skip = [
+  { crate = "wit-bindgen@0.51.0", reason = "transitive WASI preview dependency split via getrandom" },
+]
+skip-tree = []
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+allow-git = []
