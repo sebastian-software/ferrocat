@@ -6,7 +6,7 @@ use crate::scan::{
 };
 use crate::text::{extract_quoted_bytes_cow, split_reference_comment};
 use crate::utf8::input_slice_as_str;
-use crate::{Header, MsgStr, ParseError, PoFile, PoItem};
+use crate::{Header, MsgStr, ParseError, ParsePosition, PoFile, PoItem};
 
 /// Borrowed PO document that reuses slices from the original input whenever
 /// possible.
@@ -270,6 +270,7 @@ impl<'a> ParserState<'a> {
 struct BorrowedLine<'a> {
     trimmed: &'a [u8],
     obsolete: bool,
+    position: ParsePosition,
 }
 
 /// Parses PO content into a borrowed representation.
@@ -298,6 +299,7 @@ pub fn parse_po_borrowed(input: &str) -> Result<BorrowedPoFile<'_>, ParseError> 
             BorrowedLine {
                 trimmed: line.trimmed,
                 obsolete: line.obsolete,
+                position: line.position,
             },
             &mut state,
             &mut file,
@@ -318,7 +320,7 @@ fn parse_line<'a>(
 ) -> Result<(), ParseError> {
     match classify_line(line.trimmed) {
         LineKind::Continuation => {
-            append_continuation(line.trimmed, line.obsolete, state)?;
+            append_continuation(line.trimmed, line.obsolete, line.position, state)?;
             Ok(())
         }
         LineKind::Comment(kind) => {
@@ -328,6 +330,7 @@ fn parse_line<'a>(
         LineKind::Keyword(keyword) => parse_keyword_line(
             line.trimmed,
             line.obsolete,
+            line.position,
             keyword,
             state,
             file,
@@ -394,6 +397,7 @@ fn ferrocat_mt_metadata_value(trimmed: &[u8]) -> Option<&[u8]> {
 fn parse_keyword_line<'a>(
     line_bytes: &'a [u8],
     obsolete: bool,
+    position: ParsePosition,
     keyword: Keyword,
     state: &mut ParserState<'a>,
     file: &mut BorrowedPoFile<'a>,
@@ -402,7 +406,10 @@ fn parse_keyword_line<'a>(
     match keyword {
         Keyword::IdPlural => {
             state.obsolete_line_count += usize::from(obsolete);
-            state.item.msgid_plural = Some(extract_quoted_bytes_cow(line_bytes)?);
+            state.item.msgid_plural = Some(at_line_position(
+                extract_quoted_bytes_cow(line_bytes),
+                position,
+            )?);
             state.context = Some(Context::IdPlural);
             state.content_line_count += 1;
             state.has_keyword = true;
@@ -410,7 +417,7 @@ fn parse_keyword_line<'a>(
         Keyword::Id => {
             finish_item(state, file, current_nplurals);
             state.obsolete_line_count += usize::from(obsolete);
-            state.item.msgid = extract_quoted_bytes_cow(line_bytes)?;
+            state.item.msgid = at_line_position(extract_quoted_bytes_cow(line_bytes), position)?;
             state.context = Some(Context::Id);
             state.content_line_count += 1;
             state.has_keyword = true;
@@ -419,11 +426,15 @@ fn parse_keyword_line<'a>(
             let plural_index = parse_plural_index(line_bytes).unwrap_or(0);
             state.plural_index = plural_index;
             state.obsolete_line_count += usize::from(obsolete);
-            state.set_msgstr(plural_index, extract_quoted_bytes_cow(line_bytes)?);
+            state.set_msgstr(
+                plural_index,
+                at_line_position(extract_quoted_bytes_cow(line_bytes), position)?,
+            );
             if is_header_candidate(state) {
-                state
-                    .header_entries
-                    .extend(parse_header_fragment(line_bytes)?);
+                state.header_entries.extend(at_line_position(
+                    parse_header_fragment(line_bytes),
+                    position,
+                )?);
             }
             state.context = Some(Context::Str);
             state.content_line_count += 1;
@@ -432,7 +443,10 @@ fn parse_keyword_line<'a>(
         Keyword::Ctxt => {
             finish_item(state, file, current_nplurals);
             state.obsolete_line_count += usize::from(obsolete);
-            state.item.msgctxt = Some(extract_quoted_bytes_cow(line_bytes)?);
+            state.item.msgctxt = Some(at_line_position(
+                extract_quoted_bytes_cow(line_bytes),
+                position,
+            )?);
             state.context = Some(Context::Ctxt);
             state.content_line_count += 1;
             state.has_keyword = true;
@@ -445,19 +459,21 @@ fn parse_keyword_line<'a>(
 fn append_continuation<'a>(
     line_bytes: &'a [u8],
     obsolete: bool,
+    position: ParsePosition,
     state: &mut ParserState<'a>,
 ) -> Result<(), ParseError> {
     state.obsolete_line_count += usize::from(obsolete);
     state.content_line_count += 1;
-    let value = extract_quoted_bytes_cow(line_bytes)?;
+    let value = at_line_position(extract_quoted_bytes_cow(line_bytes), position)?;
 
     match state.context {
         Some(Context::Str) => {
             state.append_msgstr(state.plural_index, value);
             if is_header_candidate(state) {
-                state
-                    .header_entries
-                    .extend(parse_header_fragment(line_bytes)?);
+                state.header_entries.extend(at_line_position(
+                    parse_header_fragment(line_bytes),
+                    position,
+                )?);
             }
         }
         Some(Context::Id) => state.item.msgid.to_mut().push_str(value.as_ref()),
@@ -473,6 +489,14 @@ fn append_continuation<'a>(
     }
 
     Ok(())
+}
+
+#[inline]
+fn at_line_position<T>(
+    result: Result<T, ParseError>,
+    position: ParsePosition,
+) -> Result<T, ParseError> {
+    result.map_err(|error| error.with_position_if_missing(position))
 }
 
 fn finish_item<'a>(
@@ -725,6 +749,18 @@ msgstr "world"
         let error = parse_po_borrowed("msgid \"foo\"\r\nmsgstr \"bar\"\r\n")
             .expect_err("crlf should be rejected");
         assert!(error.to_string().contains("LF-only"));
+    }
+
+    #[test]
+    fn parse_errors_include_line_position() {
+        let error = parse_po_borrowed("msgid \"ok\"\nmsgstr \"bad\"quote\"\n")
+            .expect_err("unescaped quote should fail");
+        let position = error.position().expect("position metadata");
+
+        assert_eq!(error.message(), "unescaped quote in string literal");
+        assert_eq!(position.offset(), 11);
+        assert_eq!(position.line(), 2);
+        assert_eq!(position.column(), 1);
     }
 
     #[test]

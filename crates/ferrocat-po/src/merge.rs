@@ -7,7 +7,7 @@ use crate::scan::{
 use crate::serialize::{write_keyword, write_prefixed_line};
 use crate::text::{escape_string_into, unescape_string, validate_quoted_content};
 use crate::utf8::input_slice_as_str;
-use crate::{BorrowedMsgStr, ParseError, SerializeOptions};
+use crate::{BorrowedMsgStr, ParseError, ParsePosition, SerializeOptions};
 
 /// Borrowed extracted message input for the lightweight merge helper.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -174,6 +174,7 @@ impl<'a> ParserState<'a> {
 struct MergeLine<'a> {
     trimmed: &'a [u8],
     obsolete: bool,
+    position: ParsePosition,
 }
 
 /// Merges extracted messages into an existing PO catalog while preserving the
@@ -290,6 +291,7 @@ fn parse_merge_po(input: &str) -> Result<MergeBorrowedFile<'_>, ParseError> {
             MergeLine {
                 trimmed: line.trimmed,
                 obsolete: line.obsolete,
+                position: line.position,
             },
             &mut state,
             &mut file,
@@ -309,7 +311,7 @@ fn parse_line<'a>(
 ) -> Result<(), ParseError> {
     match classify_line(line.trimmed) {
         LineKind::Continuation => {
-            append_continuation(line.trimmed, line.obsolete, state)?;
+            append_continuation(line.trimmed, line.obsolete, line.position, state)?;
             Ok(())
         }
         LineKind::Comment(kind) => {
@@ -319,6 +321,7 @@ fn parse_line<'a>(
         LineKind::Keyword(keyword) => parse_keyword_line(
             line.trimmed,
             line.obsolete,
+            line.position,
             keyword,
             state,
             file,
@@ -378,6 +381,7 @@ fn ferrocat_mt_metadata_value(trimmed: &[u8]) -> Option<&[u8]> {
 fn parse_keyword_line<'a>(
     line_bytes: &'a [u8],
     obsolete: bool,
+    position: ParsePosition,
     keyword: Keyword,
     state: &mut ParserState<'a>,
     file: &mut MergeBorrowedFile<'a>,
@@ -386,7 +390,10 @@ fn parse_keyword_line<'a>(
     match keyword {
         Keyword::IdPlural => {
             state.obsolete_line_count += usize::from(obsolete);
-            state.item.msgid_plural = Some(extract_merge_quoted_cow(line_bytes)?);
+            state.item.msgid_plural = Some(at_line_position(
+                extract_merge_quoted_cow(line_bytes),
+                position,
+            )?);
             state.context = Some(Context::IdPlural);
             state.content_line_count += 1;
             state.has_keyword = true;
@@ -394,7 +401,7 @@ fn parse_keyword_line<'a>(
         Keyword::Id => {
             finish_item(state, file, current_nplurals);
             state.obsolete_line_count += usize::from(obsolete);
-            state.item.msgid = extract_merge_quoted_cow(line_bytes)?;
+            state.item.msgid = at_line_position(extract_merge_quoted_cow(line_bytes), position)?;
             state.context = Some(Context::Id);
             state.content_line_count += 1;
             state.has_keyword = true;
@@ -403,11 +410,15 @@ fn parse_keyword_line<'a>(
             let plural_index = parse_plural_index(line_bytes).unwrap_or(0);
             state.plural_index = plural_index;
             state.obsolete_line_count += usize::from(obsolete);
-            state.set_msgstr(plural_index, extract_merge_quoted_cow(line_bytes)?);
+            state.set_msgstr(
+                plural_index,
+                at_line_position(extract_merge_quoted_cow(line_bytes), position)?,
+            );
             if is_header_candidate(state) {
-                state
-                    .header_entries
-                    .extend(parse_header_fragment(line_bytes)?);
+                state.header_entries.extend(at_line_position(
+                    parse_header_fragment(line_bytes),
+                    position,
+                )?);
             }
             state.context = Some(Context::Str);
             state.content_line_count += 1;
@@ -416,7 +427,10 @@ fn parse_keyword_line<'a>(
         Keyword::Ctxt => {
             finish_item(state, file, current_nplurals);
             state.obsolete_line_count += usize::from(obsolete);
-            state.item.msgctxt = Some(extract_merge_quoted_cow(line_bytes)?);
+            state.item.msgctxt = Some(at_line_position(
+                extract_merge_quoted_cow(line_bytes),
+                position,
+            )?);
             state.context = Some(Context::Ctxt);
             state.content_line_count += 1;
             state.has_keyword = true;
@@ -429,19 +443,21 @@ fn parse_keyword_line<'a>(
 fn append_continuation<'a>(
     line_bytes: &'a [u8],
     obsolete: bool,
+    position: ParsePosition,
     state: &mut ParserState<'a>,
 ) -> Result<(), ParseError> {
     state.obsolete_line_count += usize::from(obsolete);
     state.content_line_count += 1;
-    let value = extract_merge_quoted_cow(line_bytes)?;
+    let value = at_line_position(extract_merge_quoted_cow(line_bytes), position)?;
 
     match state.context {
         Some(Context::Str) => {
             state.append_msgstr(state.plural_index, value);
             if is_header_candidate(state) {
-                state
-                    .header_entries
-                    .extend(parse_header_fragment(line_bytes)?);
+                state.header_entries.extend(at_line_position(
+                    parse_header_fragment(line_bytes),
+                    position,
+                )?);
             }
         }
         Some(Context::Id) => state.item.msgid.to_mut().push_str(value.as_ref()),
@@ -457,6 +473,14 @@ fn append_continuation<'a>(
     }
 
     Ok(())
+}
+
+#[inline]
+fn at_line_position<T>(
+    result: Result<T, ParseError>,
+    position: ParsePosition,
+) -> Result<T, ParseError> {
+    result.map_err(|error| error.with_position_if_missing(position))
 }
 
 fn finish_item<'a>(

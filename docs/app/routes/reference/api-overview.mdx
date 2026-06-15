@@ -628,7 +628,7 @@ part of this source-side metadata format.
 
 ## Error Surface
 
-`ApiError` and the lower-level `ParseError` are intentionally small today. `ApiError` distinguishes parse, I/O, invalid-argument, conflict, and unsupported-operation failures; PO `ParseError` currently carries a human-readable message but not a line/column position. Adding structured PO error kinds or source positions would be a semver-relevant API change and should ship with matching rustdoc, README/API docs, and an ADR update.
+`ApiError` and the lower-level `ParseError` are intentionally small today. `ApiError` distinguishes parse, I/O, invalid-argument, conflict, and unsupported-operation failures, and its `std::error::Error::source()` implementation preserves underlying parse and I/O causes. PO `ParseError` keeps the existing human-readable display message and exposes `message()` plus optional `position()` metadata for tooling. Position metadata reports a zero-based byte offset plus one-based line and column when the parser can attach source context.
 
 ## Practical Rule Of Thumb
 
