@@ -6,6 +6,9 @@ on:
     branches:
       - main
 
+permissions:
+  contents: read
+
 env:
   CARGO_TERM_COLOR: always
 
@@ -132,8 +135,6 @@ jobs:
   coverage:
     name: Linux test + coverage
     runs-on: ubuntu-24.04
-    permissions:
-      contents: read
 
     steps:
       - name: Check out repository
@@ -165,6 +166,10 @@ jobs:
           --ignore-filename-regex 'crates/ferrocat-(bench|conformance)/'
 
       - name: Enforce crate coverage thresholds
+        # The umbrella `ferrocat` crate is intentionally reported by
+        # coverage-gate but not threshold-gated while it only re-exports lower
+        # level crates plus smoke tests. Add a threshold here when executable
+        # umbrella code grows.
         run: node scripts/coverage-gate.mjs target/coverage-summary.json ferrocat-po=95 ferrocat-icu=95
 
       - name: Upload coverage to Codecov

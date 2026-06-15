@@ -22,7 +22,7 @@ Examples:
 
 - Keep the existing Rust hook expectations green before push:
   - `cargo fmt --all --check`
-  - `cargo clippy --workspace --all-targets --all-features -- -D warnings`
+  - `cargo clippy --workspace --all-targets --all-features --locked -- -D warnings`
 - For CI parity before publishing a PR, use the locked forms and the additional CI gates that apply to your change:
   - `cargo fmt --all --check`
   - `cargo clippy --workspace --all-targets --all-features --locked -- -D warnings`
@@ -35,6 +35,10 @@ Examples:
   - `cargo package -p ferrocat-icu -p ferrocat-po -p ferrocat --locked`
   - from `docs/`: `pnpm install --frozen-lockfile`
   - from `docs/`: `pnpm build`
+- The coverage gate reports the umbrella `ferrocat` crate but intentionally
+  does not enforce a threshold for it while it only re-exports lower-level APIs
+  plus smoke tests. Add an explicit threshold when executable umbrella code
+  grows.
 - If you add or change dependencies, make sure `Cargo.lock` is updated and the locked checks still pass before push.
 - Keep the declared MSRV in `Cargo.toml` covered by CI. The MSRV policy is to align with OXC when practical, while avoiding churn from tracking only the newest stable toolchain.
 
