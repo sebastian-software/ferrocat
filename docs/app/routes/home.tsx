@@ -74,6 +74,10 @@ const positioningPoints = [
     title: "Keep runtime delivery predictable",
     body: "Compile locale-resolved artifacts with stable keys and explicit fallback behavior instead of reparsing translator files in production.",
   },
+  {
+    title: "Exchange through XLIFF",
+    body: "Move singular catalog messages through XLIFF 1.2 systems while preserving msgid + msgctxt identity, review state, and empty targets.",
+  },
 ]
 
 const proofPoints = [
@@ -118,6 +122,12 @@ const entryPoints = [
     body: "Audit completeness, stale entries, ICU drift, metadata conflicts, obsolete entries, and visible fuzzy flags.",
     link: "/reference/api-overview#audit_catalogs",
     icon: <ShieldCheck size={20} />,
+  },
+  {
+    title: "XLIFF exchange",
+    body: "Use the minimal host-neutral XLIFF 1.2 bridge for singular catalog handoff workflows.",
+    link: "/reference/api-overview#export-xliff-import-xliff",
+    icon: <FileStack size={20} />,
   },
 ]
 
@@ -202,11 +212,13 @@ export default function HomePage() {
           <h2>Proven formats, one product workflow.</h2>
         </div>
         <p className="ferro-sublead">
-          Ferrocat presents PO, ICU MessageFormat, and NDJSON as explicit choices
-          instead of hidden implementation details. Use translator-friendly files
-          when people need editing context, line-oriented records when teams need
-          clean diffs, rich-message semantics when copy needs runtime values, and
-          compiled artifacts when applications need fast loading.
+          Ferrocat presents PO, ICU MessageFormat, XLIFF exchange, and NDJSON as
+          explicit choices instead of hidden implementation details. Use
+          translator-friendly files when people need editing context, XLIFF when
+          a translation system needs a standard handoff, line-oriented records
+          when teams need clean diffs, rich-message semantics when copy needs
+          runtime values, and compiled artifacts when applications need fast
+          loading.
         </p>
         <div className="ferro-mode-grid">
           {catalogModes.map((mode) => (

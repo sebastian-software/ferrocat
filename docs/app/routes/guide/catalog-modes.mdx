@@ -6,7 +6,7 @@ order: 20
 
 # Catalog Modes
 
-Ferrocat is one catalog engine with a few explicit ways to store and interpret messages. You can start with the format that fits your team today and still keep a path toward richer messages, cleaner diffs, AI translation metadata, release audits, and runtime artifacts.
+Ferrocat is one catalog engine with a few explicit ways to store and interpret messages. You can start with the format that fits your team today and still keep a path toward richer messages, XLIFF exchange, cleaner diffs, AI translation metadata, release audits, and runtime artifacts.
 
 The two choices Ferrocat keeps visible are simple:
 
@@ -34,6 +34,8 @@ That shape makes catalog changes easier to review in pull requests and easier to
 Use NDJSON when your catalog workflow is more application- and pipeline-centered than PO-tooling-centered, especially for large teams, generated updates, or external systems that already work naturally with JSON records.
 
 Both PO and NDJSON can carry machine-translation metadata for AI-assisted workflows. Ferrocat keeps the storage compact, verifies the translation hash when writing, and drops stale metadata once the translated text has been edited.
+
+XLIFF is not a fourth catalog mode. It is an exchange bridge for moving singular catalog messages through XLIFF 1.2 translation systems while Ferrocat keeps `msgid + msgctxt` as the source identity. Plural XLIFF mapping remains a separate policy decision so plural slots are not silently flattened.
 
 That application-centered path is where [Palamedes](/guide/palamedes) becomes important: Palamedes can own extraction, framework adapters, and runtime packaging while Ferrocat owns the catalog semantics underneath.
 

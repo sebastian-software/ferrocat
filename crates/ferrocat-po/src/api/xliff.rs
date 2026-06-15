@@ -840,4 +840,164 @@ mod tests {
                 .any(|diagnostic| diagnostic.code == "xliff.import.skipped_plural")
         );
     }
+
+    #[test]
+    fn export_detects_duplicate_catalog_keys_and_plural_targets() {
+        let duplicate_source = catalog(vec![
+            singular("Hello", Some("button"), "", false),
+            singular("Hello", Some("button"), "", false),
+        ]);
+        let error = export_xliff(XliffExportOptions::new(&duplicate_source, None, "en", "de"))
+            .expect_err("duplicate source key should fail");
+        assert!(
+            error
+                .to_string()
+                .contains("duplicate source catalog message")
+        );
+
+        let source = catalog(vec![singular("Files", None, "", false)]);
+        let target = catalog(vec![plural("Files")]);
+        let exported = export_xliff(XliffExportOptions::new(&source, Some(&target), "en", "de"))
+            .expect("export");
+
+        assert_eq!(exported.stats.units, 1);
+        assert_eq!(exported.stats.empty_targets, 1);
+        assert!(
+            exported
+                .diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.code == "xliff.export.skipped_plural_target")
+        );
+    }
+
+    #[test]
+    fn export_respects_obsolete_and_locale_options() {
+        let mut obsolete = singular("Old", None, "Alt", false);
+        obsolete.obsolete = true;
+        let source = catalog(vec![obsolete]);
+
+        let skipped =
+            export_xliff(XliffExportOptions::new(&source, None, "en", "de")).expect("export");
+        assert_eq!(skipped.stats.skipped_obsolete, 1);
+        assert_eq!(skipped.stats.units, 0);
+
+        let mut options = XliffExportOptions::new(&source, None, "en", "de");
+        options.include_obsolete = true;
+        options.original = "messages.po";
+        let included = export_xliff(options).expect("export");
+        assert_eq!(included.stats.units, 1);
+        assert!(included.content.contains(r#"original="messages.po""#));
+
+        let error =
+            export_xliff(XliffExportOptions::new(&source, None, "", "de")).expect_err("locale");
+        assert!(
+            error
+                .to_string()
+                .contains("source_locale must not be empty")
+        );
+    }
+
+    #[test]
+    fn import_updates_singular_flags_and_ignores_identical_duplicates() {
+        let existing = catalog(vec![singular("Hello", None, "Hallo", true)]);
+        let content = concat!(
+            r#"<xliff version="1.2"><file><body>"#,
+            r#"<trans-unit id="a"><source>Hello</source><target state="translated">Guten Tag</target></trans-unit>"#,
+            r#"<trans-unit id="b"><source>Hello</source><target state="translated">Guten Tag</target></trans-unit>"#,
+            r#"</body></file></xliff>"#,
+        );
+
+        let mut options = XliffImportOptions::new(content, "en", "de");
+        options.existing = Some(&existing);
+        let imported = import_xliff(options).expect("import");
+
+        assert_eq!(imported.stats.updated, 1);
+        assert_eq!(imported.stats.unchanged, 0);
+        assert!(
+            imported
+                .diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.code == "xliff.import.duplicate_identical_unit")
+        );
+        let message = &imported.catalog.messages[0];
+        assert!(matches!(
+            &message.translation,
+            TranslationShape::Singular { value } if value == "Guten Tag"
+        ));
+        assert!(
+            !message
+                .extra
+                .as_ref()
+                .is_some_and(|extra| extra.flags.iter().any(|flag| flag == "fuzzy"))
+        );
+    }
+
+    #[test]
+    fn import_handles_empty_source_empty_target_entities_and_cdata() {
+        let content = concat!(
+            r#"<xliff version="1.2"><file><body>"#,
+            r#"<trans-unit id="empty"><source></source><target>Ignored</target></trans-unit>"#,
+            r#"<trans-unit id="encoded"><source>A&#x20;B &amp; C</source><target state="needs-review-translation"><![CDATA[]]></target><note from="msgctxt">ctx&#32;1</note><note from="other">ignored</note></trans-unit>"#,
+            r#"</body></file></xliff>"#,
+        );
+
+        let imported = import_xliff(XliffImportOptions::new(content, "en", "de")).expect("import");
+
+        assert_eq!(imported.stats.units, 2);
+        assert_eq!(imported.stats.added, 1);
+        assert_eq!(imported.stats.empty_targets, 1);
+        assert!(
+            imported
+                .diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.code == "xliff.import.skipped_empty_source")
+        );
+        let message = &imported.catalog.messages[0];
+        assert_eq!(message.msgid, "A B & C");
+        assert_eq!(message.msgctxt.as_deref(), Some("ctx 1"));
+        assert!(
+            message
+                .extra
+                .as_ref()
+                .is_some_and(|extra| extra.flags == ["fuzzy"])
+        );
+    }
+
+    #[test]
+    fn import_rejects_invalid_entities_and_duplicate_existing_catalog_keys() {
+        let invalid_entity = concat!(
+            r#"<xliff version="1.2"><file><body>"#,
+            r#"<trans-unit id="a"><source>Hello&nbsp;</source><target>Hallo</target></trans-unit>"#,
+            r#"</body></file></xliff>"#,
+        );
+        let error =
+            import_xliff(XliffImportOptions::new(invalid_entity, "en", "de")).expect_err("entity");
+        assert!(
+            error
+                .to_string()
+                .contains("unsupported XLIFF entity reference")
+        );
+
+        let duplicate_existing = catalog(vec![
+            singular("Hello", None, "Hallo", false),
+            singular("Hello", None, "Servus", false),
+        ]);
+        let content = concat!(
+            r#"<xliff version="1.2"><file><body>"#,
+            r#"<trans-unit id="a"><source>Hello</source><target>Hallo</target></trans-unit>"#,
+            r#"</body></file></xliff>"#,
+        );
+        let mut options = XliffImportOptions::new(content, "en", "de");
+        options.existing = Some(&duplicate_existing);
+        let error = import_xliff(options).expect_err("duplicate existing catalog key should fail");
+        assert!(error.to_string().contains("duplicate catalog message"));
+
+        let error = import_xliff(XliffImportOptions::new(content, "en", ""))
+            .expect_err("target locale should be required");
+        assert!(
+            error
+                .to_string()
+                .contains("target_locale must not be empty")
+        );
+    }
 }

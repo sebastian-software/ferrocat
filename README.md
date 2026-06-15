@@ -9,7 +9,7 @@
 
 The practical problem is simple: translations change constantly, and most projects need more than "load a JSON file at runtime." Teams need source identity, translator context, reviewable diffs, release checks, fallback behavior, and a runtime shape that does not hide catalog problems until production. Ferrocat is built for that middle layer.
 
-Under the hood, Ferrocat builds on proven ideas from PO catalogs, ICU MessageFormat, line-delimited JSON, and deterministic runtime compilation. You do not need to start with all of that terminology. The important part is that the catalog remains inspectable, testable, benchmarked, and portable across host-language adapters.
+Under the hood, Ferrocat builds on proven ideas from PO catalogs, ICU MessageFormat, XLIFF exchange, line-delimited JSON, and deterministic runtime compilation. You do not need to start with all of that terminology. The important part is that the catalog remains inspectable, testable, benchmarked, and portable across host-language adapters.
 
 Ferrocat is also part of the [Palamedes](https://github.com/sebastian-software/palamedes) ecosystem. Palamedes is the OSS i18n framework for JavaScript and TypeScript apps; Ferrocat supplies the shared catalog engine underneath it: exact updates, storage choices, release QA, runtime artifact compilation, and clear boundaries between catalog data and application integration. JavaScript and TypeScript access is a Palamedes concern, including the `palamedes-node` N-API bridge in that repository; this repository stays the pure-Rust catalog engine.
 
@@ -22,6 +22,7 @@ Ferrocat is also part of the [Palamedes](https://github.com/sebastian-software/p
 - **AI translation metadata ready.** Track machine-generated translations with model, modification time, confidence, and a change-detection hash, then drop stale metadata automatically when a human edits the text.
 - **Runtime artifacts.** Compile catalogs into host-neutral payloads with stable keys, fallback behavior, missing reports, and optional ICU compatibility diagnostics.
 - **Reviewable storage.** Use PO when translator tooling matters, or NDJSON when large teams and automation need one message per line for cleaner diffs.
+- **XLIFF exchange.** Move singular catalog messages through XLIFF 1.2 translation systems while preserving `msgid + msgctxt`, review state, and empty targets.
 - **Room for host frameworks.** Palamedes can own JS/TS extraction, bindings, and framework integration while Ferrocat owns the catalog behavior that should stay consistent underneath.
 - **Measured behavior.** Parser, serializer, merge, combine, audit, and runtime paths are covered by fixtures, conformance checks, and benchmark commands.
 
@@ -31,6 +32,7 @@ Ferrocat is a new catalog layer, but it is not invented in a vacuum. It keeps th
 
 - **PO catalogs** for translator-friendly source, translation, context, comment, reference, flag, plural, and obsolete-entry handling.
 - **ICU MessageFormat v1** for richer messages with arguments, formatting, plurals, selects, and rich-text tags.
+- **XLIFF 1.2** for host-neutral exchange with translation systems that need a standard handoff format.
 - **NDJSON catalogs** for line-oriented storage that works well with Git review, automation, and external systems.
 - **Machine-translation metadata** for AI-assisted localization workflows that need to know which model produced a translation and whether that metadata still matches the current text.
 - **Structured diagnostics** instead of ad hoc text output, so CI, editors, and host frameworks can consume the same report.
@@ -64,6 +66,7 @@ Ferrocat focuses on the work that happens around real translation catalogs:
 - Analyze ICU message structure and compare source/translation compatibility.
 - Normalize semantic message metadata around `msgid + msgctxt`.
 - Preserve AI translation metadata in PO and NDJSON catalogs, including stale-metadata cleanup when translations are edited.
+- Export and import singular catalog messages through a minimal XLIFF 1.2 bridge.
 - Audit catalog sets before release with structured diagnostics.
 - Compile catalogs into runtime artifacts for application delivery.
 - Compare performance and conformance behavior across fixtures.
@@ -136,6 +139,8 @@ ICU-native workflows can use `analyze_icu`, `compare_icu_messages`, and `validat
 Semantic metadata workflows can use `normalize_message_metadata` to keep simple source-as-msgid records small while deriving argument, tag, and selector facts from ICU MessageFormat v1 when needed. The metadata model keeps `msgid + msgctxt` as catalog identity, so it fits both Palamedes-style source strings and ID-style catalogs.
 
 AI translation workflows can attach `MachineTranslationMetadata` to catalog entries. Ferrocat stores `model`, optional `modified`, optional `confidence`, and a translation hash in PO (`#@ ferrocat-mt ...`) or NDJSON (`mt`), and high-level writers remove that metadata when the hash no longer matches the current translation.
+
+XLIFF workflows can use `export_xliff` and `import_xliff` for host-neutral XLIFF 1.2 exchange of singular catalog messages. The bridge preserves identity through `msgid + msgctxt`, maps `fuzzy` to review state, marks empty targets explicitly, and leaves plural exchange for a follow-up mapping policy instead of flattening plural slots.
 
 Catalog QA workflows can use `audit_catalogs` to produce a read-only report over source and target catalogs. The default checks cover missing locales, missing or empty translations, extra target-only messages, ICU syntax, ICU source/translation compatibility, semantic metadata conflicts, obsolete entries, and visible `fuzzy` flags. The audit API reports what is shippable; it does not infer fuzzy matches or rewrite catalogs.
 
