@@ -693,10 +693,13 @@ fn xml_decode_error(error: impl std::fmt::Display) -> ApiError {
 mod tests {
     use std::collections::BTreeMap;
 
-    use super::{XliffExportOptions, XliffImportOptions, export_xliff, import_xliff};
+    use super::{
+        XliffExportOptions, XliffImportOptions, decode_numeric_ref, export_xliff, import_xliff,
+        set_message_fuzzy_flag, target_state, xml_decode_error, xml_read_error, xml_write_error,
+    };
     use crate::{
-        CatalogMessage, CatalogMessageExtra, CatalogSemantics, ParsedCatalog, PluralSource,
-        TranslationShape,
+        ApiError, CatalogMessage, CatalogMessageExtra, CatalogSemantics, ParsedCatalog,
+        PluralSource, TranslationShape,
     };
 
     fn catalog(messages: Vec<CatalogMessage>) -> ParsedCatalog {
@@ -868,6 +871,20 @@ mod tests {
                 .iter()
                 .any(|diagnostic| diagnostic.code == "xliff.export.skipped_plural_target")
         );
+
+        let duplicate_target = catalog(vec![
+            singular("Hello", None, "Hallo", false),
+            singular("Hello", None, "Servus", false),
+        ]);
+        let source = catalog(vec![singular("Hello", None, "", false)]);
+        let error = export_xliff(XliffExportOptions::new(
+            &source,
+            Some(&duplicate_target),
+            "en",
+            "de",
+        ))
+        .expect_err("duplicate target key should fail");
+        assert!(error.to_string().contains("duplicate catalog message"));
     }
 
     #[test]
@@ -929,6 +946,41 @@ mod tests {
                 .extra
                 .as_ref()
                 .is_some_and(|extra| extra.flags.iter().any(|flag| flag == "fuzzy"))
+        );
+    }
+
+    #[test]
+    fn import_keeps_matching_existing_singular_and_reads_empty_target_state() {
+        let existing = catalog(vec![singular("Hello", None, "Hallo", false)]);
+        let content = concat!(
+            r#"<xliff version="1.2"><file><body>"#,
+            r#"<trans-unit id="same"><source>Hello</source><target state="translated">Hallo</target><ignored /></trans-unit>"#,
+            r#"<trans-unit id="empty"><source>Empty</source><target state="needs-review-translation" /></trans-unit>"#,
+            r#"</body></file></xliff>"#,
+        );
+
+        let mut options = XliffImportOptions::new(content, "en", "de");
+        options.existing = Some(&existing);
+        let imported = import_xliff(options).expect("import");
+
+        assert_eq!(imported.stats.unchanged, 1);
+        assert_eq!(imported.stats.added, 1);
+        assert_eq!(imported.stats.empty_targets, 1);
+        let empty = imported
+            .catalog
+            .messages
+            .iter()
+            .find(|message| message.msgid == "Empty")
+            .expect("empty target message");
+        assert!(matches!(
+            &empty.translation,
+            TranslationShape::Singular { value } if value.is_empty()
+        ));
+        assert!(
+            empty
+                .extra
+                .as_ref()
+                .is_some_and(|extra| extra.flags == ["fuzzy"])
         );
     }
 
@@ -999,5 +1051,49 @@ mod tests {
                 .to_string()
                 .contains("target_locale must not be empty")
         );
+    }
+
+    #[test]
+    fn internal_xliff_helpers_cover_state_and_error_edges() {
+        assert_eq!(target_state("Hallo", false), "translated");
+
+        let mut message = singular("Hello", None, "Hallo", false);
+        message.extra = None;
+        set_message_fuzzy_flag(&mut message, true);
+        assert!(
+            message
+                .extra
+                .as_ref()
+                .is_some_and(|extra| extra.flags == ["fuzzy"])
+        );
+
+        let invalid_digits = decode_numeric_ref("not-hex", 16).expect_err("invalid digits");
+        assert!(
+            invalid_digits
+                .to_string()
+                .contains("invalid XLIFF numeric entity reference")
+        );
+
+        let invalid_scalar = decode_numeric_ref("110000", 16).expect_err("invalid scalar");
+        assert!(
+            invalid_scalar
+                .to_string()
+                .contains("invalid XLIFF numeric entity scalar value")
+        );
+
+        assert!(
+            xml_read_error("broken")
+                .to_string()
+                .contains("invalid XLIFF XML")
+        );
+        assert!(
+            xml_decode_error("broken")
+                .to_string()
+                .contains("invalid XLIFF text encoding")
+        );
+        assert!(matches!(
+            xml_write_error(std::io::Error::other("broken")),
+            ApiError::Io(_)
+        ));
     }
 }
