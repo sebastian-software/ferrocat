@@ -52,6 +52,7 @@ NDJSON is the line-delimited JSON storage choice. It is useful when catalogs are
 | Compile only a selected subset of compiled runtime IDs | `compile_catalog_artifact_selected` |
 | Perform a full in-memory catalog update | `update_catalog` |
 | Perform a full catalog update and write the result to disk only when changed | `update_catalog_file` |
+| Exchange singular catalog messages with XLIFF 1.2 tools | `export_xliff` / `import_xliff` |
 | Compute the metadata hash for a machine-generated translation | `machine_translation_hash` |
 | Parse ICU MessageFormat into a structural AST | `parse_icu` |
 | Only validate ICU syntax | `validate_icu` |
@@ -177,6 +178,21 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 ```
+
+### `export_xliff` / `import_xliff`
+
+Use this bridge when singular catalog messages need to move through an XLIFF
+1.2-based translation system without introducing host-framework assumptions.
+
+The MVP preserves identity through `msgid + msgctxt`: `msgid` is the XLIFF
+`source` text, and `msgctxt` is stored in a `note` with `from="msgctxt"`.
+Fuzzy translations map to review state, and empty targets map to
+`needs-translation`.
+
+Plural messages are intentionally not flattened in this first bridge. Export
+reports and skips source plurals; import leaves matching existing plural
+messages unchanged and returns a diagnostic. See [ADR 0019](/architecture/adr/0019-xliff-bridge-mvp)
+for the exact mapping contract.
 
 ### `parse_catalog`
 

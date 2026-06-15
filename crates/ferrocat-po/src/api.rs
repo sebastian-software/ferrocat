@@ -8,6 +8,7 @@ mod mt;
 mod ndjson;
 mod plural;
 mod types;
+mod xliff;
 
 pub use self::audit::{
     CatalogAuditChecks, CatalogAuditDiagnostic, CatalogAuditMessageRef, CatalogAuditOptions,
@@ -34,6 +35,10 @@ pub use self::types::{
     ExtractedSingularMessage, NormalizedParsedCatalog, ObsoleteStrategy, OrderBy,
     ParseCatalogOptions, ParsedCatalog, PlaceholderCommentMode, PluralEncoding, PluralSource,
     SourceExtractedMessage, TranslationShape, UpdateCatalogFileOptions, UpdateCatalogOptions,
+};
+pub use self::xliff::{
+    XliffExportOptions, XliffExportResult, XliffExportStats, XliffImportOptions, XliffImportResult,
+    XliffImportStats, export_xliff, import_xliff,
 };
 
 fn validate_source_locale(source_locale: &str) -> Result<(), ApiError> {

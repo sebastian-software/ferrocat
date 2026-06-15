@@ -1,0 +1,67 @@
+---
+title: "ADR 0019: Add a Minimal Host-Neutral XLIFF Bridge"
+description: "Accepted architecture decision record: minimal XLIFF 1.2 import and export mapping."
+order: 190
+---
+
+# ADR 0019: Add a Minimal Host-Neutral XLIFF Bridge
+
+- Status: Accepted
+- Date: 2026-06-15
+
+## Context
+
+Ferrocat needs a basic exchange bridge for translation environments that speak
+XLIFF, without making Palamedes, JavaScript framework config, or hosted TMS
+behavior part of the core catalog contract.
+
+The first bridge should be useful for singular catalog messages and safe around
+data that Ferrocat cannot represent losslessly yet. Plural exchange needs a
+separate mapping policy because XLIFF 1.2 does not prescribe one plural shape
+that naturally matches both gettext slots and Ferrocat's ICU-native catalog
+model.
+
+## Decision
+
+Add a host-neutral XLIFF 1.2 MVP to the Ferrocat catalog layer.
+
+The public mapping is:
+
+- one singular catalog message maps to one `<trans-unit>`
+- `msgid` is preserved as the `<source>` text
+- `msgctxt` is preserved as `<note from="msgctxt">...</note>` when present
+- the target translation is preserved as `<target>`
+- `fuzzy` maps to `target state="needs-review-translation"`
+- empty targets map to `target state="needs-translation"`
+- non-empty non-fuzzy targets map to `target state="translated"`
+
+Import uses the same identity rule: `<source>` plus optional
+`<note from="msgctxt">` is the `msgid + msgctxt` key. If an imported unit
+matches an existing singular message, only the singular translation and fuzzy
+flag are updated. If it matches an existing plural message, the message is left
+unchanged and a diagnostic is returned.
+
+Duplicate XLIFF units for the same identity are accepted only when the target
+value and review state are identical. Conflicting duplicates are a hard
+`ApiError::Conflict`.
+
+The bridge uses an XML reader/writer dependency rather than string-built XML.
+Escaping and decoding are therefore XML-aware instead of regex or manual
+substring logic.
+
+## Consequences
+
+Positive:
+
+- Ferrocat can exchange simple catalog work with XLIFF-based tools
+- the mapping stays host-neutral and independent of Palamedes configuration
+- review and empty-target states survive a basic export/import cycle
+- plural data is not silently flattened or overwritten
+- XML escaping and entity decoding are handled by a parser/writer
+
+Negative:
+
+- plural XLIFF exchange remains a follow-up design
+- only a small XLIFF 1.2 subset is interpreted
+- `msgctxt` is represented through a Ferrocat-specific note convention
+- callers that need richer TMS metadata must layer it outside this MVP
