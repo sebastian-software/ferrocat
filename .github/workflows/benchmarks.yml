@@ -1,0 +1,61 @@
+name: Benchmark Reports
+
+on:
+  workflow_dispatch:
+    inputs:
+      profile:
+        description: Rust-only benchmark profile to run
+        required: true
+        default: rust-scheduled-v1
+        type: choice
+        options:
+          - rust-scheduled-v1
+          - storage-formats-v1
+  schedule:
+    - cron: "17 4 * * 1"
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  rust-benchmark-report:
+    name: Rust benchmark report
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      BENCHMARK_PROFILE: ${{ github.event.inputs.profile || 'rust-scheduled-v1' }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust build artifacts
+        uses: Swatinem/rust-cache@v2
+
+      - name: Run Rust-only benchmark profile
+        run: |
+          mkdir -p target/benchmark
+          cargo run --release -p ferrocat-bench -- compare "$BENCHMARK_PROFILE" --out "target/benchmark/${BENCHMARK_PROFILE}-${GITHUB_RUN_ID}.json"
+
+      - name: Write benchmark summary
+        run: |
+          {
+            echo "## Rust benchmark report"
+            echo ""
+            echo "- Profile: \`$BENCHMARK_PROFILE\`"
+            echo "- Report artifact: \`benchmark-report-${BENCHMARK_PROFILE}-${GITHUB_RUN_ID}\`"
+            echo "- Policy: informational report only; noisy hosted-runner numbers are not a PR gate."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload benchmark report
+        uses: actions/upload-artifact@v7
+        with:
+          name: benchmark-report-${{ env.BENCHMARK_PROFILE }}-${{ github.run_id }}
+          path: target/benchmark/*.json
+          if-no-files-found: error

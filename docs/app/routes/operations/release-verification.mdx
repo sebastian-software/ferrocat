@@ -42,6 +42,9 @@ release gate.
 - Confirm docs.rs builds for `ferrocat` and that the README example still matches the published surface.
 - Confirm the crate READMEs published for `ferrocat`, `ferrocat-po`, and `ferrocat-icu` still describe the current public surface accurately.
 - Confirm the site API overview covers any new public APIs or semver-relevant behavior added in the release.
+- If the release included performance-sensitive changes, run or review the latest
+  `Benchmark Reports` workflow artifact before publishing public benchmark
+  claims.
 - Refresh dated quality snapshots when the release changes conformance counts, coverage thresholds, or the benchmark/coverage commands documented on the site.
 
 ## 5. Confirm repository metadata surface
