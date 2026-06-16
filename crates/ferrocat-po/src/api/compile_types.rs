@@ -29,9 +29,13 @@ pub enum CompiledTranslation {
 }
 
 /// Built-in key strategy used when compiling runtime catalogs.
+///
+/// This enum is non-exhaustive so additional stable key strategies can be added
+/// without breaking downstream matches.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "serde", serde(rename_all = "snake_case"))]
+#[non_exhaustive]
 pub enum CompiledKeyStrategy {
     /// `ferrocat` v1 key format: SHA-256 over a versioned, length-delimited
     /// `msgctxt`/`msgid` payload, truncated to 64 bits and encoded as unpadded

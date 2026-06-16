@@ -1931,6 +1931,7 @@ impl IcuCollector {
                 self.tag_names.insert(name.clone());
                 self.visit_nodes(children, depth + 1);
             }
+            _ => {}
         }
     }
 

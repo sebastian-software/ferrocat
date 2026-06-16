@@ -640,7 +640,11 @@ pub enum PluralEncoding {
 }
 
 /// Storage format used by the high-level catalog API.
+///
+/// This enum is non-exhaustive because Ferrocat can add additional catalog
+/// storage formats over time.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[non_exhaustive]
 pub enum CatalogStorageFormat {
     /// Read and write classic gettext PO catalogs.
     #[default]
@@ -950,7 +954,11 @@ impl<'a> ParseCatalogOptions<'a> {
 }
 
 /// Error returned by catalog parsing and update APIs.
+///
+/// This enum is non-exhaustive so new API-level failure categories can be added
+/// without turning downstream error matches into a breaking change.
 #[derive(Debug)]
+#[non_exhaustive]
 pub enum ApiError {
     /// Underlying PO parse or string-unescape failure.
     Parse(ParseError),
