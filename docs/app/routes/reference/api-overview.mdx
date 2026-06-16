@@ -20,6 +20,28 @@ If you want the product-level view first, read [Getting Started](/guide/getting-
 
 If you want the application-framework view, read [Ferrocat And Palamedes](/guide/palamedes). Palamedes owns JS/TS extraction, macros, framework adapters, and runtime integration; Ferrocat owns the catalog semantics those layers should share.
 
+## Feature Profiles
+
+The published crates keep the default feature set convenient: `ferrocat`,
+`ferrocat-po`, and `ferrocat-icu` build the full documented API by default.
+
+Lean parser consumers can opt out with `default-features = false`. For
+`ferrocat-po`, that leaves the PO parser, borrowed parser, serializer, string
+escape helpers, and low-level merge API available without pulling in serde,
+SHA-256 hashing, tempfile, or ICU4X CLDR plural data.
+
+The named feature profiles are:
+
+- `full`: the default profile with the complete current API surface
+- `catalog`: high-level catalog update, parse, combine, audit, metadata, NDJSON,
+  plural, and runtime compile support
+- `serde`: serde implementations used by schema/tooling-oriented consumers
+- `compile`, `mt`, `ndjson`, and `plurals`: named subsystem profiles reserved for
+  callers that want to declare intent explicitly
+
+`docs.rs` builds with all features enabled so the rendered reference shows the
+full API surface.
+
 ## Supported Catalog Modes
 
 At the high-level catalog layer, `ferrocat` supports three explicit combinations of storage format and message semantics:

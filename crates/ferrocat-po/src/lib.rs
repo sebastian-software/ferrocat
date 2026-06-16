@@ -79,6 +79,7 @@
 //! # Ok::<(), Box<dyn std::error::Error>>(())
 //! ```
 
+#[cfg(feature = "catalog")]
 mod api;
 mod borrowed;
 mod merge;
@@ -88,6 +89,7 @@ mod serialize;
 mod text;
 mod utf8;
 
+#[cfg(feature = "catalog")]
 pub use api::{
     ApiError, CatalogAuditChecks, CatalogAuditDiagnostic, CatalogAuditMessageRef,
     CatalogAuditOptions, CatalogAuditReport, CatalogAuditSummary, CatalogCombineInput,
