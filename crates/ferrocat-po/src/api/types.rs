@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 use std::fmt;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use crate::ParseError;
 
@@ -994,6 +994,59 @@ impl std::error::Error for ApiError {
     }
 }
 
+impl ApiError {
+    /// Creates a filesystem error with path context.
+    #[must_use]
+    pub fn io_with_path(path: impl Into<PathBuf>, source: std::io::Error) -> Self {
+        let kind = source.kind();
+        Self::Io(std::io::Error::new(
+            kind,
+            PathIoError {
+                path: path.into(),
+                source,
+            },
+        ))
+    }
+
+    /// Returns the filesystem path associated with this error, when available.
+    #[must_use]
+    pub fn path(&self) -> Option<&Path> {
+        match self {
+            Self::Io(error) => error
+                .get_ref()
+                .and_then(|source| source.downcast_ref::<PathIoError>())
+                .map(|error| error.path.as_path()),
+            Self::Parse(_)
+            | Self::InvalidArguments(_)
+            | Self::Conflict(_)
+            | Self::Unsupported(_) => None,
+        }
+    }
+}
+
+#[derive(Debug)]
+struct PathIoError {
+    path: PathBuf,
+    source: std::io::Error,
+}
+
+impl fmt::Display for PathIoError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "I/O error for `{}`: {}",
+            self.path.display(),
+            self.source
+        )
+    }
+}
+
+impl std::error::Error for PathIoError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        Some(&self.source)
+    }
+}
+
 impl From<ParseError> for ApiError {
     fn from(value: ParseError) -> Self {
         Self::Parse(value)
@@ -1258,6 +1311,20 @@ mod tests {
             io_error.source().map(ToString::to_string).as_deref(),
             Some("disk")
         );
+        assert_eq!(io_error.path(), None);
+
+        let io_path_error = ApiError::io_with_path(
+            Path::new("locale/de.po"),
+            io::Error::other("permission denied"),
+        );
+        assert_eq!(io_path_error.path(), Some(Path::new("locale/de.po")));
+        let source = io_path_error.source().expect("io source");
+        assert!(source.to_string().contains("locale/de.po"));
+        assert_eq!(
+            source.source().map(ToString::to_string).as_deref(),
+            Some("permission denied")
+        );
+        assert!(io_path_error.to_string().contains("locale/de.po"));
 
         let parse_error = ApiError::from(ParseError::new("bad syntax"));
         assert_eq!(

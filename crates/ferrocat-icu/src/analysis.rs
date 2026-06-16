@@ -4,6 +4,7 @@ use std::{
 };
 
 use crate::ast::{IcuMessage, IcuNode, IcuOption, IcuPluralKind};
+use crate::diagnostic_codes;
 
 /// Severity level attached to ICU authoring diagnostics.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -288,7 +289,7 @@ pub fn validate_icu_formatter_support_from_analysis(
             IcuFormatterSupport::UnsupportedKind { severity } => {
                 report.diagnostics.push(IcuDiagnostic::new(
                     severity,
-                    "icu.unsupported_formatter_kind",
+                    diagnostic_codes::icu::UNSUPPORTED_FORMATTER_KIND,
                     format!(
                         "ICU formatter `{}` uses unsupported formatter kind `{}`.",
                         formatter.name, formatter.kind
@@ -299,7 +300,7 @@ pub fn validate_icu_formatter_support_from_analysis(
             IcuFormatterSupport::UnsupportedStyle { severity } => {
                 report.diagnostics.push(IcuDiagnostic::new(
                     severity,
-                    "icu.unsupported_formatter_style",
+                    diagnostic_codes::icu::UNSUPPORTED_FORMATTER_STYLE,
                     format!(
                         "ICU formatter `{}` uses unsupported `{}` formatter style `{}`.",
                         formatter.name,
@@ -517,7 +518,7 @@ fn compare_arguments(
         let Some(translation_kind) = translation_arguments.get(name) else {
             report.diagnostics.push(IcuDiagnostic::new(
                 IcuDiagnosticSeverity::Error,
-                "icu.missing_argument",
+                diagnostic_codes::icu::MISSING_ARGUMENT,
                 format!("Translation is missing ICU argument `{name}`."),
                 Some(name.clone()),
             ));
@@ -526,7 +527,7 @@ fn compare_arguments(
         if source_kind != translation_kind {
             report.diagnostics.push(IcuDiagnostic::new(
                 IcuDiagnosticSeverity::Error,
-                "icu.argument_kind_changed",
+                diagnostic_codes::icu::ARGUMENT_KIND_CHANGED,
                 format!(
                     "Translation changes ICU argument `{name}` from {source_kind:?} to {translation_kind:?}."
                 ),
@@ -540,7 +541,7 @@ fn compare_arguments(
             if !source_arguments.contains_key(name) {
                 report.diagnostics.push(IcuDiagnostic::new(
                     IcuDiagnosticSeverity::Error,
-                    "icu.extra_argument",
+                    diagnostic_codes::icu::EXTRA_ARGUMENT,
                     format!(
                         "Translation adds ICU argument `{name}` that is not present in source."
                     ),
@@ -566,7 +567,7 @@ fn compare_formatter_styles(
         if source_style != *translation_style {
             report.diagnostics.push(IcuDiagnostic::new(
                 IcuDiagnosticSeverity::Error,
-                "icu.formatter_style_changed",
+                diagnostic_codes::icu::FORMATTER_STYLE_CHANGED,
                 format!(
                     "Translation changes ICU formatter style for `{name}` from {source_style:?} to {translation_style:?}."
                 ),
@@ -597,7 +598,7 @@ fn compare_tags(
         if translation_count < *source_count {
             report.diagnostics.push(IcuDiagnostic::new(
                 IcuDiagnosticSeverity::Error,
-                "icu.missing_tag",
+                diagnostic_codes::icu::MISSING_TAG,
                 format!("Translation is missing ICU tag `{name}`."),
                 Some(name.clone()),
             ));
@@ -609,7 +610,7 @@ fn compare_tags(
             if *translation_count > source_count {
                 report.diagnostics.push(IcuDiagnostic::new(
                     IcuDiagnosticSeverity::Error,
-                    "icu.extra_tag",
+                    diagnostic_codes::icu::EXTRA_TAG,
                     format!("Translation adds ICU tag `{name}` that is not present in source."),
                     Some(name.clone()),
                 ));
@@ -644,7 +645,7 @@ fn compare_selects(
             if !translation_selectors.contains(selector) {
                 report.diagnostics.push(IcuDiagnostic::new(
                     IcuDiagnosticSeverity::Error,
-                    "icu.missing_select_selector",
+                    diagnostic_codes::icu::MISSING_SELECT_SELECTOR,
                     format!(
                         "Translation is missing ICU select selector `{selector}` for `{name}`."
                     ),
@@ -657,7 +658,7 @@ fn compare_selects(
                 if !source_selectors.contains(selector) {
                     report.diagnostics.push(IcuDiagnostic::new(
                         IcuDiagnosticSeverity::Warning,
-                        "icu.extra_select_selector",
+                        diagnostic_codes::icu::EXTRA_SELECT_SELECTOR,
                         format!("Translation adds ICU select selector `{selector}` for `{name}`."),
                         Some(format!("{name}:{selector}")),
                     ));
@@ -694,7 +695,7 @@ fn compare_plurals(
         if source_plural.offset != translation_plural.offset {
             report.diagnostics.push(IcuDiagnostic::new(
                 IcuDiagnosticSeverity::Error,
-                "icu.plural_offset_changed",
+                diagnostic_codes::icu::PLURAL_OFFSET_CHANGED,
                 format!(
                     "Translation changes ICU plural offset for `{}` from {} to {}.",
                     source_plural.name, source_plural.offset, translation_plural.offset
@@ -708,7 +709,7 @@ fn compare_plurals(
             if !translation_selectors.contains(selector) {
                 report.diagnostics.push(IcuDiagnostic::new(
                     IcuDiagnosticSeverity::Error,
-                    "icu.missing_plural_selector",
+                    diagnostic_codes::icu::MISSING_PLURAL_SELECTOR,
                     format!(
                         "Translation is missing ICU plural selector `{selector}` for `{}`.",
                         source_plural.name
@@ -731,7 +732,7 @@ fn report_pattern_styles(analysis: &IcuAnalysis, label: &str, report: &mut IcuCo
         }
         report.diagnostics.push(IcuDiagnostic::new(
             IcuDiagnosticSeverity::Warning,
-            "icu.pattern_style_discouraged",
+            diagnostic_codes::icu::PATTERN_STYLE_DISCOURAGED,
             format!(
                 "{label} ICU formatter `{}` uses an opaque pattern style; prefer a predefined style or `::` skeleton.",
                 formatter.name

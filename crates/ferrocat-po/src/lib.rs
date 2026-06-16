@@ -82,6 +82,7 @@
 #[cfg(feature = "catalog")]
 mod api;
 mod borrowed;
+pub mod diagnostic_codes;
 mod merge;
 mod parse;
 mod scan;

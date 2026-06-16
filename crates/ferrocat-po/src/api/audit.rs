@@ -7,6 +7,8 @@ use ferrocat_icu::{
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
+use crate::diagnostic_codes;
+
 use super::{
     ApiError, CatalogMessage, CatalogMessageKey, DiagnosticSeverity, EffectiveTranslationRef,
     NormalizedParsedCatalog, validate_source_locale,
@@ -213,7 +215,7 @@ pub fn audit_catalogs(
     let Some(source_catalog) = catalog_index.get(options.source_locale).copied() else {
         report.diagnostics.push(CatalogAuditDiagnostic::new(
             DiagnosticSeverity::Error,
-            "catalog.missing_source_locale",
+            diagnostic_codes::catalog::MISSING_SOURCE_LOCALE,
             format!(
                 "Catalog audit did not receive source locale `{}`.",
                 options.source_locale
@@ -310,7 +312,7 @@ fn select_target_locales(
         } else {
             report.diagnostics.push(CatalogAuditDiagnostic::new(
                 DiagnosticSeverity::Error,
-                "catalog.missing_locale",
+                diagnostic_codes::catalog::MISSING_LOCALE,
                 format!("Catalog audit did not receive requested locale `{locale}`."),
                 None,
                 Some((*locale).to_owned()),
@@ -339,7 +341,7 @@ fn audit_catalog_entries(
         if options.checks.obsolete_entries && message.obsolete {
             report.diagnostics.push(CatalogAuditDiagnostic::new(
                 DiagnosticSeverity::Info,
-                "catalog.obsolete_entry",
+                diagnostic_codes::catalog::OBSOLETE_ENTRY,
                 "Catalog contains an obsolete entry.",
                 Some(message_ref.clone()),
                 None,
@@ -348,7 +350,7 @@ fn audit_catalog_entries(
         if options.checks.fuzzy_flags && message_has_fuzzy_flag(message) {
             report.diagnostics.push(CatalogAuditDiagnostic::new(
                 DiagnosticSeverity::Info,
-                "catalog.fuzzy_flag",
+                diagnostic_codes::catalog::FUZZY_FLAG,
                 "Catalog entry carries a fuzzy flag.",
                 Some(message_ref.clone()),
                 Some("fuzzy".to_owned()),
@@ -374,7 +376,7 @@ fn audit_target_catalog(
             else {
                 report.diagnostics.push(CatalogAuditDiagnostic::new(
                     DiagnosticSeverity::Error,
-                    "catalog.missing_translation",
+                    diagnostic_codes::catalog::MISSING_TRANSLATION,
                     format!("Locale `{target_locale}` is missing translation for source message."),
                     Some(message_ref),
                     Some(target_locale.to_owned()),
@@ -384,7 +386,7 @@ fn audit_target_catalog(
             if translation_is_empty(target_message) {
                 report.diagnostics.push(CatalogAuditDiagnostic::new(
                     DiagnosticSeverity::Error,
-                    "catalog.empty_translation",
+                    diagnostic_codes::catalog::EMPTY_TRANSLATION,
                     format!("Locale `{target_locale}` has an empty translation."),
                     Some(message_ref),
                     Some(target_locale.to_owned()),
@@ -398,7 +400,7 @@ fn audit_target_catalog(
             if !message.obsolete && !source_keys.contains(key) {
                 report.diagnostics.push(CatalogAuditDiagnostic::new(
                     DiagnosticSeverity::Warning,
-                    "catalog.extra_translation",
+                    diagnostic_codes::catalog::EXTRA_TRANSLATION,
                     format!(
                         "Locale `{target_locale}` contains an active message that is not present in the source catalog."
                     ),
@@ -427,7 +429,7 @@ fn audit_icu_syntax_for_message(
         if let Err(error) = parse_icu(value) {
             report.diagnostics.push(CatalogAuditDiagnostic::new(
                 DiagnosticSeverity::Error,
-                "icu.invalid_syntax",
+                diagnostic_codes::icu::INVALID_SYNTAX,
                 format!("Catalog message is not valid ICU MessageFormat v1: {error}"),
                 Some(message_ref.clone()),
                 None,
@@ -485,7 +487,7 @@ fn audit_metadata(
         if !seen.insert(key.clone()) {
             report.diagnostics.push(CatalogAuditDiagnostic::new(
                 DiagnosticSeverity::Error,
-                "catalog.duplicate_metadata",
+                diagnostic_codes::catalog::DUPLICATE_METADATA,
                 "Semantic metadata contains a duplicate message identity.",
                 Some(source_ref.clone()),
                 None,
@@ -494,7 +496,7 @@ fn audit_metadata(
         if !source_keys.contains(&key) {
             report.diagnostics.push(CatalogAuditDiagnostic::new(
                 DiagnosticSeverity::Warning,
-                "catalog.metadata_unknown_message",
+                diagnostic_codes::catalog::METADATA_UNKNOWN_MESSAGE,
                 "Semantic metadata refers to a message that is not active in the source catalog.",
                 Some(source_ref.clone()),
                 None,
@@ -503,7 +505,7 @@ fn audit_metadata(
         if let Err(error) = normalize_message_metadata(input.clone()) {
             report.diagnostics.push(CatalogAuditDiagnostic::new(
                 DiagnosticSeverity::Error,
-                "metadata.invalid_msgid",
+                diagnostic_codes::metadata::INVALID_MSGID,
                 format!("Semantic metadata `msgid` is not valid ICU MessageFormat v1: {error}"),
                 Some(source_ref.clone()),
                 Some("msgid".to_owned()),
