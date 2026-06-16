@@ -91,11 +91,11 @@ mod utf8;
 
 #[cfg(feature = "catalog")]
 pub use api::{
-    ApiError, CatalogAuditChecks, CatalogAuditDiagnostic, CatalogAuditMessageRef,
-    CatalogAuditOptions, CatalogAuditReport, CatalogAuditSummary, CatalogCombineInput,
-    CatalogCombineResult, CatalogCombineSelection, CatalogCombineStats, CatalogConflictStrategy,
-    CatalogMessage, CatalogMessageExtra, CatalogMessageKey, CatalogOrigin, CatalogSemantics,
-    CatalogStats, CatalogStorageFormat, CatalogUpdateInput, CatalogUpdateResult,
+    ApiError, COMPILED_CATALOG_ARTIFACT_SCHEMA_VERSION, CatalogAuditChecks, CatalogAuditDiagnostic,
+    CatalogAuditMessageRef, CatalogAuditOptions, CatalogAuditReport, CatalogAuditSummary,
+    CatalogCombineInput, CatalogCombineResult, CatalogCombineSelection, CatalogCombineStats,
+    CatalogConflictStrategy, CatalogMessage, CatalogMessageExtra, CatalogMessageKey, CatalogOrigin,
+    CatalogSemantics, CatalogStats, CatalogStorageFormat, CatalogUpdateInput, CatalogUpdateResult,
     CombineCatalogOptions, CompileCatalogArtifactOptions, CompileCatalogOptions,
     CompileSelectedCatalogArtifactOptions, CompiledCatalog, CompiledCatalogArtifact,
     CompiledCatalogDiagnostic, CompiledCatalogIdDescription, CompiledCatalogIdIndex,
@@ -120,8 +120,13 @@ pub use text::{escape_string, extract_quoted, extract_quoted_cow, unescape_strin
 
 use core::{fmt, ops::Index};
 
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
+
 /// An owned PO document.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 pub struct PoFile {
     /// File-level translator comments that appear before the header block.
     pub comments: Vec<String>,
@@ -135,6 +140,8 @@ pub struct PoFile {
 
 /// A single header entry from the PO header block.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 pub struct Header {
     /// Header name such as `Language` or `Plural-Forms`.
     pub key: String,
@@ -144,6 +151,8 @@ pub struct Header {
 
 /// A single gettext message entry.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 pub struct PoItem {
     /// Source message identifier.
     pub msgid: String,
@@ -196,6 +205,11 @@ impl PoItem {
 
 /// Message translation payload for a PO item.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(
+    feature = "serde",
+    serde(tag = "kind", content = "value", rename_all = "snake_case")
+)]
 pub enum MsgStr {
     /// No translation values are present.
     #[default]
@@ -464,7 +478,7 @@ impl std::error::Error for ParseError {}
 
 #[cfg(test)]
 mod tests {
-    use super::{MsgStr, ParseError, ParsePosition};
+    use super::{Header, MsgStr, ParseError, ParsePosition, PoFile, PoItem};
 
     #[test]
     fn parse_error_accessors_preserve_message_and_optional_position() {
@@ -532,5 +546,33 @@ mod tests {
         assert_eq!(plural.iter().collect::<Vec<_>>(), vec!["eins", "viele"]);
         assert_eq!(plural[1], "viele");
         assert_eq!(plural.into_vec(), vec!["eins", "viele"]);
+    }
+
+    #[cfg(feature = "serde")]
+    #[test]
+    fn po_file_serde_round_trips_owned_document_shape() {
+        let file = PoFile {
+            comments: vec!["translator note".to_owned()],
+            headers: vec![Header {
+                key: "Language".to_owned(),
+                value: "de".to_owned(),
+            }],
+            items: vec![PoItem {
+                msgid: "Hello".to_owned(),
+                msgstr: MsgStr::from("Hallo".to_owned()),
+                references: vec!["src/app.rs:10".to_owned()],
+                nplurals: 1,
+                ..PoItem::default()
+            }],
+            ..PoFile::default()
+        };
+
+        let json = serde_json::to_value(&file).expect("PO file serialization must succeed");
+        assert_eq!(json["items"][0]["msgstr"]["kind"], "singular");
+        assert_eq!(json["items"][0]["msgstr"]["value"], "Hallo");
+
+        let roundtrip: PoFile =
+            serde_json::from_value(json).expect("PO file deserialization must succeed");
+        assert_eq!(roundtrip, file);
     }
 }

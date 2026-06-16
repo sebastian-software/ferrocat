@@ -4,6 +4,8 @@ use ferrocat_icu::{
     IcuCompatibilityOptions, IcuDiagnosticSeverity, MessageMetadataInput, compare_icu_messages,
     normalize_message_metadata, parse_icu, validate_message_metadata,
 };
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
 
 use super::{
     ApiError, CatalogMessage, CatalogMessageKey, DiagnosticSeverity, EffectiveTranslationRef,
@@ -69,6 +71,8 @@ impl Default for CatalogAuditChecks {
 
 /// Summary counters for a catalog audit report.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 pub struct CatalogAuditSummary {
     /// Active source messages considered expected by the audit.
     pub source_messages: usize,
@@ -86,6 +90,8 @@ pub struct CatalogAuditSummary {
 
 /// Catalog message reference attached to audit diagnostics.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 pub struct CatalogAuditMessageRef {
     /// Locale associated with the diagnostic, when known.
     pub locale: Option<String>,
@@ -107,6 +113,8 @@ impl CatalogAuditMessageRef {
 
 /// One machine-readable catalog audit diagnostic.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 pub struct CatalogAuditDiagnostic {
     /// Severity for the diagnostic.
     pub severity: DiagnosticSeverity,
@@ -140,6 +148,8 @@ impl CatalogAuditDiagnostic {
 
 /// Report returned by [`audit_catalogs`].
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 pub struct CatalogAuditReport {
     /// Aggregate audit counters.
     pub summary: CatalogAuditSummary,
@@ -585,4 +595,45 @@ fn finalize_summary(
         }
     }
     report.summary = summary;
+}
+
+#[cfg(all(test, feature = "serde"))]
+mod serde_tests {
+    use super::{
+        CatalogAuditDiagnostic, CatalogAuditMessageRef, CatalogAuditReport, CatalogAuditSummary,
+    };
+    use crate::api::DiagnosticSeverity;
+
+    #[test]
+    fn catalog_audit_report_serde_round_trips_ci_report_shape() {
+        let report = CatalogAuditReport {
+            summary: CatalogAuditSummary {
+                source_messages: 1,
+                target_locales: 1,
+                diagnostics: 1,
+                errors: 1,
+                warnings: 0,
+                infos: 0,
+            },
+            diagnostics: vec![CatalogAuditDiagnostic {
+                severity: DiagnosticSeverity::Error,
+                code: "catalog.missing_translation".to_owned(),
+                message: "missing target translation".to_owned(),
+                source_key: Some(CatalogAuditMessageRef {
+                    locale: Some("de".to_owned()),
+                    msgid: "Checkout".to_owned(),
+                    msgctxt: None,
+                }),
+                name: Some("de".to_owned()),
+            }],
+        };
+
+        let json = serde_json::to_value(&report).expect("audit report serialization must succeed");
+        assert_eq!(json["diagnostics"][0]["severity"], "error");
+        assert_eq!(json["summary"]["errors"], 1);
+
+        let roundtrip: CatalogAuditReport =
+            serde_json::from_value(json).expect("audit report deserialization must succeed");
+        assert_eq!(roundtrip, report);
+    }
 }

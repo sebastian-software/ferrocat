@@ -22,17 +22,17 @@ catalog = [
     "dep:ferrocat-icu",
     "dep:icu_locale",
     "dep:icu_plurals",
-    "dep:serde",
     "dep:serde_json",
     "dep:sha2",
     "dep:tempfile",
     "ferrocat-icu/serde",
+    "serde",
 ]
 compile = ["catalog"]
 mt = ["catalog"]
 ndjson = ["catalog"]
 plurals = ["catalog"]
-serde = ["catalog"]
+serde = ["dep:serde"]
 
 [dependencies]
 ferrocat-icu = { version = "0.13.0", path = "../ferrocat-icu", default-features = false, optional = true }
@@ -49,6 +49,7 @@ all-features = true
 
 [dev-dependencies]
 ferrocat-conformance = { path = "../ferrocat-conformance" }
+serde_json = "1.0.145"
 
 [lints]
 workspace = true

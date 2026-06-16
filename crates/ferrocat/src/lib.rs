@@ -95,6 +95,10 @@ pub use ferrocat_icu::{
     validate_message_metadata,
 };
 #[cfg(feature = "catalog")]
+/// JSON schema version emitted by [`CompiledCatalogArtifact`] serialization.
+pub const COMPILED_CATALOG_ARTIFACT_SCHEMA_VERSION: u16 = 1;
+
+#[cfg(feature = "catalog")]
 pub use ferrocat_po::{
     ApiError, CatalogAuditChecks, CatalogAuditDiagnostic, CatalogAuditMessageRef,
     CatalogAuditOptions, CatalogAuditReport, CatalogAuditSummary, CatalogCombineInput,
