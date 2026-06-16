@@ -515,6 +515,57 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
+For large or pipeline-oriented NDJSON catalogs, use the `ferrocat-po`
+streaming primitives directly. `NdjsonCatalogReader` validates frontmatter once
+and then yields `CatalogMessage` records from any `BufRead`;
+`NdjsonCatalogWriter` writes frontmatter once and appends one record at a time
+to any `Write`.
+
+```rust
+use std::io::Cursor;
+
+use ferrocat_po::{
+    CatalogMessage, NdjsonCatalogReader, NdjsonCatalogWriter, NdjsonCatalogWriterOptions,
+    TranslationShape,
+};
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let input = concat!(
+        "---\n",
+        "format: ferrocat.ndjson.v1\n",
+        "source_locale: en\n",
+        "---\n",
+        "{\"id\":\"Checkout\",\"str\":\"Zur Kasse\"}\n",
+    );
+    let messages = NdjsonCatalogReader::new(Cursor::new(input.as_bytes()), "en")?
+        .collect::<Result<Vec<_>, _>>()?;
+
+    let mut writer = NdjsonCatalogWriter::with_options(
+        Vec::new(),
+        NdjsonCatalogWriterOptions {
+            locale: Some("de"),
+            source_locale: "en",
+        },
+    )?;
+    writer.write_message(&CatalogMessage {
+        msgid: messages[0].msgid.clone(),
+        msgctxt: None,
+        translation: TranslationShape::Singular {
+            value: "Zur Kasse".to_owned(),
+        },
+        comments: Vec::new(),
+        origin: Vec::new(),
+        obsolete: false,
+        machine_translation: None,
+        extra: None,
+    })?;
+
+    let rendered = String::from_utf8(writer.finish()?)?;
+    assert!(rendered.contains("\"id\":\"Checkout\""));
+    Ok(())
+}
+```
+
 ### Machine-translation metadata
 
 `CatalogMessage::machine_translation` stores optional translation-side metadata
