@@ -1,5 +1,7 @@
 use super::*;
 
+const POLISH_PLURAL_FORMS: &str = "nplurals=3; plural=(n == 1 ? 0 : (n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 10 || n % 100 >= 20)) ? 1 : 2);";
+
 #[test]
 fn update_catalog_creates_new_source_locale_messages() {
     let result = update_catalog(UpdateCatalogOptions {
@@ -630,7 +632,7 @@ fn parse_catalog_reports_plural_forms_locale_mismatch() {
             "msgid \"\"\n",
             "msgstr \"\"\n",
             "\"Language: fr\\n\"\n",
-            "\"Plural-Forms: nplurals=2; plural=(n != 1);\\n\"\n",
+            "\"Plural-Forms: nplurals=3; plural=(n != 1);\\n\"\n",
         ),
         locale: Some("fr"),
         source_locale: "en",
@@ -643,6 +645,32 @@ fn parse_catalog_reports_plural_forms_locale_mismatch() {
 
     assert!(
         parsed
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == "plural.nplurals_locale_mismatch")
+    );
+}
+
+#[test]
+fn parse_catalog_accepts_safe_gettext_plural_forms_for_french() {
+    let parsed = parse_catalog(ParseCatalogOptions {
+        content: concat!(
+            "msgid \"\"\n",
+            "msgstr \"\"\n",
+            "\"Language: fr\\n\"\n",
+            "\"Plural-Forms: nplurals=2; plural=(n > 1);\\n\"\n",
+        ),
+        locale: Some("fr"),
+        source_locale: "en",
+        storage_format: CatalogStorageFormat::Po,
+        semantics: CatalogSemantics::GettextCompat,
+        plural_encoding: PluralEncoding::Gettext,
+        strict: false,
+    })
+    .expect("parse");
+
+    assert!(
+        !parsed
             .diagnostics
             .iter()
             .any(|diagnostic| diagnostic.code == "plural.nplurals_locale_mismatch")
@@ -965,7 +993,7 @@ fn update_catalog_gettext_export_emits_plural_slots() {
 }
 
 #[test]
-fn update_catalog_gettext_export_uses_icu_plural_categories_for_french() {
+fn update_catalog_gettext_export_uses_safe_plural_profile_for_french() {
     let result = update_catalog(UpdateCatalogOptions {
         source_locale: "en",
         locale: Some("fr"),
@@ -985,7 +1013,13 @@ fn update_catalog_gettext_export_uses_icu_plural_categories_for_french() {
     .expect("update");
 
     let parsed = parse_po(&result.content).expect("parse output");
-    assert_eq!(parsed.items[0].msgstr.len(), 3);
+    assert_eq!(parsed.items[0].msgstr.len(), 2);
+    let plural_forms = parsed
+        .headers
+        .iter()
+        .find(|header| header.key == "Plural-Forms")
+        .map(|header| header.value.as_str());
+    assert_eq!(plural_forms, Some("nplurals=2; plural=(n > 1);"));
 }
 
 #[test]
@@ -1013,10 +1047,41 @@ fn update_catalog_gettext_sets_safe_plural_forms_header_for_two_form_locale() {
 }
 
 #[test]
+fn update_catalog_gettext_sets_safe_plural_forms_header_for_multi_form_locale() {
+    let result = update_catalog(UpdateCatalogOptions {
+        source_locale: "en",
+        locale: Some("pl"),
+        semantics: CatalogSemantics::GettextCompat,
+        plural_encoding: PluralEncoding::Gettext,
+        input: structured_input(vec![ExtractedMessage::Singular(ExtractedSingularMessage {
+            msgid: "Hello".to_owned(),
+            ..ExtractedSingularMessage::default()
+        })]),
+        ..UpdateCatalogOptions::default()
+    })
+    .expect("update");
+
+    assert!(
+        !result
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == "plural.missing_plural_forms_header")
+    );
+
+    let parsed = parse_po(&result.content).expect("parse output");
+    let plural_forms = parsed
+        .headers
+        .iter()
+        .find(|header| header.key == "Plural-Forms")
+        .map(|header| header.value.as_str());
+    assert_eq!(plural_forms, Some(POLISH_PLURAL_FORMS));
+}
+
+#[test]
 fn update_catalog_gettext_reports_when_no_safe_plural_forms_header_is_known() {
     let result = update_catalog(UpdateCatalogOptions {
         source_locale: "en",
-        locale: Some("fr"),
+        locale: Some("ga"),
         semantics: CatalogSemantics::GettextCompat,
         plural_encoding: PluralEncoding::Gettext,
         input: structured_input(vec![ExtractedMessage::Singular(ExtractedSingularMessage {

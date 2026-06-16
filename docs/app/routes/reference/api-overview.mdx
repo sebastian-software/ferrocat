@@ -455,6 +455,12 @@ Updates also use an explicit `CatalogSemantics`:
 - `IcuNative` is the default and writes raw ICU/text messages
 - `GettextCompat` is the explicit PO-interop mode and writes classic gettext plurals
 
+In `GettextCompat` mode, Ferrocat synthesizes `Plural-Forms` only for safe
+locale defaults that it knows, including common one-form, Germanic/Romance
+two-form, French/Brazilian Portuguese, Slavic three-form, Polish, Czech/Slovak,
+and Arabic rules. Unknown locales keep the header unset and report a diagnostic
+instead of guessing a plural expression.
+
 In native mode, `CatalogUpdateInput::SourceFirst` stays source-text-first; it no longer auto-projects ICU strings into structured plural messages. Use `CatalogUpdateInput::Structured` when you want explicit plural structure.
 
 In `NDJSON` storage, arbitrary gettext-style custom headers are intentionally out of scope for `v1`; only the explicit frontmatter metadata and per-record fields are persisted. Machine-translation metadata uses the optional `mt` record field and remains part of `ferrocat.ndjson.v1`.
