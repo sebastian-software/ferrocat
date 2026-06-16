@@ -1,0 +1,63 @@
+[package]
+name = "ferrocat-fuzz"
+version = "0.0.0"
+edition = "2024"
+rust-version = "1.93.0"
+publish = false
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+ferrocat-icu = { path = "../crates/ferrocat-icu" }
+ferrocat-po = { path = "../crates/ferrocat-po" }
+libfuzzer-sys = "0.4"
+
+[[bin]]
+name = "parse_po"
+path = "fuzz_targets/parse_po.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "parse_po_borrowed"
+path = "fuzz_targets/parse_po_borrowed.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "parse_catalog_po"
+path = "fuzz_targets/parse_catalog_po.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "parse_catalog_ndjson"
+path = "fuzz_targets/parse_catalog_ndjson.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "parse_icu"
+path = "fuzz_targets/parse_icu.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "merge_catalog"
+path = "fuzz_targets/merge_catalog.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "update_catalog"
+path = "fuzz_targets/update_catalog.rs"
+test = false
+doc = false
+bench = false
