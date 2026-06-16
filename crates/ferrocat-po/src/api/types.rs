@@ -957,7 +957,15 @@ impl fmt::Display for ApiError {
     }
 }
 
-impl std::error::Error for ApiError {}
+impl std::error::Error for ApiError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Self::Parse(error) => Some(error),
+            Self::Io(error) => Some(error),
+            Self::InvalidArguments(_) | Self::Conflict(_) | Self::Unsupported(_) => None,
+        }
+    }
+}
 
 impl From<ParseError> for ApiError {
     fn from(value: ParseError) -> Self {
@@ -974,6 +982,7 @@ impl From<std::io::Error> for ApiError {
 #[cfg(test)]
 mod tests {
     use std::collections::BTreeMap;
+    use std::error::Error;
     use std::io;
     use std::path::Path;
 
@@ -986,6 +995,7 @@ mod tests {
         PluralEncoding, PluralSource, TranslationShape, UpdateCatalogFileOptions,
         UpdateCatalogOptions,
     };
+    use crate::ParseError;
 
     #[test]
     fn catalog_update_input_defaults_and_conversions_use_expected_variants() {
@@ -1218,8 +1228,23 @@ mod tests {
         let io_error = ApiError::from(io::Error::other("disk"));
         assert_eq!(io_error.to_string(), "disk");
         assert_eq!(
+            io_error.source().map(ToString::to_string).as_deref(),
+            Some("disk")
+        );
+
+        let parse_error = ApiError::from(ParseError::new("bad syntax"));
+        assert_eq!(
+            parse_error.source().map(ToString::to_string).as_deref(),
+            Some("bad syntax")
+        );
+        assert_eq!(
             ApiError::InvalidArguments("bad input".to_owned()).to_string(),
             "bad input"
+        );
+        assert!(
+            ApiError::InvalidArguments("bad input".to_owned())
+                .source()
+                .is_none()
         );
         assert_eq!(
             ApiError::Conflict("duplicate".to_owned()).to_string(),

@@ -366,10 +366,52 @@ impl Default for SerializeOptions {
     }
 }
 
+/// One-based line/column context plus the byte offset for a parse error.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ParsePosition {
+    offset: usize,
+    line: usize,
+    column: usize,
+}
+
+impl ParsePosition {
+    /// Creates a new parse position.
+    ///
+    /// `offset` is zero-based and counts bytes from the parsed input after any
+    /// parser-specific pre-processing, while `line` and `column` are one-based.
+    #[must_use]
+    pub const fn new(offset: usize, line: usize, column: usize) -> Self {
+        Self {
+            offset,
+            line,
+            column,
+        }
+    }
+
+    /// Returns the zero-based byte offset in the parsed input.
+    #[must_use]
+    pub const fn offset(self) -> usize {
+        self.offset
+    }
+
+    /// Returns the one-based line number.
+    #[must_use]
+    pub const fn line(self) -> usize {
+        self.line
+    }
+
+    /// Returns the one-based column number.
+    #[must_use]
+    pub const fn column(self) -> usize {
+        self.column
+    }
+}
+
 /// Error returned when parsing or unescaping PO content fails.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ParseError {
     message: String,
+    position: Option<ParsePosition>,
 }
 
 impl ParseError {
@@ -378,7 +420,34 @@ impl ParseError {
     pub fn new(message: impl Into<String>) -> Self {
         Self {
             message: message.into(),
+            position: None,
         }
+    }
+
+    /// Creates a new parse error with source position metadata.
+    #[must_use]
+    pub fn with_position(message: impl Into<String>, position: ParsePosition) -> Self {
+        Self {
+            message: message.into(),
+            position: Some(position),
+        }
+    }
+
+    /// Returns the human-readable error message.
+    #[must_use]
+    pub fn message(&self) -> &str {
+        &self.message
+    }
+
+    /// Returns source position metadata when the parser could attach it.
+    #[must_use]
+    pub const fn position(&self) -> Option<ParsePosition> {
+        self.position
+    }
+
+    pub(crate) fn with_position_if_missing(mut self, position: ParsePosition) -> Self {
+        self.position.get_or_insert(position);
+        self
     }
 }
 
@@ -392,7 +461,24 @@ impl std::error::Error for ParseError {}
 
 #[cfg(test)]
 mod tests {
-    use super::MsgStr;
+    use super::{MsgStr, ParseError, ParsePosition};
+
+    #[test]
+    fn parse_error_accessors_preserve_message_and_optional_position() {
+        let error = ParseError::new("invalid PO string");
+        assert_eq!(error.message(), "invalid PO string");
+        assert_eq!(error.position(), None);
+        assert_eq!(error.to_string(), "invalid PO string");
+
+        let position = ParsePosition::new(12, 2, 3);
+        let positioned = ParseError::with_position("invalid PO string", position);
+        assert_eq!(positioned.message(), "invalid PO string");
+        assert_eq!(positioned.position(), Some(position));
+        assert_eq!(positioned.position().map(ParsePosition::offset), Some(12));
+        assert_eq!(positioned.position().map(ParsePosition::line), Some(2));
+        assert_eq!(positioned.position().map(ParsePosition::column), Some(3));
+        assert_eq!(positioned.to_string(), "invalid PO string");
+    }
 
     #[test]
     fn msgstr_get_returns_none_for_empty_values() {

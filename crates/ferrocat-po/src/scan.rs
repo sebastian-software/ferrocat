@@ -1,5 +1,7 @@
 use memchr::Memchr;
 
+use crate::ParsePosition;
+
 mod backend {
     use memchr::{memchr, memchr3, memrchr};
 
@@ -148,12 +150,14 @@ pub enum LineKind {
 pub struct Line<'a> {
     pub trimmed: &'a [u8],
     pub obsolete: bool,
+    pub position: ParsePosition,
 }
 
 pub struct LineScanner<'a> {
     bytes: &'a [u8],
     newlines: Memchr<'a>,
     offset: usize,
+    line_number: usize,
     finished: bool,
 }
 
@@ -163,6 +167,7 @@ impl<'a> LineScanner<'a> {
             bytes,
             newlines: Memchr::new(b'\n', bytes),
             offset: 0,
+            line_number: 1,
             finished: false,
         }
     }
@@ -183,6 +188,9 @@ impl<'a> Iterator for LineScanner<'a> {
             if self.finished && self.offset == self.bytes.len() {
                 return None;
             }
+            let raw_offset = self.offset;
+            let line_number = self.line_number;
+            self.line_number += 1;
             let raw = &self.bytes[self.offset..next_newline];
 
             if next_newline < self.bytes.len() {
@@ -192,6 +200,7 @@ impl<'a> Iterator for LineScanner<'a> {
             }
 
             let mut trimmed = trim_ascii_start(raw);
+            let mut content_offset = raw_offset + raw.len() - trimmed.len();
             if trimmed.is_empty() {
                 if next_newline == self.bytes.len() {
                     return None;
@@ -201,7 +210,9 @@ impl<'a> Iterator for LineScanner<'a> {
 
             let mut obsolete = false;
             if trimmed.starts_with(b"#~") {
-                trimmed = trim_ascii_start(&trimmed[2..]);
+                let after_marker = &trimmed[2..];
+                trimmed = trim_ascii_start(after_marker);
+                content_offset += 2 + after_marker.len() - trimmed.len();
                 obsolete = true;
                 if trimmed.is_empty() {
                     if next_newline == self.bytes.len() {
@@ -211,7 +222,13 @@ impl<'a> Iterator for LineScanner<'a> {
                 }
             }
 
-            return Some(Line { trimmed, obsolete });
+            let column = content_offset - raw_offset + 1;
+
+            return Some(Line {
+                trimmed,
+                obsolete,
+                position: ParsePosition::new(content_offset, line_number, column),
+            });
         }
 
         None
@@ -372,10 +389,16 @@ mod tests {
         let first = scanner.next().expect("first line");
         assert_eq!(first.trimmed, b"msgid \"x\"  ");
         assert!(!first.obsolete);
+        assert_eq!(first.position.offset(), 2);
+        assert_eq!(first.position.line(), 1);
+        assert_eq!(first.position.column(), 3);
 
         let second = scanner.next().expect("second line");
         assert_eq!(second.trimmed, b"msgstr \"y\"");
         assert!(second.obsolete);
+        assert_eq!(second.position.offset(), 17);
+        assert_eq!(second.position.line(), 2);
+        assert_eq!(second.position.column(), 4);
 
         assert!(scanner.next().is_none());
     }
