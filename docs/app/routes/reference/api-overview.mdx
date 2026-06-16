@@ -381,6 +381,22 @@ codes emitted by the underlying validation helpers. The audit layer does not
 compile runtime artifacts, infer fuzzy matches, use `previous_msgid`, or repair
 catalogs.
 
+For CI systems that should not maintain a Rust wrapper program, install the
+`ferrocat-cli` package and run the audit gate directly:
+
+```bash
+ferrocat audit \
+  --source-locale en \
+  --source locales/en.po \
+  --target de=locales/de.po \
+  --format text
+```
+
+`ferrocat audit` exits with `0` when the audit has no error diagnostics, `1`
+when the audit completes with at least one error diagnostic, and `2` for usage,
+I/O, parse, or serialization failures. Use `--format json` to write the
+structured `CatalogAuditReport`.
+
 ### `compiled_key`
 
 Use this when a host adapter, source transform, or manifest builder needs the

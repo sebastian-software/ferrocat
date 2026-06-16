@@ -130,6 +130,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "ferrocat-cli"
+version = "0.13.0"
+dependencies = [
+ "ferrocat-po",
+ "serde_json",
+ "tempfile",
+]
+
+[[package]]
 name = "ferrocat-conformance"
 version = "0.13.0"
 

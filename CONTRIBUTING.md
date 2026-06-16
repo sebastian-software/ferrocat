@@ -62,7 +62,7 @@ node scripts/coverage-gate.mjs target/coverage-summary.json ferrocat-po=95 ferro
 Published crate packaging:
 
 ```bash
-cargo package -p ferrocat-icu -p ferrocat-po -p ferrocat --locked
+cargo package -p ferrocat-icu -p ferrocat-po -p ferrocat -p ferrocat-cli --locked
 ```
 
 Do not use `cargo package --workspace` as the release packaging check. The
