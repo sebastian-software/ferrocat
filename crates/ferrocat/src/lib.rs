@@ -8,10 +8,10 @@
 //! # Examples
 //!
 //! ```rust
-//! use ferrocat::{parse_icu, parse_po};
+//! use ferrocat::{icu, po};
 //!
-//! let po = parse_po("msgid \"Hello\"\nmsgstr \"Hallo\"\n")?;
-//! let icu = parse_icu("Hello {name}")?;
+//! let po = po::parse_po("msgid \"Hello\"\nmsgstr \"Hallo\"\n")?;
+//! let icu = icu::parse_icu("Hello {name}")?;
 //!
 //! assert_eq!(po.items[0].msgid, "Hello");
 //! assert_eq!(icu.nodes.len(), 2);
@@ -19,7 +19,7 @@
 //! ```
 //!
 //! ```rust
-//! use ferrocat::{
+//! use ferrocat::catalog::{
 //!     CompileSelectedCatalogArtifactOptions, CompiledCatalogIdIndex, CompiledKeyStrategy,
 //!     ParseCatalogOptions, compile_catalog_artifact_selected, parse_catalog,
 //! };
@@ -56,7 +56,9 @@
 //! ```
 //!
 //! ```rust
-//! use ferrocat::{CatalogAuditOptions, ParseCatalogOptions, audit_catalogs, parse_catalog};
+//! use ferrocat::catalog::{
+//!     CatalogAuditOptions, ParseCatalogOptions, audit_catalogs, parse_catalog,
+//! };
 //!
 //! let source = parse_catalog(ParseCatalogOptions {
 //!     content: "msgid \"Checkout\"\nmsgstr \"Checkout\"\n",
@@ -78,7 +80,66 @@
 //! # Ok::<(), Box<dyn std::error::Error>>(())
 //! ```
 
-pub use ferrocat_icu::has_selectordinal as has_select_ordinal;
+/// High-level catalog maintenance, audit, and runtime artifact APIs.
+pub mod catalog {
+    pub use ferrocat_po::{
+        ApiError, CatalogAuditChecks, CatalogAuditDiagnostic, CatalogAuditMessageRef,
+        CatalogAuditOptions, CatalogAuditReport, CatalogAuditSummary, CatalogCombineInput,
+        CatalogCombineResult, CatalogCombineSelection, CatalogCombineStats,
+        CatalogConflictStrategy, CatalogMessage, CatalogMessageExtra, CatalogMessageKey,
+        CatalogOrigin, CatalogSemantics, CatalogStats, CatalogStorageFormat, CatalogUpdateInput,
+        CatalogUpdateResult, CombineCatalogOptions, CompileCatalogArtifactOptions,
+        CompileCatalogOptions, CompileSelectedCatalogArtifactOptions, CompiledCatalog,
+        CompiledCatalogArtifact, CompiledCatalogDiagnostic, CompiledCatalogIdDescription,
+        CompiledCatalogIdIndex, CompiledCatalogMissingMessage, CompiledCatalogTranslationKind,
+        CompiledCatalogUnavailableId, CompiledKeyStrategy, CompiledMessage, CompiledTranslation,
+        DescribeCompiledIdsReport, Diagnostic, DiagnosticSeverity, EffectiveTranslation,
+        EffectiveTranslationRef, ExtractedMessage, ExtractedPluralMessage,
+        ExtractedSingularMessage, MachineTranslationMetadata, NormalizedParsedCatalog,
+        ObsoleteStrategy, OrderBy, ParseCatalogOptions, ParsedCatalog, PlaceholderCommentMode,
+        PluralEncoding, PluralSource, SourceExtractedMessage, TranslationShape,
+        UpdateCatalogFileOptions, UpdateCatalogOptions, audit_catalogs, combine_catalogs,
+        compile_catalog_artifact, compile_catalog_artifact_selected, compiled_key,
+        machine_translation_hash, parse_catalog, update_catalog, update_catalog_file,
+    };
+}
+
+/// ICU MessageFormat parsing, analysis, compatibility, and metadata APIs.
+pub mod icu {
+    pub use ferrocat_icu::has_selectordinal as has_select_ordinal;
+    pub use ferrocat_icu::{
+        IcuAnalysis, IcuArgument, IcuArgumentKind, IcuCompatibilityOptions, IcuCompatibilityReport,
+        IcuDiagnostic, IcuDiagnosticSeverity, IcuErrorKind, IcuFormatter, IcuFormatterSupport,
+        IcuMessage, IcuNode, IcuOption, IcuParseError, IcuParserOptions, IcuPluralKind,
+        IcuPluralSummary, IcuPosition, IcuSelectSummary, IcuStyleKind, IcuTagSummary,
+        MessageArgumentFormatMetadata, MessageArgumentKind, MessageArgumentMetadata,
+        MessageArgumentMetadataInput, MessageFormatStyleKind, MessageMetadata,
+        MessageMetadataDiagnostic, MessageMetadataInput, MessageMetadataValidationReport,
+        MessageOriginMetadata, MessageSelectorKind, MessageSelectorMetadata, analyze_icu,
+        compare_icu_messages, derive_message_metadata_from_icu, extract_argument_names,
+        extract_tag_names, extract_variables, has_plural, has_select, has_tag,
+        normalize_message_metadata, parse_icu, parse_icu_with_options, stringify_icu, validate_icu,
+        validate_icu_formatter_support, validate_icu_formatter_support_from_analysis,
+        validate_message_metadata,
+    };
+}
+
+/// Low-level PO parsing, serialization, and text merge APIs.
+pub mod po {
+    pub use ferrocat_po::MergeExtractedMessage as MergeMessageInput;
+    pub use ferrocat_po::{
+        BorrowedHeader, BorrowedMsgStr, BorrowedPoFile, BorrowedPoItem, Header, MsgStr, MsgStrIter,
+        ParseError, PoFile, PoItem, SerializeOptions, escape_string, extract_quoted,
+        extract_quoted_cow, merge_catalog, parse_po, parse_po_borrowed, stringify_po,
+        unescape_string,
+    };
+}
+
+#[deprecated(
+    since = "0.14.0",
+    note = "use ferrocat::has_select_ordinal or ferrocat::icu::has_select_ordinal"
+)]
+pub use ferrocat_icu::has_selectordinal;
 pub use ferrocat_icu::{
     IcuAnalysis, IcuArgument, IcuArgumentKind, IcuCompatibilityOptions, IcuCompatibilityReport,
     IcuDiagnostic, IcuDiagnosticSeverity, IcuErrorKind, IcuFormatter, IcuFormatterSupport,
@@ -89,7 +150,7 @@ pub use ferrocat_icu::{
     MessageMetadataDiagnostic, MessageMetadataInput, MessageMetadataValidationReport,
     MessageOriginMetadata, MessageSelectorKind, MessageSelectorMetadata, analyze_icu,
     compare_icu_messages, derive_message_metadata_from_icu, extract_argument_names,
-    extract_tag_names, extract_variables, has_plural, has_select, has_selectordinal, has_tag,
+    extract_tag_names, extract_variables, has_plural, has_select, has_tag,
     normalize_message_metadata, parse_icu, parse_icu_with_options, stringify_icu, validate_icu,
     validate_icu_formatter_support, validate_icu_formatter_support_from_analysis,
     validate_message_metadata,
@@ -118,9 +179,14 @@ pub use ferrocat_po::{
     compile_catalog_artifact, compile_catalog_artifact_selected, compiled_key,
     machine_translation_hash, parse_catalog, update_catalog, update_catalog_file,
 };
+#[deprecated(
+    since = "0.14.0",
+    note = "use ferrocat::po::MergeMessageInput for the PO merge helper input"
+)]
+pub use ferrocat_po::MergeExtractedMessage;
 pub use ferrocat_po::{
-    BorrowedHeader, BorrowedMsgStr, BorrowedPoFile, BorrowedPoItem, Header, MergeExtractedMessage,
-    MsgStr, MsgStrIter, ParseError, PoFile, PoItem, SerializeOptions, escape_string,
-    extract_quoted, extract_quoted_cow, merge_catalog, parse_po, parse_po_borrowed, stringify_po,
-    unescape_string,
+    BorrowedHeader, BorrowedMsgStr, BorrowedPoFile, BorrowedPoItem, Header, MsgStr, MsgStrIter,
+    ParseError, PoFile, PoItem, SerializeOptions, escape_string, extract_quoted, extract_quoted_cow,
+    merge_catalog, parse_po, parse_po_borrowed, stringify_po, unescape_string,
 };
+pub use icu::has_select_ordinal;

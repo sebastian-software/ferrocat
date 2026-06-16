@@ -75,6 +75,22 @@ compatibility rules around the compiled artifact JSON contract.
 Ferrocat is still pre-1.0, but growth-prone public enums are deliberately marked as non-exhaustive where new variants are realistic. Downstream code should keep fallback match arms for ICU AST nodes, catalog storage formats, compiled key strategies, and API-level error categories.
 
 Semantically closed option enums such as `CatalogSemantics` and `PluralEncoding` remain exhaustive so callers can continue to match every documented mode directly.
+## Umbrella Crate Namespaces
+
+When depending on the umbrella `ferrocat` crate, prefer the namespaced modules
+for new code:
+
+- `ferrocat::po` for low-level PO parsing, serialization, and text merge APIs
+- `ferrocat::catalog` for high-level catalog update, audit, combine, and runtime artifact APIs
+- `ferrocat::icu` for ICU MessageFormat parsing, analysis, compatibility, and metadata APIs
+
+The historical top-level re-exports remain for compatibility. New examples use
+the modules because they avoid collisions such as source extraction inputs for
+catalog updates versus inputs for the PO merge helper. The legacy top-level
+`has_selectordinal` export is deprecated; use `has_select_ordinal` or
+`ferrocat::icu::has_select_ordinal`. The legacy top-level
+`MergeExtractedMessage` export is also deprecated; use
+`ferrocat::po::MergeMessageInput`.
 
 ## Supported Catalog Modes
 
@@ -189,14 +205,14 @@ Ferrocat assumes exact catalog identity here: `msgid` plus optional `msgctxt`. T
 ```rust
 use std::borrow::Cow;
 
-use ferrocat::{MergeExtractedMessage, merge_catalog};
+use ferrocat::po::{MergeMessageInput, merge_catalog};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let existing = "msgid \"Hello\"\nmsgstr \"Hallo\"\n";
-    let extracted = [MergeExtractedMessage {
+    let extracted = [MergeMessageInput {
         msgid: Cow::Borrowed("Hello"),
         references: vec![Cow::Borrowed("src/app.rs:10")],
-        ..MergeExtractedMessage::default()
+        ..MergeMessageInput::default()
     }];
 
     let merged = merge_catalog(existing, &extracted)?;
