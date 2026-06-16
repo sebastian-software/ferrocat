@@ -29,6 +29,8 @@ This includes:
 - keyword and comment classification on bytes
 - `memchr`-style structural searches
 - delaying string materialization as long as possible
+- rejecting non-empty lines that are not recognized as PO comments, keywords,
+  or continuation strings instead of silently ignoring them
 
 ## Consequences
 
@@ -37,6 +39,8 @@ Positive:
 - materially better parser throughput
 - clearer future extension point for SIMD/NEON backends
 - reduced dependence on general-purpose string search machinery
+- typo-like unknown lines fail with source position metadata before they can
+  drop catalog content silently
 
 Negative:
 

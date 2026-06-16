@@ -2,7 +2,7 @@ use std::borrow::Cow;
 
 use crate::scan::{
     CommentKind, Keyword, LineKind, LineScanner, classify_line, find_byte, find_quoted_bounds,
-    has_byte, parse_plural_index, split_once_byte, trim_ascii,
+    has_byte, parse_plural_index, split_once_byte, trim_ascii, unrecognized_po_line,
 };
 use crate::serialize::{write_keyword, write_prefixed_line};
 use crate::text::{escape_string_into, unescape_string, validate_quoted_content};
@@ -327,7 +327,7 @@ fn parse_line<'a>(
             file,
             current_nplurals,
         ),
-        LineKind::Other => Ok(()),
+        LineKind::Other => Err(unrecognized_po_line(line.position)),
     }
 }
 
@@ -1475,6 +1475,21 @@ mod tests {
         assert_eq!(context_error.message(), "unescaped quote in string literal");
         assert_eq!(context_position.line(), 1);
         assert_eq!(context_position.column(), 1);
+    }
+
+    #[test]
+    fn merge_rejects_unrecognized_existing_lines() {
+        let extracted = [ExtractedMessage {
+            msgid: Cow::Borrowed("ok"),
+            ..ExtractedMessage::default()
+        }];
+        let error = merge_catalog("msgid \"ok\"\nmsgstr_ \"typo\"\n", &extracted)
+            .expect_err("unknown existing PO line should fail");
+        let position = error.position().expect("position metadata");
+
+        assert_eq!(error.message(), "unrecognized PO syntax");
+        assert_eq!(position.line(), 2);
+        assert_eq!(position.column(), 1);
     }
 
     #[test]
