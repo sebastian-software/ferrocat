@@ -144,8 +144,8 @@ jobs:
       - name: Cache Rust build artifacts
         uses: Swatinem/rust-cache@v2
 
-      - name: Check workspace with MSRV
-        run: cargo +1.93.0 check --workspace --all-targets --all-features --locked
+      - name: Test workspace with MSRV
+        run: cargo +1.93.0 test --workspace --all-features --locked
 
   test:
     name: ${{ matrix.os }}
