@@ -19,7 +19,10 @@ use super::mt::{
     validate_machine_translation_metadata,
 };
 use super::ndjson::{parse_catalog_to_internal_ndjson, stringify_catalog_ndjson};
-use super::plural::{PluralProfile, derive_plural_variable, synthesize_icu_plural};
+use super::plural::{
+    PluralProfile, derive_plural_variable, expected_gettext_nplurals_for_locale,
+    synthesize_icu_plural,
+};
 use super::{
     ApiError, CatalogCombineResult, CatalogCombineStats, CatalogConflictStrategy, CatalogMessage,
     CatalogMessageExtra, CatalogOrigin, CatalogSemantics, CatalogStats, CatalogStorageFormat,
@@ -99,6 +102,15 @@ struct CombineEntry {
     labels: Vec<String>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct MergeCatalogContext<'a> {
+    locale: Option<&'a str>,
+    source_locale: &'a str,
+    semantics: CatalogSemantics,
+    overwrite_source_translations: bool,
+    obsolete_strategy: ObsoleteStrategy,
+}
+
 /// Merges extracted messages into an existing catalog and returns updated catalog content.
 ///
 /// # Errors
@@ -168,15 +180,15 @@ pub fn update_catalog(options: UpdateCatalogOptions<'_>) -> Result<CatalogUpdate
         .or_else(|| existing.headers.get("Language").cloned());
     let mut diagnostics = existing.diagnostics.clone();
     let normalized = normalize_update_input(&options.input)?;
-    let (mut merged, stats) = merge_catalogs(
-        existing,
-        &normalized,
-        locale.as_deref(),
-        options.source_locale,
-        options.overwrite_source_translations,
-        options.obsolete_strategy,
-        &mut diagnostics,
-    );
+    let merge_context = MergeCatalogContext {
+        locale: locale.as_deref(),
+        source_locale: options.source_locale,
+        semantics: options.semantics,
+        overwrite_source_translations: options.overwrite_source_translations,
+        obsolete_strategy: options.obsolete_strategy,
+    };
+    let (mut merged, stats) =
+        merge_catalogs(existing, &normalized, merge_context, &mut diagnostics);
     merged.locale.clone_from(&locale);
     apply_storage_defaults(&mut merged, &options, locale.as_deref(), &mut diagnostics)?;
     sort_messages(&mut merged.messages, options.order_by);
@@ -731,13 +743,12 @@ fn push_normalized_message(
 fn merge_catalogs(
     existing: Catalog,
     normalized: &[NormalizedMessage],
-    locale: Option<&str>,
-    source_locale: &str,
-    overwrite_source_translations: bool,
-    obsolete_strategy: ObsoleteStrategy,
+    context: MergeCatalogContext<'_>,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> (Catalog, CatalogStats) {
-    let is_source_locale = locale.is_none_or(|value| value == source_locale);
+    let is_source_locale = context
+        .locale
+        .is_none_or(|value| value == context.source_locale);
     let mut stats = CatalogStats::default();
 
     let mut existing_index = BTreeMap::<(String, Option<String>), usize>::new();
@@ -758,8 +769,9 @@ fn merge_catalogs(
             previous.as_ref(),
             next,
             is_source_locale,
-            locale,
-            overwrite_source_translations,
+            context.locale,
+            context.semantics,
+            context.overwrite_source_translations,
             diagnostics,
         );
         if previous.is_none() {
@@ -776,7 +788,7 @@ fn merge_catalogs(
         if matched[index] {
             continue;
         }
-        match obsolete_strategy {
+        match context.obsolete_strategy {
             ObsoleteStrategy::Delete => {
                 stats.obsolete_removed += 1;
             }
@@ -819,6 +831,7 @@ fn merge_message(
     next: &NormalizedMessage,
     is_source_locale: bool,
     locale: Option<&str>,
+    semantics: CatalogSemantics,
     overwrite_source_translations: bool,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> CanonicalMessage {
@@ -837,7 +850,11 @@ fn merge_message(
             },
         },
         (NormalizedKind::Plural { source, variable }, previous) => {
-            let plural_profile = PluralProfile::for_locale(locale);
+            let plural_profile = if semantics == CatalogSemantics::GettextCompat {
+                PluralProfile::for_gettext_locale(locale)
+            } else {
+                PluralProfile::for_locale(locale)
+            };
 
             match previous {
                 Some(previous)
@@ -949,7 +966,7 @@ fn apply_header_defaults(
         headers.insert("Language".to_owned(), locale.to_owned());
     }
     if semantics == CatalogSemantics::GettextCompat && !custom.contains_key("Plural-Forms") {
-        let profile = PluralProfile::for_locale(locale);
+        let profile = PluralProfile::for_gettext_locale(locale);
         let parsed_header = parse_plural_forms_from_headers(headers);
         match (parsed_header.raw.as_deref(), profile.gettext_header()) {
             (None, Some(header)) => {
@@ -1119,7 +1136,8 @@ fn export_message_to_po(
                 return Ok(item);
             }
 
-            let plural_profile = PluralProfile::for_translation(locale, translation_by_category);
+            let plural_profile =
+                PluralProfile::for_gettext_translation(locale, translation_by_category);
             let nplurals = plural_profile
                 .nplurals()
                 .max(translation_by_category.len().max(1));
@@ -1509,16 +1527,15 @@ fn validate_plural_forms_header(
     }
 
     if let Some(nplurals) = plural_forms.nplurals {
-        let profile = PluralProfile::for_locale(locale);
-        let expected = profile.nplurals();
-        if locale.is_some() && nplurals != expected {
-            diagnostics.push(Diagnostic::new(
+        match expected_gettext_nplurals_for_locale(locale) {
+            Some(expected) if nplurals != expected => diagnostics.push(Diagnostic::new(
                 DiagnosticSeverity::Warning,
                 "plural.nplurals_locale_mismatch",
                 format!(
                     "Plural-Forms declares nplurals={nplurals}, but locale-derived categories expect {expected}."
                 ),
-            ));
+            )),
+            _ => {}
         }
     } else if plural_forms.plural.is_some() {
         diagnostics.push(Diagnostic::new(

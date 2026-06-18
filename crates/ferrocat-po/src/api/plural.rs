@@ -40,7 +40,219 @@ pub(super) type PluralCategoryCache = Mutex<HashMap<String, Option<Vec<String>>>
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct PluralProfile {
     categories: Vec<String>,
+    gettext_header: Option<&'static str>,
 }
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct GettextPluralRule {
+    locale: &'static str,
+    categories: &'static [&'static str],
+    header: &'static str,
+}
+
+impl GettextPluralRule {
+    const fn nplurals(self) -> usize {
+        self.categories.len()
+    }
+}
+
+const ONE_FORM_CATEGORIES: &[&str] = &["other"];
+const TWO_FORM_CATEGORIES: &[&str] = &["one", "other"];
+const THREE_FORM_CATEGORIES: &[&str] = &["one", "few", "other"];
+const SIX_FORM_CATEGORIES: &[&str] = &["zero", "one", "two", "few", "many", "other"];
+
+const GETTEXT_ONE_FORM_HEADER: &str = "nplurals=1; plural=0;";
+const GETTEXT_ONE_ONLY_HEADER: &str = "nplurals=2; plural=(n != 1);";
+const GETTEXT_ZERO_ONE_HEADER: &str = "nplurals=2; plural=(n > 1);";
+const GETTEXT_POLISH_HEADER: &str = "nplurals=3; plural=(n == 1 ? 0 : (n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 10 || n % 100 >= 20)) ? 1 : 2);";
+const GETTEXT_SLAVIC_THREE_FORM_HEADER: &str = "nplurals=3; plural=(n % 10 == 1 && n % 100 != 11 ? 0 : (n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 10 || n % 100 >= 20)) ? 1 : 2);";
+const GETTEXT_CZECH_SLOVAK_HEADER: &str =
+    "nplurals=3; plural=(n == 1 ? 0 : (n >= 2 && n <= 4) ? 1 : 2);";
+const GETTEXT_ARABIC_HEADER: &str = "nplurals=6; plural=(n == 0 ? 0 : n == 1 ? 1 : n == 2 ? 2 : (n % 100 >= 3 && n % 100 <= 10) ? 3 : (n % 100 >= 11) ? 4 : 5);";
+
+// Seeded from GNU gettext's documented plural-form families for common locales.
+const GETTEXT_PLURAL_RULES: &[GettextPluralRule] = &[
+    GettextPluralRule {
+        locale: "ar",
+        categories: SIX_FORM_CATEGORIES,
+        header: GETTEXT_ARABIC_HEADER,
+    },
+    GettextPluralRule {
+        locale: "be",
+        categories: THREE_FORM_CATEGORIES,
+        header: GETTEXT_SLAVIC_THREE_FORM_HEADER,
+    },
+    GettextPluralRule {
+        locale: "bg",
+        categories: TWO_FORM_CATEGORIES,
+        header: GETTEXT_ONE_ONLY_HEADER,
+    },
+    GettextPluralRule {
+        locale: "cs",
+        categories: THREE_FORM_CATEGORIES,
+        header: GETTEXT_CZECH_SLOVAK_HEADER,
+    },
+    GettextPluralRule {
+        locale: "da",
+        categories: TWO_FORM_CATEGORIES,
+        header: GETTEXT_ONE_ONLY_HEADER,
+    },
+    GettextPluralRule {
+        locale: "de",
+        categories: TWO_FORM_CATEGORIES,
+        header: GETTEXT_ONE_ONLY_HEADER,
+    },
+    GettextPluralRule {
+        locale: "el",
+        categories: TWO_FORM_CATEGORIES,
+        header: GETTEXT_ONE_ONLY_HEADER,
+    },
+    GettextPluralRule {
+        locale: "en",
+        categories: TWO_FORM_CATEGORIES,
+        header: GETTEXT_ONE_ONLY_HEADER,
+    },
+    GettextPluralRule {
+        locale: "eo",
+        categories: TWO_FORM_CATEGORIES,
+        header: GETTEXT_ONE_ONLY_HEADER,
+    },
+    GettextPluralRule {
+        locale: "es",
+        categories: TWO_FORM_CATEGORIES,
+        header: GETTEXT_ONE_ONLY_HEADER,
+    },
+    GettextPluralRule {
+        locale: "et",
+        categories: TWO_FORM_CATEGORIES,
+        header: GETTEXT_ONE_ONLY_HEADER,
+    },
+    GettextPluralRule {
+        locale: "fi",
+        categories: TWO_FORM_CATEGORIES,
+        header: GETTEXT_ONE_ONLY_HEADER,
+    },
+    GettextPluralRule {
+        locale: "fr",
+        categories: TWO_FORM_CATEGORIES,
+        header: GETTEXT_ZERO_ONE_HEADER,
+    },
+    GettextPluralRule {
+        locale: "he",
+        categories: TWO_FORM_CATEGORIES,
+        header: GETTEXT_ONE_ONLY_HEADER,
+    },
+    GettextPluralRule {
+        locale: "hr",
+        categories: THREE_FORM_CATEGORIES,
+        header: GETTEXT_SLAVIC_THREE_FORM_HEADER,
+    },
+    GettextPluralRule {
+        locale: "hu",
+        categories: TWO_FORM_CATEGORIES,
+        header: GETTEXT_ONE_ONLY_HEADER,
+    },
+    GettextPluralRule {
+        locale: "id",
+        categories: TWO_FORM_CATEGORIES,
+        header: GETTEXT_ONE_ONLY_HEADER,
+    },
+    GettextPluralRule {
+        locale: "it",
+        categories: TWO_FORM_CATEGORIES,
+        header: GETTEXT_ONE_ONLY_HEADER,
+    },
+    GettextPluralRule {
+        locale: "ja",
+        categories: ONE_FORM_CATEGORIES,
+        header: GETTEXT_ONE_FORM_HEADER,
+    },
+    GettextPluralRule {
+        locale: "ko",
+        categories: ONE_FORM_CATEGORIES,
+        header: GETTEXT_ONE_FORM_HEADER,
+    },
+    GettextPluralRule {
+        locale: "nb",
+        categories: TWO_FORM_CATEGORIES,
+        header: GETTEXT_ONE_ONLY_HEADER,
+    },
+    GettextPluralRule {
+        locale: "nl",
+        categories: TWO_FORM_CATEGORIES,
+        header: GETTEXT_ONE_ONLY_HEADER,
+    },
+    GettextPluralRule {
+        locale: "nn",
+        categories: TWO_FORM_CATEGORIES,
+        header: GETTEXT_ONE_ONLY_HEADER,
+    },
+    GettextPluralRule {
+        locale: "no",
+        categories: TWO_FORM_CATEGORIES,
+        header: GETTEXT_ONE_ONLY_HEADER,
+    },
+    GettextPluralRule {
+        locale: "pl",
+        categories: THREE_FORM_CATEGORIES,
+        header: GETTEXT_POLISH_HEADER,
+    },
+    GettextPluralRule {
+        locale: "pt",
+        categories: TWO_FORM_CATEGORIES,
+        header: GETTEXT_ONE_ONLY_HEADER,
+    },
+    GettextPluralRule {
+        locale: "pt-br",
+        categories: TWO_FORM_CATEGORIES,
+        header: GETTEXT_ZERO_ONE_HEADER,
+    },
+    GettextPluralRule {
+        locale: "ru",
+        categories: THREE_FORM_CATEGORIES,
+        header: GETTEXT_SLAVIC_THREE_FORM_HEADER,
+    },
+    GettextPluralRule {
+        locale: "sk",
+        categories: THREE_FORM_CATEGORIES,
+        header: GETTEXT_CZECH_SLOVAK_HEADER,
+    },
+    GettextPluralRule {
+        locale: "sr",
+        categories: THREE_FORM_CATEGORIES,
+        header: GETTEXT_SLAVIC_THREE_FORM_HEADER,
+    },
+    GettextPluralRule {
+        locale: "sv",
+        categories: TWO_FORM_CATEGORIES,
+        header: GETTEXT_ONE_ONLY_HEADER,
+    },
+    GettextPluralRule {
+        locale: "th",
+        categories: ONE_FORM_CATEGORIES,
+        header: GETTEXT_ONE_FORM_HEADER,
+    },
+    GettextPluralRule {
+        locale: "tr",
+        categories: TWO_FORM_CATEGORIES,
+        header: GETTEXT_ONE_ONLY_HEADER,
+    },
+    GettextPluralRule {
+        locale: "uk",
+        categories: THREE_FORM_CATEGORIES,
+        header: GETTEXT_SLAVIC_THREE_FORM_HEADER,
+    },
+    GettextPluralRule {
+        locale: "vi",
+        categories: ONE_FORM_CATEGORIES,
+        header: GETTEXT_ONE_FORM_HEADER,
+    },
+    GettextPluralRule {
+        locale: "zh",
+        categories: ONE_FORM_CATEGORIES,
+        header: GETTEXT_ONE_FORM_HEADER,
+    },
+];
 
 impl PluralProfile {
     /// Builds the plural-category profile used for one import/export operation.
@@ -49,18 +261,27 @@ impl PluralProfile {
     /// gettext slot count; otherwise we fall back to a synthetic category list
     /// so we do not silently mislabel translator-provided slots.
     fn new(locale: Option<&str>, nplurals: Option<usize>) -> Self {
-        let categories = locale.and_then(icu_plural_categories_for).map_or_else(
-            || fallback_plural_categories(nplurals),
-            |locale_categories| {
-                if nplurals.is_none() || nplurals == Some(locale_categories.len()) {
-                    locale_categories
-                } else {
-                    fallback_plural_categories(nplurals)
-                }
-            },
-        );
+        let normalized_locale = normalized_locale(locale);
+        let categories = normalized_locale
+            .as_deref()
+            .and_then(icu_plural_categories_for)
+            .map_or_else(
+                || fallback_plural_categories(nplurals),
+                |locale_categories| {
+                    if nplurals.is_none() || nplurals == Some(locale_categories.len()) {
+                        locale_categories
+                    } else {
+                        fallback_plural_categories(nplurals)
+                    }
+                },
+            );
+        let gettext_header =
+            gettext_header_for_categories(normalized_locale.as_deref(), categories.len());
 
-        Self { categories }
+        Self {
+            categories,
+            gettext_header,
+        }
     }
 
     pub(super) fn for_locale(locale: Option<&str>) -> Self {
@@ -68,14 +289,56 @@ impl PluralProfile {
     }
 
     pub(super) fn for_gettext_slots(locale: Option<&str>, nplurals: Option<usize>) -> Self {
-        Self::new(locale, nplurals)
+        Self::new_gettext(locale, nplurals)
     }
 
-    pub(super) fn for_translation(
+    pub(super) fn for_gettext_locale(locale: Option<&str>) -> Self {
+        Self::new_gettext(locale, None)
+    }
+
+    pub(super) fn for_gettext_translation(
         locale: Option<&str>,
         translation_by_category: &BTreeMap<String, String>,
     ) -> Self {
-        Self::new(locale, Some(translation_by_category.len()))
+        Self::new_gettext(locale, Some(translation_by_category.len()))
+    }
+
+    fn new_gettext(locale: Option<&str>, nplurals: Option<usize>) -> Self {
+        let normalized_locale = normalized_locale(locale);
+        if let Some(rule) = normalized_locale
+            .as_deref()
+            .and_then(gettext_plural_rule_for_normalized)
+            .filter(|rule| nplurals.is_none() || nplurals == Some(rule.nplurals()))
+        {
+            return Self {
+                categories: static_categories(rule.categories),
+                gettext_header: Some(rule.header),
+            };
+        }
+
+        let categories = normalized_locale
+            .as_deref()
+            .and_then(icu_plural_categories_for)
+            .map_or_else(
+                || fallback_plural_categories(nplurals),
+                |locale_categories| {
+                    if nplurals.is_none() || nplurals == Some(locale_categories.len()) {
+                        locale_categories
+                    } else {
+                        fallback_plural_categories(nplurals)
+                    }
+                },
+            );
+        let gettext_header = if normalized_locale.is_none() {
+            generic_gettext_header_for_nplurals(categories.len())
+        } else {
+            None
+        };
+
+        Self {
+            categories,
+            gettext_header,
+        }
     }
 
     pub(super) fn categories(&self) -> &[String] {
@@ -134,11 +397,7 @@ impl PluralProfile {
     }
 
     pub(super) fn gettext_header(&self) -> Option<String> {
-        match self.nplurals() {
-            1 => Some("nplurals=1; plural=0;".to_owned()),
-            2 => Some("nplurals=2; plural=(n != 1);".to_owned()),
-            _ => None,
-        }
+        self.gettext_header.map(str::to_owned)
     }
 }
 
@@ -219,6 +478,59 @@ pub(super) fn cached_icu_plural_categories_for(
 
 fn normalize_plural_locale(locale: &str) -> String {
     locale.trim().replace('_', "-")
+}
+
+fn normalized_locale(locale: Option<&str>) -> Option<String> {
+    let normalized = normalize_plural_locale(locale?);
+    (!normalized.is_empty()).then_some(normalized)
+}
+
+fn static_categories(categories: &[&str]) -> Vec<String> {
+    categories.iter().copied().map(str::to_owned).collect()
+}
+
+fn gettext_plural_rule_for_normalized(locale: &str) -> Option<GettextPluralRule> {
+    let normalized = locale.to_ascii_lowercase();
+    gettext_plural_rule_for_key(&normalized).or_else(|| {
+        normalized
+            .split_once('-')
+            .and_then(|(language, _)| gettext_plural_rule_for_key(language))
+    })
+}
+
+fn gettext_plural_rule_for_key(locale: &str) -> Option<GettextPluralRule> {
+    GETTEXT_PLURAL_RULES
+        .iter()
+        .copied()
+        .find(|rule| rule.locale == locale)
+}
+
+fn gettext_header_for_categories(locale: Option<&str>, nplurals: usize) -> Option<&'static str> {
+    locale
+        .and_then(gettext_plural_rule_for_normalized)
+        .filter(|rule| rule.nplurals() == nplurals)
+        .map(|rule| rule.header)
+        .or_else(|| {
+            locale
+                .is_none()
+                .then(|| generic_gettext_header_for_nplurals(nplurals))
+                .flatten()
+        })
+}
+
+fn generic_gettext_header_for_nplurals(nplurals: usize) -> Option<&'static str> {
+    match nplurals {
+        1 => Some(GETTEXT_ONE_FORM_HEADER),
+        2 => Some(GETTEXT_ONE_ONLY_HEADER),
+        _ => None,
+    }
+}
+
+pub(super) fn expected_gettext_nplurals_for_locale(locale: Option<&str>) -> Option<usize> {
+    let normalized = normalized_locale(locale)?;
+    gettext_plural_rule_for_normalized(&normalized)
+        .map(GettextPluralRule::nplurals)
+        .or_else(|| icu_plural_categories_for(&normalized).map(|categories| categories.len()))
 }
 
 const fn plural_category_name(category: PluralCategory) -> &'static str {
@@ -589,10 +901,12 @@ mod tests {
     use std::sync::Mutex;
 
     use super::{
-        IcuPluralProjection, PluralProfile, cached_icu_plural_categories_for,
-        derive_plural_variable, fallback_plural_categories, looks_like_projectable_icu_plural,
-        materialize_plural_categories, normalize_plural_locale, project_icu_plural,
-        sorted_plural_keys, split_icu_kind, synthesize_icu_plural,
+        GETTEXT_ARABIC_HEADER, GETTEXT_ONE_FORM_HEADER, GETTEXT_POLISH_HEADER,
+        GETTEXT_SLAVIC_THREE_FORM_HEADER, GETTEXT_ZERO_ONE_HEADER, IcuPluralProjection,
+        PluralProfile, cached_icu_plural_categories_for, derive_plural_variable,
+        expected_gettext_nplurals_for_locale, fallback_plural_categories,
+        looks_like_projectable_icu_plural, materialize_plural_categories, normalize_plural_locale,
+        project_icu_plural, sorted_plural_keys, split_icu_kind, synthesize_icu_plural,
     };
 
     #[test]
@@ -641,7 +955,7 @@ mod tests {
 
     #[test]
     fn plural_profiles_and_category_helpers_fill_expected_shapes() {
-        let profile = PluralProfile::for_translation(
+        let profile = PluralProfile::for_gettext_translation(
             Some("fr"),
             &BTreeMap::from([
                 ("one".to_owned(), "un".to_owned()),
@@ -689,7 +1003,7 @@ mod tests {
         );
         assert_eq!(
             profile.gettext_header().as_deref(),
-            Some("nplurals=2; plural=(n != 1);")
+            Some(GETTEXT_ZERO_ONE_HEADER)
         );
         assert_eq!(
             materialize_plural_categories(
@@ -701,6 +1015,44 @@ mod tests {
                 ("other".to_owned(), String::new()),
             ])
         );
+    }
+
+    #[test]
+    fn gettext_plural_profiles_use_safe_locale_table() {
+        let cases = [
+            ("fr", GETTEXT_ZERO_ONE_HEADER, &["one", "other"][..]),
+            ("pt_BR", GETTEXT_ZERO_ONE_HEADER, &["one", "other"]),
+            ("pl", GETTEXT_POLISH_HEADER, &["one", "few", "other"]),
+            (
+                "ru",
+                GETTEXT_SLAVIC_THREE_FORM_HEADER,
+                &["one", "few", "other"],
+            ),
+            (
+                "ar",
+                GETTEXT_ARABIC_HEADER,
+                &["zero", "one", "two", "few", "many", "other"],
+            ),
+            ("ja", GETTEXT_ONE_FORM_HEADER, &["other"]),
+        ];
+
+        for (locale, header, categories) in cases {
+            let profile = PluralProfile::for_gettext_locale(Some(locale));
+            let expected_categories = static_test_categories(categories);
+            assert_eq!(profile.gettext_header().as_deref(), Some(header));
+            assert_eq!(profile.categories(), expected_categories);
+            assert_eq!(
+                expected_gettext_nplurals_for_locale(Some(locale)),
+                Some(categories.len())
+            );
+        }
+    }
+
+    #[test]
+    fn gettext_plural_profiles_do_not_guess_headers_for_unlisted_locales() {
+        let profile = PluralProfile::for_gettext_locale(Some("ga"));
+
+        assert_eq!(profile.gettext_header(), None);
     }
 
     #[test]
@@ -870,5 +1222,9 @@ mod tests {
             PluralProfile::for_gettext_slots(Some("und"), Some(1)).nplurals(),
             1
         );
+    }
+
+    fn static_test_categories(categories: &[&str]) -> Vec<String> {
+        categories.iter().copied().map(str::to_owned).collect()
     }
 }
