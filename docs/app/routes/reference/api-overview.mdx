@@ -96,6 +96,10 @@ Typical use cases:
 - transforms that keep parsed data around beyond the source input lifetime
 - tools where simplicity matters more than minimizing allocations
 
+The parser treats non-empty lines that are neither PO comments, known PO
+keywords, nor valid continuation strings as syntax errors. This avoids silently
+dropping typo-like lines such as `msgstr_ "..."`.
+
 ### `parse_po_borrowed`
 
 Use this when you want to parse without copying more than necessary.

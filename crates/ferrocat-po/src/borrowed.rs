@@ -2,7 +2,7 @@ use std::borrow::Cow;
 
 use crate::scan::{
     CommentKind, Keyword, LineKind, LineScanner, classify_line, find_quoted_bounds, has_byte,
-    parse_plural_index, split_once_byte, trim_ascii,
+    parse_plural_index, split_once_byte, trim_ascii, unrecognized_po_line,
 };
 use crate::text::{extract_quoted_bytes_cow, split_reference_comment};
 use crate::utf8::input_slice_as_str;
@@ -336,7 +336,7 @@ fn parse_line<'a>(
             file,
             current_nplurals,
         ),
-        LineKind::Other => Ok(()),
+        LineKind::Other => Err(unrecognized_po_line(line.position)),
     }
 }
 
@@ -755,6 +755,17 @@ msgstr "world"
 
         assert_eq!(error.message(), "unescaped quote in string literal");
         assert_eq!(position.offset(), 11);
+        assert_eq!(position.line(), 2);
+        assert_eq!(position.column(), 1);
+    }
+
+    #[test]
+    fn rejects_unrecognized_lines() {
+        let error = parse_po_borrowed("msgid \"ok\"\nmsgstr_ \"typo\"\n")
+            .expect_err("unknown PO line should fail");
+        let position = error.position().expect("position metadata");
+
+        assert_eq!(error.message(), "unrecognized PO syntax");
         assert_eq!(position.line(), 2);
         assert_eq!(position.column(), 1);
     }

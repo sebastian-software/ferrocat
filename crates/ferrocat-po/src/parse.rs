@@ -4,7 +4,7 @@ use memchr::memchr_iter;
 
 use crate::scan::{
     CommentKind, Keyword, LineKind, LineScanner, classify_line, parse_plural_index,
-    split_once_byte, trim_ascii,
+    split_once_byte, trim_ascii, unrecognized_po_line,
 };
 use crate::text::{extract_quoted_bytes_cow, split_reference_comment};
 use crate::utf8::input_slice_as_str;
@@ -199,7 +199,7 @@ fn parse_line(
             file,
             current_nplurals,
         ),
-        LineKind::Other => Ok(()),
+        LineKind::Other => Err(unrecognized_po_line(line.position)),
     }
 }
 
@@ -579,6 +579,17 @@ msgstr ""
         assert_eq!(position.offset(), 13);
         assert_eq!(position.line(), 2);
         assert_eq!(position.column(), 3);
+    }
+
+    #[test]
+    fn rejects_unrecognized_lines() {
+        let error =
+            parse_po("msgid \"ok\"\nmsgstr_ \"typo\"\n").expect_err("unknown PO line should fail");
+        let position = error.position().expect("position metadata");
+
+        assert_eq!(error.message(), "unrecognized PO syntax");
+        assert_eq!(position.line(), 2);
+        assert_eq!(position.column(), 1);
     }
 
     #[test]

@@ -1,6 +1,6 @@
 use memchr::Memchr;
 
-use crate::ParsePosition;
+use crate::{ParseError, ParsePosition};
 
 mod backend {
     use memchr::{memchr, memchr3, memrchr};
@@ -306,48 +306,33 @@ pub fn classify_line(line: &[u8]) -> LineKind {
             _ => LineKind::Comment(CommentKind::Other),
         },
         Some(b'm')
-            if line.len() >= 5
-                && line[1] == b's'
-                && line[2] == b'g'
-                && line[3] == b'i'
-                && line[4] == b'd' =>
+            if line.starts_with(b"msgid_plural") && has_keyword_boundary(line, 12, false) =>
         {
-            if line.len() >= 12
-                && line[5] == b'_'
-                && line[6] == b'p'
-                && line[7] == b'l'
-                && line[8] == b'u'
-                && line[9] == b'r'
-                && line[10] == b'a'
-                && line[11] == b'l'
-            {
-                LineKind::Keyword(Keyword::IdPlural)
-            } else {
-                LineKind::Keyword(Keyword::Id)
-            }
+            LineKind::Keyword(Keyword::IdPlural)
         }
-        Some(b'm')
-            if line.len() >= 6
-                && line[1] == b's'
-                && line[2] == b'g'
-                && line[3] == b's'
-                && line[4] == b't'
-                && line[5] == b'r' =>
-        {
+        Some(b'm') if line.starts_with(b"msgid") && has_keyword_boundary(line, 5, false) => {
+            LineKind::Keyword(Keyword::Id)
+        }
+        Some(b'm') if line.starts_with(b"msgstr") && has_keyword_boundary(line, 6, true) => {
             LineKind::Keyword(Keyword::Str)
         }
-        Some(b'm')
-            if line.len() >= 7
-                && line[1] == b's'
-                && line[2] == b'g'
-                && line[3] == b'c'
-                && line[4] == b't'
-                && line[5] == b'x'
-                && line[6] == b't' =>
-        {
+        Some(b'm') if line.starts_with(b"msgctxt") && has_keyword_boundary(line, 7, false) => {
             LineKind::Keyword(Keyword::Ctxt)
         }
         _ => LineKind::Other,
+    }
+}
+
+pub fn unrecognized_po_line(position: ParsePosition) -> ParseError {
+    ParseError::with_position("unrecognized PO syntax", position)
+}
+
+#[inline]
+fn has_keyword_boundary(line: &[u8], keyword_len: usize, allow_plural_index: bool) -> bool {
+    match line.get(keyword_len).copied() {
+        None | Some(b'"') => true,
+        Some(b'[') if allow_plural_index => true,
+        Some(byte) => byte.is_ascii_whitespace(),
     }
 }
 
@@ -425,6 +410,16 @@ mod tests {
             classify_line(b"msgid \"x\""),
             LineKind::Keyword(Keyword::Id)
         );
+        assert_eq!(
+            classify_line(b"msgid_plural \"xs\""),
+            LineKind::Keyword(Keyword::IdPlural)
+        );
+        assert_eq!(
+            classify_line(b"msgstr[0] \"x\""),
+            LineKind::Keyword(Keyword::Str)
+        );
+        assert_eq!(classify_line(b"msgstr_ \"x\""), LineKind::Other);
+        assert_eq!(classify_line(b"msgid_plurality \"x\""), LineKind::Other);
         assert_eq!(classify_line(br#""continued""#), LineKind::Continuation);
     }
 }
