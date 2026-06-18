@@ -159,6 +159,11 @@ pub use ferrocat_icu::{
 /// JSON schema version emitted by [`CompiledCatalogArtifact`] serialization.
 pub const COMPILED_CATALOG_ARTIFACT_SCHEMA_VERSION: u16 = 1;
 
+#[deprecated(
+    since = "0.14.0",
+    note = "use ferrocat::po::MergeMessageInput for the PO merge helper input"
+)]
+pub use ferrocat_po::MergeExtractedMessage;
 #[cfg(feature = "catalog")]
 pub use ferrocat_po::{
     ApiError, CatalogAuditChecks, CatalogAuditDiagnostic, CatalogAuditMessageRef,
@@ -179,14 +184,9 @@ pub use ferrocat_po::{
     compile_catalog_artifact, compile_catalog_artifact_selected, compiled_key,
     machine_translation_hash, parse_catalog, update_catalog, update_catalog_file,
 };
-#[deprecated(
-    since = "0.14.0",
-    note = "use ferrocat::po::MergeMessageInput for the PO merge helper input"
-)]
-pub use ferrocat_po::MergeExtractedMessage;
 pub use ferrocat_po::{
     BorrowedHeader, BorrowedMsgStr, BorrowedPoFile, BorrowedPoItem, Header, MsgStr, MsgStrIter,
-    ParseError, PoFile, PoItem, SerializeOptions, escape_string, extract_quoted, extract_quoted_cow,
-    merge_catalog, parse_po, parse_po_borrowed, stringify_po, unescape_string,
+    ParseError, PoFile, PoItem, SerializeOptions, escape_string, extract_quoted,
+    extract_quoted_cow, merge_catalog, parse_po, parse_po_borrowed, stringify_po, unescape_string,
 };
 pub use icu::has_select_ordinal;
