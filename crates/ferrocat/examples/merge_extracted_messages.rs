@@ -1,6 +1,6 @@
 use std::borrow::Cow;
 
-use ferrocat::{MergeExtractedMessage, merge_catalog};
+use ferrocat::po::{MergeMessageInput, merge_catalog};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let existing = r#"
@@ -12,16 +12,16 @@ msgstr "Alter CTA"
 "#;
 
     let extracted = [
-        MergeExtractedMessage {
+        MergeMessageInput {
             msgid: Cow::Borrowed("Hello"),
             references: vec![Cow::Borrowed("src/app.rs:10")],
-            ..MergeExtractedMessage::default()
+            ..MergeMessageInput::default()
         },
-        MergeExtractedMessage {
+        MergeMessageInput {
             msgid: Cow::Borrowed("Checkout"),
             references: vec![Cow::Borrowed("src/checkout.rs:42")],
             extracted_comments: vec![Cow::Borrowed("Primary checkout button")],
-            ..MergeExtractedMessage::default()
+            ..MergeMessageInput::default()
         },
     ];
 

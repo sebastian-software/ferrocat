@@ -1,16 +1,18 @@
 use ferrocat::{
-    CatalogCombineInput, CatalogMessageKey, CatalogSemantics, CatalogUpdateInput,
-    CombineCatalogOptions, CompileCatalogArtifactOptions, CompileSelectedCatalogArtifactOptions,
-    CompiledCatalogIdIndex, CompiledKeyStrategy, EffectiveTranslation, EffectiveTranslationRef,
-    MergeExtractedMessage, ParseCatalogOptions, PluralEncoding, SerializeOptions,
-    SourceExtractedMessage, combine_catalogs, compile_catalog_artifact,
-    compile_catalog_artifact_selected, has_select_ordinal, merge_catalog, parse_catalog, parse_icu,
-    parse_po, stringify_po,
+    catalog::{
+        CatalogCombineInput, CatalogMessageKey, CatalogSemantics, CatalogUpdateInput,
+        CombineCatalogOptions, CompileCatalogArtifactOptions,
+        CompileSelectedCatalogArtifactOptions, CompiledCatalogIdIndex, CompiledKeyStrategy,
+        EffectiveTranslation, EffectiveTranslationRef, ParseCatalogOptions, PluralEncoding,
+        SourceExtractedMessage, combine_catalogs, compile_catalog_artifact,
+        compile_catalog_artifact_selected, parse_catalog,
+    },
+    icu, po,
 };
 
 #[test]
 fn umbrella_crate_reexports_po_and_icu_surfaces() {
-    let mut file = parse_po(
+    let mut file = po::parse_po(
         r#"
 msgid "hello"
 msgstr "world"
@@ -20,14 +22,14 @@ msgstr "world"
 
     file.items[0].msgstr = "Welt".to_owned().into();
 
-    let rendered = stringify_po(&file, &SerializeOptions::default());
+    let rendered = po::stringify_po(&file, &po::SerializeOptions::default());
     assert!(rendered.contains(r#"msgstr "Welt""#));
 
-    let merged = merge_catalog(
+    let merged = po::merge_catalog(
         rendered.as_str(),
-        &[MergeExtractedMessage {
+        &[po::MergeMessageInput {
             msgid: "hello".into(),
-            ..MergeExtractedMessage::default()
+            ..po::MergeMessageInput::default()
         }],
     )
     .expect("merge catalog");
@@ -41,8 +43,9 @@ msgstr "world"
         .expect("combine catalogs");
     assert!(combined.content.contains(r#"msgid "bye""#));
 
-    let message = parse_icu("{count, selectordinal, one {#st} other {#th}}").expect("parse icu");
-    assert!(has_select_ordinal(&message));
+    let message =
+        icu::parse_icu("{count, selectordinal, one {#st} other {#th}}").expect("parse icu");
+    assert!(icu::has_select_ordinal(&message));
 
     let _source_input = CatalogUpdateInput::SourceFirst(vec![SourceExtractedMessage {
         msgid: "hello".into(),
