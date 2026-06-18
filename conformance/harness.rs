@@ -614,6 +614,7 @@ fn node_kind(node: &IcuNode) -> String {
         IcuNode::Tag { .. } => "tag",
         IcuNode::List { .. } => "list",
         IcuNode::Pound => "pound",
+        _ => "unknown",
     }
     .to_owned()
 }

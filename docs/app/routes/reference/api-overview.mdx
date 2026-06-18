@@ -70,6 +70,11 @@ diagnostics carry machine-readable `code` values, and severities serialize as
 
 See [ADR 0019](/architecture/adr/0019-versioned-artifact-json-contract) for the
 compatibility rules around the compiled artifact JSON contract.
+## API Compatibility
+
+Ferrocat is still pre-1.0, but growth-prone public enums are deliberately marked as non-exhaustive where new variants are realistic. Downstream code should keep fallback match arms for ICU AST nodes, catalog storage formats, compiled key strategies, and API-level error categories.
+
+Semantically closed option enums such as `CatalogSemantics` and `PluralEncoding` remain exhaustive so callers can continue to match every documented mode directly.
 
 ## Supported Catalog Modes
 

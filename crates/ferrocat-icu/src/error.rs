@@ -1,7 +1,11 @@
 use core::fmt;
 
 /// High-level classification of ICU parse failures.
+///
+/// This enum is non-exhaustive so future parser error categories can be added
+/// without making existing downstream matches semver-breaking.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum IcuErrorKind {
     /// The input violates the supported ICU syntax.
     SyntaxError,

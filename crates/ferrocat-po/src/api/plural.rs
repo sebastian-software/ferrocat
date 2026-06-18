@@ -845,6 +845,15 @@ fn render_projectable_icu_node(node: &IcuNode, out: &mut String) -> Result<(), &
                 "Nested ICU select/plural structures are not projected into the current catalog plural model.",
             );
         }
+        #[allow(
+            unreachable_patterns,
+            reason = "cargo package verifies ferrocat-po against the latest published ferrocat-icu until this release publishes the dependency crate first."
+        )]
+        _ => {
+            return Err(
+                "Unsupported ICU node is not projected into the current catalog plural model.",
+            );
+        }
     }
 
     Ok(())

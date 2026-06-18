@@ -24,7 +24,11 @@ pub struct IcuOption {
 }
 
 /// AST node emitted by the ICU parser.
+///
+/// This enum is non-exhaustive so additional ICU formatters or syntax nodes can
+/// be added without forcing downstream callers to rewrite every `match`.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum IcuNode {
     /// Literal text content.
     Literal(String),
