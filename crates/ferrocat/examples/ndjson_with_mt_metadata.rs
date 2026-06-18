@@ -1,5 +1,5 @@
 use ferrocat::{
-    CatalogStorageFormat, CatalogUpdateInput, EffectiveTranslationRef, SourceExtractedMessage,
+    CatalogMode, CatalogUpdateInput, EffectiveTranslationRef, SourceExtractedMessage,
     UpdateCatalogOptions, machine_translation_hash, update_catalog,
 };
 
@@ -19,14 +19,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let result = update_catalog(UpdateCatalogOptions {
         locale: Some("de"),
-        source_locale: "en",
-        storage_format: CatalogStorageFormat::Ndjson,
+        mode: CatalogMode::IcuNdjson,
         existing: Some(&existing),
         input: CatalogUpdateInput::SourceFirst(vec![SourceExtractedMessage {
             msgid: "Hello".to_owned(),
             ..SourceExtractedMessage::default()
         }]),
-        ..UpdateCatalogOptions::default()
+        ..UpdateCatalogOptions::new("en", CatalogUpdateInput::default())
     })?;
 
     assert!(result.content.contains("format: ferrocat.ndjson.v1"));

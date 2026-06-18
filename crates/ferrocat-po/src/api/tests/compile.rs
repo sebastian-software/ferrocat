@@ -71,20 +71,12 @@ fn compile_catalog_artifact_matches_between_po_and_ndjson_storage() {
 
     let po_artifact = compile_catalog_artifact(
         &[&po_requested, &source],
-        &CompileCatalogArtifactOptions {
-            requested_locale: "de",
-            source_locale: "en",
-            ..CompileCatalogArtifactOptions::default()
-        },
+        &CompileCatalogArtifactOptions::new("de", "en"),
     )
     .expect("compile po artifact");
     let ndjson_artifact = compile_catalog_artifact(
         &[&ndjson_requested, &source],
-        &CompileCatalogArtifactOptions {
-            requested_locale: "de",
-            source_locale: "en",
-            ..CompileCatalogArtifactOptions::default()
-        },
+        &CompileCatalogArtifactOptions::new("de", "en"),
     )
     .expect("compile ndjson artifact");
 
@@ -289,11 +281,7 @@ fn compile_catalog_artifact_returns_requested_locale_message_map() {
 
     let artifact = compile_catalog_artifact(
         &[&requested, &source],
-        &CompileCatalogArtifactOptions {
-            requested_locale: "de",
-            source_locale: "en",
-            ..CompileCatalogArtifactOptions::default()
-        },
+        &CompileCatalogArtifactOptions::new("de", "en"),
     )
     .expect("compile artifact");
 
@@ -330,11 +318,7 @@ fn compile_catalog_artifact_synthesizes_plural_icu_strings() {
 
     let artifact = compile_catalog_artifact(
         &[&requested, &source],
-        &CompileCatalogArtifactOptions {
-            requested_locale: "de",
-            source_locale: "en",
-            ..CompileCatalogArtifactOptions::default()
-        },
+        &CompileCatalogArtifactOptions::new("de", "en"),
     )
     .expect("compile artifact");
 
@@ -374,11 +358,9 @@ fn compile_catalog_artifact_uses_fallback_chain_before_source_locale() {
     let artifact = compile_catalog_artifact(
         &[&requested, &first_fallback, &second_fallback, &source],
         &CompileCatalogArtifactOptions {
-            requested_locale: "de",
-            source_locale: "en",
             fallback_chain: &["fr".to_owned(), "it".to_owned()],
             source_fallback: true,
-            ..CompileCatalogArtifactOptions::default()
+            ..CompileCatalogArtifactOptions::new("de", "en")
         },
     )
     .expect("compile artifact");
@@ -410,11 +392,7 @@ fn compile_catalog_artifact_reports_missing_message_without_source_fallback() {
 
     let artifact = compile_catalog_artifact(
         &[&requested, &source],
-        &CompileCatalogArtifactOptions {
-            requested_locale: "de",
-            source_locale: "en",
-            ..CompileCatalogArtifactOptions::default()
-        },
+        &CompileCatalogArtifactOptions::new("de", "en"),
     )
     .expect("compile artifact");
 
@@ -443,10 +421,8 @@ fn compile_catalog_artifact_can_fill_from_source_locale_when_enabled() {
     let artifact = compile_catalog_artifact(
         &[&requested, &source],
         &CompileCatalogArtifactOptions {
-            requested_locale: "de",
-            source_locale: "en",
             source_fallback: true,
-            ..CompileCatalogArtifactOptions::default()
+            ..CompileCatalogArtifactOptions::new("de", "en")
         },
     )
     .expect("compile artifact");
@@ -471,15 +447,9 @@ fn compile_catalog_artifact_materializes_empty_source_locale_messages() {
         PluralEncoding::Icu,
     );
 
-    let artifact = compile_catalog_artifact(
-        &[&source],
-        &CompileCatalogArtifactOptions {
-            requested_locale: "en",
-            source_locale: "en",
-            ..CompileCatalogArtifactOptions::default()
-        },
-    )
-    .expect("compile artifact");
+    let artifact =
+        compile_catalog_artifact(&[&source], &CompileCatalogArtifactOptions::new("en", "en"))
+            .expect("compile artifact");
 
     let key = compiled_key_for(
         CompiledKeyStrategy::FerrocatV1,
@@ -503,11 +473,7 @@ fn compile_catalog_artifact_skips_obsolete_messages() {
 
     let artifact = compile_catalog_artifact(
         &[&requested, &source],
-        &CompileCatalogArtifactOptions {
-            requested_locale: "de",
-            source_locale: "en",
-            ..CompileCatalogArtifactOptions::default()
-        },
+        &CompileCatalogArtifactOptions::new("de", "en"),
     )
     .expect("compile artifact");
 
@@ -531,10 +497,8 @@ fn compile_catalog_artifact_requires_requested_and_unique_catalog_locales() {
     let missing_requested = compile_catalog_artifact(
         &[&source],
         &CompileCatalogArtifactOptions {
-            requested_locale: "de",
-            source_locale: "en",
             semantics: CatalogSemantics::GettextCompat,
-            ..CompileCatalogArtifactOptions::default()
+            ..CompileCatalogArtifactOptions::new("de", "en")
         },
     )
     .expect_err("missing requested locale");
@@ -542,11 +506,7 @@ fn compile_catalog_artifact_requires_requested_and_unique_catalog_locales() {
 
     let duplicate_locale = compile_catalog_artifact(
         &[&source, &duplicate],
-        &CompileCatalogArtifactOptions {
-            requested_locale: "en",
-            source_locale: "en",
-            ..CompileCatalogArtifactOptions::default()
-        },
+        &CompileCatalogArtifactOptions::new("en", "en"),
     )
     .expect_err("duplicate locale");
     assert!(matches!(duplicate_locale, ApiError::InvalidArguments(_)));
@@ -572,10 +532,8 @@ fn compile_catalog_artifact_rejects_invalid_locale_sets_and_fallback_chains() {
     let no_locale = parse_catalog(ParseCatalogOptions {
         content: "msgid \"Hello\"\nmsgstr \"Hallo\"\n",
         source_locale: "en",
-        storage_format: CatalogStorageFormat::Po,
-        semantics: CatalogSemantics::IcuNative,
-        plural_encoding: PluralEncoding::Icu,
-        ..ParseCatalogOptions::default()
+        mode: CatalogMode::IcuPo,
+        ..ParseCatalogOptions::new("", "en")
     })
     .expect("parse no-locale catalog")
     .into_normalized_view()
@@ -584,90 +542,57 @@ fn compile_catalog_artifact_rejects_invalid_locale_sets_and_fallback_chains() {
         content: "msgid \"Hello\"\nmsgstr \"Hallo\"\n",
         locale: Some("  "),
         source_locale: "en",
-        storage_format: CatalogStorageFormat::Po,
-        semantics: CatalogSemantics::IcuNative,
-        plural_encoding: PluralEncoding::Icu,
-        ..ParseCatalogOptions::default()
+        mode: CatalogMode::IcuPo,
+        ..ParseCatalogOptions::new("", "en")
     })
     .expect("parse empty-locale catalog")
     .into_normalized_view()
     .expect("normalize empty-locale catalog");
 
     let cases = [
-        (
-            Vec::new(),
-            CompileCatalogArtifactOptions {
-                requested_locale: "de",
-                source_locale: "en",
-                ..CompileCatalogArtifactOptions::default()
-            },
-        ),
+        (Vec::new(), CompileCatalogArtifactOptions::new("de", "en")),
         (
             vec![&requested, &source],
-            CompileCatalogArtifactOptions {
-                requested_locale: "",
-                source_locale: "en",
-                ..CompileCatalogArtifactOptions::default()
-            },
+            CompileCatalogArtifactOptions::new("", "en"),
         ),
         (
             vec![&no_locale],
-            CompileCatalogArtifactOptions {
-                requested_locale: "de",
-                source_locale: "en",
-                ..CompileCatalogArtifactOptions::default()
-            },
+            CompileCatalogArtifactOptions::new("de", "en"),
         ),
         (
             vec![&empty_locale],
-            CompileCatalogArtifactOptions {
-                requested_locale: "de",
-                source_locale: "en",
-                ..CompileCatalogArtifactOptions::default()
-            },
+            CompileCatalogArtifactOptions::new("de", "en"),
         ),
         (
             vec![&requested],
-            CompileCatalogArtifactOptions {
-                requested_locale: "de",
-                source_locale: "en",
-                ..CompileCatalogArtifactOptions::default()
-            },
+            CompileCatalogArtifactOptions::new("de", "en"),
         ),
         (
             vec![&requested, &source],
             CompileCatalogArtifactOptions {
-                requested_locale: "de",
-                source_locale: "en",
                 fallback_chain: &["de".to_owned()],
-                ..CompileCatalogArtifactOptions::default()
+                ..CompileCatalogArtifactOptions::new("de", "en")
             },
         ),
         (
             vec![&requested, &source],
             CompileCatalogArtifactOptions {
-                requested_locale: "de",
-                source_locale: "en",
                 fallback_chain: &["en".to_owned()],
-                ..CompileCatalogArtifactOptions::default()
+                ..CompileCatalogArtifactOptions::new("de", "en")
             },
         ),
         (
             vec![&requested, &source, &fallback],
             CompileCatalogArtifactOptions {
-                requested_locale: "de",
-                source_locale: "en",
                 fallback_chain: &["de-AT".to_owned(), "de-AT".to_owned()],
-                ..CompileCatalogArtifactOptions::default()
+                ..CompileCatalogArtifactOptions::new("de", "en")
             },
         ),
         (
             vec![&requested, &source],
             CompileCatalogArtifactOptions {
-                requested_locale: "de",
-                source_locale: "en",
                 fallback_chain: &["fr".to_owned()],
-                ..CompileCatalogArtifactOptions::default()
+                ..CompileCatalogArtifactOptions::new("de", "en")
             },
         ),
     ];
@@ -694,10 +619,8 @@ fn compile_catalog_artifact_collects_or_raises_invalid_icu_messages() {
     let artifact = compile_catalog_artifact(
         &[&requested, &source],
         &CompileCatalogArtifactOptions {
-            requested_locale: "de",
-            source_locale: "en",
             semantics: CatalogSemantics::GettextCompat,
-            ..CompileCatalogArtifactOptions::default()
+            ..CompileCatalogArtifactOptions::new("de", "en")
         },
     )
     .expect("compile artifact");
@@ -707,11 +630,9 @@ fn compile_catalog_artifact_collects_or_raises_invalid_icu_messages() {
     let error = compile_catalog_artifact(
         &[&requested, &source],
         &CompileCatalogArtifactOptions {
-            requested_locale: "de",
-            source_locale: "en",
             strict_icu: true,
             semantics: CatalogSemantics::GettextCompat,
-            ..CompileCatalogArtifactOptions::default()
+            ..CompileCatalogArtifactOptions::new("de", "en")
         },
     )
     .expect_err("strict invalid icu should fail");
@@ -733,11 +654,7 @@ fn compile_catalog_artifact_icu_compatibility_is_optional() {
 
     let default_artifact = compile_catalog_artifact(
         &[&requested, &source],
-        &CompileCatalogArtifactOptions {
-            requested_locale: "de",
-            source_locale: "en",
-            ..CompileCatalogArtifactOptions::default()
-        },
+        &CompileCatalogArtifactOptions::new("de", "en"),
     )
     .expect("compile default artifact");
     assert!(default_artifact.diagnostics.is_empty());
@@ -745,10 +662,8 @@ fn compile_catalog_artifact_icu_compatibility_is_optional() {
     let checked_artifact = compile_catalog_artifact(
         &[&requested, &source],
         &CompileCatalogArtifactOptions {
-            requested_locale: "de",
-            source_locale: "en",
             icu_compatibility: true,
-            ..CompileCatalogArtifactOptions::default()
+            ..CompileCatalogArtifactOptions::new("de", "en")
         },
     )
     .expect("compile checked artifact");
@@ -783,11 +698,11 @@ fn compile_catalog_artifact_selected_uses_icu_compatibility_diagnostics() {
         &[&requested, &source],
         &index,
         &CompileSelectedCatalogArtifactOptions {
-            requested_locale: "de",
-            source_locale: "en",
             compiled_ids: &compiled_ids,
-            icu_compatibility: true,
-            ..CompileSelectedCatalogArtifactOptions::default()
+            options: CompileCatalogArtifactOptions {
+                icu_compatibility: true,
+                ..CompileCatalogArtifactOptions::new("de", "en")
+            },
         },
     )
     .expect("compile selected artifact");
@@ -822,11 +737,9 @@ fn strict_icu_remains_a_hard_syntax_error_with_compatibility_enabled() {
     let error = compile_catalog_artifact(
         &[&requested, &source],
         &CompileCatalogArtifactOptions {
-            requested_locale: "de",
-            source_locale: "en",
             strict_icu: true,
             icu_compatibility: true,
-            ..CompileCatalogArtifactOptions::default()
+            ..CompileCatalogArtifactOptions::new("de", "en")
         },
     )
     .expect_err("strict syntax failure");
@@ -1066,12 +979,11 @@ fn compile_catalog_artifact_selected_returns_only_requested_ids() {
     let artifact = compile_catalog_artifact_selected(
         &[&requested, &source],
         &index,
-        &CompileSelectedCatalogArtifactOptions {
-            requested_locale: "de",
-            source_locale: "en",
-            compiled_ids: &[hello_id.clone(), hello_id.clone()],
-            ..CompileSelectedCatalogArtifactOptions::default()
-        },
+        &CompileSelectedCatalogArtifactOptions::new(
+            "de",
+            "en",
+            &[hello_id.clone(), hello_id.clone()],
+        ),
     )
     .expect("compile selected artifact");
 
@@ -1103,12 +1015,7 @@ fn compile_catalog_artifact_selected_reports_unknown_compiled_ids() {
     let error = compile_catalog_artifact_selected(
         &[&requested, &source],
         &index,
-        &CompileSelectedCatalogArtifactOptions {
-            requested_locale: "de",
-            source_locale: "en",
-            compiled_ids: &["missing-id".to_owned()],
-            ..CompileSelectedCatalogArtifactOptions::default()
-        },
+        &CompileSelectedCatalogArtifactOptions::new("de", "en", &["missing-id".to_owned()]),
     )
     .expect_err("unknown compiled id");
 
@@ -1139,12 +1046,7 @@ fn compile_catalog_artifact_selected_rejects_ids_absent_from_catalog_set() {
     let error = compile_catalog_artifact_selected(
         &[&requested, &source],
         &index,
-        &CompileSelectedCatalogArtifactOptions {
-            requested_locale: "de",
-            source_locale: "en",
-            compiled_ids: &[hello_id],
-            ..CompileSelectedCatalogArtifactOptions::default()
-        },
+        &CompileSelectedCatalogArtifactOptions::new("de", "en", &[hello_id]),
     )
     .expect_err("compiled id absent from provided catalogs");
 
@@ -1192,12 +1094,12 @@ fn compile_catalog_artifact_selected_preserves_fallback_and_validation_semantics
         &[&requested, &source],
         &index,
         &CompileSelectedCatalogArtifactOptions {
-            requested_locale: "de",
-            source_locale: "en",
-            source_fallback: true,
-            semantics: CatalogSemantics::GettextCompat,
             compiled_ids: &[hello_id.clone(), broken_id.clone()],
-            ..CompileSelectedCatalogArtifactOptions::default()
+            options: CompileCatalogArtifactOptions {
+                source_fallback: true,
+                semantics: CatalogSemantics::GettextCompat,
+                ..CompileCatalogArtifactOptions::new("de", "en")
+            },
         },
     )
     .expect("compile selected artifact");

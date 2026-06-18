@@ -186,17 +186,13 @@ impl CatalogAuditReport {
 /// use ferrocat_po::{CatalogAuditOptions, ParseCatalogOptions, audit_catalogs, parse_catalog};
 ///
 /// let source = parse_catalog(ParseCatalogOptions {
-///     content: "msgid \"Checkout\"\nmsgstr \"Checkout\"\n",
 ///     locale: Some("en"),
-///     source_locale: "en",
-///     ..ParseCatalogOptions::default()
+///     ..ParseCatalogOptions::new("msgid \"Checkout\"\nmsgstr \"Checkout\"\n", "en")
 /// })?
 /// .into_normalized_view()?;
 /// let target = parse_catalog(ParseCatalogOptions {
-///     content: "msgid \"Checkout\"\nmsgstr \"\"\n",
 ///     locale: Some("de"),
-///     source_locale: "en",
-///     ..ParseCatalogOptions::default()
+///     ..ParseCatalogOptions::new("msgid \"Checkout\"\nmsgstr \"\"\n", "en")
 /// })?
 /// .into_normalized_view()?;
 ///

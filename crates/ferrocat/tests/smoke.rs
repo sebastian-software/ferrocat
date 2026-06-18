@@ -1,11 +1,11 @@
 use ferrocat::{
     catalog::{
-        CatalogCombineInput, CatalogMessageKey, CatalogSemantics, CatalogUpdateInput,
+        CatalogCombineInput, CatalogMessageKey, CatalogMode, CatalogUpdateInput,
         CombineCatalogOptions, CompileCatalogArtifactOptions,
         CompileSelectedCatalogArtifactOptions, CompiledCatalogIdIndex, CompiledKeyStrategy,
-        EffectiveTranslation, EffectiveTranslationRef, ParseCatalogOptions, PluralEncoding,
-        SourceExtractedMessage, combine_catalogs, compile_catalog_artifact,
-        compile_catalog_artifact_selected, parse_catalog,
+        EffectiveTranslation, EffectiveTranslationRef, ParseCatalogOptions, SourceExtractedMessage,
+        combine_catalogs, compile_catalog_artifact, compile_catalog_artifact_selected,
+        parse_catalog,
     },
     icu, po,
 };
@@ -57,9 +57,8 @@ msgstr "world"
         content: "msgid \"hello\"\nmsgstr \"world\"\n",
         locale: Some("de"),
         source_locale: "en",
-        semantics: CatalogSemantics::GettextCompat,
-        plural_encoding: PluralEncoding::Gettext,
-        ..ParseCatalogOptions::default()
+        mode: CatalogMode::GettextPo,
+        ..ParseCatalogOptions::new("", "en")
     })
     .expect("parse gettext-compat catalog");
 
@@ -67,7 +66,7 @@ msgstr "world"
         content: "msgid \"hello\"\nmsgstr \"world\"\n",
         locale: Some("de"),
         source_locale: "en",
-        ..ParseCatalogOptions::default()
+        ..ParseCatalogOptions::new("", "en")
     })
     .expect("parse catalog");
     let normalized = parsed_catalog
@@ -87,18 +86,14 @@ msgstr "world"
         content: "msgid \"hello\"\nmsgstr \"hello\"\n",
         locale: Some("en"),
         source_locale: "en",
-        ..ParseCatalogOptions::default()
+        ..ParseCatalogOptions::new("", "en")
     })
     .expect("parse source catalog")
     .into_normalized_view()
     .expect("normalized source catalog");
     let artifact = compile_catalog_artifact(
         &[&normalized, &source],
-        &CompileCatalogArtifactOptions {
-            requested_locale: "de",
-            source_locale: "en",
-            ..CompileCatalogArtifactOptions::default()
-        },
+        &CompileCatalogArtifactOptions::new("de", "en"),
     )
     .expect("compile artifact");
     assert_eq!(artifact.messages.len(), 1);
@@ -113,12 +108,7 @@ msgstr "world"
     let selected_artifact = compile_catalog_artifact_selected(
         &[&normalized, &source],
         &index,
-        &CompileSelectedCatalogArtifactOptions {
-            requested_locale: "de",
-            source_locale: "en",
-            compiled_ids: &compiled_ids,
-            ..CompileSelectedCatalogArtifactOptions::default()
-        },
+        &CompileSelectedCatalogArtifactOptions::new("de", "en", &compiled_ids),
     )
     .expect("compile selected artifact");
     assert_eq!(selected_artifact.messages.len(), 1);

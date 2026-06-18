@@ -98,9 +98,9 @@ At the high-level catalog layer, `ferrocat` supports three explicit combinations
 
 | Mode | Storage format | Message model |
 |---|---|---|
-| Classic Gettext catalog mode | Gettext PO | Gettext-compatible plurals |
-| ICU-native Gettext PO mode | Gettext PO | ICU MessageFormat |
-| ICU-native NDJSON catalog mode | NDJSON catalog storage | ICU MessageFormat |
+| `CatalogMode::GettextPo` | Gettext PO | Gettext-compatible plurals |
+| `CatalogMode::IcuPo` | Gettext PO | ICU MessageFormat |
+| `CatalogMode::IcuNdjson` | NDJSON catalog storage | ICU MessageFormat |
 
 `NDJSON + Gettext-compatible plurals` is intentionally unsupported. In API terms, that means `CatalogStorageFormat::Ndjson` is only available with `CatalogSemantics::IcuNative`.
 
@@ -263,15 +263,13 @@ Choose this when your application wants semantic catalog data rather than just P
 
 `ParseCatalogOptions` borrows the source text and locale strings, so you can parse directly from existing buffers without first building owned request strings.
 
-High-level catalog parsing now also takes an explicit `storage_format`:
+High-level catalog parsing should normally choose one `CatalogMode` instead of setting storage, semantics, and plural encoding separately:
 
-- `CatalogStorageFormat::Po` for classic Gettext PO catalogs
-- `CatalogStorageFormat::Ndjson` for Ferrocat's frontmatter + one-message-per-line NDJSON catalog storage
+- `CatalogMode::IcuPo` for ICU-native messages stored in PO
+- `CatalogMode::IcuNdjson` for ICU-native messages stored as frontmatter + one-message-per-line NDJSON
+- `CatalogMode::GettextPo` for classic Gettext-compatible plurals stored in PO
 
-High-level parsing also takes an explicit `CatalogSemantics`:
-
-- `CatalogSemantics::IcuNative` is the default and keeps ICU/text messages raw
-- `CatalogSemantics::GettextCompat` is the explicit classic gettext plural mode
+The lower-level `storage_format`, `semantics`, and `plural_encoding` fields remain available for compatibility, but `CatalogMode` keeps the three choices synchronized.
 
 Important boundaries:
 
@@ -295,10 +293,8 @@ use ferrocat::{ParseCatalogOptions, parse_catalog};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let catalog = parse_catalog(ParseCatalogOptions {
-        content: "msgid \"Checkout\"\nmsgstr \"Zur Kasse\"\n",
         locale: Some("de"),
-        source_locale: "en",
-        ..ParseCatalogOptions::default()
+        ..ParseCatalogOptions::new("msgid \"Checkout\"\nmsgstr \"Zur Kasse\"\n", "en")
     })?;
 
     let view = catalog.into_normalized_view()?;
@@ -353,17 +349,13 @@ use ferrocat::{CatalogAuditOptions, ParseCatalogOptions, audit_catalogs, parse_c
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let source = parse_catalog(ParseCatalogOptions {
-        content: "msgid \"Checkout\"\nmsgstr \"Checkout\"\n",
         locale: Some("en"),
-        source_locale: "en",
-        ..ParseCatalogOptions::default()
+        ..ParseCatalogOptions::new("msgid \"Checkout\"\nmsgstr \"Checkout\"\n", "en")
     })?
     .into_normalized_view()?;
     let target = parse_catalog(ParseCatalogOptions {
-        content: "msgid \"Checkout\"\nmsgstr \"\"\n",
         locale: Some("de"),
-        source_locale: "en",
-        ..ParseCatalogOptions::default()
+        ..ParseCatalogOptions::new("msgid \"Checkout\"\nmsgstr \"\"\n", "en")
     })?
     .into_normalized_view()?;
 
@@ -466,17 +458,16 @@ use ferrocat::{
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let source = parse_catalog(ParseCatalogOptions {
-        content: "msgid \"Checkout\"\nmsgstr \"Checkout\"\n\nmsgid \"Cart\"\nmsgstr \"Cart\"\n",
         locale: Some("en"),
-        source_locale: "en",
-        ..ParseCatalogOptions::default()
+        ..ParseCatalogOptions::new(
+            "msgid \"Checkout\"\nmsgstr \"Checkout\"\n\nmsgid \"Cart\"\nmsgstr \"Cart\"\n",
+            "en",
+        )
     })?
     .into_normalized_view()?;
     let german = parse_catalog(ParseCatalogOptions {
-        content: "msgid \"Checkout\"\nmsgstr \"Zur Kasse\"\n",
         locale: Some("de"),
-        source_locale: "en",
-        ..ParseCatalogOptions::default()
+        ..ParseCatalogOptions::new("msgid \"Checkout\"\nmsgstr \"Zur Kasse\"\n", "en")
     })?
     .into_normalized_view()?;
 
@@ -551,14 +542,11 @@ Compared with `merge_catalog`, this is the "full semantics" path. It is the bett
 
 `UpdateCatalogOptions` borrows locale strings, optional existing content, and optional custom-header maps. The extracted message payload itself stays owned, because that is usually the natural shape for upstream extractor output.
 
-Like parsing, updates now use an explicit `storage_format`. PO remains the default. NDJSON storage uses a small frontmatter header plus one JSON message record per line.
+Like parsing, updates should normally choose one `CatalogMode`. PO with ICU-native semantics remains the default. NDJSON storage uses a small frontmatter header plus one JSON message record per line.
 
 Choose NDJSON when collaboration and automation matter more than maximum PO fidelity. The one-record-per-line shape keeps large catalog diffs readable and makes ordinary Git conflict handling more practical, including hosted review flows where custom `.gitattributes` merge drivers may not be part of the web merge path.
 
-Updates also use an explicit `CatalogSemantics`:
-
-- `IcuNative` is the default and writes raw ICU/text messages
-- `GettextCompat` is the explicit PO-interop mode and writes classic gettext plurals
+Use `CatalogMode::GettextPo` for explicit PO-interop mode that writes classic gettext plurals.
 
 In `GettextCompat` mode, Ferrocat synthesizes `Plural-Forms` only for safe
 locale defaults that it knows, including common one-form, Germanic/Romance
@@ -571,21 +559,19 @@ In native mode, `CatalogUpdateInput::SourceFirst` stays source-text-first; it no
 In `NDJSON` storage, arbitrary gettext-style custom headers are intentionally out of scope for `v1`; only the explicit frontmatter metadata and per-record fields are persisted. Machine-translation metadata uses the optional `mt` record field and remains part of `ferrocat.ndjson.v1`.
 
 ```rust
-use ferrocat::{
-    CatalogStorageFormat, CatalogUpdateInput, SourceExtractedMessage, UpdateCatalogOptions,
-    update_catalog,
+use ferrocat_po::{
+    CatalogMode, CatalogUpdateInput, SourceExtractedMessage, UpdateCatalogOptions, update_catalog,
 };
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let result = update_catalog(UpdateCatalogOptions {
         locale: Some("de"),
-        source_locale: "en",
-        storage_format: CatalogStorageFormat::Ndjson,
+        mode: CatalogMode::IcuNdjson,
         input: CatalogUpdateInput::SourceFirst(vec![SourceExtractedMessage {
             msgid: "Checkout".to_owned(),
             ..SourceExtractedMessage::default()
         }]),
-        ..UpdateCatalogOptions::default()
+        ..UpdateCatalogOptions::new("en", CatalogUpdateInput::default())
     })?;
 
     assert!(result.content.starts_with("---\nformat: ferrocat.ndjson.v1\n"));

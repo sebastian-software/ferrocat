@@ -1804,8 +1804,7 @@ fn scan_stats(content: &str) -> FixtureStats {
 mod tests {
     use ferrocat_icu::parse_icu;
     use ferrocat_po::{
-        CatalogSemantics, CatalogStorageFormat, ParseCatalogOptions, PluralEncoding,
-        UpdateCatalogOptions, parse_catalog, update_catalog,
+        CatalogMode, ParseCatalogOptions, UpdateCatalogOptions, parse_catalog, update_catalog,
     };
 
     use super::{fixture_by_name, icu_fixture_by_name, merge_fixture_by_name};
@@ -1909,9 +1908,7 @@ mod tests {
             content: fixture.content(),
             locale: Some("de"),
             source_locale: "en",
-            storage_format: CatalogStorageFormat::Po,
-            semantics: CatalogSemantics::IcuNative,
-            plural_encoding: PluralEncoding::Icu,
+            mode: CatalogMode::IcuPo,
             strict: false,
         })
         .expect("parse catalog");
@@ -1940,12 +1937,8 @@ mod tests {
         let fixture = merge_fixture_by_name("catalog-icu-projectable").expect("fixture exists");
         let result = update_catalog(UpdateCatalogOptions {
             locale: Some("de"),
-            source_locale: "en",
-            input: fixture.api_extracted_messages().to_vec().into(),
             existing: Some(fixture.existing_po()),
-            semantics: CatalogSemantics::IcuNative,
-            plural_encoding: PluralEncoding::Icu,
-            ..UpdateCatalogOptions::default()
+            ..UpdateCatalogOptions::new("en", fixture.api_extracted_messages().to_vec())
         })
         .expect("update catalog");
 
@@ -1958,12 +1951,8 @@ mod tests {
         let fixture = merge_fixture_by_name("catalog-icu-unsupported").expect("fixture exists");
         let result = update_catalog(UpdateCatalogOptions {
             locale: Some("de"),
-            source_locale: "en",
-            input: fixture.api_extracted_messages().to_vec().into(),
             existing: Some(fixture.existing_po()),
-            semantics: CatalogSemantics::IcuNative,
-            plural_encoding: PluralEncoding::Icu,
-            ..UpdateCatalogOptions::default()
+            ..UpdateCatalogOptions::new("en", fixture.api_extracted_messages().to_vec())
         })
         .expect("update catalog");
 

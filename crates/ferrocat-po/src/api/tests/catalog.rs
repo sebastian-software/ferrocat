@@ -11,7 +11,7 @@ fn update_catalog_creates_new_source_locale_messages() {
             msgid: "Hello".to_owned(),
             ..ExtractedSingularMessage::default()
         })]),
-        ..UpdateCatalogOptions::default()
+        ..UpdateCatalogOptions::new("en", CatalogUpdateInput::default())
     })
     .expect("update");
 
@@ -35,7 +35,7 @@ fn update_catalog_preserves_non_source_translations() {
             msgid: "Hello".to_owned(),
             ..ExtractedSingularMessage::default()
         })]),
-        ..UpdateCatalogOptions::default()
+        ..UpdateCatalogOptions::new("en", CatalogUpdateInput::default())
     })
     .expect("update");
 
@@ -54,7 +54,7 @@ fn parse_catalog_reads_po_machine_translation_metadata() {
         content: &content,
         source_locale: "en",
         locale: Some("de"),
-        ..ParseCatalogOptions::default()
+        ..ParseCatalogOptions::new("", "en")
     })
     .expect("parse");
 
@@ -83,7 +83,7 @@ fn update_catalog_keeps_valid_po_machine_translation_metadata() {
             msgid: "Hello".to_owned(),
             ..ExtractedSingularMessage::default()
         })]),
-        ..UpdateCatalogOptions::default()
+        ..UpdateCatalogOptions::new("en", CatalogUpdateInput::default())
     })
     .expect("update");
 
@@ -112,7 +112,7 @@ fn update_catalog_drops_stale_po_machine_translation_metadata() {
             msgid: "Hello".to_owned(),
             ..ExtractedSingularMessage::default()
         })]),
-        ..UpdateCatalogOptions::default()
+        ..UpdateCatalogOptions::new("en", CatalogUpdateInput::default())
     })
     .expect("update");
 
@@ -121,7 +121,7 @@ fn update_catalog_drops_stale_po_machine_translation_metadata() {
         content: existing,
         source_locale: "en",
         locale: Some("de"),
-        ..ParseCatalogOptions::default()
+        ..ParseCatalogOptions::new("", "en")
     })
     .expect("parse stale metadata");
     assert!(parsed.messages[0].machine_translation.is_some());
@@ -137,7 +137,7 @@ fn parse_catalog_rejects_machine_translation_confidence_above_100() {
         ),
         source_locale: "en",
         locale: Some("de"),
-        ..ParseCatalogOptions::default()
+        ..ParseCatalogOptions::new("", "en")
     })
     .expect_err("confidence above 100 should fail");
 
@@ -163,12 +163,12 @@ fn update_catalog_roundtrips_valid_ndjson_machine_translation_metadata() {
         source_locale: "en",
         locale: Some("de"),
         existing: Some(&existing),
-        storage_format: CatalogStorageFormat::Ndjson,
+        mode: CatalogMode::IcuNdjson,
         input: structured_input(vec![ExtractedMessage::Singular(ExtractedSingularMessage {
             msgid: "Hello".to_owned(),
             ..ExtractedSingularMessage::default()
         })]),
-        ..UpdateCatalogOptions::default()
+        ..UpdateCatalogOptions::new("en", CatalogUpdateInput::default())
     })
     .expect("update");
 
@@ -198,12 +198,12 @@ fn update_catalog_drops_stale_ndjson_machine_translation_metadata() {
         source_locale: "en",
         locale: Some("de"),
         existing: Some(existing),
-        storage_format: CatalogStorageFormat::Ndjson,
+        mode: CatalogMode::IcuNdjson,
         input: structured_input(vec![ExtractedMessage::Singular(ExtractedSingularMessage {
             msgid: "Hello".to_owned(),
             ..ExtractedSingularMessage::default()
         })]),
-        ..UpdateCatalogOptions::default()
+        ..UpdateCatalogOptions::new("en", CatalogUpdateInput::default())
     })
     .expect("update");
 
@@ -230,7 +230,7 @@ fn overwrite_source_translations_refreshes_source_locale() {
             msgid: "Hello".to_owned(),
             ..ExtractedSingularMessage::default()
         })]),
-        ..UpdateCatalogOptions::default()
+        ..UpdateCatalogOptions::new("en", CatalogUpdateInput::default())
     })
     .expect("update");
 
@@ -251,7 +251,7 @@ fn obsolete_strategy_delete_removes_missing_messages() {
             msgid: "keep".to_owned(),
             ..ExtractedSingularMessage::default()
         })]),
-        ..UpdateCatalogOptions::default()
+        ..UpdateCatalogOptions::new("en", CatalogUpdateInput::default())
     })
     .expect("update");
 
@@ -271,7 +271,7 @@ fn obsolete_strategy_mark_marks_missing_active_messages() {
             msgid: "keep".to_owned(),
             ..ExtractedSingularMessage::default()
         })]),
-        ..UpdateCatalogOptions::default()
+        ..UpdateCatalogOptions::new("en", CatalogUpdateInput::default())
     })
     .expect("update");
 
@@ -304,7 +304,7 @@ fn duplicate_conflicts_fail_hard() {
                 ..ExtractedPluralMessage::default()
             }),
         ]),
-        ..UpdateCatalogOptions::default()
+        ..UpdateCatalogOptions::new("en", CatalogUpdateInput::default())
     })
     .expect_err("conflict");
 
@@ -325,7 +325,7 @@ fn plural_icu_export_uses_structural_input() {
             placeholders: BTreeMap::from([("count".to_owned(), vec!["count".to_owned()])]),
             ..ExtractedPluralMessage::default()
         })]),
-        ..UpdateCatalogOptions::default()
+        ..UpdateCatalogOptions::new("en", CatalogUpdateInput::default())
     })
     .expect("update");
 
@@ -343,7 +343,7 @@ fn source_first_plain_messages_normalize_as_singular() {
             msgid: "Welcome".to_owned(),
             ..SourceExtractedMessage::default()
         }]),
-        ..UpdateCatalogOptions::default()
+        ..UpdateCatalogOptions::new("en", CatalogUpdateInput::default())
     })
     .expect("update");
 
@@ -363,7 +363,7 @@ fn source_first_simple_icu_plural_stays_singular_in_native_mode() {
             placeholders: BTreeMap::from([("items".to_owned(), vec!["items".to_owned()])]),
             ..SourceExtractedMessage::default()
         }]),
-        ..UpdateCatalogOptions::default()
+        ..UpdateCatalogOptions::new("en", CatalogUpdateInput::default())
     })
     .expect("update");
 
@@ -388,7 +388,7 @@ fn source_first_nested_icu_plural_stays_singular_without_projection_warning() {
             msgid: "{count, plural, one {{gender, select, male {He has one file} other {They have one file}}} other {{gender, select, male {He has # files} other {They have # files}}}}".to_owned(),
             ..SourceExtractedMessage::default()
         }]),
-        ..UpdateCatalogOptions::default()
+        ..UpdateCatalogOptions::new("en", CatalogUpdateInput::default())
     })
     .expect("update");
 
@@ -412,9 +412,7 @@ fn parse_catalog_projects_gettext_plural_into_structured_shape() {
         ),
         locale: Some("de"),
         source_locale: "en",
-        storage_format: CatalogStorageFormat::Po,
-        semantics: CatalogSemantics::GettextCompat,
-        plural_encoding: PluralEncoding::Gettext,
+        mode: CatalogMode::GettextPo,
         strict: false,
     })
     .expect("parse");
@@ -448,9 +446,7 @@ fn normalized_view_indexes_messages_by_key() {
         ),
         locale: Some("de"),
         source_locale: "en",
-        storage_format: CatalogStorageFormat::Po,
-        semantics: CatalogSemantics::GettextCompat,
-        plural_encoding: PluralEncoding::Gettext,
+        mode: CatalogMode::GettextPo,
         strict: false,
     })
     .expect("parse");
@@ -479,9 +475,7 @@ fn normalized_view_rejects_duplicate_keys() {
         ),
         locale: Some("de"),
         source_locale: "en",
-        storage_format: CatalogStorageFormat::Po,
-        semantics: CatalogSemantics::GettextCompat,
-        plural_encoding: PluralEncoding::Gettext,
+        mode: CatalogMode::GettextPo,
         strict: false,
     })
     .expect("parse");
@@ -506,9 +500,7 @@ fn normalized_view_can_apply_source_locale_fallbacks() {
         ),
         locale: Some("en"),
         source_locale: "en",
-        storage_format: CatalogStorageFormat::Po,
-        semantics: CatalogSemantics::GettextCompat,
-        plural_encoding: PluralEncoding::Gettext,
+        mode: CatalogMode::GettextPo,
         strict: false,
     })
     .expect("parse");
@@ -541,9 +533,7 @@ fn normalized_view_skips_source_fallback_for_non_source_locale_catalogs() {
         content: concat!("msgid \"Hello\"\n", "msgstr \"\"\n"),
         locale: Some("de"),
         source_locale: "en",
-        storage_format: CatalogStorageFormat::Po,
-        semantics: CatalogSemantics::GettextCompat,
-        plural_encoding: PluralEncoding::Gettext,
+        mode: CatalogMode::GettextPo,
         strict: false,
     })
     .expect("parse");
@@ -569,9 +559,7 @@ fn parse_catalog_uses_icu_plural_categories_for_french_gettext() {
         ),
         locale: Some("fr"),
         source_locale: "en",
-        storage_format: CatalogStorageFormat::Po,
-        semantics: CatalogSemantics::GettextCompat,
-        plural_encoding: PluralEncoding::Gettext,
+        mode: CatalogMode::GettextPo,
         strict: false,
     })
     .expect("parse");
@@ -607,9 +595,7 @@ fn parse_catalog_prefers_gettext_slot_count_when_it_disagrees_with_locale_catego
         ),
         locale: Some("fr"),
         source_locale: "en",
-        storage_format: CatalogStorageFormat::Po,
-        semantics: CatalogSemantics::GettextCompat,
-        plural_encoding: PluralEncoding::Gettext,
+        mode: CatalogMode::GettextPo,
         strict: false,
     })
     .expect("parse");
@@ -636,9 +622,7 @@ fn parse_catalog_reports_plural_forms_locale_mismatch() {
         ),
         locale: Some("fr"),
         source_locale: "en",
-        storage_format: CatalogStorageFormat::Po,
-        semantics: CatalogSemantics::GettextCompat,
-        plural_encoding: PluralEncoding::Gettext,
+        mode: CatalogMode::GettextPo,
         strict: false,
     })
     .expect("parse");
@@ -661,11 +645,8 @@ fn parse_catalog_accepts_safe_gettext_plural_forms_for_french() {
             "\"Plural-Forms: nplurals=2; plural=(n > 1);\\n\"\n",
         ),
         locale: Some("fr"),
-        source_locale: "en",
-        storage_format: CatalogStorageFormat::Po,
-        semantics: CatalogSemantics::GettextCompat,
-        plural_encoding: PluralEncoding::Gettext,
-        strict: false,
+        mode: CatalogMode::GettextPo,
+        ..ParseCatalogOptions::new("", "en")
     })
     .expect("parse");
 
@@ -686,9 +667,7 @@ fn parse_catalog_keeps_simple_icu_plural_as_singular_in_native_mode() {
         ),
         locale: Some("de"),
         source_locale: "en",
-        storage_format: CatalogStorageFormat::Po,
-        semantics: CatalogSemantics::IcuNative,
-        plural_encoding: PluralEncoding::Icu,
+        mode: CatalogMode::IcuPo,
         strict: false,
     })
     .expect("parse");
@@ -709,9 +688,7 @@ fn parse_catalog_keeps_nested_icu_plural_as_singular_without_projection_warning(
         ),
         locale: Some("de"),
         source_locale: "en",
-        storage_format: CatalogStorageFormat::Po,
-        semantics: CatalogSemantics::IcuNative,
-        plural_encoding: PluralEncoding::Icu,
+        mode: CatalogMode::IcuPo,
         strict: false,
     })
     .expect("parse");
@@ -732,9 +709,7 @@ fn parse_catalog_strict_keeps_malformed_icu_plural_as_singular_in_native_mode() 
         ),
         locale: Some("de"),
         source_locale: "en",
-        storage_format: CatalogStorageFormat::Po,
-        semantics: CatalogSemantics::IcuNative,
-        plural_encoding: PluralEncoding::Icu,
+        mode: CatalogMode::IcuPo,
         strict: true,
     })
     .expect("strict parse");
@@ -758,9 +733,7 @@ fn parse_catalog_ndjson_matches_po_semantics() {
         ),
         locale: Some("de"),
         source_locale: "en",
-        storage_format: CatalogStorageFormat::Po,
-        semantics: CatalogSemantics::IcuNative,
-        plural_encoding: PluralEncoding::Icu,
+        mode: CatalogMode::IcuPo,
         strict: false,
     })
     .expect("parse po");
@@ -776,9 +749,7 @@ fn parse_catalog_ndjson_matches_po_semantics() {
         ),
         locale: Some("de"),
         source_locale: "en",
-        storage_format: CatalogStorageFormat::Ndjson,
-        semantics: CatalogSemantics::IcuNative,
-        plural_encoding: PluralEncoding::Icu,
+        mode: CatalogMode::IcuNdjson,
         strict: false,
     })
     .expect("parse ndjson");
@@ -797,9 +768,8 @@ fn parse_catalog_ndjson_rejects_unknown_record_fields() {
             "---\n",
             "{\"id\":\"About us\",\"str\":\"Ueber uns\",\"oops\":true}\n",
         ),
-        source_locale: "en",
-        storage_format: CatalogStorageFormat::Ndjson,
-        ..ParseCatalogOptions::default()
+        mode: CatalogMode::IcuNdjson,
+        ..ParseCatalogOptions::new("", "en")
     })
     .expect_err("unknown ndjson fields should fail");
 
@@ -819,9 +789,8 @@ fn parse_catalog_ndjson_rejects_source_locale_mismatch() {
             "---\n",
             "{\"id\":\"About us\",\"str\":\"Ueber uns\"}\n",
         ),
-        source_locale: "en",
-        storage_format: CatalogStorageFormat::Ndjson,
-        ..ParseCatalogOptions::default()
+        mode: CatalogMode::IcuNdjson,
+        ..ParseCatalogOptions::new("", "en")
     })
     .expect_err("source locale mismatch should fail");
 
@@ -839,26 +808,28 @@ fn update_catalog_file_writes_only_when_changed() {
 
     let first = update_catalog_file(UpdateCatalogFileOptions {
         target_path: &path,
-        source_locale: "en",
-        locale: Some("en"),
-        input: structured_input(vec![ExtractedMessage::Singular(ExtractedSingularMessage {
-            msgid: "Hello".to_owned(),
-            ..ExtractedSingularMessage::default()
-        })]),
-        ..UpdateCatalogFileOptions::default()
+        options: UpdateCatalogOptions {
+            locale: Some("en"),
+            input: structured_input(vec![ExtractedMessage::Singular(ExtractedSingularMessage {
+                msgid: "Hello".to_owned(),
+                ..ExtractedSingularMessage::default()
+            })]),
+            ..UpdateCatalogOptions::new("en", CatalogUpdateInput::default())
+        },
     })
     .expect("first write");
     assert!(first.created);
 
     let second = update_catalog_file(UpdateCatalogFileOptions {
         target_path: &path,
-        source_locale: "en",
-        locale: Some("en"),
-        input: structured_input(vec![ExtractedMessage::Singular(ExtractedSingularMessage {
-            msgid: "Hello".to_owned(),
-            ..ExtractedSingularMessage::default()
-        })]),
-        ..UpdateCatalogFileOptions::default()
+        options: UpdateCatalogOptions {
+            locale: Some("en"),
+            input: structured_input(vec![ExtractedMessage::Singular(ExtractedSingularMessage {
+                msgid: "Hello".to_owned(),
+                ..ExtractedSingularMessage::default()
+            })]),
+            ..UpdateCatalogOptions::new("en", CatalogUpdateInput::default())
+        },
     })
     .expect("second write");
     assert!(!second.created);
@@ -875,13 +846,16 @@ fn update_catalog_file_read_error_includes_path_context() {
 
     let error = update_catalog_file(UpdateCatalogFileOptions {
         target_path: &temp_dir,
-        source_locale: "en",
-        locale: Some("en"),
-        input: structured_input(vec![ExtractedMessage::Singular(ExtractedSingularMessage {
-            msgid: "Hello".to_owned(),
-            ..ExtractedSingularMessage::default()
-        })]),
-        ..UpdateCatalogFileOptions::default()
+        options: UpdateCatalogOptions {
+            locale: Some("en"),
+            ..UpdateCatalogOptions::new(
+                "en",
+                structured_input(vec![ExtractedMessage::Singular(ExtractedSingularMessage {
+                    msgid: "Hello".to_owned(),
+                    ..ExtractedSingularMessage::default()
+                })]),
+            )
+        },
     })
     .expect_err("directory read should fail");
 
@@ -896,7 +870,7 @@ fn update_catalog_ndjson_renders_frontmatter_and_roundtrips() {
     let result = update_catalog(UpdateCatalogOptions {
         source_locale: "en",
         locale: Some("de"),
-        storage_format: CatalogStorageFormat::Ndjson,
+        mode: CatalogMode::IcuNdjson,
         input: structured_input(vec![
             ExtractedMessage::Singular(ExtractedSingularMessage {
                 msgid: "About us".to_owned(),
@@ -918,7 +892,7 @@ fn update_catalog_ndjson_renders_frontmatter_and_roundtrips() {
                 ..ExtractedPluralMessage::default()
             }),
         ]),
-        ..UpdateCatalogOptions::default()
+        ..UpdateCatalogOptions::new("en", CatalogUpdateInput::default())
     })
     .expect("update ndjson");
 
@@ -933,9 +907,7 @@ fn update_catalog_ndjson_renders_frontmatter_and_roundtrips() {
         content: &result.content,
         locale: Some("de"),
         source_locale: "en",
-        storage_format: CatalogStorageFormat::Ndjson,
-        semantics: CatalogSemantics::IcuNative,
-        plural_encoding: PluralEncoding::Icu,
+        mode: CatalogMode::IcuNdjson,
         strict: false,
     })
     .expect("reparse ndjson");
@@ -957,28 +929,30 @@ fn update_catalog_file_ndjson_writes_only_when_changed() {
 
     let first = update_catalog_file(UpdateCatalogFileOptions {
         target_path: &path,
-        source_locale: "en",
-        locale: Some("en"),
-        storage_format: CatalogStorageFormat::Ndjson,
-        input: structured_input(vec![ExtractedMessage::Singular(ExtractedSingularMessage {
-            msgid: "Hello".to_owned(),
-            ..ExtractedSingularMessage::default()
-        })]),
-        ..UpdateCatalogFileOptions::default()
+        options: UpdateCatalogOptions {
+            locale: Some("en"),
+            mode: CatalogMode::IcuNdjson,
+            input: structured_input(vec![ExtractedMessage::Singular(ExtractedSingularMessage {
+                msgid: "Hello".to_owned(),
+                ..ExtractedSingularMessage::default()
+            })]),
+            ..UpdateCatalogOptions::new("en", CatalogUpdateInput::default())
+        },
     })
     .expect("first ndjson write");
     assert!(first.created);
 
     let second = update_catalog_file(UpdateCatalogFileOptions {
         target_path: &path,
-        source_locale: "en",
-        locale: Some("en"),
-        storage_format: CatalogStorageFormat::Ndjson,
-        input: structured_input(vec![ExtractedMessage::Singular(ExtractedSingularMessage {
-            msgid: "Hello".to_owned(),
-            ..ExtractedSingularMessage::default()
-        })]),
-        ..UpdateCatalogFileOptions::default()
+        options: UpdateCatalogOptions {
+            locale: Some("en"),
+            mode: CatalogMode::IcuNdjson,
+            input: structured_input(vec![ExtractedMessage::Singular(ExtractedSingularMessage {
+                msgid: "Hello".to_owned(),
+                ..ExtractedSingularMessage::default()
+            })]),
+            ..UpdateCatalogOptions::new("en", CatalogUpdateInput::default())
+        },
     })
     .expect("second ndjson write");
     assert!(!second.created);
@@ -995,8 +969,7 @@ fn update_catalog_gettext_export_emits_plural_slots() {
     let result = update_catalog(UpdateCatalogOptions {
         source_locale: "en",
         locale: Some("de"),
-        semantics: CatalogSemantics::GettextCompat,
-        plural_encoding: PluralEncoding::Gettext,
+        mode: CatalogMode::GettextPo,
         input: structured_input(vec![ExtractedMessage::Plural(ExtractedPluralMessage {
             msgid: "books".to_owned(),
             source: PluralSource {
@@ -1006,7 +979,7 @@ fn update_catalog_gettext_export_emits_plural_slots() {
             placeholders: BTreeMap::from([("count".to_owned(), vec!["count".to_owned()])]),
             ..ExtractedPluralMessage::default()
         })]),
-        ..UpdateCatalogOptions::default()
+        ..UpdateCatalogOptions::new("en", CatalogUpdateInput::default())
     })
     .expect("update");
 
@@ -1021,8 +994,7 @@ fn update_catalog_gettext_export_uses_safe_plural_profile_for_french() {
     let result = update_catalog(UpdateCatalogOptions {
         source_locale: "en",
         locale: Some("fr"),
-        semantics: CatalogSemantics::GettextCompat,
-        plural_encoding: PluralEncoding::Gettext,
+        mode: CatalogMode::GettextPo,
         input: structured_input(vec![ExtractedMessage::Plural(ExtractedPluralMessage {
             msgid: "files".to_owned(),
             source: PluralSource {
@@ -1032,7 +1004,7 @@ fn update_catalog_gettext_export_uses_safe_plural_profile_for_french() {
             placeholders: BTreeMap::from([("count".to_owned(), vec!["count".to_owned()])]),
             ..ExtractedPluralMessage::default()
         })]),
-        ..UpdateCatalogOptions::default()
+        ..UpdateCatalogOptions::new("en", CatalogUpdateInput::default())
     })
     .expect("update");
 
@@ -1051,13 +1023,12 @@ fn update_catalog_gettext_sets_safe_plural_forms_header_for_two_form_locale() {
     let result = update_catalog(UpdateCatalogOptions {
         source_locale: "en",
         locale: Some("de"),
-        semantics: CatalogSemantics::GettextCompat,
-        plural_encoding: PluralEncoding::Gettext,
+        mode: CatalogMode::GettextPo,
         input: structured_input(vec![ExtractedMessage::Singular(ExtractedSingularMessage {
             msgid: "Hello".to_owned(),
             ..ExtractedSingularMessage::default()
         })]),
-        ..UpdateCatalogOptions::default()
+        ..UpdateCatalogOptions::new("en", CatalogUpdateInput::default())
     })
     .expect("update");
 
@@ -1073,15 +1044,15 @@ fn update_catalog_gettext_sets_safe_plural_forms_header_for_two_form_locale() {
 #[test]
 fn update_catalog_gettext_sets_safe_plural_forms_header_for_multi_form_locale() {
     let result = update_catalog(UpdateCatalogOptions {
-        source_locale: "en",
         locale: Some("pl"),
-        semantics: CatalogSemantics::GettextCompat,
-        plural_encoding: PluralEncoding::Gettext,
-        input: structured_input(vec![ExtractedMessage::Singular(ExtractedSingularMessage {
-            msgid: "Hello".to_owned(),
-            ..ExtractedSingularMessage::default()
-        })]),
-        ..UpdateCatalogOptions::default()
+        mode: CatalogMode::GettextPo,
+        ..UpdateCatalogOptions::new(
+            "en",
+            structured_input(vec![ExtractedMessage::Singular(ExtractedSingularMessage {
+                msgid: "Hello".to_owned(),
+                ..ExtractedSingularMessage::default()
+            })]),
+        )
     })
     .expect("update");
 
@@ -1106,13 +1077,12 @@ fn update_catalog_gettext_reports_when_no_safe_plural_forms_header_is_known() {
     let result = update_catalog(UpdateCatalogOptions {
         source_locale: "en",
         locale: Some("ga"),
-        semantics: CatalogSemantics::GettextCompat,
-        plural_encoding: PluralEncoding::Gettext,
+        mode: CatalogMode::GettextPo,
         input: structured_input(vec![ExtractedMessage::Singular(ExtractedSingularMessage {
             msgid: "Bonjour".to_owned(),
             ..ExtractedSingularMessage::default()
         })]),
-        ..UpdateCatalogOptions::default()
+        ..UpdateCatalogOptions::new("en", CatalogUpdateInput::default())
     })
     .expect("update");
 
@@ -1129,8 +1099,7 @@ fn update_catalog_gettext_completes_partial_plural_forms_header_when_safe() {
     let result = update_catalog(UpdateCatalogOptions {
         source_locale: "en",
         locale: Some("de"),
-        semantics: CatalogSemantics::GettextCompat,
-        plural_encoding: PluralEncoding::Gettext,
+        mode: CatalogMode::GettextPo,
         existing: Some(concat!(
             "msgid \"\"\n",
             "msgstr \"\"\n",
@@ -1141,7 +1110,7 @@ fn update_catalog_gettext_completes_partial_plural_forms_header_when_safe() {
             msgid: "Hello".to_owned(),
             ..ExtractedSingularMessage::default()
         })]),
-        ..UpdateCatalogOptions::default()
+        ..UpdateCatalogOptions::new("en", CatalogUpdateInput::default())
     })
     .expect("update");
 
@@ -1166,8 +1135,7 @@ fn update_catalog_gettext_preserves_existing_complete_plural_forms_header() {
     let result = update_catalog(UpdateCatalogOptions {
         source_locale: "en",
         locale: Some("de"),
-        semantics: CatalogSemantics::GettextCompat,
-        plural_encoding: PluralEncoding::Gettext,
+        mode: CatalogMode::GettextPo,
         existing: Some(concat!(
             "msgid \"\"\n",
             "msgstr \"\"\n",
@@ -1178,7 +1146,7 @@ fn update_catalog_gettext_preserves_existing_complete_plural_forms_header() {
             msgid: "Hello".to_owned(),
             ..ExtractedSingularMessage::default()
         })]),
-        ..UpdateCatalogOptions::default()
+        ..UpdateCatalogOptions::new("en", CatalogUpdateInput::default())
     })
     .expect("update");
 
@@ -1210,8 +1178,7 @@ fn update_catalog_gettext_preserves_previous_plural_variable_and_translations() 
         source_locale: "en",
         locale: Some("de"),
         existing: Some(existing),
-        semantics: CatalogSemantics::GettextCompat,
-        plural_encoding: PluralEncoding::Gettext,
+        mode: CatalogMode::GettextPo,
         input: structured_input(vec![ExtractedMessage::Plural(ExtractedPluralMessage {
             msgid: "books".to_owned(),
             source: PluralSource {
@@ -1220,7 +1187,7 @@ fn update_catalog_gettext_preserves_previous_plural_variable_and_translations() 
             },
             ..ExtractedPluralMessage::default()
         })]),
-        ..UpdateCatalogOptions::default()
+        ..UpdateCatalogOptions::new("en", CatalogUpdateInput::default())
     })
     .expect("update");
 
@@ -1228,9 +1195,7 @@ fn update_catalog_gettext_preserves_previous_plural_variable_and_translations() 
         content: &result.content,
         locale: Some("de"),
         source_locale: "en",
-        storage_format: CatalogStorageFormat::Po,
-        semantics: CatalogSemantics::GettextCompat,
-        plural_encoding: PluralEncoding::Gettext,
+        mode: CatalogMode::GettextPo,
         strict: false,
     })
     .expect("parse updated catalog");
@@ -1262,12 +1227,15 @@ fn update_catalog_applies_custom_header_attributes() {
     let result = update_catalog(UpdateCatalogOptions {
         source_locale: "en",
         locale: Some("de"),
-        custom_header_attributes: Some(&headers),
+        render: RenderOptions {
+            custom_header_attributes: Some(&headers),
+            ..RenderOptions::default()
+        },
         input: structured_input(vec![ExtractedMessage::Singular(ExtractedSingularMessage {
             msgid: "Hello".to_owned(),
             ..ExtractedSingularMessage::default()
         })]),
-        ..UpdateCatalogOptions::default()
+        ..UpdateCatalogOptions::new("en", CatalogUpdateInput::default())
     })
     .expect("update");
 
@@ -1299,7 +1267,7 @@ fn update_catalog_rejects_empty_extracted_msgid() {
             msgid: String::new(),
             ..ExtractedSingularMessage::default()
         })]),
-        ..UpdateCatalogOptions::default()
+        ..UpdateCatalogOptions::new("en", CatalogUpdateInput::default())
     })
     .expect_err("empty msgid should fail");
 
@@ -1336,7 +1304,7 @@ fn update_catalog_merges_duplicate_source_first_metadata() {
                 ..SourceExtractedMessage::default()
             },
         ]),
-        ..UpdateCatalogOptions::default()
+        ..UpdateCatalogOptions::new("en", CatalogUpdateInput::default())
     })
     .expect("merge duplicates");
 
@@ -1367,7 +1335,7 @@ fn update_catalog_obsolete_keep_reactivates_missing_messages() {
         existing: Some(existing),
         obsolete_strategy: ObsoleteStrategy::Keep,
         input: structured_input(Vec::new()),
-        ..UpdateCatalogOptions::default()
+        ..UpdateCatalogOptions::new("en", CatalogUpdateInput::default())
     })
     .expect("keep obsolete");
 
@@ -1382,9 +1350,12 @@ fn update_catalog_origin_sort_and_placeholder_options_are_applied() {
     let result = update_catalog(UpdateCatalogOptions {
         source_locale: "en",
         locale: Some("en"),
-        order_by: OrderBy::Origin,
-        include_line_numbers: false,
-        print_placeholders_in_comments: PlaceholderCommentMode::Enabled { limit: 1 },
+        render: RenderOptions {
+            order_by: OrderBy::Origin,
+            include_line_numbers: false,
+            print_placeholders_in_comments: PlaceholderCommentMode::Enabled { limit: 1 },
+            ..RenderOptions::default()
+        },
         input: structured_input(vec![
             ExtractedMessage::Singular(ExtractedSingularMessage {
                 msgid: "Second".to_owned(),
@@ -1407,7 +1378,7 @@ fn update_catalog_origin_sort_and_placeholder_options_are_applied() {
                 ..ExtractedSingularMessage::default()
             }),
         ]),
-        ..UpdateCatalogOptions::default()
+        ..UpdateCatalogOptions::new("en", CatalogUpdateInput::default())
     })
     .expect("update with origin sort");
 
@@ -1423,13 +1394,16 @@ fn update_catalog_origin_sort_and_placeholder_options_are_applied() {
     let without_placeholders = update_catalog(UpdateCatalogOptions {
         source_locale: "en",
         locale: Some("en"),
-        print_placeholders_in_comments: PlaceholderCommentMode::Disabled,
+        render: RenderOptions {
+            print_placeholders_in_comments: PlaceholderCommentMode::Disabled,
+            ..RenderOptions::default()
+        },
         input: structured_input(vec![ExtractedMessage::Singular(ExtractedSingularMessage {
             msgid: "Hello".to_owned(),
             placeholders: BTreeMap::from([("name".to_owned(), vec!["name".to_owned()])]),
             ..ExtractedSingularMessage::default()
         })]),
-        ..UpdateCatalogOptions::default()
+        ..UpdateCatalogOptions::new("en", CatalogUpdateInput::default())
     })
     .expect("update without placeholder comments");
     assert!(!without_placeholders.content.contains("placeholder"));
@@ -1442,13 +1416,16 @@ fn update_catalog_ndjson_rejects_custom_header_attributes() {
     let error = update_catalog(UpdateCatalogOptions {
         source_locale: "en",
         locale: Some("en"),
-        storage_format: CatalogStorageFormat::Ndjson,
-        custom_header_attributes: Some(&headers),
+        mode: CatalogMode::IcuNdjson,
+        render: RenderOptions {
+            custom_header_attributes: Some(&headers),
+            ..RenderOptions::default()
+        },
         input: structured_input(vec![ExtractedMessage::Singular(ExtractedSingularMessage {
             msgid: "Hello".to_owned(),
             ..ExtractedSingularMessage::default()
         })]),
-        ..UpdateCatalogOptions::default()
+        ..UpdateCatalogOptions::new("en", CatalogUpdateInput::default())
     })
     .expect_err("custom ndjson headers should fail");
 
@@ -1459,9 +1436,7 @@ fn update_catalog_ndjson_rejects_custom_header_attributes() {
 fn update_catalog_file_rejects_empty_target_path() {
     let error = update_catalog_file(UpdateCatalogFileOptions {
         target_path: std::path::Path::new(""),
-        source_locale: "en",
-        input: structured_input(Vec::new()),
-        ..UpdateCatalogFileOptions::default()
+        options: UpdateCatalogOptions::new("en", structured_input(Vec::new())),
     })
     .expect_err("empty path should fail");
 
@@ -1481,9 +1456,7 @@ fn parse_catalog_rejects_classic_plural_shape_in_native_mode() {
         ),
         locale: Some("en"),
         source_locale: "en",
-        storage_format: CatalogStorageFormat::Po,
-        semantics: CatalogSemantics::IcuNative,
-        plural_encoding: PluralEncoding::Icu,
+        mode: CatalogMode::IcuPo,
         strict: false,
     })
     .expect_err("classic plural should fail in native mode");
@@ -1497,9 +1470,7 @@ fn parse_catalog_rejects_classic_plural_shape_in_native_mode() {
         ),
         locale: Some("en"),
         source_locale: "en",
-        storage_format: CatalogStorageFormat::Po,
-        semantics: CatalogSemantics::IcuNative,
-        plural_encoding: PluralEncoding::Icu,
+        mode: CatalogMode::IcuPo,
         strict: false,
     })
     .expect_err("plural msgstr should fail in native mode");
@@ -1517,9 +1488,7 @@ fn parse_catalog_reports_plural_expression_without_nplurals() {
         ),
         locale: Some("de"),
         source_locale: "en",
-        storage_format: CatalogStorageFormat::Po,
-        semantics: CatalogSemantics::GettextCompat,
-        plural_encoding: PluralEncoding::Gettext,
+        mode: CatalogMode::GettextPo,
         strict: false,
     })
     .expect("parse");
@@ -1551,7 +1520,7 @@ fn combine_catalogs_use_first_preserves_existing_translations_and_adds_missing()
         inputs: &inputs,
         source_locale: "en",
         locale: Some("de"),
-        ..CombineCatalogOptions::default()
+        ..CombineCatalogOptions::new(&[], "en")
     })
     .expect("combine");
 
@@ -1582,7 +1551,7 @@ fn combine_catalogs_use_last_overlays_conflicting_translation() {
         source_locale: "en",
         locale: Some("de"),
         conflict_strategy: CatalogConflictStrategy::UseLast,
-        ..CombineCatalogOptions::default()
+        ..CombineCatalogOptions::new(&[], "en")
     })
     .expect("combine");
 
@@ -1607,7 +1576,7 @@ fn combine_catalogs_error_rejects_conflicting_translation() {
         source_locale: "en",
         locale: Some("de"),
         conflict_strategy: CatalogConflictStrategy::Error,
-        ..CombineCatalogOptions::default()
+        ..CombineCatalogOptions::new(&[], "en")
     })
     .expect_err("conflict");
 
@@ -1638,7 +1607,7 @@ fn combine_catalogs_selection_rules_filter_by_definition_count() {
         source_locale: "en",
         locale: Some("de"),
         selection: CatalogCombineSelection::Unique,
-        ..CombineCatalogOptions::default()
+        ..CombineCatalogOptions::new(&[], "en")
     })
     .expect("unique combine");
     let unique = parse_po(&unique.content).expect("parse unique");
@@ -1650,7 +1619,7 @@ fn combine_catalogs_selection_rules_filter_by_definition_count() {
         source_locale: "en",
         locale: Some("de"),
         selection: CatalogCombineSelection::MoreThan(1),
-        ..CombineCatalogOptions::default()
+        ..CombineCatalogOptions::new(&[], "en")
     })
     .expect("common combine");
     let common = parse_po(&common.content).expect("parse common");
@@ -1662,7 +1631,7 @@ fn combine_catalogs_selection_rules_filter_by_definition_count() {
         source_locale: "en",
         locale: Some("de"),
         selection: CatalogCombineSelection::LessThan(2),
-        ..CombineCatalogOptions::default()
+        ..CombineCatalogOptions::new(&[], "en")
     })
     .expect("less-than combine");
     let less_than_two = parse_po(&less_than_two.content).expect("parse less-than");
@@ -1696,7 +1665,7 @@ fn combine_catalogs_treats_contexts_as_distinct_identities() {
         inputs: &inputs,
         source_locale: "en",
         locale: Some("de"),
-        ..CombineCatalogOptions::default()
+        ..CombineCatalogOptions::new(&[], "en")
     })
     .expect("combine");
 
@@ -1724,9 +1693,8 @@ fn combine_catalogs_rejects_singular_plural_shape_conflicts() {
         inputs: &inputs,
         source_locale: "en",
         locale: Some("de"),
-        semantics: CatalogSemantics::GettextCompat,
-        plural_encoding: PluralEncoding::Gettext,
-        ..CombineCatalogOptions::default()
+        mode: CatalogMode::GettextPo,
+        ..CombineCatalogOptions::new(&[], "en")
     })
     .expect_err("shape conflict");
 
@@ -1746,7 +1714,7 @@ fn combine_catalogs_skips_obsolete_by_default_and_can_include_them() {
         inputs: &inputs,
         source_locale: "en",
         locale: Some("de"),
-        ..CombineCatalogOptions::default()
+        ..CombineCatalogOptions::new(&[], "en")
     })
     .expect("combine without obsolete");
     let skipped = parse_po(&skipped.content).expect("parse skipped");
@@ -1758,7 +1726,7 @@ fn combine_catalogs_skips_obsolete_by_default_and_can_include_them() {
         source_locale: "en",
         locale: Some("de"),
         include_obsolete: true,
-        ..CombineCatalogOptions::default()
+        ..CombineCatalogOptions::new(&[], "en")
     })
     .expect("combine with obsolete");
     let included = parse_po(&included.content).expect("parse included");
@@ -1792,9 +1760,8 @@ fn combine_catalogs_gettext_compat_preserves_plural_slots() {
         inputs: &inputs,
         source_locale: "en",
         locale: Some("de"),
-        semantics: CatalogSemantics::GettextCompat,
-        plural_encoding: PluralEncoding::Gettext,
-        ..CombineCatalogOptions::default()
+        mode: CatalogMode::GettextPo,
+        ..CombineCatalogOptions::new(&[], "en")
     })
     .expect("combine");
 
@@ -1810,7 +1777,7 @@ fn parse_catalog_requires_source_locale() {
     let error = parse_catalog(ParseCatalogOptions {
         content: "",
         source_locale: "",
-        ..ParseCatalogOptions::default()
+        ..ParseCatalogOptions::new("", "en")
     })
     .expect_err("missing source locale");
 
@@ -1840,7 +1807,7 @@ fn warnings_use_expected_namespace() {
             placeholders,
             ..ExtractedPluralMessage::default()
         })]),
-        ..UpdateCatalogOptions::default()
+        ..UpdateCatalogOptions::new("en", CatalogUpdateInput::default())
     })
     .expect("update");
 

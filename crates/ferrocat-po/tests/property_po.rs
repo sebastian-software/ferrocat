@@ -1,8 +1,8 @@
 use std::collections::BTreeMap;
 
 use ferrocat_po::{
-    CatalogSemantics, CatalogStorageFormat, ParseCatalogOptions, PluralEncoding, SerializeOptions,
-    parse_catalog, parse_po, parse_po_borrowed, stringify_po,
+    CatalogMode, ParseCatalogOptions, SerializeOptions, parse_catalog, parse_po, parse_po_borrowed,
+    stringify_po,
 };
 use proptest::prelude::*;
 
@@ -79,20 +79,14 @@ proptest! {
         let po = parse_catalog(ParseCatalogOptions {
             content: &render_po(&entries),
             locale: Some("de"),
-            source_locale: "en",
-            storage_format: CatalogStorageFormat::Po,
-            semantics: CatalogSemantics::IcuNative,
-            plural_encoding: PluralEncoding::Icu,
-            ..ParseCatalogOptions::default()
+            mode: CatalogMode::IcuPo,
+            ..ParseCatalogOptions::new("", "en")
         })
         .expect("generated PO catalog should parse");
         let ndjson = parse_catalog(ParseCatalogOptions {
             content: &render_ndjson(&entries),
-            source_locale: "en",
-            storage_format: CatalogStorageFormat::Ndjson,
-            semantics: CatalogSemantics::IcuNative,
-            plural_encoding: PluralEncoding::Icu,
-            ..ParseCatalogOptions::default()
+            mode: CatalogMode::IcuNdjson,
+            ..ParseCatalogOptions::new("", "en")
         })
         .expect("generated NDJSON catalog should parse");
 

@@ -5,9 +5,8 @@ use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 use ferrocat_po::{
-    CatalogAuditOptions, CatalogAuditReport, CatalogAuditSummary, CatalogStorageFormat,
-    DiagnosticSeverity, NormalizedParsedCatalog, ParseCatalogOptions, audit_catalogs,
-    parse_catalog,
+    CatalogAuditOptions, CatalogAuditReport, CatalogAuditSummary, CatalogMode, DiagnosticSeverity,
+    NormalizedParsedCatalog, ParseCatalogOptions, audit_catalogs, parse_catalog,
 };
 
 const EXIT_AUDIT_FAILED: u8 = 1;
@@ -249,10 +248,10 @@ impl CliStorageFormat {
         }
     }
 
-    const fn catalog_format(self) -> CatalogStorageFormat {
+    const fn catalog_mode(self) -> CatalogMode {
         match self {
-            Self::Po => CatalogStorageFormat::Po,
-            Self::Ndjson => CatalogStorageFormat::Ndjson,
+            Self::Po => CatalogMode::IcuPo,
+            Self::Ndjson => CatalogMode::IcuNdjson,
         }
     }
 }
@@ -386,8 +385,8 @@ fn load_catalog(
         content: &content,
         locale: Some(locale),
         source_locale,
-        storage_format: storage_format.catalog_format(),
-        ..ParseCatalogOptions::default()
+        mode: storage_format.catalog_mode(),
+        ..ParseCatalogOptions::new(&content, source_locale)
     })
     .and_then(ferrocat_po::ParsedCatalog::into_normalized_view)
     .map_err(|error| CliError::runtime(format!("failed to parse {}: {error}", path.display())))

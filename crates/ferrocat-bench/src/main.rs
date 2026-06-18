@@ -12,11 +12,11 @@ use conformance_harness::{evaluate_all_cases, summarize_evaluations};
 use ferrocat_conformance::{ConformanceCase, Expectation, ExpectedArtifact, load_all_manifests};
 use ferrocat_icu::{extract_variables, parse_icu, validate_icu};
 use ferrocat_po::{
-    CatalogCombineInput, CatalogMessage, CatalogMessageExtra, CatalogSemantics,
-    CatalogStorageFormat, CombineCatalogOptions, Header, MsgStr, ParseCatalogOptions,
-    ParsedCatalog, PluralEncoding, PoFile, PoItem, SerializeOptions, TranslationShape,
-    UpdateCatalogFileOptions, UpdateCatalogOptions, combine_catalogs, merge_catalog, parse_catalog,
-    parse_po, parse_po_borrowed, stringify_po, update_catalog, update_catalog_file,
+    CatalogCombineInput, CatalogMessage, CatalogMessageExtra, CatalogMode, CombineCatalogOptions,
+    Header, MsgStr, ParseCatalogOptions, ParsedCatalog, PoFile, PoItem, SerializeOptions,
+    TranslationShape, UpdateCatalogFileOptions, UpdateCatalogOptions, combine_catalogs,
+    merge_catalog, parse_catalog, parse_po, parse_po_borrowed, stringify_po, update_catalog,
+    update_catalog_file,
 };
 use fixtures::{
     Fixture, IcuFixture, MergeFixture, fixture_by_name, icu_fixture_by_name, merge_fixture_by_name,
@@ -333,9 +333,7 @@ fn bench_parse_catalog_po(fixture: &Fixture, config: BenchConfig) -> Result<(), 
                 content: fixture.content(),
                 locale: inferred_fixture_locale(fixture.name()),
                 source_locale: "en",
-                storage_format: CatalogStorageFormat::Po,
-                semantics: CatalogSemantics::IcuNative,
-                plural_encoding: PluralEncoding::Icu,
+                mode: CatalogMode::IcuPo,
                 strict: false,
             })
             .map_err(|error| error.to_string())?;
@@ -369,9 +367,7 @@ fn bench_parse_catalog_ndjson(fixture: &Fixture, config: BenchConfig) -> Result<
                 content: &content,
                 locale,
                 source_locale: "en",
-                storage_format: CatalogStorageFormat::Ndjson,
-                semantics: CatalogSemantics::IcuNative,
-                plural_encoding: PluralEncoding::Icu,
+                mode: CatalogMode::IcuNdjson,
                 strict: false,
             })
             .map_err(|error| error.to_string())?;
@@ -576,12 +572,8 @@ fn bench_update_catalog(fixture: &MergeFixture, config: BenchConfig) -> Result<(
         for _ in 0..config.iterations {
             let rendered = update_catalog(UpdateCatalogOptions {
                 locale: Some("de"),
-                source_locale: "en",
-                input: fixture.api_extracted_messages().to_vec().into(),
                 existing: Some(fixture.existing_po()),
-                semantics: CatalogSemantics::IcuNative,
-                plural_encoding: PluralEncoding::Icu,
-                ..UpdateCatalogOptions::default()
+                ..UpdateCatalogOptions::new("en", fixture.api_extracted_messages().to_vec())
             })
             .map_err(|error| error.to_string())?;
             bytes += rendered.content.len();
@@ -620,12 +612,10 @@ fn bench_update_catalog_file(fixture: &MergeFixture, config: BenchConfig) -> Res
             fs::write(&path, fixture.existing_po()).map_err(|error| error.to_string())?;
             let rendered = update_catalog_file(UpdateCatalogFileOptions {
                 target_path: &path,
-                locale: Some("de"),
-                source_locale: "en",
-                input: fixture.api_extracted_messages().to_vec().into(),
-                semantics: CatalogSemantics::IcuNative,
-                plural_encoding: PluralEncoding::Icu,
-                ..UpdateCatalogFileOptions::default()
+                options: UpdateCatalogOptions {
+                    locale: Some("de"),
+                    ..UpdateCatalogOptions::new("en", fixture.api_extracted_messages().to_vec())
+                },
             })
             .map_err(|error| error.to_string())?;
             bytes += rendered.content.len();
@@ -671,13 +661,11 @@ fn bench_update_catalog_file_ndjson(
             fs::write(&path, &existing_ndjson).map_err(|error| error.to_string())?;
             let rendered = update_catalog_file(UpdateCatalogFileOptions {
                 target_path: &path,
-                locale: Some("de"),
-                source_locale: "en",
-                input: fixture.api_extracted_messages().to_vec().into(),
-                storage_format: CatalogStorageFormat::Ndjson,
-                semantics: CatalogSemantics::IcuNative,
-                plural_encoding: PluralEncoding::Icu,
-                ..UpdateCatalogFileOptions::default()
+                options: UpdateCatalogOptions {
+                    locale: Some("de"),
+                    mode: CatalogMode::IcuNdjson,
+                    ..UpdateCatalogOptions::new("en", fixture.api_extracted_messages().to_vec())
+                },
             })
             .map_err(|error| error.to_string())?;
             bytes += rendered.content.len();
@@ -719,9 +707,8 @@ fn bench_combine_catalogs(fixture: &MergeFixture, config: BenchConfig) -> Result
                 inputs: &inputs,
                 locale: Some("de"),
                 source_locale: "en",
-                semantics: CatalogSemantics::IcuNative,
-                plural_encoding: PluralEncoding::Icu,
-                ..CombineCatalogOptions::default()
+                mode: CatalogMode::IcuPo,
+                ..CombineCatalogOptions::new(&[], "en")
             })
             .map_err(|error| error.to_string())?;
             bytes += rendered.content.len();
@@ -1048,9 +1035,7 @@ fn merge_fixture_existing_ndjson(fixture: &MergeFixture) -> Result<String, Strin
         content: fixture.existing_po(),
         locale,
         source_locale: "en",
-        storage_format: CatalogStorageFormat::Po,
-        semantics: CatalogSemantics::IcuNative,
-        plural_encoding: PluralEncoding::Icu,
+        mode: CatalogMode::IcuPo,
         strict: false,
     })
     .map_err(|error| error.to_string())?;
@@ -1062,9 +1047,7 @@ fn fixture_parsed_catalog(fixture: &Fixture) -> Result<ParsedCatalog, String> {
         content: fixture.content(),
         locale: inferred_fixture_locale(fixture.name()),
         source_locale: "en",
-        storage_format: CatalogStorageFormat::Po,
-        semantics: CatalogSemantics::IcuNative,
-        plural_encoding: PluralEncoding::Icu,
+        mode: CatalogMode::IcuPo,
         strict: false,
     })
     .map_err(|error| error.to_string())
@@ -1301,9 +1284,7 @@ const fn f64_from_usize(value: usize) -> f64 {
 
 #[cfg(test)]
 mod tests {
-    use ferrocat_po::{
-        CatalogSemantics, CatalogStorageFormat, ParseCatalogOptions, PluralEncoding, parse_catalog,
-    };
+    use ferrocat_po::{CatalogMode, ParseCatalogOptions, parse_catalog};
 
     use super::{
         fixture_by_name, fixture_ndjson_content, fixture_parsed_catalog, render_po_catalog,
@@ -1318,9 +1299,7 @@ mod tests {
             content: &ndjson,
             locale,
             source_locale: "en",
-            storage_format: CatalogStorageFormat::Ndjson,
-            semantics: CatalogSemantics::IcuNative,
-            plural_encoding: PluralEncoding::Icu,
+            mode: CatalogMode::IcuNdjson,
             strict: false,
         })
         .expect("parse NDJSON catalog");
@@ -1339,9 +1318,7 @@ mod tests {
             content: &rendered,
             locale: Some("de"),
             source_locale: "en",
-            storage_format: CatalogStorageFormat::Po,
-            semantics: CatalogSemantics::IcuNative,
-            plural_encoding: PluralEncoding::Icu,
+            mode: CatalogMode::IcuPo,
             strict: false,
         })
         .expect("reparse rendered PO");

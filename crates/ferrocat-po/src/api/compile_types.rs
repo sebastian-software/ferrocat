@@ -97,31 +97,22 @@ pub struct CompileCatalogArtifactOptions<'a> {
     pub semantics: CatalogSemantics,
 }
 
-impl Default for CompileCatalogArtifactOptions<'_> {
-    fn default() -> Self {
+impl<'a> CompileCatalogArtifactOptions<'a> {
+    /// Creates artifact compile options with required locales set.
+    ///
+    /// Optional fields use the same defaults that the previous `Default`
+    /// implementation provided.
+    #[must_use]
+    pub fn new(requested_locale: &'a str, source_locale: &'a str) -> Self {
         Self {
-            requested_locale: "",
-            source_locale: "",
+            requested_locale,
+            source_locale,
             fallback_chain: &[],
             key_strategy: CompiledKeyStrategy::FerrocatV1,
             source_fallback: false,
             strict_icu: false,
             icu_compatibility: false,
             semantics: CatalogSemantics::IcuNative,
-        }
-    }
-}
-
-impl<'a> CompileCatalogArtifactOptions<'a> {
-    /// Creates artifact compile options with required locales set.
-    ///
-    /// Optional fields use the same defaults as [`CompileCatalogArtifactOptions::default`].
-    #[must_use]
-    pub fn new(requested_locale: &'a str, source_locale: &'a str) -> Self {
-        Self {
-            requested_locale,
-            source_locale,
-            ..Self::default()
         }
     }
 }
@@ -129,46 +120,17 @@ impl<'a> CompileCatalogArtifactOptions<'a> {
 /// Options controlling selected-subset compiled catalog artifact generation.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CompileSelectedCatalogArtifactOptions<'a> {
-    /// Locale for which the runtime artifact should be produced.
-    pub requested_locale: &'a str,
-    /// Source locale used for explicit source fallback behavior.
-    pub source_locale: &'a str,
-    /// Ordered fallback locales consulted after the requested locale.
-    pub fallback_chain: &'a [String],
-    /// Built-in strategy used to derive stable runtime keys.
-    pub key_strategy: CompiledKeyStrategy,
-    /// Whether source text should be used when no non-source translation exists.
-    pub source_fallback: bool,
-    /// Whether invalid final ICU messages should fail compilation instead of producing diagnostics.
-    pub strict_icu: bool,
-    /// Whether final ICU messages should be checked against source ICU structure.
-    pub icu_compatibility: bool,
-    /// High-level semantics used by the input catalog set.
-    pub semantics: CatalogSemantics,
     /// Requested compiled runtime IDs to include in the artifact.
     pub compiled_ids: &'a [String],
-}
-
-impl Default for CompileSelectedCatalogArtifactOptions<'_> {
-    fn default() -> Self {
-        Self {
-            requested_locale: "",
-            source_locale: "",
-            fallback_chain: &[],
-            key_strategy: CompiledKeyStrategy::FerrocatV1,
-            source_fallback: false,
-            strict_icu: false,
-            icu_compatibility: false,
-            semantics: CatalogSemantics::IcuNative,
-            compiled_ids: &[],
-        }
-    }
+    /// Shared artifact compile options applied to the selected IDs.
+    pub options: CompileCatalogArtifactOptions<'a>,
 }
 
 impl<'a> CompileSelectedCatalogArtifactOptions<'a> {
     /// Creates selected artifact compile options with required locales and IDs set.
     ///
-    /// Optional fields use the same defaults as [`CompileSelectedCatalogArtifactOptions::default`].
+    /// Optional fields use the same defaults that the previous `Default`
+    /// implementation provided.
     #[must_use]
     pub fn new(
         requested_locale: &'a str,
@@ -176,23 +138,8 @@ impl<'a> CompileSelectedCatalogArtifactOptions<'a> {
         compiled_ids: &'a [String],
     ) -> Self {
         Self {
-            requested_locale,
-            source_locale,
             compiled_ids,
-            ..Self::default()
-        }
-    }
-
-    pub(super) fn artifact_options(&self) -> CompileCatalogArtifactOptions<'_> {
-        CompileCatalogArtifactOptions {
-            requested_locale: self.requested_locale,
-            source_locale: self.source_locale,
-            fallback_chain: self.fallback_chain,
-            key_strategy: self.key_strategy,
-            source_fallback: self.source_fallback,
-            strict_icu: self.strict_icu,
-            icu_compatibility: self.icu_compatibility,
-            semantics: self.semantics,
+            options: CompileCatalogArtifactOptions::new(requested_locale, source_locale),
         }
     }
 }
@@ -601,10 +548,13 @@ mod tests {
 
         let selected_ids = vec!["abc123".to_owned()];
         let selected = CompileSelectedCatalogArtifactOptions::new("de", "en", &selected_ids);
-        assert_eq!(selected.requested_locale, "de");
-        assert_eq!(selected.source_locale, "en");
+        assert_eq!(selected.options.requested_locale, "de");
+        assert_eq!(selected.options.source_locale, "en");
         assert_eq!(selected.compiled_ids, selected_ids.as_slice());
-        assert_eq!(selected.key_strategy, CompiledKeyStrategy::FerrocatV1);
+        assert_eq!(
+            selected.options.key_strategy,
+            CompiledKeyStrategy::FerrocatV1
+        );
     }
 
     #[cfg(feature = "serde")]

@@ -1,15 +1,15 @@
 pub(super) use super::{
     ApiError, CatalogAuditOptions, CatalogCombineInput, CatalogCombineSelection,
-    CatalogConflictStrategy, CatalogMessageKey, CatalogOrigin, CatalogSemantics,
-    CatalogStorageFormat, CatalogUpdateInput, CombineCatalogOptions, CompileCatalogArtifactOptions,
+    CatalogConflictStrategy, CatalogMessageKey, CatalogMode, CatalogOrigin, CatalogSemantics,
+    CatalogUpdateInput, CombineCatalogOptions, CompileCatalogArtifactOptions,
     CompileCatalogOptions, CompileSelectedCatalogArtifactOptions, CompiledCatalogIdIndex,
     CompiledCatalogTranslationKind, CompiledKeyStrategy, CompiledTranslation, DiagnosticSeverity,
     EffectiveTranslation, EffectiveTranslationRef, ExtractedMessage, ExtractedPluralMessage,
     ExtractedSingularMessage, ObsoleteStrategy, OrderBy, ParseCatalogOptions,
-    PlaceholderCommentMode, PluralEncoding, PluralSource, SourceExtractedMessage, TranslationShape,
-    UpdateCatalogFileOptions, UpdateCatalogOptions, audit_catalogs, combine_catalogs,
-    compile::compiled_key_for, compile_catalog_artifact, compile_catalog_artifact_selected,
-    compiled_key, machine_translation_hash, parse_catalog,
+    PlaceholderCommentMode, PluralEncoding, PluralSource, RenderOptions, SourceExtractedMessage,
+    TranslationShape, UpdateCatalogFileOptions, UpdateCatalogOptions, audit_catalogs,
+    combine_catalogs, compile::compiled_key_for, compile_catalog_artifact,
+    compile_catalog_artifact_selected, compiled_key, machine_translation_hash, parse_catalog,
     plural::cached_icu_plural_categories_for, update_catalog, update_catalog_file,
 };
 pub(super) use crate::parse_po;
@@ -35,18 +35,14 @@ pub(super) fn normalized_catalog(
     locale: Option<&str>,
     plural_encoding: PluralEncoding,
 ) -> super::NormalizedParsedCatalog {
-    let semantics = match plural_encoding {
-        PluralEncoding::Icu => CatalogSemantics::IcuNative,
-        PluralEncoding::Gettext => CatalogSemantics::GettextCompat,
+    let mode = match plural_encoding {
+        PluralEncoding::Icu => CatalogMode::IcuPo,
+        PluralEncoding::Gettext => CatalogMode::GettextPo,
     };
     parse_catalog(ParseCatalogOptions {
-        content,
-        source_locale: "en",
         locale,
-        storage_format: CatalogStorageFormat::Po,
-        semantics,
-        plural_encoding,
-        ..ParseCatalogOptions::default()
+        mode,
+        ..ParseCatalogOptions::new(content, "en")
     })
     .expect("parse catalog")
     .into_normalized_view()
@@ -58,13 +54,9 @@ pub(super) fn normalized_ndjson_catalog(
     locale: Option<&str>,
 ) -> super::NormalizedParsedCatalog {
     parse_catalog(ParseCatalogOptions {
-        content,
-        source_locale: "en",
         locale,
-        storage_format: CatalogStorageFormat::Ndjson,
-        semantics: CatalogSemantics::IcuNative,
-        plural_encoding: PluralEncoding::Icu,
-        ..ParseCatalogOptions::default()
+        mode: CatalogMode::IcuNdjson,
+        ..ParseCatalogOptions::new(content, "en")
     })
     .expect("parse ndjson catalog")
     .into_normalized_view()
