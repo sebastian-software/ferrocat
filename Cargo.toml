@@ -1,6 +1,7 @@
 [workspace]
 members = [
     "crates/ferrocat",
+    "crates/ferrocat-cli",
     "crates/ferrocat-po",
     "crates/ferrocat-icu",
     "crates/ferrocat-conformance",

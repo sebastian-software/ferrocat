@@ -50,8 +50,8 @@ Ferrocat does not currently ship first-party WebAssembly, N-API, Python, Go, or
 other host-language bindings from this repository. Host integration is layered
 on top of the Rust API: JS/TS applications should look to Palamedes and its
 `palamedes-node` bridge, while other ecosystems can use the Rust crates
-directly, a future CLI surface, or host-specific bindings maintained at that
-layer.
+directly, the `ferrocat` CLI audit gate, or host-specific bindings maintained
+at that layer.
 
 ## Core Workflows
 
@@ -99,11 +99,18 @@ The canonical documentation now lives on the docs site:
 cargo add ferrocat
 ```
 
-The public entry point is the `ferrocat` crate. It re-exports the stable Rust surface from the lower-level workspace crates:
+The public Rust entry point is the `ferrocat` crate. It re-exports the stable Rust surface from the lower-level workspace crates:
 
 - `ferrocat`: umbrella crate and recommended dependency for application code
 - `ferrocat-po`: PO parsing, serialization, merge/combine helpers, and higher-level catalog update flows
 - `ferrocat-icu`: ICU MessageFormat parsing, structural helpers, source/translation compatibility diagnostics, and semantic message metadata helpers
+
+For non-Rust CI release gates, install the CLI package and run `ferrocat audit`:
+
+```bash
+cargo install ferrocat-cli
+ferrocat audit --source-locale en --source locales/en.po --target de=locales/de.po
+```
 
 ## Quick Start
 

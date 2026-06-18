@@ -1,0 +1,31 @@
+[package]
+name = "ferrocat-cli"
+version = "0.13.0"
+edition.workspace = true
+homepage.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+description = "Command-line interface for Ferrocat catalog audit workflows."
+documentation = "https://docs.rs/ferrocat-cli"
+readme = "README.md"
+keywords = ["ferrocat", "gettext", "po", "i18n", "cli"]
+categories = ["command-line-utilities", "internationalization", "localization"]
+
+[[bin]]
+name = "ferrocat"
+path = "src/main.rs"
+doc = false
+
+[dependencies]
+ferrocat-po = { version = "0.13.0", path = "../ferrocat-po", default-features = false, features = ["catalog", "serde"] }
+serde_json = "1.0.145"
+
+[dev-dependencies]
+tempfile = "3.23.0"
+
+[package.metadata.docs.rs]
+all-features = true
+
+[lints]
+workspace = true

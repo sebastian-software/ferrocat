@@ -16,7 +16,8 @@
         "ferrocat-po",
         "ferrocat-icu",
         "ferrocat-conformance",
-        "ferrocat-bench"
+        "ferrocat-bench",
+        "ferrocat-cli"
       ]
     }
   ],
@@ -45,6 +46,11 @@
       "release-type": "rust",
       "package-name": "ferrocat-bench",
       "component": "ferrocat-bench"
+    },
+    "crates/ferrocat-cli": {
+      "release-type": "rust",
+      "package-name": "ferrocat-cli",
+      "component": "ferrocat-cli"
     }
   }
 }

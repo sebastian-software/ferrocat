@@ -15,7 +15,7 @@ This checklist verifies a real Rust-only `ferrocat` release after the publish wo
 
 ## 2. Confirm workspace versions
 
-- Check crates.io for `ferrocat-icu`, `ferrocat-po`, and `ferrocat`.
+- Check crates.io for `ferrocat-icu`, `ferrocat-po`, `ferrocat`, and `ferrocat-cli`.
 - Confirm the published crates resolved to the same release version.
 - Confirm the workspace-only crates in the repo are also version-aligned with the published crates.
 - Confirm internal `ferrocat*` path dependencies in the crate manifests were updated to matching versions where applicable.
@@ -26,7 +26,7 @@ This checklist verifies a real Rust-only `ferrocat` release after the publish wo
 Before publishing, package the crates that are actually published:
 
 ```bash
-cargo package -p ferrocat-icu -p ferrocat-po -p ferrocat --locked
+cargo package -p ferrocat-icu -p ferrocat-po -p ferrocat -p ferrocat-cli --locked
 ```
 
 Do not use `cargo package --workspace` as the release packaging check. The

@@ -130,3 +130,4 @@ jobs:
           publish_with_retry ferrocat-icu 1 0
           publish_with_retry ferrocat-po 5 30
           publish_with_retry ferrocat 5 30
+          publish_with_retry ferrocat-cli 5 30
