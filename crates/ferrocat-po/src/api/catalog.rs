@@ -1555,7 +1555,7 @@ fn validate_plural_forms_header(
 }
 
 /// Rebuilds the public `CatalogMessage` shape from the canonical internal form.
-fn public_message_from_canonical(message: CanonicalMessage) -> CatalogMessage {
+pub(super) fn public_message_from_canonical(message: CanonicalMessage) -> CatalogMessage {
     let translation = match message.translation {
         CanonicalTranslation::Singular { value } => TranslationShape::Singular { value },
         CanonicalTranslation::Plural {

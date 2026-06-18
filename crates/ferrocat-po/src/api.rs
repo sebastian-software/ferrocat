@@ -25,6 +25,10 @@ pub use self::compile_types::{
     CompiledMessage, CompiledTranslation, DescribeCompiledIdsReport,
 };
 pub use self::mt::{MachineTranslationMetadata, machine_translation_hash};
+pub use self::ndjson::{
+    NdjsonCatalogReader, NdjsonCatalogReaderOptions, NdjsonCatalogWriter,
+    NdjsonCatalogWriterOptions,
+};
 pub use self::types::{
     ApiError, CatalogCombineInput, CatalogCombineResult, CatalogCombineSelection,
     CatalogCombineStats, CatalogConflictStrategy, CatalogMessage, CatalogMessageExtra,
