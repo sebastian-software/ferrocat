@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.0.0](https://github.com/sebastian-software/ferrocat/compare/ferrocat-bench-v0.13.0...ferrocat-bench-v1.0.0) (2026-06-18)
+
+
+### ⚠ BREAKING CHANGES
+
+* **api:** collapse redundant option fields into CatalogMode ([#102](https://github.com/sebastian-software/ferrocat/issues/102))
+
+### Features
+
+* **api:** collapse redundant option fields into CatalogMode ([#102](https://github.com/sebastian-software/ferrocat/issues/102)) ([2687df6](https://github.com/sebastian-software/ferrocat/commit/2687df6363755b0ef863594168da8be027d34614))
+* **api:** mark growth-prone enums non-exhaustive ([#101](https://github.com/sebastian-software/ferrocat/issues/101)) ([b4e1ca4](https://github.com/sebastian-software/ferrocat/commit/b4e1ca4262345f6e8927582ae477f104075b1474))
+
 ## [0.13.0](https://github.com/sebastian-software/ferrocat/compare/ferrocat-bench-v0.12.0...ferrocat-bench-v0.13.0) (2026-06-12)
 
 
