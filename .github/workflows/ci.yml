@@ -109,6 +109,27 @@ jobs:
       - name: Package published crates
         run: cargo package -p ferrocat-icu -p ferrocat-po -p ferrocat -p ferrocat-cli --locked
 
+  semver:
+    name: Semver compatibility (${{ matrix.crate }})
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        crate:
+          - ferrocat-icu
+          - ferrocat-po
+          - ferrocat
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Check public API compatibility
+        uses: obi1kenobi/cargo-semver-checks-action@v2
+        with:
+          package: ${{ matrix.crate }}
+          feature-group: all-features
+
   msrv:
     name: Rust MSRV
     runs-on: ubuntu-24.04
