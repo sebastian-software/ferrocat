@@ -12,11 +12,10 @@ use std::time::Instant;
 
 use ferrocat_icu::{IcuMessage, IcuNode, IcuOption, IcuPluralKind, parse_icu};
 use ferrocat_po::{
-    BorrowedMsgStr, BorrowedPoFile, CatalogMessage, CatalogMessageExtra, CatalogOrigin,
-    CatalogSemantics, CatalogStorageFormat, ExtractedMessage, MergeExtractedMessage, MsgStr,
-    ParseCatalogOptions, ParsedCatalog, PluralEncoding, PoFile, SerializeOptions, TranslationShape,
-    UpdateCatalogOptions, merge_catalog, parse_catalog, parse_po, parse_po_borrowed, stringify_po,
-    update_catalog,
+    BorrowedMsgStr, BorrowedPoFile, CatalogMessage, CatalogMessageExtra, CatalogMode,
+    CatalogOrigin, ExtractedMessage, MergeExtractedMessage, MsgStr, ParseCatalogOptions,
+    ParsedCatalog, PoFile, SerializeOptions, TranslationShape, UpdateCatalogOptions, merge_catalog,
+    parse_catalog, parse_po, parse_po_borrowed, stringify_po, update_catalog,
 };
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -538,9 +537,7 @@ impl PreparedScenario {
                     content: &po_content,
                     locale: fixture_locale(&first.fixture).as_deref(),
                     source_locale: "en",
-                    storage_format: CatalogStorageFormat::Po,
-                    semantics: CatalogSemantics::IcuNative,
-                    plural_encoding: PluralEncoding::Icu,
+                    mode: CatalogMode::IcuPo,
                     strict: false,
                 })
                 .map_err(|error| format!("failed to parse catalog fixture: {error}"))?;
@@ -828,12 +825,12 @@ impl PreparedScenario {
         ndjson: bool,
     ) -> Result<ExecutionResult, String> {
         let locale = fixture_locale(&self.fixture);
-        let (content, storage_format, bytes_per_iteration) = if ndjson {
+        let (content, mode, bytes_per_iteration) = if ndjson {
             (
                 self.catalog_ndjson_content.as_deref().ok_or_else(|| {
                     "internal parse-catalog-ndjson requires NDJSON content".to_owned()
                 })?,
-                CatalogStorageFormat::Ndjson,
+                CatalogMode::IcuNdjson,
                 self.catalog_ndjson_content.as_ref().map_or(0, String::len),
             )
         } else {
@@ -841,7 +838,7 @@ impl PreparedScenario {
                 self.po_content
                     .as_deref()
                     .ok_or_else(|| "internal parse-catalog-po requires PO content".to_owned())?,
-                CatalogStorageFormat::Po,
+                CatalogMode::IcuPo,
                 self.po_content.as_ref().map_or(0, String::len),
             )
         };
@@ -853,9 +850,7 @@ impl PreparedScenario {
                 content,
                 locale: locale.as_deref(),
                 source_locale: "en",
-                storage_format,
-                semantics: CatalogSemantics::IcuNative,
-                plural_encoding: PluralEncoding::Icu,
+                mode,
                 strict: false,
             })
             .map_err(|error| format!("parse_catalog failed: {error}"))?;
@@ -976,16 +971,13 @@ impl PreparedScenario {
         let start = Instant::now();
         let mut bytes_processed = 0usize;
         let locale = fixture_locale(&self.fixture);
-        let plural_encoding = fixture_plural_encoding(&self.fixture);
+        let mode = fixture_catalog_mode(&self.fixture);
         for _ in 0..iterations {
             let updated = update_catalog(UpdateCatalogOptions {
                 locale: locale.as_deref(),
-                source_locale: "en",
-                input: fixture.api_messages.clone().into(),
+                mode,
                 existing: Some(fixture.existing_po.as_str()),
-                semantics: semantics_for_plural_encoding(plural_encoding),
-                plural_encoding,
-                ..UpdateCatalogOptions::default()
+                ..UpdateCatalogOptions::new("en", fixture.api_messages.clone())
             })
             .map_err(|error| format!("update_catalog failed: {error}"))?;
             bytes_processed += updated.content.len();
@@ -1431,18 +1423,11 @@ fn fixture_locale_metadata(locale: &str) -> (&'static str, &'static str) {
     }
 }
 
-fn fixture_plural_encoding(name: &str) -> PluralEncoding {
+fn fixture_catalog_mode(name: &str) -> CatalogMode {
     if name.starts_with("gettext-") {
-        PluralEncoding::Gettext
+        CatalogMode::GettextPo
     } else {
-        PluralEncoding::Icu
-    }
-}
-
-fn semantics_for_plural_encoding(plural_encoding: PluralEncoding) -> CatalogSemantics {
-    match plural_encoding {
-        PluralEncoding::Icu => CatalogSemantics::IcuNative,
-        PluralEncoding::Gettext => CatalogSemantics::GettextCompat,
+        CatalogMode::IcuPo
     }
 }
 

@@ -4,19 +4,15 @@ use ferrocat_icu::{
 };
 
 use super::{
-    CatalogAuditOptions, CatalogSemantics, CatalogStorageFormat, DiagnosticSeverity,
-    ParseCatalogOptions, PluralEncoding, audit_catalogs, parse_catalog,
+    CatalogAuditOptions, CatalogMode, DiagnosticSeverity, ParseCatalogOptions, audit_catalogs,
+    parse_catalog,
 };
 
 fn catalog(content: &str, locale: &str) -> super::super::NormalizedParsedCatalog {
     parse_catalog(ParseCatalogOptions {
-        content,
-        source_locale: "en",
         locale: Some(locale),
-        storage_format: CatalogStorageFormat::Po,
-        semantics: CatalogSemantics::IcuNative,
-        plural_encoding: PluralEncoding::Icu,
-        ..ParseCatalogOptions::default()
+        mode: CatalogMode::IcuPo,
+        ..ParseCatalogOptions::new(content, "en")
     })
     .expect("parse catalog")
     .into_normalized_view()

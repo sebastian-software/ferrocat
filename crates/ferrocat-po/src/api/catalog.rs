@@ -30,8 +30,8 @@ use super::{
     CatalogMessageExtra, CatalogOrigin, CatalogSemantics, CatalogStats, CatalogStorageFormat,
     CatalogUpdateInput, CatalogUpdateResult, CombineCatalogOptions, Diagnostic, DiagnosticSeverity,
     EffectiveTranslationRef, ExtractedMessage, ObsoleteStrategy, OrderBy, ParseCatalogOptions,
-    ParsedCatalog, PlaceholderCommentMode, PluralEncoding, PluralSource, TranslationShape,
-    UpdateCatalogFileOptions, UpdateCatalogOptions,
+    ParsedCatalog, PlaceholderCommentMode, PluralEncoding, PluralSource, RenderOptions,
+    TranslationShape, UpdateCatalogFileOptions, UpdateCatalogOptions,
 };
 use crate::{Header, MsgStr, PoFile, PoItem, SerializeOptions, parse_po, stringify_po};
 
@@ -124,17 +124,16 @@ struct MergeCatalogContext<'a> {
 ///
 /// ```rust
 /// use ferrocat_po::{
-///     CatalogUpdateInput, SourceExtractedMessage, UpdateCatalogOptions, update_catalog,
+///     CatalogMode, CatalogUpdateInput, SourceExtractedMessage, UpdateCatalogOptions, update_catalog,
 /// };
 ///
 /// let result = update_catalog(UpdateCatalogOptions {
-///     source_locale: "en",
 ///     locale: Some("de"),
 ///     input: CatalogUpdateInput::SourceFirst(vec![SourceExtractedMessage {
 ///         msgid: "Checkout".to_owned(),
 ///         ..SourceExtractedMessage::default()
 ///     }]),
-///     ..UpdateCatalogOptions::default()
+///     ..UpdateCatalogOptions::new("en", CatalogUpdateInput::default())
 /// })?;
 ///
 /// assert!(result.created);
@@ -147,11 +146,6 @@ struct MergeCatalogContext<'a> {
 )]
 pub fn update_catalog(options: UpdateCatalogOptions<'_>) -> Result<CatalogUpdateResult, ApiError> {
     super::validate_source_locale(options.source_locale)?;
-    super::validate_catalog_semantics(
-        options.semantics,
-        options.storage_format,
-        options.plural_encoding,
-    )?;
 
     let created = options.existing.is_none();
     let original = options.existing.unwrap_or("");
@@ -160,10 +154,10 @@ pub fn update_catalog(options: UpdateCatalogOptions<'_>) -> Result<CatalogUpdate
             content,
             options.locale,
             options.source_locale,
-            options.semantics,
-            options.plural_encoding,
+            options.mode.semantics(),
+            options.mode.plural_encoding(),
             false,
-            options.storage_format,
+            options.mode.storage_format(),
         )?,
         Some(_) | None => Catalog {
             locale: options.locale.map(str::to_owned),
@@ -185,7 +179,7 @@ pub fn update_catalog(options: UpdateCatalogOptions<'_>) -> Result<CatalogUpdate
     let merge_context = MergeCatalogContext {
         locale: locale.as_deref(),
         source_locale: options.source_locale,
-        semantics: options.semantics,
+        semantics: options.mode.semantics(),
         overwrite_source_translations: options.overwrite_source_translations,
         obsolete_strategy: options.obsolete_strategy,
     };
@@ -193,7 +187,7 @@ pub fn update_catalog(options: UpdateCatalogOptions<'_>) -> Result<CatalogUpdate
         merge_catalogs(existing, &normalized, merge_context, &mut diagnostics);
     merged.locale.clone_from(&locale);
     apply_storage_defaults(&mut merged, &options, locale.as_deref(), &mut diagnostics)?;
-    sort_messages(&mut merged.messages, options.order_by);
+    sort_messages(&mut merged.messages, options.render.order_by);
     let content = export_catalog_content(&merged, &options, locale.as_deref(), &mut diagnostics)?;
 
     Ok(CatalogUpdateResult {
@@ -215,7 +209,7 @@ pub fn update_catalog(options: UpdateCatalogOptions<'_>) -> Result<CatalogUpdate
 pub fn update_catalog_file(
     options: UpdateCatalogFileOptions<'_>,
 ) -> Result<CatalogUpdateResult, ApiError> {
-    super::validate_source_locale(options.source_locale)?;
+    super::validate_source_locale(options.options.source_locale)?;
     if options.target_path.as_os_str().is_empty() {
         return Err(ApiError::InvalidArguments(
             "target_path must not be empty".to_owned(),
@@ -228,22 +222,9 @@ pub fn update_catalog_file(
         Err(error) => return Err(ApiError::io_with_path(options.target_path, error)),
     };
 
-    let result = update_catalog(UpdateCatalogOptions {
-        locale: options.locale,
-        source_locale: options.source_locale,
-        input: options.input,
-        existing: existing.as_deref(),
-        storage_format: options.storage_format,
-        semantics: options.semantics,
-        plural_encoding: options.plural_encoding,
-        obsolete_strategy: options.obsolete_strategy,
-        overwrite_source_translations: options.overwrite_source_translations,
-        order_by: options.order_by,
-        include_origins: options.include_origins,
-        include_line_numbers: options.include_line_numbers,
-        print_placeholders_in_comments: options.print_placeholders_in_comments,
-        custom_header_attributes: options.custom_header_attributes,
-    })?;
+    let mut update_options = options.options;
+    update_options.existing = existing.as_deref();
+    let result = update_catalog(update_options)?;
 
     if result.created || result.updated {
         atomic_write(options.target_path, &result.content)?;
@@ -291,11 +272,6 @@ pub fn combine_catalogs(
     options: CombineCatalogOptions<'_>,
 ) -> Result<CatalogCombineResult, ApiError> {
     super::validate_source_locale(options.source_locale)?;
-    super::validate_catalog_semantics(
-        options.semantics,
-        options.storage_format,
-        options.plural_encoding,
-    )?;
     if options.inputs.is_empty() {
         return Err(ApiError::InvalidArguments(
             "inputs must not be empty".to_owned(),
@@ -319,10 +295,10 @@ pub fn combine_catalogs(
             input.content,
             options.locale,
             options.source_locale,
-            options.semantics,
-            options.plural_encoding,
+            options.mode.semantics(),
+            options.mode.plural_encoding(),
             false,
-            options.storage_format,
+            options.mode.storage_format(),
         )?;
 
         if input_index == 0 {
@@ -532,12 +508,12 @@ fn apply_storage_defaults_for_combine(
     locale: Option<&str>,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> Result<(), ApiError> {
-    match options.storage_format {
+    match options.mode.storage_format() {
         CatalogStorageFormat::Po => {
             apply_header_defaults(
                 &mut catalog.headers,
                 locale,
-                options.semantics,
+                options.mode.semantics(),
                 diagnostics,
                 &BTreeMap::new(),
             );
@@ -557,19 +533,16 @@ fn export_catalog_content_for_combine(
 ) -> Result<String, ApiError> {
     let export_options = UpdateCatalogOptions {
         locale: options.locale,
-        source_locale: options.source_locale,
-        input: CatalogUpdateInput::default(),
-        existing: None,
-        storage_format: options.storage_format,
-        semantics: options.semantics,
-        plural_encoding: options.plural_encoding,
+        mode: options.mode,
         obsolete_strategy: ObsoleteStrategy::Keep,
-        overwrite_source_translations: false,
-        order_by: options.order_by,
-        include_origins: options.include_origins,
-        include_line_numbers: options.include_line_numbers,
-        print_placeholders_in_comments: PlaceholderCommentMode::default(),
-        custom_header_attributes: None,
+        render: RenderOptions {
+            order_by: options.order_by,
+            include_origins: options.include_origins,
+            include_line_numbers: options.include_line_numbers,
+            print_placeholders_in_comments: PlaceholderCommentMode::default(),
+            custom_header_attributes: None,
+        },
+        ..UpdateCatalogOptions::new(options.source_locale, CatalogUpdateInput::default())
     };
     let mut diagnostics = Vec::new();
     export_catalog_content(catalog, &export_options, locale, &mut diagnostics)
@@ -589,10 +562,8 @@ fn export_catalog_content_for_combine(
 /// use ferrocat_po::{ParseCatalogOptions, parse_catalog};
 ///
 /// let catalog = parse_catalog(ParseCatalogOptions {
-///     content: "msgid \"Checkout\"\nmsgstr \"Zur Kasse\"\n",
 ///     locale: Some("de"),
-///     source_locale: "en",
-///     ..ParseCatalogOptions::default()
+///     ..ParseCatalogOptions::new("msgid \"Checkout\"\nmsgstr \"Zur Kasse\"\n", "en")
 /// })?;
 ///
 /// assert_eq!(catalog.locale.as_deref(), Some("de"));
@@ -605,19 +576,14 @@ fn export_catalog_content_for_combine(
 )]
 pub fn parse_catalog(options: ParseCatalogOptions<'_>) -> Result<ParsedCatalog, ApiError> {
     super::validate_source_locale(options.source_locale)?;
-    super::validate_catalog_semantics(
-        options.semantics,
-        options.storage_format,
-        options.plural_encoding,
-    )?;
     let catalog = parse_catalog_to_internal(
         options.content,
         options.locale,
         options.source_locale,
-        options.semantics,
-        options.plural_encoding,
+        options.mode.semantics(),
+        options.mode.plural_encoding(),
         options.strict,
-        options.storage_format,
+        options.mode.storage_format(),
     )?;
     let messages = catalog
         .messages
@@ -627,7 +593,7 @@ pub fn parse_catalog(options: ParseCatalogOptions<'_>) -> Result<ParsedCatalog, 
 
     Ok(ParsedCatalog {
         locale: catalog.locale,
-        semantics: options.semantics,
+        semantics: options.mode.semantics(),
         headers: catalog.headers,
         messages,
         diagnostics: catalog.diagnostics,
@@ -1028,15 +994,16 @@ fn apply_storage_defaults(
     locale: Option<&str>,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> Result<(), ApiError> {
-    match options.storage_format {
+    match options.mode.storage_format() {
         CatalogStorageFormat::Po => {
             let empty_custom_headers = BTreeMap::new();
             apply_header_defaults(
                 &mut catalog.headers,
                 locale,
-                options.semantics,
+                options.mode.semantics(),
                 diagnostics,
                 options
+                    .render
                     .custom_header_attributes
                     .unwrap_or(&empty_custom_headers),
             );
@@ -1044,6 +1011,7 @@ fn apply_storage_defaults(
         }
         CatalogStorageFormat::Ndjson => {
             if options
+                .render
                 .custom_header_attributes
                 .is_some_and(|headers| !headers.is_empty())
             {
@@ -1063,7 +1031,7 @@ fn export_catalog_content(
     locale: Option<&str>,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> Result<String, ApiError> {
-    match options.storage_format {
+    match options.mode.storage_format() {
         CatalogStorageFormat::Po => {
             let file = export_catalog_to_po(catalog, options, locale, diagnostics)?;
             Ok(stringify_po(&file, &SerializeOptions::default()))
@@ -1072,7 +1040,7 @@ fn export_catalog_content(
             catalog,
             locale,
             options.source_locale,
-            &options.print_placeholders_in_comments,
+            &options.render.print_placeholders_in_comments,
         )),
     }
 }
@@ -1130,7 +1098,7 @@ fn export_message_to_po(
             translation_by_category,
             variable,
         } => {
-            if options.semantics == CatalogSemantics::IcuNative {
+            if options.mode.semantics() == CatalogSemantics::IcuNative {
                 let mut item = base_po_item(message, options, 1);
                 item.msgid = synthesize_icu_plural(variable, &plural_source_branches(source));
                 item.msgstr =
@@ -1183,7 +1151,7 @@ fn base_po_item(
     append_placeholder_comments(
         &mut item.extracted_comments,
         &message.placeholders,
-        &options.print_placeholders_in_comments,
+        &options.render.print_placeholders_in_comments,
     );
     if let Some(metadata) = valid_machine_translation_metadata(message) {
         item.metadata.push((
@@ -1191,12 +1159,12 @@ fn base_po_item(
             format_po_machine_translation_metadata(metadata),
         ));
     }
-    item.references = if options.include_origins {
+    item.references = if options.render.include_origins {
         message
             .origins
             .iter()
             .map(|origin| {
-                if options.include_line_numbers {
+                if options.render.include_line_numbers {
                     origin.line.map_or_else(
                         || origin.file.clone(),
                         |line| format!("{}:{line}", origin.file),

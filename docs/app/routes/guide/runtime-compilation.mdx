@@ -18,10 +18,8 @@ Use `NormalizedParsedCatalog::compile` when you want a runtime-facing lookup str
 use ferrocat::{CompileCatalogOptions, ParseCatalogOptions, parse_catalog};
 
 let parsed = parse_catalog(ParseCatalogOptions {
-    content: "msgid \"Hello\"\nmsgstr \"Hallo\"\n",
-    source_locale: "en",
     locale: Some("de"),
-    ..ParseCatalogOptions::default()
+    ..ParseCatalogOptions::new("msgid \"Hello\"\nmsgstr \"Hallo\"\n", "en")
 })?;
 let normalized = parsed.into_normalized_view()?;
 let compiled = normalized.compile(&CompileCatalogOptions::default())?;
@@ -46,27 +44,19 @@ use ferrocat::{
 };
 
 let source = parse_catalog(ParseCatalogOptions {
-    content: "msgid \"Hello\"\nmsgstr \"Hello\"\n",
-    source_locale: "en",
     locale: Some("en"),
-    ..ParseCatalogOptions::default()
+    ..ParseCatalogOptions::new("msgid \"Hello\"\nmsgstr \"Hello\"\n", "en")
 })?
 .into_normalized_view()?;
 let requested = parse_catalog(ParseCatalogOptions {
-    content: "msgid \"Hello\"\nmsgstr \"Hallo\"\n",
-    source_locale: "en",
     locale: Some("de"),
-    ..ParseCatalogOptions::default()
+    ..ParseCatalogOptions::new("msgid \"Hello\"\nmsgstr \"Hallo\"\n", "en")
 })?
 .into_normalized_view()?;
 
 let artifact = compile_catalog_artifact(
     &[&requested, &source],
-    &CompileCatalogArtifactOptions {
-        requested_locale: "de",
-        source_locale: "en",
-        ..CompileCatalogArtifactOptions::default()
-    },
+    &CompileCatalogArtifactOptions::new("de", "en"),
 )?;
 
 assert_eq!(artifact.messages.len(), 1);

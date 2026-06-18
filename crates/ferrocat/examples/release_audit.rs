@@ -8,7 +8,7 @@ fn catalog(
         content,
         locale: Some(locale),
         source_locale: "en",
-        ..ParseCatalogOptions::default()
+        ..ParseCatalogOptions::new("", "en")
     })?
     .into_normalized_view()?)
 }

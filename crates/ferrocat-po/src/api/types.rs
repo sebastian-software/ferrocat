@@ -663,6 +663,76 @@ pub enum CatalogSemantics {
     GettextCompat,
 }
 
+/// Valid high-level catalog mode combinations.
+///
+/// This type groups the storage format, semantic model, and plural encoding
+/// choices that must be kept in sync for catalog parse, update, and combine
+/// operations. It is non-exhaustive so future supported catalog modes can be
+/// added without breaking downstream matches.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[non_exhaustive]
+pub enum CatalogMode {
+    /// Gettext PO storage with ICU-native message semantics.
+    #[default]
+    IcuPo,
+    /// NDJSON storage with ICU-native message semantics.
+    IcuNdjson,
+    /// Gettext PO storage with classic gettext plural semantics.
+    GettextPo,
+}
+
+impl CatalogMode {
+    /// Returns the storage format implied by this mode.
+    #[must_use]
+    pub const fn storage_format(self) -> CatalogStorageFormat {
+        match self {
+            Self::IcuPo | Self::GettextPo => CatalogStorageFormat::Po,
+            Self::IcuNdjson => CatalogStorageFormat::Ndjson,
+        }
+    }
+
+    /// Returns the catalog semantics implied by this mode.
+    #[must_use]
+    pub const fn semantics(self) -> CatalogSemantics {
+        match self {
+            Self::IcuPo | Self::IcuNdjson => CatalogSemantics::IcuNative,
+            Self::GettextPo => CatalogSemantics::GettextCompat,
+        }
+    }
+
+    /// Returns the plural encoding implied by this mode.
+    #[must_use]
+    pub const fn plural_encoding(self) -> PluralEncoding {
+        match self {
+            Self::IcuPo | Self::IcuNdjson => PluralEncoding::Icu,
+            Self::GettextPo => PluralEncoding::Gettext,
+        }
+    }
+
+    /// Returns the matching catalog mode for explicit parts.
+    #[must_use]
+    pub const fn from_parts(
+        storage_format: CatalogStorageFormat,
+        semantics: CatalogSemantics,
+        plural_encoding: PluralEncoding,
+    ) -> Option<Self> {
+        match (storage_format, semantics, plural_encoding) {
+            (CatalogStorageFormat::Po, CatalogSemantics::IcuNative, PluralEncoding::Icu) => {
+                Some(Self::IcuPo)
+            }
+            (CatalogStorageFormat::Ndjson, CatalogSemantics::IcuNative, PluralEncoding::Icu) => {
+                Some(Self::IcuNdjson)
+            }
+            (
+                CatalogStorageFormat::Po,
+                CatalogSemantics::GettextCompat,
+                PluralEncoding::Gettext,
+            ) => Some(Self::GettextPo),
+            _ => None,
+        }
+    }
+}
+
 /// Strategy used for messages that disappear from the extracted input.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum ObsoleteStrategy {
@@ -703,6 +773,36 @@ impl Default for PlaceholderCommentMode {
     }
 }
 
+/// Shared rendering options for catalog serialization.
+///
+/// These fields control how a catalog is sorted and which optional reference and
+/// placeholder details are written, independent of storage format or semantics.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RenderOptions<'a> {
+    /// Sort order for the final rendered catalog.
+    pub order_by: OrderBy,
+    /// Whether source origins should be rendered as references.
+    pub include_origins: bool,
+    /// Whether rendered references should include line numbers.
+    pub include_line_numbers: bool,
+    /// Controls emission of placeholder comments.
+    pub print_placeholders_in_comments: PlaceholderCommentMode,
+    /// Optional additional header attributes to inject or override.
+    pub custom_header_attributes: Option<&'a BTreeMap<String, String>>,
+}
+
+impl Default for RenderOptions<'_> {
+    fn default() -> Self {
+        Self {
+            order_by: OrderBy::Msgid,
+            include_origins: true,
+            include_line_numbers: true,
+            print_placeholders_in_comments: PlaceholderCommentMode::Enabled { limit: 3 },
+            custom_header_attributes: None,
+        }
+    }
+}
+
 /// Options for in-memory catalog updates.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct UpdateCatalogOptions<'a> {
@@ -714,59 +814,32 @@ pub struct UpdateCatalogOptions<'a> {
     pub input: CatalogUpdateInput,
     /// Existing catalog content, when updating an in-memory catalog.
     pub existing: Option<&'a str>,
-    /// Storage format used when reading existing content and rendering the result.
-    pub storage_format: CatalogStorageFormat,
-    /// High-level semantics used when parsing, merging, and rendering the catalog.
-    pub semantics: CatalogSemantics,
-    /// Target plural representation for the rendered PO file.
-    pub plural_encoding: PluralEncoding,
+    /// High-level catalog mode used when parsing, merging, and rendering the catalog.
+    pub mode: CatalogMode,
     /// Strategy for messages absent from the extracted input.
     pub obsolete_strategy: ObsoleteStrategy,
     /// Whether source-locale translations should be refreshed from the extracted source strings.
     pub overwrite_source_translations: bool,
-    /// Sort order for the final rendered catalog.
-    pub order_by: OrderBy,
-    /// Whether source origins should be rendered as references.
-    pub include_origins: bool,
-    /// Whether rendered references should include line numbers.
-    pub include_line_numbers: bool,
-    /// Controls emission of placeholder comments.
-    pub print_placeholders_in_comments: PlaceholderCommentMode,
-    /// Optional additional header attributes to inject or override.
-    pub custom_header_attributes: Option<&'a BTreeMap<String, String>>,
-}
-
-impl Default for UpdateCatalogOptions<'_> {
-    fn default() -> Self {
-        Self {
-            locale: None,
-            source_locale: "",
-            input: CatalogUpdateInput::default(),
-            existing: None,
-            storage_format: CatalogStorageFormat::Po,
-            semantics: CatalogSemantics::IcuNative,
-            plural_encoding: PluralEncoding::Icu,
-            obsolete_strategy: ObsoleteStrategy::Mark,
-            overwrite_source_translations: false,
-            order_by: OrderBy::Msgid,
-            include_origins: true,
-            include_line_numbers: true,
-            print_placeholders_in_comments: PlaceholderCommentMode::Enabled { limit: 3 },
-            custom_header_attributes: None,
-        }
-    }
+    /// Shared serialization options for the rendered catalog.
+    pub render: RenderOptions<'a>,
 }
 
 impl<'a> UpdateCatalogOptions<'a> {
     /// Creates in-memory update options with required fields set.
     ///
-    /// Optional fields use the same defaults as [`UpdateCatalogOptions::default`].
+    /// Optional fields use the same defaults that the previous `Default`
+    /// implementation provided.
     #[must_use]
     pub fn new(source_locale: &'a str, input: impl Into<CatalogUpdateInput>) -> Self {
         Self {
+            locale: None,
             source_locale,
             input: input.into(),
-            ..Self::default()
+            existing: None,
+            mode: CatalogMode::default(),
+            obsolete_strategy: ObsoleteStrategy::Mark,
+            overwrite_source_translations: false,
+            render: RenderOptions::default(),
         }
     }
 }
@@ -776,59 +849,15 @@ impl<'a> UpdateCatalogOptions<'a> {
 pub struct UpdateCatalogFileOptions<'a> {
     /// Path to the catalog file that should be read and conditionally written.
     pub target_path: &'a Path,
-    /// Locale of the catalog being updated. When `None`, Ferrocat infers it from the existing file.
-    pub locale: Option<&'a str>,
-    /// Source locale used for source-side semantics and fallback handling.
-    pub source_locale: &'a str,
-    /// Extracted messages to merge into the catalog.
-    pub input: CatalogUpdateInput,
-    /// Storage format used when reading and writing the file content.
-    pub storage_format: CatalogStorageFormat,
-    /// High-level semantics used when parsing, merging, and rendering the catalog.
-    pub semantics: CatalogSemantics,
-    /// Target plural representation for the rendered PO file.
-    pub plural_encoding: PluralEncoding,
-    /// Strategy for messages absent from the extracted input.
-    pub obsolete_strategy: ObsoleteStrategy,
-    /// Whether source-locale translations should be refreshed from the extracted source strings.
-    pub overwrite_source_translations: bool,
-    /// Sort order for the final rendered catalog.
-    pub order_by: OrderBy,
-    /// Whether source origins should be rendered as references.
-    pub include_origins: bool,
-    /// Whether rendered references should include line numbers.
-    pub include_line_numbers: bool,
-    /// Controls emission of placeholder comments.
-    pub print_placeholders_in_comments: PlaceholderCommentMode,
-    /// Optional additional header attributes to inject or override.
-    pub custom_header_attributes: Option<&'a BTreeMap<String, String>>,
-}
-
-impl Default for UpdateCatalogFileOptions<'_> {
-    fn default() -> Self {
-        Self {
-            target_path: Path::new(""),
-            locale: None,
-            source_locale: "",
-            input: CatalogUpdateInput::default(),
-            storage_format: CatalogStorageFormat::Po,
-            semantics: CatalogSemantics::IcuNative,
-            plural_encoding: PluralEncoding::Icu,
-            obsolete_strategy: ObsoleteStrategy::Mark,
-            overwrite_source_translations: false,
-            order_by: OrderBy::Msgid,
-            include_origins: true,
-            include_line_numbers: true,
-            print_placeholders_in_comments: PlaceholderCommentMode::Enabled { limit: 3 },
-            custom_header_attributes: None,
-        }
-    }
+    /// In-memory update options applied to the file content.
+    pub options: UpdateCatalogOptions<'a>,
 }
 
 impl<'a> UpdateCatalogFileOptions<'a> {
     /// Creates file update options with required fields set.
     ///
-    /// Optional fields use the same defaults as [`UpdateCatalogFileOptions::default`].
+    /// Optional fields use the same defaults that the previous `Default`
+    /// implementation provided.
     #[must_use]
     pub fn new(
         target_path: &'a Path,
@@ -837,9 +866,7 @@ impl<'a> UpdateCatalogFileOptions<'a> {
     ) -> Self {
         Self {
             target_path,
-            source_locale,
-            input: input.into(),
-            ..Self::default()
+            options: UpdateCatalogOptions::new(source_locale, input),
         }
     }
 }
@@ -853,12 +880,8 @@ pub struct CombineCatalogOptions<'a> {
     pub locale: Option<&'a str>,
     /// Source locale used for source-side semantics and validation.
     pub source_locale: &'a str,
-    /// Storage format used when reading inputs and rendering the result.
-    pub storage_format: CatalogStorageFormat,
-    /// High-level semantics used when parsing, combining, and rendering catalogs.
-    pub semantics: CatalogSemantics,
-    /// Target plural representation for the rendered PO file.
-    pub plural_encoding: PluralEncoding,
+    /// High-level catalog mode used when reading inputs and rendering the result.
+    pub mode: CatalogMode,
     /// Strategy for resolving conflicting non-empty translations.
     pub conflict_strategy: CatalogConflictStrategy,
     /// Message identity selection rule applied after all inputs are read.
@@ -873,35 +896,24 @@ pub struct CombineCatalogOptions<'a> {
     pub include_obsolete: bool,
 }
 
-impl Default for CombineCatalogOptions<'_> {
-    fn default() -> Self {
+impl<'a> CombineCatalogOptions<'a> {
+    /// Creates combine options with required fields set.
+    ///
+    /// Optional fields use the same defaults that the previous `Default`
+    /// implementation provided.
+    #[must_use]
+    pub fn new(inputs: &'a [CatalogCombineInput<'a>], source_locale: &'a str) -> Self {
         Self {
-            inputs: &[],
+            inputs,
             locale: None,
-            source_locale: "",
-            storage_format: CatalogStorageFormat::Po,
-            semantics: CatalogSemantics::IcuNative,
-            plural_encoding: PluralEncoding::Icu,
+            source_locale,
+            mode: CatalogMode::default(),
             conflict_strategy: CatalogConflictStrategy::UseFirst,
             selection: CatalogCombineSelection::All,
             order_by: OrderBy::Msgid,
             include_origins: true,
             include_line_numbers: true,
             include_obsolete: false,
-        }
-    }
-}
-
-impl<'a> CombineCatalogOptions<'a> {
-    /// Creates combine options with required fields set.
-    ///
-    /// Optional fields use the same defaults as [`CombineCatalogOptions::default`].
-    #[must_use]
-    pub fn new(inputs: &'a [CatalogCombineInput<'a>], source_locale: &'a str) -> Self {
-        Self {
-            inputs,
-            source_locale,
-            ..Self::default()
         }
     }
 }
@@ -915,40 +927,25 @@ pub struct ParseCatalogOptions<'a> {
     pub locale: Option<&'a str>,
     /// Source locale used for source-side semantics and validation.
     pub source_locale: &'a str,
-    /// Storage format used when parsing the content.
-    pub storage_format: CatalogStorageFormat,
-    /// High-level semantics used when interpreting catalog content.
-    pub semantics: CatalogSemantics,
-    /// Target plural interpretation for the resulting catalog view.
-    pub plural_encoding: PluralEncoding,
+    /// High-level catalog mode used when interpreting catalog content.
+    pub mode: CatalogMode,
     /// Whether unsupported ICU plural projection cases should become hard errors.
     pub strict: bool,
-}
-
-impl Default for ParseCatalogOptions<'_> {
-    fn default() -> Self {
-        Self {
-            content: "",
-            locale: None,
-            source_locale: "",
-            storage_format: CatalogStorageFormat::Po,
-            semantics: CatalogSemantics::IcuNative,
-            plural_encoding: PluralEncoding::Icu,
-            strict: false,
-        }
-    }
 }
 
 impl<'a> ParseCatalogOptions<'a> {
     /// Creates parse options with required fields set.
     ///
-    /// Optional fields use the same defaults as [`ParseCatalogOptions::default`].
+    /// Optional fields use the same defaults that the previous `Default`
+    /// implementation provided.
     #[must_use]
     pub fn new(content: &'a str, source_locale: &'a str) -> Self {
         Self {
             content,
+            locale: None,
             source_locale,
-            ..Self::default()
+            mode: CatalogMode::default(),
+            strict: false,
         }
     }
 }
@@ -1068,7 +1065,7 @@ mod tests {
 
     use super::{
         ApiError, CatalogCombineInput, CatalogCombineSelection, CatalogConflictStrategy,
-        CatalogMessage, CatalogMessageExtra, CatalogMessageKey, CatalogSemantics,
+        CatalogMessage, CatalogMessageExtra, CatalogMessageKey, CatalogMode, CatalogSemantics,
         CatalogStorageFormat, CatalogUpdateInput, CombineCatalogOptions, Diagnostic,
         DiagnosticSeverity, EffectiveTranslation, EffectiveTranslationRef, NormalizedParsedCatalog,
         ObsoleteStrategy, OrderBy, ParseCatalogOptions, ParsedCatalog, PlaceholderCommentMode,
@@ -1235,51 +1232,40 @@ mod tests {
 
     #[test]
     fn option_defaults_reflect_native_po_defaults() {
-        let update = UpdateCatalogOptions::default();
-        assert_eq!(update.storage_format, CatalogStorageFormat::Po);
-        assert_eq!(update.semantics, CatalogSemantics::IcuNative);
-        assert_eq!(update.plural_encoding, PluralEncoding::Icu);
+        let update = UpdateCatalogOptions::new("en", Vec::<super::ExtractedMessage>::new());
+        assert_eq!(update.mode, CatalogMode::IcuPo);
         assert_eq!(update.obsolete_strategy, ObsoleteStrategy::Mark);
-        assert_eq!(update.order_by, OrderBy::Msgid);
-        assert!(update.include_origins);
-        assert!(update.include_line_numbers);
+        assert_eq!(update.render.order_by, OrderBy::Msgid);
+        assert!(update.render.include_origins);
+        assert!(update.render.include_line_numbers);
         assert_eq!(
-            update.print_placeholders_in_comments,
+            update.render.print_placeholders_in_comments,
             PlaceholderCommentMode::Enabled { limit: 3 }
         );
-        let update_new = UpdateCatalogOptions::new("en", Vec::<super::ExtractedMessage>::new());
-        assert_eq!(update_new.source_locale, "en");
+        assert_eq!(update.source_locale, "en");
         assert!(matches!(
-            update_new.input,
+            update.input,
             CatalogUpdateInput::Structured(messages) if messages.is_empty()
         ));
 
-        let update_file = UpdateCatalogFileOptions::default();
-        assert_eq!(update_file.target_path, Path::new(""));
-        assert_eq!(update_file.storage_format, CatalogStorageFormat::Po);
-        assert_eq!(update_file.semantics, CatalogSemantics::IcuNative);
-        assert_eq!(update_file.plural_encoding, PluralEncoding::Icu);
-        let update_file_new = UpdateCatalogFileOptions::new(
+        let update_file = UpdateCatalogFileOptions::new(
             Path::new("locale/de.po"),
             "en",
             Vec::<super::SourceExtractedMessage>::new(),
         );
-        assert_eq!(update_file_new.target_path, Path::new("locale/de.po"));
-        assert_eq!(update_file_new.source_locale, "en");
+        assert_eq!(update_file.target_path, Path::new("locale/de.po"));
+        assert_eq!(update_file.options.mode, CatalogMode::IcuPo);
+        assert_eq!(update_file.options.source_locale, "en");
         assert!(matches!(
-            update_file_new.input,
+            update_file.options.input,
             CatalogUpdateInput::SourceFirst(messages) if messages.is_empty()
         ));
 
-        let parse = ParseCatalogOptions::default();
-        assert_eq!(parse.storage_format, CatalogStorageFormat::Po);
-        assert_eq!(parse.semantics, CatalogSemantics::IcuNative);
-        assert_eq!(parse.plural_encoding, PluralEncoding::Icu);
+        let parse = ParseCatalogOptions::new("msgid \"Hello\"\nmsgstr \"Hallo\"\n", "en");
+        assert_eq!(parse.content, "msgid \"Hello\"\nmsgstr \"Hallo\"\n");
+        assert_eq!(parse.source_locale, "en");
+        assert_eq!(parse.mode, CatalogMode::IcuPo);
         assert!(!parse.strict);
-        let parse_new = ParseCatalogOptions::new("msgid \"Hello\"\nmsgstr \"Hallo\"\n", "en");
-        assert_eq!(parse_new.content, "msgid \"Hello\"\nmsgstr \"Hallo\"\n");
-        assert_eq!(parse_new.source_locale, "en");
-        assert_eq!(parse_new.storage_format, CatalogStorageFormat::Po);
 
         let inputs = [CatalogCombineInput::labeled(
             "msgid \"Hello\"\nmsgstr \"Hallo\"\n",
@@ -1288,11 +1274,61 @@ mod tests {
         let combine = CombineCatalogOptions::new(&inputs, "en");
         assert_eq!(combine.inputs, &inputs);
         assert_eq!(combine.source_locale, "en");
+        assert_eq!(combine.mode, CatalogMode::IcuPo);
         assert_eq!(combine.conflict_strategy, CatalogConflictStrategy::UseFirst);
         assert_eq!(combine.selection, CatalogCombineSelection::All);
         assert!(combine.include_origins);
         assert!(combine.include_line_numbers);
         assert!(!combine.include_obsolete);
+    }
+
+    #[test]
+    fn catalog_mode_maps_only_supported_catalog_combinations() {
+        assert_eq!(CatalogMode::default(), CatalogMode::IcuPo);
+        assert_eq!(
+            CatalogMode::IcuPo.storage_format(),
+            CatalogStorageFormat::Po
+        );
+        assert_eq!(CatalogMode::IcuPo.semantics(), CatalogSemantics::IcuNative);
+        assert_eq!(CatalogMode::IcuPo.plural_encoding(), PluralEncoding::Icu);
+
+        assert_eq!(
+            CatalogMode::from_parts(
+                CatalogStorageFormat::Ndjson,
+                CatalogSemantics::IcuNative,
+                PluralEncoding::Icu
+            ),
+            Some(CatalogMode::IcuNdjson)
+        );
+        assert_eq!(
+            CatalogMode::from_parts(
+                CatalogStorageFormat::Po,
+                CatalogSemantics::GettextCompat,
+                PluralEncoding::Gettext
+            ),
+            Some(CatalogMode::GettextPo)
+        );
+        assert_eq!(
+            CatalogMode::from_parts(
+                CatalogStorageFormat::Ndjson,
+                CatalogSemantics::GettextCompat,
+                PluralEncoding::Gettext
+            ),
+            None
+        );
+        assert_eq!(
+            CatalogMode::from_parts(
+                CatalogStorageFormat::Po,
+                CatalogSemantics::IcuNative,
+                PluralEncoding::Icu
+            ),
+            Some(CatalogMode::IcuPo)
+        );
+        let update = UpdateCatalogOptions {
+            mode: CatalogMode::GettextPo,
+            ..UpdateCatalogOptions::new("en", Vec::<super::SourceExtractedMessage>::new())
+        };
+        assert_eq!(update.mode, CatalogMode::GettextPo);
     }
 
     #[test]

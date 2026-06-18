@@ -41,10 +41,8 @@ impl NormalizedParsedCatalog {
     /// use ferrocat_po::{CompileCatalogOptions, ParseCatalogOptions, parse_catalog};
     ///
     /// let parsed = parse_catalog(ParseCatalogOptions {
-    ///     content: "msgid \"Hello\"\nmsgstr \"Hallo\"\n",
-    ///     source_locale: "en",
     ///     locale: Some("de"),
-    ///     ..ParseCatalogOptions::default()
+    ///     ..ParseCatalogOptions::new("msgid \"Hello\"\nmsgstr \"Hallo\"\n", "en")
     /// })?;
     /// let normalized = parsed.into_normalized_view()?;
     /// let compiled = normalized.compile(&CompileCatalogOptions::default())?;
@@ -174,7 +172,7 @@ pub fn compile_catalog_artifact_selected(
     index: &CompiledCatalogIdIndex,
     options: &CompileSelectedCatalogArtifactOptions<'_>,
 ) -> Result<CompiledCatalogArtifact, ApiError> {
-    let artifact_options = options.artifact_options();
+    let artifact_options = &options.options;
     let locales = prepare_compiled_catalog_artifact_catalogs(
         catalogs,
         artifact_options.requested_locale,
@@ -200,7 +198,7 @@ pub fn compile_catalog_artifact_selected(
         source_keys.insert(source_key.clone());
     }
 
-    compile_catalog_artifact_from_source_keys(&locales, source_keys, &artifact_options)
+    compile_catalog_artifact_from_source_keys(&locales, source_keys, artifact_options)
 }
 
 fn compiled_translation_for_message(

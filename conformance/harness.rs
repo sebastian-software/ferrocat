@@ -8,8 +8,8 @@ use ferrocat_conformance::{
 };
 use ferrocat_icu::{IcuNode, IcuPluralKind, parse_icu};
 use ferrocat_po::{
-    MergeExtractedMessage, ParseCatalogOptions, PluralEncoding, PoFile, PoItem, SerializeOptions,
-    merge_catalog, parse_catalog, parse_po, stringify_po,
+    MergeExtractedMessage, ParseCatalogOptions, PoFile, PoItem, SerializeOptions, merge_catalog,
+    parse_catalog, parse_po, stringify_po,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -289,9 +289,7 @@ fn evaluate_po_plural_header(case: &ConformanceCase) -> Result<String, String> {
             content: &input,
             locale: Some(locale),
             source_locale: &source_locale,
-            storage_format: ferrocat_po::CatalogStorageFormat::Po,
-            semantics: ferrocat_po::CatalogSemantics::GettextCompat,
-            plural_encoding: PluralEncoding::Gettext,
+            mode: ferrocat_po::CatalogMode::GettextPo,
             strict: false,
         })
         .map_err(|error| format!("parse_catalog failed unexpectedly: {error:?}"))?;

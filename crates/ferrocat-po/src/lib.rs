@@ -26,17 +26,13 @@
 //! };
 //!
 //! let source = parse_catalog(ParseCatalogOptions {
-//!     content: "msgid \"Hello\"\nmsgstr \"Hello\"\n",
-//!     source_locale: "en",
 //!     locale: Some("en"),
-//!     ..ParseCatalogOptions::default()
+//!     ..ParseCatalogOptions::new("msgid \"Hello\"\nmsgstr \"Hello\"\n", "en")
 //! })?
 //! .into_normalized_view()?;
 //! let requested = parse_catalog(ParseCatalogOptions {
-//!     content: "msgid \"Hello\"\nmsgstr \"Hallo\"\n",
-//!     source_locale: "en",
 //!     locale: Some("de"),
-//!     ..ParseCatalogOptions::default()
+//!     ..ParseCatalogOptions::new("msgid \"Hello\"\nmsgstr \"Hallo\"\n", "en")
 //! })?
 //! .into_normalized_view()?;
 //! let index = CompiledCatalogIdIndex::new(&[&requested, &source], ferrocat_po::CompiledKeyStrategy::FerrocatV1)?;
@@ -44,12 +40,7 @@
 //! let compiled = compile_catalog_artifact_selected(
 //!     &[&requested, &source],
 //!     &index,
-//!     &CompileSelectedCatalogArtifactOptions {
-//!         requested_locale: "de",
-//!         source_locale: "en",
-//!         compiled_ids: &compiled_ids,
-//!         ..CompileSelectedCatalogArtifactOptions::default()
-//!     },
+//!     &CompileSelectedCatalogArtifactOptions::new("de", "en", &compiled_ids),
 //! )?;
 //!
 //! assert_eq!(compiled.messages.len(), 1);
@@ -60,17 +51,13 @@
 //! use ferrocat_po::{CatalogAuditOptions, ParseCatalogOptions, audit_catalogs, parse_catalog};
 //!
 //! let source = parse_catalog(ParseCatalogOptions {
-//!     content: "msgid \"Hello {name}\"\nmsgstr \"Hello {name}\"\n",
-//!     source_locale: "en",
 //!     locale: Some("en"),
-//!     ..ParseCatalogOptions::default()
+//!     ..ParseCatalogOptions::new("msgid \"Hello {name}\"\nmsgstr \"Hello {name}\"\n", "en")
 //! })?
 //! .into_normalized_view()?;
 //! let target = parse_catalog(ParseCatalogOptions {
-//!     content: "msgid \"Hello {name}\"\nmsgstr \"Hallo\"\n",
-//!     source_locale: "en",
 //!     locale: Some("de"),
-//!     ..ParseCatalogOptions::default()
+//!     ..ParseCatalogOptions::new("msgid \"Hello {name}\"\nmsgstr \"Hallo\"\n", "en")
 //! })?
 //! .into_normalized_view()?;
 //! let report = audit_catalogs(&[&source, &target], &CatalogAuditOptions::new("en"))?;
@@ -95,21 +82,22 @@ pub use api::{
     ApiError, COMPILED_CATALOG_ARTIFACT_SCHEMA_VERSION, CatalogAuditChecks, CatalogAuditDiagnostic,
     CatalogAuditMessageRef, CatalogAuditOptions, CatalogAuditReport, CatalogAuditSummary,
     CatalogCombineInput, CatalogCombineResult, CatalogCombineSelection, CatalogCombineStats,
-    CatalogConflictStrategy, CatalogMessage, CatalogMessageExtra, CatalogMessageKey, CatalogOrigin,
-    CatalogSemantics, CatalogStats, CatalogStorageFormat, CatalogUpdateInput, CatalogUpdateResult,
-    CombineCatalogOptions, CompileCatalogArtifactOptions, CompileCatalogOptions,
-    CompileSelectedCatalogArtifactOptions, CompiledCatalog, CompiledCatalogArtifact,
-    CompiledCatalogDiagnostic, CompiledCatalogIdDescription, CompiledCatalogIdIndex,
-    CompiledCatalogMissingMessage, CompiledCatalogTranslationKind, CompiledCatalogUnavailableId,
-    CompiledKeyStrategy, CompiledMessage, CompiledTranslation, DescribeCompiledIdsReport,
-    Diagnostic, DiagnosticSeverity, EffectiveTranslation, EffectiveTranslationRef,
-    ExtractedMessage, ExtractedPluralMessage, ExtractedSingularMessage, MachineTranslationMetadata,
-    NdjsonCatalogReader, NdjsonCatalogReaderOptions, NdjsonCatalogWriter,
-    NdjsonCatalogWriterOptions, NormalizedParsedCatalog, ObsoleteStrategy, OrderBy,
-    ParseCatalogOptions, ParsedCatalog, PlaceholderCommentMode, PluralEncoding, PluralSource,
-    SourceExtractedMessage, TranslationShape, UpdateCatalogFileOptions, UpdateCatalogOptions,
-    audit_catalogs, combine_catalogs, compile_catalog_artifact, compile_catalog_artifact_selected,
-    compiled_key, machine_translation_hash, parse_catalog, update_catalog, update_catalog_file,
+    CatalogConflictStrategy, CatalogMessage, CatalogMessageExtra, CatalogMessageKey, CatalogMode,
+    CatalogOrigin, CatalogSemantics, CatalogStats, CatalogStorageFormat, CatalogUpdateInput,
+    CatalogUpdateResult, CombineCatalogOptions, CompileCatalogArtifactOptions,
+    CompileCatalogOptions, CompileSelectedCatalogArtifactOptions, CompiledCatalog,
+    CompiledCatalogArtifact, CompiledCatalogDiagnostic, CompiledCatalogIdDescription,
+    CompiledCatalogIdIndex, CompiledCatalogMissingMessage, CompiledCatalogTranslationKind,
+    CompiledCatalogUnavailableId, CompiledKeyStrategy, CompiledMessage, CompiledTranslation,
+    DescribeCompiledIdsReport, Diagnostic, DiagnosticSeverity, EffectiveTranslation,
+    EffectiveTranslationRef, ExtractedMessage, ExtractedPluralMessage, ExtractedSingularMessage,
+    MachineTranslationMetadata, NdjsonCatalogReader, NdjsonCatalogReaderOptions,
+    NdjsonCatalogWriter, NdjsonCatalogWriterOptions, NormalizedParsedCatalog, ObsoleteStrategy,
+    OrderBy, ParseCatalogOptions, ParsedCatalog, PlaceholderCommentMode, PluralEncoding,
+    PluralSource, RenderOptions, SourceExtractedMessage, TranslationShape,
+    UpdateCatalogFileOptions, UpdateCatalogOptions, audit_catalogs, combine_catalogs,
+    compile_catalog_artifact, compile_catalog_artifact_selected, compiled_key,
+    machine_translation_hash, parse_catalog, update_catalog, update_catalog_file,
 };
 pub use borrowed::{
     BorrowedHeader, BorrowedMsgStr, BorrowedPoFile, BorrowedPoItem, parse_po_borrowed,
