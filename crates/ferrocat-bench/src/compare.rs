@@ -36,7 +36,7 @@ const NOISE_RELATIVE_SPAN_WARNING_THRESHOLD: f64 = 10.0;
 
 pub fn run_verify_benchmark_env() -> Result<(), String> {
     let workspace = workspace_root()?;
-    let detected = BenchmarkEnvironment::detect(&workspace, None)?;
+    let detected = BenchmarkEnvironment::detect(&workspace, None, ToolRequirement::External)?;
 
     println!("benchmark-root: {}", workspace.display());
     println!("system: {}", detected.system_label);
@@ -68,8 +68,8 @@ pub fn run_compare_command(
 ) -> Result<(), String> {
     let workspace = workspace_root()?;
     let options = CompareCliOptions::parse(args)?;
-    let environment = BenchmarkEnvironment::detect(&workspace, None)?;
     let profile = BenchmarkProfile::load(&workspace, profile_name)?;
+    let environment = BenchmarkEnvironment::detect(&workspace, None, profile.tool_requirement())?;
     let report = run_profile(&workspace, &environment, &profile)?;
 
     if let Some(parent) = options.out.parent() {
@@ -406,6 +406,24 @@ impl BenchmarkProfile {
         }
         Ok(profile)
     }
+
+    fn tool_requirement(&self) -> ToolRequirement {
+        if self
+            .scenarios
+            .iter()
+            .any(|scenario| !scenario.implementation.starts_with("ferrocat-"))
+        {
+            ToolRequirement::External
+        } else {
+            ToolRequirement::RustOnly
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ToolRequirement {
+    RustOnly,
+    External,
 }
 
 const fn default_minimum_sample_millis() -> u64 {
@@ -2345,11 +2363,11 @@ struct BenchmarkEnvironment {
 }
 
 impl BenchmarkEnvironment {
-    #[expect(
-        clippy::too_many_lines,
-        reason = "Environment detection keeps all external tool probes together for maintainability."
-    )]
-    fn detect(workspace: &Path, path_override: Option<&OsStr>) -> Result<Self, String> {
+    fn detect(
+        workspace: &Path,
+        path_override: Option<&OsStr>,
+        tool_requirement: ToolRequirement,
+    ) -> Result<Self, String> {
         let mut errors = Vec::new();
         let python_program = preferred_python_program(workspace);
         let os = format!("{}-{}", env::consts::OS, env::consts::ARCH);
@@ -2364,81 +2382,15 @@ impl BenchmarkEnvironment {
                     String::new()
                 }
             };
-        let node_version =
-            match read_command_version_with_path("node", &["--version"], path_override) {
-                Ok(version) => version,
-                Err(error) => {
-                    errors.push(error);
-                    String::new()
-                }
-            };
-        let python_version = match read_command_version_for_program(
-            &python_program,
-            &["--version"],
-            workspace,
-            path_override,
-        ) {
-            Ok(version) => version,
-            Err(error) => {
-                errors.push(error);
-                String::new()
-            }
-        };
-        let msgmerge_version =
-            match read_command_version_with_path("msgmerge", &["--version"], path_override) {
-                Ok(version) => version,
-                Err(error) => {
-                    errors.push(error);
-                    String::new()
-                }
-            };
-        let msgcat_version =
-            match read_command_version_with_path("msgcat", &["--version"], path_override) {
-                Ok(version) => version,
-                Err(error) => {
-                    errors.push(error);
-                    String::new()
-                }
-            };
-        let node_adapter_version = match run_command_capture_with_path(
-            "node",
-            &[
-                OsString::from("--no-warnings"),
-                workspace
-                    .join("benchmark")
-                    .join("node")
-                    .join("adapter.cjs")
-                    .into_os_string(),
-                OsString::from("--check"),
-            ],
-            workspace,
-            path_override,
-        ) {
-            Ok(output) => output.stdout.trim().to_owned(),
-            Err(error) => {
-                errors.push(error);
-                String::new()
-            }
-        };
-        let python_adapter_version = match run_command_capture_with_path(
-            python_program.as_os_str(),
-            &[
-                workspace
-                    .join("benchmark")
-                    .join("python")
-                    .join("adapter.py")
-                    .into_os_string(),
-                OsString::from("--check"),
-            ],
-            workspace,
-            path_override,
-        ) {
-            Ok(output) => output.stdout.trim().to_owned(),
-            Err(error) => {
-                errors.push(error);
-                String::new()
-            }
-        };
+        let mut external = ExternalToolVersions::not_required();
+        if tool_requirement == ToolRequirement::External {
+            external = detect_external_tool_versions(
+                workspace,
+                path_override,
+                &python_program,
+                &mut errors,
+            );
+        }
 
         if !errors.is_empty() {
             return Err(format!(
@@ -2454,12 +2406,12 @@ impl BenchmarkEnvironment {
             cpu_model,
             memory_bytes,
             rustc_version,
-            node_version,
-            python_version,
-            msgmerge_version,
-            msgcat_version,
-            node_adapter_version,
-            python_adapter_version,
+            node_version: external.node_version,
+            python_version: external.python_version,
+            msgmerge_version: external.msgmerge_version,
+            msgcat_version: external.msgcat_version,
+            node_adapter_version: external.node_adapter_version,
+            python_adapter_version: external.python_adapter_version,
             python_program,
         })
     }
@@ -2479,6 +2431,120 @@ impl BenchmarkEnvironment {
             node_adapter_version: self.node_adapter_version.clone(),
             python_adapter_version: self.python_adapter_version.clone(),
         }
+    }
+}
+
+#[derive(Debug)]
+struct ExternalToolVersions {
+    node_version: String,
+    python_version: String,
+    msgmerge_version: String,
+    msgcat_version: String,
+    node_adapter_version: String,
+    python_adapter_version: String,
+}
+
+impl ExternalToolVersions {
+    fn not_required() -> Self {
+        Self {
+            node_version: "not-required".to_owned(),
+            python_version: "not-required".to_owned(),
+            msgmerge_version: "not-required".to_owned(),
+            msgcat_version: "not-required".to_owned(),
+            node_adapter_version: "not-required".to_owned(),
+            python_adapter_version: "not-required".to_owned(),
+        }
+    }
+}
+
+fn detect_external_tool_versions(
+    workspace: &Path,
+    path_override: Option<&OsStr>,
+    python_program: &Path,
+    errors: &mut Vec<String>,
+) -> ExternalToolVersions {
+    let node_version = match read_command_version_with_path("node", &["--version"], path_override) {
+        Ok(version) => version,
+        Err(error) => {
+            errors.push(error);
+            String::new()
+        }
+    };
+    let python_version = match read_command_version_for_program(
+        python_program,
+        &["--version"],
+        workspace,
+        path_override,
+    ) {
+        Ok(version) => version,
+        Err(error) => {
+            errors.push(error);
+            String::new()
+        }
+    };
+    let msgmerge_version =
+        match read_command_version_with_path("msgmerge", &["--version"], path_override) {
+            Ok(version) => version,
+            Err(error) => {
+                errors.push(error);
+                String::new()
+            }
+        };
+    let msgcat_version =
+        match read_command_version_with_path("msgcat", &["--version"], path_override) {
+            Ok(version) => version,
+            Err(error) => {
+                errors.push(error);
+                String::new()
+            }
+        };
+    let node_adapter_version = match run_command_capture_with_path(
+        "node",
+        &[
+            OsString::from("--no-warnings"),
+            workspace
+                .join("benchmark")
+                .join("node")
+                .join("adapter.cjs")
+                .into_os_string(),
+            OsString::from("--check"),
+        ],
+        workspace,
+        path_override,
+    ) {
+        Ok(output) => output.stdout.trim().to_owned(),
+        Err(error) => {
+            errors.push(error);
+            String::new()
+        }
+    };
+    let python_adapter_version = match run_command_capture_with_path(
+        python_program.as_os_str(),
+        &[
+            workspace
+                .join("benchmark")
+                .join("python")
+                .join("adapter.py")
+                .into_os_string(),
+            OsString::from("--check"),
+        ],
+        workspace,
+        path_override,
+    ) {
+        Ok(output) => output.stdout.trim().to_owned(),
+        Err(error) => {
+            errors.push(error);
+            String::new()
+        }
+    };
+
+    ExternalToolVersions {
+        node_version,
+        python_version,
+        msgmerge_version,
+        msgcat_version,
+        node_adapter_version,
+        python_adapter_version,
     }
 }
 
@@ -3407,6 +3473,16 @@ mod tests {
             BenchmarkProfile::load(&workspace, "gettext-official-quick-v1").expect("profile");
         assert_eq!(profile.name, "gettext-official-quick-v1");
         assert!(!profile.scenarios.is_empty());
+        assert_eq!(profile.tool_requirement(), ToolRequirement::External);
+    }
+
+    #[test]
+    fn profile_loads_rust_scheduled_v1_without_external_tools() {
+        let workspace = workspace_root().expect("workspace");
+        let profile = BenchmarkProfile::load(&workspace, "rust-scheduled-v1").expect("profile");
+        assert_eq!(profile.name, "rust-scheduled-v1");
+        assert!(!profile.scenarios.is_empty());
+        assert_eq!(profile.tool_requirement(), ToolRequirement::RustOnly);
     }
 
     #[test]
@@ -3462,9 +3538,12 @@ mod tests {
     #[test]
     fn benchmark_environment_reports_missing_tools() {
         let workspace = workspace_root().expect("workspace");
-        let error =
-            BenchmarkEnvironment::detect(&workspace, Some(OsStr::new("/definitely-missing")))
-                .expect_err("expected failure");
+        let error = BenchmarkEnvironment::detect(
+            &workspace,
+            Some(OsStr::new("/definitely-missing")),
+            ToolRequirement::External,
+        )
+        .expect_err("expected failure");
         assert!(error.contains("benchmark environment verification failed"));
     }
 
