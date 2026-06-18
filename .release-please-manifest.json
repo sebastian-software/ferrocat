@@ -3,5 +3,6 @@
   "crates/ferrocat-po": "0.13.0",
   "crates/ferrocat-icu": "0.13.0",
   "crates/ferrocat-conformance": "0.13.0",
-  "crates/ferrocat-bench": "0.13.0"
+  "crates/ferrocat-bench": "0.13.0",
+  "crates/ferrocat-cli": "0.13.0"
 }
