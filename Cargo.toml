@@ -7,6 +7,7 @@ members = [
     "crates/ferrocat-conformance",
     "crates/ferrocat-bench",
 ]
+exclude = ["fuzz"]
 resolver = "2"
 
 [workspace.package]

@@ -27,6 +27,7 @@ all-features = true
 
 [dev-dependencies]
 ferrocat-conformance = { path = "../ferrocat-conformance" }
+proptest = "1"
 serde_json = "1.0.145"
 
 [lints]
