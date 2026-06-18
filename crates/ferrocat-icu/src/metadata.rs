@@ -1,5 +1,6 @@
 use std::collections::{BTreeMap, BTreeSet};
 
+#[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -12,28 +13,47 @@ use crate::{
 /// This is the progressive, JSON-friendly shape. Only `msgid` is required;
 /// semantic fields may be omitted and derived from the ICU MessageFormat v1
 /// source where possible.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 pub struct MessageMetadataInput {
     /// Exact catalog identity and authored source payload.
     pub msgid: String,
     /// Optional gettext-style context used to disambiguate identical `msgid`s.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "Option::is_none")
+    )]
     pub msgctxt: Option<String>,
     /// Optional translator-facing note.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "Option::is_none")
+    )]
     pub description: Option<String>,
     /// Optional extraction origins.
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "Vec::is_empty")
+    )]
     pub origin: Vec<MessageOriginMetadata>,
     /// Optional argument metadata keyed by argument name.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "Option::is_none")
+    )]
     pub args: Option<BTreeMap<String, MessageArgumentMetadataInput>>,
     /// Optional rich-text tag names.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "Option::is_none")
+    )]
     pub tags: Option<Vec<String>>,
     /// Optional selector metadata keyed by selecting argument name.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "Option::is_none")
+    )]
     pub selectors: Option<BTreeMap<String, MessageSelectorMetadata>>,
 }
 
@@ -54,52 +74,85 @@ impl MessageMetadataInput {
 }
 
 /// Normalized semantic metadata for one source message.
-#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 pub struct MessageMetadata {
     /// Exact catalog identity and authored source payload.
     pub msgid: String,
     /// Optional gettext-style context used to disambiguate identical `msgid`s.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "Option::is_none")
+    )]
     pub msgctxt: Option<String>,
     /// Optional translator-facing note.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "Option::is_none")
+    )]
     pub description: Option<String>,
     /// Optional extraction origins.
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "Vec::is_empty")
+    )]
     pub origin: Vec<MessageOriginMetadata>,
     /// Normalized argument metadata keyed by argument name.
-    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "BTreeMap::is_empty")
+    )]
     pub args: BTreeMap<String, MessageArgumentMetadata>,
     /// Rich-text tag names in first-seen order.
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "Vec::is_empty")
+    )]
     pub tags: Vec<String>,
     /// Normalized selector metadata keyed by selecting argument name.
-    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "BTreeMap::is_empty")
+    )]
     pub selectors: BTreeMap<String, MessageSelectorMetadata>,
 }
 
 /// Extraction origin attached to semantic message metadata.
-#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 pub struct MessageOriginMetadata {
     /// Source file path, when known.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "Option::is_none")
+    )]
     pub file: Option<String>,
     /// Source line number, when known.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "Option::is_none")
+    )]
     pub line: Option<u32>,
     /// Host component name, when known.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "Option::is_none")
+    )]
     pub component: Option<String>,
     /// Host route or page identifier, when known.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "Option::is_none")
+    )]
     pub route: Option<String>,
 }
 
 /// Progressive authoring input for one argument.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(untagged)]
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(untagged))]
 pub enum MessageArgumentMetadataInput {
     /// Shorthand kind form, for example `"string"`.
     Kind(MessageArgumentKind),
@@ -132,20 +185,30 @@ impl MessageArgumentMetadataInput {
 }
 
 /// Normalized semantic metadata for one message argument.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 pub struct MessageArgumentMetadata {
     /// Broad message-level data kind.
-    #[serde(default)]
+    #[cfg_attr(feature = "serde", serde(default))]
     pub kind: MessageArgumentKind,
     /// Optional semantic role such as `count`, `currency`, or `url`.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "Option::is_none")
+    )]
     pub role: Option<String>,
     /// Allowed enum/select values when known from extraction.
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "Vec::is_empty")
+    )]
     pub values: Vec<String>,
     /// Optional formatter metadata.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "Option::is_none")
+    )]
     pub format: Option<MessageArgumentFormatMetadata>,
 }
 
@@ -161,8 +224,9 @@ impl Default for MessageArgumentMetadata {
 }
 
 /// Broad argument kind used by semantic message metadata.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Default, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Default)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "lowercase"))]
 pub enum MessageArgumentKind {
     /// Text or string-like value.
     String,
@@ -192,20 +256,28 @@ pub enum MessageArgumentKind {
 }
 
 /// Formatter metadata attached to an argument.
-#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 pub struct MessageArgumentFormatMetadata {
     /// Raw formatter style, when present.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "Option::is_none")
+    )]
     pub style: Option<String>,
     /// Classification of the formatter style.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "Option::is_none")
+    )]
     pub style_kind: Option<MessageFormatStyleKind>,
 }
 
 /// Classification of a message formatter style.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "lowercase"))]
 pub enum MessageFormatStyleKind {
     /// Formatter has no style segment.
     None,
@@ -218,29 +290,37 @@ pub enum MessageFormatStyleKind {
 }
 
 /// Selector metadata attached to a selecting argument.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 pub struct MessageSelectorMetadata {
     /// Selector expression kind.
     pub kind: MessageSelectorKind,
     /// Known selector cases in source order.
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "Vec::is_empty")
+    )]
     pub cases: Vec<String>,
     /// Optional plural offset. Omitted when zero.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "Option::is_none")
+    )]
     pub offset: Option<u32>,
 }
 
 /// Selector kind used by semantic message metadata.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "lowercase"))]
 pub enum MessageSelectorKind {
     /// General select expression.
     Select,
     /// Cardinal plural expression.
     Plural,
     /// Ordinal plural expression.
-    #[serde(rename = "selectordinal")]
+    #[cfg_attr(feature = "serde", serde(rename = "selectordinal"))]
     SelectOrdinal,
 }
 
