@@ -58,6 +58,7 @@
 
 mod analysis;
 mod ast;
+pub mod diagnostic_codes;
 mod error;
 mod metadata;
 mod parser;

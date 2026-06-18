@@ -8,6 +8,8 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 
+use crate::diagnostic_codes;
+
 use super::file_io::atomic_write;
 use super::helpers::{
     dedupe_origins, dedupe_placeholders, dedupe_strings, merge_placeholders, merge_unique_origins,
@@ -223,7 +225,7 @@ pub fn update_catalog_file(
     let existing = match fs::read_to_string(options.target_path) {
         Ok(content) => Some(content),
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
-        Err(error) => return Err(ApiError::Io(error)),
+        Err(error) => return Err(ApiError::io_with_path(options.target_path, error)),
     };
 
     let result = update_catalog(UpdateCatalogOptions {
@@ -447,7 +449,7 @@ fn merge_combine_message(
                 diagnostics.push(
                     Diagnostic::new(
                         DiagnosticSeverity::Warning,
-                        "combine.conflict_resolved",
+                        diagnostic_codes::combine::CONFLICT_RESOLVED,
                         format!(
                             "Resolved conflicting translations for definitions from {} using {:?}.",
                             entry.labels.join(", "),
@@ -886,7 +888,7 @@ fn merge_message(
                             diagnostics.push(
                                 Diagnostic::new(
                                     DiagnosticSeverity::Warning,
-                                    "plural.assumed_variable",
+                                    diagnostic_codes::plural::ASSUMED_VARIABLE,
                                     "Unable to determine plural placeholder name, assuming \"count\".",
                                 )
                                 .with_identity(&next.msgid, next.msgctxt.as_deref()),
@@ -974,7 +976,7 @@ fn apply_header_defaults(
             }
             (None, None) => diagnostics.push(Diagnostic::new(
                 DiagnosticSeverity::Info,
-                "plural.missing_plural_forms_header",
+                diagnostic_codes::plural::MISSING_PLURAL_FORMS_HEADER,
                 "No safe default Plural-Forms header is known for this locale; keeping the header unset.",
             )),
             (Some(_), Some(header))
@@ -984,7 +986,7 @@ fn apply_header_defaults(
                 headers.insert("Plural-Forms".to_owned(), header);
                 diagnostics.push(Diagnostic::new(
                     DiagnosticSeverity::Info,
-                    "plural.completed_plural_forms_header",
+                    diagnostic_codes::plural::COMPLETED_PLURAL_FORMS_HEADER,
                     "Plural-Forms header was missing the plural expression and has been completed using a safe locale default.",
                 ));
             }
@@ -1147,7 +1149,7 @@ fn export_message_to_po(
                 diagnostics.push(
                     Diagnostic::new(
                         DiagnosticSeverity::Error,
-                        "plural.unsupported_gettext_export",
+                        diagnostic_codes::plural::UNSUPPORTED_GETTEXT_EXPORT,
                         "Plural translation is missing the required \"other\" category.",
                     )
                     .with_identity(&message.msgid, message.msgctxt.as_deref()),
@@ -1530,7 +1532,7 @@ fn validate_plural_forms_header(
         match expected_gettext_nplurals_for_locale(locale) {
             Some(expected) if nplurals != expected => diagnostics.push(Diagnostic::new(
                 DiagnosticSeverity::Warning,
-                "plural.nplurals_locale_mismatch",
+                diagnostic_codes::plural::NPLURALS_LOCALE_MISMATCH,
                 format!(
                     "Plural-Forms declares nplurals={nplurals}, but locale-derived categories expect {expected}."
                 ),
@@ -1540,7 +1542,7 @@ fn validate_plural_forms_header(
     } else if plural_forms.plural.is_some() {
         diagnostics.push(Diagnostic::new(
             DiagnosticSeverity::Warning,
-            "parse.invalid_plural_forms_header",
+            diagnostic_codes::parse::INVALID_PLURAL_FORMS_HEADER,
             "Plural-Forms header contains a plural expression but no parseable nplurals value.",
         ));
     }
@@ -1548,7 +1550,7 @@ fn validate_plural_forms_header(
     if plural_forms.nplurals.is_some() && plural_forms.plural.is_none() {
         diagnostics.push(Diagnostic::new(
             DiagnosticSeverity::Info,
-            "plural.missing_plural_expression",
+            diagnostic_codes::plural::MISSING_PLURAL_EXPRESSION,
             "Plural-Forms header declares nplurals but omits the plural expression.",
         ));
     }

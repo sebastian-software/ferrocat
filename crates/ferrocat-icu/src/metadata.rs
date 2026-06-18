@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     IcuAnalysis, IcuArgumentKind, IcuDiagnosticSeverity, IcuParseError, IcuPluralKind,
-    IcuStyleKind, analyze_icu, parse_icu,
+    IcuStyleKind, analyze_icu, diagnostic_codes, parse_icu,
 };
 
 /// Authoring input for semantic message metadata.
@@ -451,7 +451,7 @@ pub fn validate_message_metadata(input: &MessageMetadataInput) -> MessageMetadat
         return MessageMetadataValidationReport {
             diagnostics: vec![MessageMetadataDiagnostic::new(
                 IcuDiagnosticSeverity::Error,
-                "metadata.invalid_msgid",
+                diagnostic_codes::metadata::INVALID_MSGID,
                 "Message metadata `msgid` is not valid ICU MessageFormat v1.",
                 Some("msgid".to_owned()),
             )],
@@ -608,7 +608,7 @@ fn validate_args(
         if !normalized.contains_key(name) {
             report.diagnostics.push(MessageMetadataDiagnostic::new(
                 IcuDiagnosticSeverity::Warning,
-                "metadata.missing_argument",
+                diagnostic_codes::metadata::MISSING_ARGUMENT,
                 format!("Message metadata is missing parsed ICU argument `{name}`."),
                 Some(name.clone()),
             ));
@@ -618,7 +618,7 @@ fn validate_args(
         let Some(derived_argument) = derived.get(*name) else {
             report.diagnostics.push(MessageMetadataDiagnostic::new(
                 IcuDiagnosticSeverity::Error,
-                "metadata.extra_argument",
+                diagnostic_codes::metadata::EXTRA_ARGUMENT,
                 format!("Message metadata declares argument `{name}` that is not used by `msgid`."),
                 Some((*name).clone()),
             ));
@@ -630,7 +630,7 @@ fn validate_args(
         {
             report.diagnostics.push(MessageMetadataDiagnostic::new(
                 IcuDiagnosticSeverity::Error,
-                "metadata.argument_kind_mismatch",
+                diagnostic_codes::metadata::ARGUMENT_KIND_MISMATCH,
                 format!(
                     "Message metadata declares argument `{name}` as {:?}, but `msgid` uses {:?}.",
                     argument.kind, derived_argument.kind
@@ -652,7 +652,7 @@ fn validate_tags(
         if !input.contains(tag) {
             report.diagnostics.push(MessageMetadataDiagnostic::new(
                 IcuDiagnosticSeverity::Warning,
-                "metadata.missing_tag",
+                diagnostic_codes::metadata::MISSING_TAG,
                 format!("Message metadata is missing parsed ICU tag `{tag}`."),
                 Some(tag.clone()),
             ));
@@ -662,7 +662,7 @@ fn validate_tags(
         if !derived.contains(tag) {
             report.diagnostics.push(MessageMetadataDiagnostic::new(
                 IcuDiagnosticSeverity::Error,
-                "metadata.extra_tag",
+                diagnostic_codes::metadata::EXTRA_TAG,
                 format!("Message metadata declares tag `{tag}` that is not used by `msgid`."),
                 Some(tag.clone()),
             ));
@@ -679,7 +679,7 @@ fn validate_selectors(
         if !input.contains_key(name) {
             report.diagnostics.push(MessageMetadataDiagnostic::new(
                 IcuDiagnosticSeverity::Warning,
-                "metadata.missing_selector",
+                diagnostic_codes::metadata::MISSING_SELECTOR,
                 format!("Message metadata is missing parsed ICU selector `{name}`."),
                 Some(name.clone()),
             ));
@@ -689,7 +689,7 @@ fn validate_selectors(
         let Some(derived_selector) = derived.get(name) else {
             report.diagnostics.push(MessageMetadataDiagnostic::new(
                 IcuDiagnosticSeverity::Error,
-                "metadata.extra_selector",
+                diagnostic_codes::metadata::EXTRA_SELECTOR,
                 format!("Message metadata declares selector `{name}` that is not used by `msgid`."),
                 Some(name.clone()),
             ));
@@ -698,7 +698,7 @@ fn validate_selectors(
         if selector.kind != derived_selector.kind {
             report.diagnostics.push(MessageMetadataDiagnostic::new(
                 IcuDiagnosticSeverity::Error,
-                "metadata.selector_kind_mismatch",
+                diagnostic_codes::metadata::SELECTOR_KIND_MISMATCH,
                 format!(
                     "Message metadata declares selector `{name}` as {:?}, but `msgid` uses {:?}.",
                     selector.kind, derived_selector.kind
@@ -716,7 +716,7 @@ fn validate_selectors(
             if !input_cases.contains(case) {
                 report.diagnostics.push(MessageMetadataDiagnostic::new(
                     IcuDiagnosticSeverity::Warning,
-                    "metadata.missing_selector_case",
+                    diagnostic_codes::metadata::MISSING_SELECTOR_CASE,
                     format!(
                         "Message metadata is missing parsed ICU selector case `{case}` for `{name}`."
                     ),
@@ -728,7 +728,7 @@ fn validate_selectors(
             if !derived_cases.contains(case) {
                 report.diagnostics.push(MessageMetadataDiagnostic::new(
                     IcuDiagnosticSeverity::Error,
-                    "metadata.extra_selector_case",
+                    diagnostic_codes::metadata::EXTRA_SELECTOR_CASE,
                     format!(
                         "Message metadata declares selector case `{case}` for `{name}` that is not used by `msgid`."
                     ),
@@ -739,7 +739,7 @@ fn validate_selectors(
         if selector.offset != derived_selector.offset {
             report.diagnostics.push(MessageMetadataDiagnostic::new(
                 IcuDiagnosticSeverity::Error,
-                "metadata.selector_offset_mismatch",
+                diagnostic_codes::metadata::SELECTOR_OFFSET_MISMATCH,
                 format!(
                     "Message metadata declares selector `{name}` offset {:?}, but `msgid` uses {:?}.",
                     selector.offset, derived_selector.offset

@@ -868,6 +868,30 @@ fn update_catalog_file_writes_only_when_changed() {
 }
 
 #[test]
+fn update_catalog_file_read_error_includes_path_context() {
+    let temp_dir = std::env::temp_dir().join("ferrocat-po-update-file-read-error-test");
+    let _ = fs::remove_dir_all(&temp_dir);
+    fs::create_dir_all(&temp_dir).expect("create temp dir");
+
+    let error = update_catalog_file(UpdateCatalogFileOptions {
+        target_path: &temp_dir,
+        source_locale: "en",
+        locale: Some("en"),
+        input: structured_input(vec![ExtractedMessage::Singular(ExtractedSingularMessage {
+            msgid: "Hello".to_owned(),
+            ..ExtractedSingularMessage::default()
+        })]),
+        ..UpdateCatalogFileOptions::default()
+    })
+    .expect_err("directory read should fail");
+
+    assert_eq!(error.path(), Some(temp_dir.as_path()));
+    assert!(matches!(error, ApiError::Io(_)));
+
+    let _ = fs::remove_dir_all(&temp_dir);
+}
+
+#[test]
 fn update_catalog_ndjson_renders_frontmatter_and_roundtrips() {
     let result = update_catalog(UpdateCatalogOptions {
         source_locale: "en",

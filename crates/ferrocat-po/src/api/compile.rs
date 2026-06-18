@@ -11,6 +11,8 @@ use ferrocat_icu::{
 };
 use sha2::{Digest, Sha256};
 
+use crate::diagnostic_codes;
+
 use super::plural::synthesize_icu_plural;
 use super::{
     ApiError, CatalogMessage, CatalogMessageKey, CatalogSemantics, CompileCatalogArtifactOptions,
@@ -525,7 +527,7 @@ where
                 }
                 artifact.diagnostics.push(CompiledCatalogDiagnostic {
                     severity: DiagnosticSeverity::Error,
-                    code: "compile.invalid_icu_message".to_owned(),
+                    code: diagnostic_codes::compile::INVALID_ICU_MESSAGE.to_owned(),
                     message: format!("Final runtime message failed ICU validation: {error}"),
                     key: compiled_key.clone(),
                     msgid: source_key.msgid.clone(),

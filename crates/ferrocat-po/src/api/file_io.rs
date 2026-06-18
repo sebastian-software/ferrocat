@@ -6,24 +6,34 @@ use super::ApiError;
 
 pub(super) fn atomic_write(path: &Path, content: &str) -> Result<(), ApiError> {
     let directory = path.parent().unwrap_or_else(|| Path::new("."));
-    fs::create_dir_all(directory)?;
+    fs::create_dir_all(directory).map_err(|error| ApiError::io_with_path(directory, error))?;
 
     if path.file_name().is_none() {
         return Err(ApiError::InvalidArguments(
             "target_path must have a file name".to_owned(),
         ));
     }
-    let mut temp_file = tempfile::NamedTempFile::new_in(directory)?;
-    temp_file.write_all(content.as_bytes())?;
-    temp_file.as_file().sync_all()?;
-    temp_file.persist(path).map_err(|error| error.error)?;
+    let mut temp_file = tempfile::NamedTempFile::new_in(directory)
+        .map_err(|error| ApiError::io_with_path(directory, error))?;
+    temp_file
+        .write_all(content.as_bytes())
+        .map_err(|error| ApiError::io_with_path(path, error))?;
+    temp_file
+        .as_file()
+        .sync_all()
+        .map_err(|error| ApiError::io_with_path(path, error))?;
+    temp_file
+        .persist(path)
+        .map_err(|error| ApiError::io_with_path(path, error.error))?;
     sync_directory(directory)?;
     Ok(())
 }
 
 #[cfg(unix)]
 fn sync_directory(directory: &Path) -> Result<(), ApiError> {
-    fs::File::open(directory)?.sync_all()?;
+    fs::File::open(directory)
+        .and_then(|file| file.sync_all())
+        .map_err(|error| ApiError::io_with_path(directory, error))?;
     Ok(())
 }
 

@@ -418,6 +418,19 @@ when the audit completes with at least one error diagnostic, and `2` for usage,
 I/O, parse, or serialization failures. Use `--format json` to write the
 structured `CatalogAuditReport`.
 
+Use `ferrocat_po::diagnostic_codes` when CI, editor integrations, or release
+gates need canonical code strings without hard-coding literals:
+
+```rust
+use ferrocat_po::{CatalogAuditOptions, audit_catalogs, diagnostic_codes};
+
+let report = audit_catalogs(&[&source, &target], &CatalogAuditOptions::new("en"))?;
+let has_missing = report
+    .diagnostics
+    .iter()
+    .any(|diagnostic| diagnostic.code == diagnostic_codes::catalog::MISSING_TRANSLATION);
+```
+
 ### `compiled_key`
 
 Use this when a host adapter, source transform, or manifest builder needs the
@@ -729,6 +742,9 @@ formatters.
 At the catalog artifact layer, set `icu_compatibility: true` on
 `CompileCatalogArtifactOptions` or `CompileSelectedCatalogArtifactOptions` to
 collect the same diagnostics while compiling the final locale artifact.
+The `ferrocat_icu::diagnostic_codes::icu` constants expose the canonical code
+strings for direct ICU checks, while `ferrocat_po::diagnostic_codes::icu`
+contains the same compatibility strings plus catalog-level ICU syntax codes.
 
 ### `validate_icu_formatter_support`
 
@@ -785,7 +801,7 @@ part of this source-side metadata format.
 
 ## Error Surface
 
-`ApiError` and the lower-level `ParseError` are intentionally small today. `ApiError` distinguishes parse, I/O, invalid-argument, conflict, and unsupported-operation failures, and its `std::error::Error::source()` implementation preserves underlying parse and I/O causes. PO `ParseError` keeps the existing human-readable display message and exposes `message()` plus optional `position()` metadata for tooling. Position metadata reports a zero-based byte offset plus one-based line and column when the parser can attach source context.
+`ApiError` and the lower-level `ParseError` are intentionally small today. `ApiError` distinguishes parse, I/O, invalid-argument, conflict, and unsupported-operation failures, and its `std::error::Error::source()` implementation preserves underlying parse and I/O causes. Disk helpers that know the affected path attach path context to `ApiError::Io`; call `ApiError::path()` to read that context without parsing the display string. PO `ParseError` keeps the existing human-readable display message and exposes `message()` plus optional `position()` metadata for tooling. Position metadata reports a zero-based byte offset plus one-based line and column when the parser can attach source context.
 
 ## Practical Rule Of Thumb
 
