@@ -8,8 +8,19 @@ use super::{
     },
 };
 
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
+
+/// JSON schema version emitted by [`CompiledCatalogArtifact`] serialization.
+pub const COMPILED_CATALOG_ARTIFACT_SCHEMA_VERSION: u16 = 1;
+
 /// Translation value stored in a compiled runtime catalog.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(
+    feature = "serde",
+    serde(tag = "kind", content = "value", rename_all = "snake_case")
+)]
 pub enum CompiledTranslation {
     /// Singular runtime value.
     Singular(String),
@@ -19,6 +30,8 @@ pub enum CompiledTranslation {
 
 /// Built-in key strategy used when compiling runtime catalogs.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "snake_case"))]
 pub enum CompiledKeyStrategy {
     /// `ferrocat` v1 key format: SHA-256 over a versioned, length-delimited
     /// `msgctxt`/`msgid` payload, truncated to 64 bits and encoded as unpadded
@@ -182,6 +195,8 @@ impl<'a> CompileSelectedCatalogArtifactOptions<'a> {
 
 /// High-level translation kind associated with a compiled runtime ID.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "snake_case"))]
 pub enum CompiledCatalogTranslationKind {
     /// Translation is a single string value.
     Singular,
@@ -191,6 +206,8 @@ pub enum CompiledCatalogTranslationKind {
 
 /// A compiled runtime message keyed by a derived lookup key.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 pub struct CompiledMessage {
     /// Stable runtime key derived from the source identity.
     pub key: String,
@@ -202,6 +219,8 @@ pub struct CompiledMessage {
 
 /// Runtime-oriented lookup structure compiled from a normalized catalog.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 pub struct CompiledCatalog {
     pub(super) entries: BTreeMap<String, CompiledMessage>,
 }
@@ -235,12 +254,16 @@ impl CompiledCatalog {
 
 /// Stable compiled runtime ID index built from one or more normalized catalogs.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 pub struct CompiledCatalogIdIndex {
     pub(super) ids: BTreeMap<String, CatalogMessageKey>,
 }
 
 /// Metadata describing one compiled runtime ID for a specific catalog set.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 pub struct CompiledCatalogIdDescription {
     /// Stable runtime ID derived from the source identity.
     pub compiled_id: String,
@@ -254,6 +277,8 @@ pub struct CompiledCatalogIdDescription {
 
 /// Report returned by [`CompiledCatalogIdIndex::describe_compiled_ids`].
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 pub struct DescribeCompiledIdsReport {
     /// Metadata for requested IDs that were known to the index and present in the provided catalogs.
     pub described: Vec<CompiledCatalogIdDescription>,
@@ -265,6 +290,8 @@ pub struct DescribeCompiledIdsReport {
 
 /// Known compiled runtime ID that was not present in the provided catalog set.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 pub struct CompiledCatalogUnavailableId {
     /// Stable runtime ID derived from the source identity.
     pub compiled_id: String,
@@ -434,6 +461,11 @@ impl CompiledCatalogIdIndex {
 }
 
 /// Host-neutral compiled runtime artifact for one requested locale.
+///
+/// When the `serde` feature is enabled, this type serializes with
+/// [`COMPILED_CATALOG_ARTIFACT_SCHEMA_VERSION`] as a required
+/// `schema_version` field. Deserialization rejects unknown artifact schema
+/// versions.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct CompiledCatalogArtifact {
     /// Final runtime message map keyed by the derived lookup key.
@@ -444,8 +476,70 @@ pub struct CompiledCatalogArtifact {
     pub diagnostics: Vec<CompiledCatalogDiagnostic>,
 }
 
+#[cfg(feature = "serde")]
+#[derive(Serialize)]
+struct CompiledCatalogArtifactWireRef<'a> {
+    schema_version: u16,
+    messages: &'a BTreeMap<String, String>,
+    missing: &'a [CompiledCatalogMissingMessage],
+    diagnostics: &'a [CompiledCatalogDiagnostic],
+}
+
+#[cfg(feature = "serde")]
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct CompiledCatalogArtifactWire {
+    schema_version: u16,
+    #[serde(default)]
+    messages: BTreeMap<String, String>,
+    #[serde(default)]
+    missing: Vec<CompiledCatalogMissingMessage>,
+    #[serde(default)]
+    diagnostics: Vec<CompiledCatalogDiagnostic>,
+}
+
+#[cfg(feature = "serde")]
+impl Serialize for CompiledCatalogArtifact {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        CompiledCatalogArtifactWireRef {
+            schema_version: COMPILED_CATALOG_ARTIFACT_SCHEMA_VERSION,
+            messages: &self.messages,
+            missing: &self.missing,
+            diagnostics: &self.diagnostics,
+        }
+        .serialize(serializer)
+    }
+}
+
+#[cfg(feature = "serde")]
+impl<'de> Deserialize<'de> for CompiledCatalogArtifact {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let wire = CompiledCatalogArtifactWire::deserialize(deserializer)?;
+        if wire.schema_version != COMPILED_CATALOG_ARTIFACT_SCHEMA_VERSION {
+            return Err(serde::de::Error::custom(format!(
+                "unsupported compiled catalog artifact schema_version {}; expected {}",
+                wire.schema_version, COMPILED_CATALOG_ARTIFACT_SCHEMA_VERSION
+            )));
+        }
+
+        Ok(Self {
+            messages: wire.messages,
+            missing: wire.missing,
+            diagnostics: wire.diagnostics,
+        })
+    }
+}
+
 /// Missing-message record emitted by [`super::compile_catalog_artifact`].
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 pub struct CompiledCatalogMissingMessage {
     /// Stable runtime key derived from the source identity.
     pub key: String,
@@ -459,6 +553,8 @@ pub struct CompiledCatalogMissingMessage {
 
 /// Diagnostic emitted by [`super::compile_catalog_artifact`].
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 pub struct CompiledCatalogDiagnostic {
     /// Severity for the collected diagnostic.
     pub severity: super::DiagnosticSeverity,
@@ -478,11 +574,14 @@ pub struct CompiledCatalogDiagnostic {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::BTreeMap;
+
     use super::{
-        CompileCatalogArtifactOptions, CompileCatalogOptions,
-        CompileSelectedCatalogArtifactOptions, CompiledKeyStrategy,
+        COMPILED_CATALOG_ARTIFACT_SCHEMA_VERSION, CompileCatalogArtifactOptions,
+        CompileCatalogOptions, CompileSelectedCatalogArtifactOptions, CompiledCatalogArtifact,
+        CompiledCatalogDiagnostic, CompiledCatalogMissingMessage, CompiledKeyStrategy,
     };
-    use crate::api::CatalogSemantics;
+    use crate::api::{CatalogMessageKey, CatalogSemantics, DiagnosticSeverity};
 
     #[test]
     fn compile_option_constructors_set_required_fields_and_keep_defaults() {
@@ -502,5 +601,58 @@ mod tests {
         assert_eq!(selected.source_locale, "en");
         assert_eq!(selected.compiled_ids, selected_ids.as_slice());
         assert_eq!(selected.key_strategy, CompiledKeyStrategy::FerrocatV1);
+    }
+
+    #[cfg(feature = "serde")]
+    #[test]
+    fn compiled_catalog_artifact_serde_uses_versioned_wire_contract() {
+        let artifact = CompiledCatalogArtifact {
+            messages: BTreeMap::from([("runtime-key".to_owned(), "Hallo".to_owned())]),
+            missing: vec![CompiledCatalogMissingMessage {
+                key: "runtime-key".to_owned(),
+                source_key: CatalogMessageKey::new("Hello", None),
+                requested_locale: "de".to_owned(),
+                resolved_locale: Some("en".to_owned()),
+            }],
+            diagnostics: vec![CompiledCatalogDiagnostic {
+                severity: DiagnosticSeverity::Warning,
+                code: "icu.syntax".to_owned(),
+                message: "invalid ICU message".to_owned(),
+                key: "runtime-key".to_owned(),
+                msgid: "Hello".to_owned(),
+                msgctxt: None,
+                locale: "de".to_owned(),
+            }],
+        };
+
+        let json = serde_json::to_value(&artifact).expect("artifact serialization must succeed");
+        assert_eq!(
+            json["schema_version"],
+            COMPILED_CATALOG_ARTIFACT_SCHEMA_VERSION
+        );
+        assert_eq!(json["diagnostics"][0]["severity"], "warning");
+
+        let roundtrip: CompiledCatalogArtifact =
+            serde_json::from_value(json).expect("artifact deserialization must succeed");
+        assert_eq!(roundtrip, artifact);
+    }
+
+    #[cfg(feature = "serde")]
+    #[test]
+    fn compiled_catalog_artifact_serde_rejects_unknown_schema_version() {
+        let json = serde_json::json!({
+            "schema_version": COMPILED_CATALOG_ARTIFACT_SCHEMA_VERSION + 1,
+            "messages": {},
+            "missing": [],
+            "diagnostics": [],
+        });
+
+        let error = serde_json::from_value::<CompiledCatalogArtifact>(json)
+            .expect_err("unknown artifact schema versions must be rejected");
+        assert!(
+            error
+                .to_string()
+                .contains("unsupported compiled catalog artifact schema_version")
+        );
     }
 }

@@ -27,20 +27,49 @@ The published crates keep the default feature set convenient: `ferrocat`,
 
 Lean parser consumers can opt out with `default-features = false`. For
 `ferrocat-po`, that leaves the PO parser, borrowed parser, serializer, string
-escape helpers, and low-level merge API available without pulling in serde,
-SHA-256 hashing, tempfile, or ICU4X CLDR plural data.
+escape helpers, and low-level merge API available without pulling in SHA-256
+hashing, tempfile, or ICU4X CLDR plural data. Add the `serde` feature when that
+lean parser output should be serialized for caches or tooling.
 
 The named feature profiles are:
 
 - `full`: the default profile with the complete current API surface
 - `catalog`: high-level catalog update, parse, combine, audit, metadata, NDJSON,
   plural, and runtime compile support
-- `serde`: serde implementations used by schema/tooling-oriented consumers
+- `serde`: serde implementations used by schema, cache, and tooling-oriented
+  consumers; it can be enabled without the full catalog profile for low-level PO
+  document types
 - `compile`, `mt`, `ndjson`, and `plurals`: named subsystem profiles reserved for
   callers that want to declare intent explicitly
 
 `docs.rs` builds with all features enabled so the rendered reference shows the
 full API surface.
+
+## Serialized API Shapes
+
+Enable the `serde` feature when Ferrocat output needs to cross a process
+boundary, feed CI, or back a tooling cache.
+
+Serializable public output includes:
+
+- low-level owned PO documents: `PoFile`, `PoItem`, `Header`, and `MsgStr`
+- high-level `CatalogMessage` values and general `Diagnostic` records
+- `CatalogAuditReport` plus its summary and diagnostic records
+- compiled runtime catalog and compiled-ID report records
+- `CompiledCatalogArtifact`
+
+`CompiledCatalogArtifact` is the host-facing runtime payload and has a versioned
+JSON contract. Serialized artifacts include `schema_version: 1`, `messages`,
+`missing`, and `diagnostics`. Deserialization rejects unknown artifact schema
+versions instead of guessing semantics.
+
+Audit reports intentionally use the serde form of the Rust report API rather
+than a separate schema version. They are stable enough for CI consumption today:
+diagnostics carry machine-readable `code` values, and severities serialize as
+`info`, `warning`, or `error`.
+
+See [ADR 0019](/architecture/adr/0019-versioned-artifact-json-contract) for the
+compatibility rules around the compiled artifact JSON contract.
 
 ## Supported Catalog Modes
 

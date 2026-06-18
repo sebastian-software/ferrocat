@@ -1,0 +1,136 @@
+---
+title: "ADR 0019: Version the Compiled Artifact JSON Contract"
+description: "Accepted architecture decision record: versioned compiled artifact JSON contract."
+order: 190
+---
+
+# ADR 0019: Version the Compiled Artifact JSON Contract
+
+- Status: Accepted
+- Date: 2026-06-16
+
+## Context
+
+Ferrocat exposes Rust-native catalog types, but downstream host adapters, CI
+jobs, caches, and editor tooling often need to move selected outputs across a
+process boundary. `serde` support is useful for that, but not every Rust struct
+should automatically become a durable host contract.
+
+The highest-risk boundary is the locale-resolved compiled runtime artifact from
+`compile_catalog_artifact` and `compile_catalog_artifact_selected`. Palamedes
+and other host adapters can treat that payload as the handoff point between
+catalog semantics and host-specific packaging.
+
+Audit reports are also useful as JSON in CI, but their shape follows the Rust
+report API and does not need a separate schema-version field yet.
+
+## Decision
+
+Ferrocat adds opt-in `serde` support for transport-oriented API outputs:
+
+- low-level owned PO documents: `PoFile`, `PoItem`, `Header`, and `MsgStr`
+- high-level catalog messages and message diagnostics
+- catalog audit reports and audit diagnostics
+- compiled catalogs, compiled ID reports, and compiled artifact diagnostics
+- `CompiledCatalogArtifact`
+
+`CompiledCatalogArtifact` uses an explicit JSON wire contract instead of a
+plain derived Rust struct representation. The current contract is schema
+version `1` and serializes as:
+
+```json
+{
+  "schema_version": 1,
+  "messages": {
+    "<compiled-key>": "<runtime ICU message>"
+  },
+  "missing": [
+    {
+      "key": "<compiled-key>",
+      "source_key": {
+        "msgid": "Checkout",
+        "msgctxt": null
+      },
+      "requested_locale": "de",
+      "resolved_locale": "en"
+    }
+  ],
+  "diagnostics": [
+    {
+      "severity": "warning",
+      "code": "icu.syntax",
+      "message": "invalid ICU message",
+      "key": "<compiled-key>",
+      "msgid": "Checkout",
+      "msgctxt": null,
+      "locale": "de"
+    }
+  ]
+}
+```
+
+`schema_version` is required when deserializing a compiled artifact. Ferrocat
+rejects unknown compiled artifact schema versions instead of silently accepting
+payloads with semantics it cannot prove it understands.
+
+Diagnostic severities serialize as lowercase strings: `info`, `warning`, and
+`error`.
+
+## Consequences
+
+Positive:
+
+- host adapters can share one versioned artifact payload without copying
+  Ferrocat's internal Rust structs into JS/TS binding code
+- CI can consume audit reports as stable JSON objects with machine-readable
+  codes and lowercase severities
+- parser-focused users can enable the `serde` feature for low-level PO data
+  without opting into the full catalog feature profile
+
+Negative:
+
+- compiled artifact JSON changes now need compatibility review
+- the artifact deserializer intentionally rejects unknown schema versions, so
+  host adapters must handle version negotiation explicitly
+- most derived serde shapes remain Rust API shapes, not independently versioned
+  wire protocols
+
+## Compatibility Rules
+
+For `CompiledCatalogArtifact` JSON:
+
+- keep `schema_version` present and numeric
+- bump the schema version for removed fields, renamed fields, changed field
+  meanings, or changed severity/code semantics
+- prefer additive changes only when older consumers can safely ignore them; if
+  they cannot, bump the schema version
+- keep `messages` sorted by compiled key through the underlying ordered map
+- keep diagnostic `code` values machine-readable and stable once documented
+
+For audit reports and other derived serde outputs:
+
+- treat the JSON as the serde form of the Rust public API
+- avoid changing field names or enum spelling without a semver-relevant Rust API
+  decision
+- add a separate schema version later if a host adapter needs to consume one of
+  those outputs as a long-lived protocol independent of Rust releases
+
+## Alternatives Considered
+
+### Derive Serde For Everything
+
+Rejected because it would make incidental Rust structure look like a durable
+host protocol. The compiled artifact is a cross-process contract and deserves a
+version field.
+
+### Add Schema Versions To Every Serializable Type
+
+Rejected for now. PO parser output, catalog messages, and audit reports are
+useful through serde, but the strongest compatibility requirement is the
+runtime artifact handoff to host adapters.
+
+### Leave Versioning To Palamedes
+
+Rejected because the artifact semantics are produced by Ferrocat. If Ferrocat
+owns the locale-resolution and fallback rules, it should also version the JSON
+payload that represents those rules.

@@ -23,7 +23,7 @@ compile = ["catalog", "ferrocat-po/compile"]
 mt = ["catalog", "ferrocat-po/mt"]
 ndjson = ["catalog", "ferrocat-po/ndjson"]
 plurals = ["catalog", "ferrocat-po/plurals"]
-serde = ["catalog", "ferrocat-po/serde", "ferrocat-icu/serde"]
+serde = ["ferrocat-po/serde", "ferrocat-icu/serde"]
 
 [dependencies]
 ferrocat-icu = { version = "0.13.0", path = "../ferrocat-icu", default-features = false }

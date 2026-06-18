@@ -18,11 +18,11 @@ pub use self::compile::{
     compile_catalog_artifact, compile_catalog_artifact_selected, compiled_key,
 };
 pub use self::compile_types::{
-    CompileCatalogArtifactOptions, CompileCatalogOptions, CompileSelectedCatalogArtifactOptions,
-    CompiledCatalog, CompiledCatalogArtifact, CompiledCatalogDiagnostic,
-    CompiledCatalogIdDescription, CompiledCatalogIdIndex, CompiledCatalogMissingMessage,
-    CompiledCatalogTranslationKind, CompiledCatalogUnavailableId, CompiledKeyStrategy,
-    CompiledMessage, CompiledTranslation, DescribeCompiledIdsReport,
+    COMPILED_CATALOG_ARTIFACT_SCHEMA_VERSION, CompileCatalogArtifactOptions, CompileCatalogOptions,
+    CompileSelectedCatalogArtifactOptions, CompiledCatalog, CompiledCatalogArtifact,
+    CompiledCatalogDiagnostic, CompiledCatalogIdDescription, CompiledCatalogIdIndex,
+    CompiledCatalogMissingMessage, CompiledCatalogTranslationKind, CompiledCatalogUnavailableId,
+    CompiledKeyStrategy, CompiledMessage, CompiledTranslation, DescribeCompiledIdsReport,
 };
 pub use self::mt::{MachineTranslationMetadata, machine_translation_hash};
 pub use self::ndjson::{

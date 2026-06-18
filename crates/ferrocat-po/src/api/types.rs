@@ -7,8 +7,13 @@ use crate::ParseError;
 use super::mt::MachineTranslationMetadata;
 use super::plural::PluralProfile;
 
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
+
 /// File and line information for an extracted message origin.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 pub struct CatalogOrigin {
     /// Path-like source identifier where the message came from.
     pub file: String,
@@ -33,6 +38,8 @@ pub struct ExtractedSingularMessage {
 
 /// Source-side plural forms for structured catalog messages.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 pub struct PluralSource {
     /// Singular source form, when one exists separately from `other`.
     pub one: Option<String>,
@@ -110,6 +117,8 @@ impl From<Vec<SourceExtractedMessage>> for CatalogUpdateInput {
 
 /// Public translation shape returned from parsed catalogs.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(tag = "kind", rename_all = "snake_case"))]
 pub enum TranslationShape {
     /// Message represented by a single string value.
     Singular {
@@ -147,6 +156,8 @@ pub enum EffectiveTranslation {
 
 /// Extra translator-facing metadata preserved on a catalog message.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 pub struct CatalogMessageExtra {
     /// Translator comments that were attached to the original PO item.
     pub translator_comments: Vec<String>,
@@ -156,6 +167,8 @@ pub struct CatalogMessageExtra {
 
 /// Public message representation returned by [`super::parse_catalog`].
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 pub struct CatalogMessage {
     /// Source message identifier.
     pub msgid: String,
@@ -243,6 +256,8 @@ impl CatalogMessage {
 
 /// Stable lookup key for catalog messages.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 pub struct CatalogMessageKey {
     /// Source message identifier.
     pub msgid: String,
@@ -263,6 +278,8 @@ impl CatalogMessageKey {
 
 /// Severity level attached to a [`Diagnostic`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "lowercase"))]
 pub enum DiagnosticSeverity {
     /// Informational message that does not indicate a problem.
     Info,
@@ -274,6 +291,8 @@ pub enum DiagnosticSeverity {
 
 /// Non-fatal issue collected while parsing or updating catalogs.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 pub struct Diagnostic {
     /// Severity level for the diagnostic.
     pub severity: DiagnosticSeverity,
@@ -1254,5 +1273,43 @@ mod tests {
             ApiError::Unsupported("unsupported".to_owned()).to_string(),
             "unsupported"
         );
+    }
+
+    #[cfg(feature = "serde")]
+    #[test]
+    fn catalog_message_and_diagnostic_serde_use_stable_public_shapes() {
+        let message = CatalogMessage {
+            msgid: "Hello".to_owned(),
+            msgctxt: Some("button".to_owned()),
+            translation: TranslationShape::Singular {
+                value: "Hallo".to_owned(),
+            },
+            comments: vec!["Shown in toolbar".to_owned()],
+            origin: Vec::new(),
+            obsolete: false,
+            machine_translation: None,
+            extra: None,
+        };
+        let message_json =
+            serde_json::to_value(&message).expect("catalog message serialization must succeed");
+        assert_eq!(message_json["translation"]["kind"], "singular");
+
+        let roundtrip_message: CatalogMessage = serde_json::from_value(message_json)
+            .expect("catalog message deserialization must succeed");
+        assert_eq!(roundtrip_message, message);
+
+        let diagnostic = Diagnostic::new(
+            DiagnosticSeverity::Error,
+            "catalog.missing",
+            "missing translation",
+        )
+        .with_identity("Hello", Some("button"));
+        let diagnostic_json =
+            serde_json::to_value(&diagnostic).expect("diagnostic serialization must succeed");
+        assert_eq!(diagnostic_json["severity"], "error");
+
+        let roundtrip_diagnostic: Diagnostic = serde_json::from_value(diagnostic_json)
+            .expect("diagnostic deserialization must succeed");
+        assert_eq!(roundtrip_diagnostic, diagnostic);
     }
 }
