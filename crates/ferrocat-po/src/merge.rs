@@ -115,58 +115,15 @@ impl<'a> ParserState<'a> {
     }
 
     fn set_msgstr(&mut self, plural_index: usize, value: Cow<'a, str>) {
-        match (&mut self.msgstr, plural_index) {
-            (BorrowedMsgStr::None, 0) => self.msgstr = BorrowedMsgStr::Singular(value),
-            (BorrowedMsgStr::Singular(existing), 0) => *existing = value,
-            (BorrowedMsgStr::Plural(values), 0) => {
-                if values.is_empty() {
-                    values.push(Cow::Borrowed(""));
-                }
-                values[0] = value;
-            }
-            _ => {
-                let msgstr = self.promote_plural_msgstr(plural_index);
-                msgstr[plural_index] = value;
-            }
-        }
+        self.msgstr.set_slot(plural_index, value);
     }
 
     fn append_msgstr(&mut self, plural_index: usize, value: Cow<'a, str>) {
-        match (&mut self.msgstr, plural_index) {
-            (BorrowedMsgStr::None, 0) => self.msgstr = BorrowedMsgStr::Singular(value),
-            (BorrowedMsgStr::Singular(existing), 0) => existing.to_mut().push_str(value.as_ref()),
-            (BorrowedMsgStr::Plural(values), 0) => {
-                if values.is_empty() {
-                    values.push(Cow::Borrowed(""));
-                }
-                values[0].to_mut().push_str(value.as_ref());
-            }
-            _ => {
-                let msgstr = self.promote_plural_msgstr(plural_index);
-                msgstr[plural_index].to_mut().push_str(value.as_ref());
-            }
-        }
+        self.msgstr.append_slot(plural_index, value);
     }
 
     fn materialize_msgstr(&mut self) {
         self.item.msgstr = std::mem::take(&mut self.msgstr);
-    }
-
-    fn promote_plural_msgstr(&mut self, plural_index: usize) -> &mut Vec<Cow<'a, str>> {
-        if !matches!(self.msgstr, BorrowedMsgStr::Plural(_)) {
-            self.msgstr = match std::mem::take(&mut self.msgstr) {
-                BorrowedMsgStr::None => BorrowedMsgStr::Plural(Vec::with_capacity(2)),
-                BorrowedMsgStr::Singular(value) => BorrowedMsgStr::Plural(vec![value]),
-                BorrowedMsgStr::Plural(values) => BorrowedMsgStr::Plural(values),
-            };
-        }
-        let BorrowedMsgStr::Plural(values) = &mut self.msgstr else {
-            unreachable!("plural msgstr promotion must yield plural storage");
-        };
-        if values.len() <= plural_index {
-            values.resize(plural_index + 1, Cow::Borrowed(""));
-        }
-        values
     }
 }
 
@@ -507,17 +464,12 @@ fn finish_item<'a>(
 
     state.materialize_msgstr();
 
-    if matches!(state.item.msgstr, BorrowedMsgStr::None) {
-        state.item.msgstr = BorrowedMsgStr::Singular(Cow::Borrowed(""));
-    }
-    if state.item.msgid_plural.is_some() && msgstr_len(&state.item.msgstr) == 1 {
-        let mut values = match std::mem::take(&mut state.item.msgstr) {
-            BorrowedMsgStr::None => Vec::new(),
-            BorrowedMsgStr::Singular(value) => vec![value],
-            BorrowedMsgStr::Plural(values) => values,
-        };
-        values.resize(state.item.nplurals.max(1), Cow::Borrowed(""));
-        state.item.msgstr = BorrowedMsgStr::Plural(values);
+    state.item.msgstr.ensure_singular();
+    if state.item.msgid_plural.is_some() {
+        state
+            .item
+            .msgstr
+            .expand_singular_to_plural_width(state.item.nplurals);
     }
 
     state.item.nplurals = *current_nplurals;
@@ -525,19 +477,11 @@ fn finish_item<'a>(
     state.reset_after_take(*current_nplurals);
 }
 
-fn msgstr_len(msgstr: &BorrowedMsgStr<'_>) -> usize {
-    match msgstr {
-        BorrowedMsgStr::None => 0,
-        BorrowedMsgStr::Singular(_) => 1,
-        BorrowedMsgStr::Plural(values) => values.len(),
-    }
-}
-
 fn is_header_state(state: &ParserState<'_>) -> bool {
     state.item.msgid.is_empty()
         && state.item.msgctxt.is_none()
         && state.item.msgid_plural.is_none()
-        && !matches!(state.msgstr, BorrowedMsgStr::None)
+        && !state.msgstr.is_empty()
 }
 
 fn is_header_candidate(state: &ParserState<'_>) -> bool {
