@@ -2,7 +2,8 @@
 //! Performance-first PO parsing and serialization.
 //!
 //! The crate exposes both owned and borrowed parsers for gettext PO files,
-//! plus helpers for serialization and higher-level catalog update workflows.
+//! a byte-oriented UTF-8 parser entry point, plus helpers for serialization
+//! and higher-level catalog update workflows.
 //!
 //! # Examples
 //!
@@ -15,6 +16,15 @@
 //!
 //! let output = stringify_po(&file, &SerializeOptions::default());
 //! assert!(output.contains("msgid \"Hello\""));
+//! # Ok::<(), ferrocat_po::ParseError>(())
+//! ```
+//!
+//! ```rust
+//! use ferrocat_po::parse_po_bytes;
+//!
+//! let input = b"msgid \"Hello\"\nmsgstr \"Hallo\"\n";
+//! let file = parse_po_bytes(input)?;
+//! assert_eq!(file.items[0].msgstr[0], "Hallo");
 //! # Ok::<(), ferrocat_po::ParseError>(())
 //! ```
 //!
@@ -103,7 +113,7 @@ pub use borrowed::{
     BorrowedHeader, BorrowedMsgStr, BorrowedPoFile, BorrowedPoItem, parse_po_borrowed,
 };
 pub use merge::{ExtractedMessage as MergeExtractedMessage, merge_catalog};
-pub use parse::parse_po;
+pub use parse::{parse_po, parse_po_bytes};
 pub use serialize::stringify_po;
 pub use text::{escape_string, extract_quoted, extract_quoted_cow, unescape_string};
 
@@ -467,7 +477,10 @@ impl std::error::Error for ParseError {}
 
 #[cfg(test)]
 mod tests {
-    use super::{Header, MsgStr, ParseError, ParsePosition, PoFile, PoItem};
+    use super::{MsgStr, ParseError, ParsePosition};
+
+    #[cfg(feature = "serde")]
+    use super::{Header, PoFile, PoItem};
 
     #[test]
     fn parse_error_accessors_preserve_message_and_optional_position() {

@@ -170,9 +170,85 @@ pub fn parse_po(input: &str) -> Result<PoFile, ParseError> {
     Ok(file)
 }
 
+/// Parses UTF-8 PO bytes into the owned [`PoFile`] representation.
+///
+/// This is the byte-oriented companion to [`parse_po`]. It rejects declared
+/// non-UTF-8 PO charsets before decoding, validates the input bytes as UTF-8,
+/// then delegates to [`parse_po`] for syntax parsing.
+///
+/// # Errors
+///
+/// Returns [`ParseError`] when the PO header declares an unsupported non-UTF-8
+/// charset, when the input bytes are not valid UTF-8, or when the decoded input
+/// is not valid PO syntax.
+pub fn parse_po_bytes(input: &[u8]) -> Result<PoFile, ParseError> {
+    reject_unsupported_declared_charset(input)?;
+
+    let input = std::str::from_utf8(input).map_err(|error| {
+        ParseError::new(format!(
+            "PO input is not valid UTF-8 at byte {}",
+            error.valid_up_to()
+        ))
+    })?;
+
+    parse_po(input)
+}
+
 #[inline]
 fn strip_utf8_bom(input: &str) -> &str {
     input.strip_prefix('\u{feff}').unwrap_or(input)
+}
+
+fn reject_unsupported_declared_charset(input: &[u8]) -> Result<(), ParseError> {
+    let Some(charset) = declared_charset(input) else {
+        return Ok(());
+    };
+
+    if charset.eq_ignore_ascii_case("utf-8") || charset.eq_ignore_ascii_case("utf8") {
+        return Ok(());
+    }
+
+    Err(ParseError::new(format!(
+        "unsupported PO charset `{charset}`; parse_po_bytes accepts UTF-8 input"
+    )))
+}
+
+fn declared_charset(input: &[u8]) -> Option<&str> {
+    const CONTENT_TYPE: &[u8] = b"content-type:";
+    const CHARSET: &[u8] = b"charset=";
+
+    if let Some(content_type_start) = find_ascii_case(input, CONTENT_TYPE) {
+        let line_end = input[content_type_start..]
+            .iter()
+            .position(|byte| matches!(byte, b'\n' | b'\r'))
+            .map_or(input.len(), |relative_end| {
+                content_type_start + relative_end
+            });
+
+        let line = &input[content_type_start..line_end];
+        let charset_start = find_ascii_case(line, CHARSET)? + CHARSET.len();
+
+        let value_end = line[charset_start..]
+            .iter()
+            .position(|byte| {
+                matches!(byte, b'\\' | b'"' | b'\'' | b';') || byte.is_ascii_whitespace()
+            })
+            .map_or(line.len(), |relative| charset_start + relative);
+
+        if value_end == charset_start {
+            return None;
+        }
+
+        return std::str::from_utf8(&line[charset_start..value_end]).ok();
+    }
+
+    None
+}
+
+fn find_ascii_case(haystack: &[u8], needle: &[u8]) -> Option<usize> {
+    haystack
+        .windows(needle.len())
+        .position(|window| window.eq_ignore_ascii_case(needle))
 }
 
 fn parse_line(
@@ -450,7 +526,7 @@ fn trimmed_string(bytes: &[u8]) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::parse_po;
+    use super::{declared_charset, parse_po, parse_po_bytes};
 
     const MULTI_LINE: &str = r#"# French translation of Link (6.x-2.9)
 # Copyright (c) 2011 by the French translation team
@@ -640,6 +716,67 @@ msgstr "Datei"
         assert_eq!(po.items.len(), 1);
         assert_eq!(po.items[0].msgid, "foo");
         assert_eq!(po.items[0].msgstr[0], "bar");
+    }
+
+    #[test]
+    fn parse_po_bytes_accepts_utf8_po_content() {
+        let input = b"msgid \"foo\"\nmsgstr \"bar\"\n";
+        let po = parse_po_bytes(input).expect("parse bytes");
+
+        assert_eq!(po.items.len(), 1);
+        assert_eq!(po.items[0].msgid, "foo");
+        assert_eq!(po.items[0].msgstr[0], "bar");
+    }
+
+    #[test]
+    fn parse_po_bytes_accepts_declared_utf8_charset() {
+        let input = b"msgid \"\"\nmsgstr \"\"\n\"Content-Type: text/plain; charset=UTF-8\\n\"\n\n";
+        let po = parse_po_bytes(input).expect("parse bytes");
+
+        assert_eq!(po.headers[0].key, "Content-Type");
+        assert_eq!(po.headers[0].value, "text/plain; charset=UTF-8");
+    }
+
+    #[test]
+    fn parse_po_bytes_rejects_declared_non_utf8_charset() {
+        let input =
+            b"msgid \"\"\nmsgstr \"\"\n\"Content-Type: text/plain; charset=ISO-8859-1\\n\"\n\n";
+        let error = parse_po_bytes(input).expect_err("non-utf8 charset should fail");
+
+        assert!(error.message().contains("unsupported PO charset"));
+        assert!(error.message().contains("ISO-8859-1"));
+    }
+
+    #[test]
+    fn parse_po_bytes_reports_invalid_utf8_input() {
+        let input = b"msgid \"caf\xe9\"\nmsgstr \"\"\n";
+        let error = parse_po_bytes(input).expect_err("invalid utf8 should fail");
+
+        assert!(error.message().contains("not valid UTF-8"));
+        assert!(error.message().contains("byte 10"));
+    }
+
+    #[test]
+    fn parse_po_bytes_reports_declared_charset_before_utf8_error() {
+        let input = b"msgid \"\"\nmsgstr \"\"\n\"Content-Type: text/plain; charset=ISO-8859-1\\n\"\n\nmsgid \"caf\xe9\"\nmsgstr \"\"\n";
+        let error = parse_po_bytes(input).expect_err("declared charset should fail first");
+
+        assert!(error.message().contains("unsupported PO charset"));
+        assert!(error.message().contains("ISO-8859-1"));
+    }
+
+    #[test]
+    fn declared_charset_reads_header_value_case_insensitively() {
+        let input = b"msgid \"\"\nmsgstr \"\"\n\"Content-Type: text/plain; CHARSET=utf8\\n\"\n\n";
+
+        assert_eq!(declared_charset(input), Some("utf8"));
+    }
+
+    #[test]
+    fn declared_charset_ignores_non_header_text() {
+        let input = b"msgid \"charset=ISO-8859-1\"\nmsgstr \"\"\n";
+
+        assert_eq!(declared_charset(input), None);
     }
 
     #[test]

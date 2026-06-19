@@ -136,7 +136,13 @@ msgstr "world"
 
 For the common "merge fresh extracted messages into an existing catalog" workflow, `merge_catalog` is the lean Gettext-style entry point. For N-way catalog overlays and `msgcat`-style set operations, use `combine_catalogs`. For release checks across a source catalog and target catalogs, use `audit_catalogs`. For application delivery, compile requested-locale artifacts with fallback and ICU diagnostics. For richer high-level flows across PO and NDJSON storage, the docs site's [API overview](https://sebastian-software.github.io/ferrocat/reference/api-overview) is the best next stop.
 
-`parse_po_borrowed` is the allocation-light PO parser for read-heavy paths. It borrows from the source buffer where possible, but it currently requires LF-only input; normalize CRLF input first or use `parse_po`, which handles line-ending normalization internally.
+`parse_po_bytes` is the byte-oriented owned parser for UTF-8 PO input. It
+rejects declared non-UTF-8 charsets before decoding and reports invalid UTF-8
+through Ferrocat's `ParseError` instead of making callers do their own
+`String::from_utf8` step. `parse_po_borrowed` is the allocation-light PO parser
+for read-heavy paths. It borrows from the source buffer where possible, but it
+currently requires LF-only input; normalize CRLF input first or use `parse_po`,
+which handles line-ending normalization internally.
 
 ICU-native workflows can use `analyze_icu`, `compare_icu_messages`, and `validate_icu_formatter_support` to catch missing arguments, formatter changes, unsupported runtime formatter kinds or styles, tag mismatches, select/plural branch drift, and discouraged pattern-style formatters. Runtime artifact compilation can opt into the same source/translation checks with `icu_compatibility`.
 
