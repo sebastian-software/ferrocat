@@ -246,8 +246,8 @@ export default function HomePage() {
         <p className="ferro-lead">
           Ferrocat is a Rust-native catalog engine that treats localized copy as
           product data: parse it, merge updates by exact identity, audit every
-          locale before release, and compile runtime artifacts your app can ship
-          with confidence.
+          locale, and compile runtime artifacts for production, all in one
+          inspectable layer.
         </p>
         <div className="ferro-hero-cta">
           <pre className="ferro-install">
@@ -258,7 +258,7 @@ export default function HomePage() {
               className="ferro-button ferro-button-primary"
               to="/guide/getting-started"
             >
-              Read the guide
+              Get started
               <ArrowRight size={16} />
             </Link>
             <a className="ferro-button ferro-button-tertiary" href={GITHUB}>
@@ -410,7 +410,7 @@ export default function HomePage() {
       {/* ── Benefits ── */}
       <section className="ferro-benefits ferro-reveal">
         <div className="ferro-section-heading">
-          <h2>What the engine gives you.</h2>
+          <h2>Everything around the catalog, not just the file.</h2>
         </div>
         <div className="ferro-benefit-grid">
           {benefits.map((item) => (
@@ -618,7 +618,7 @@ export default function HomePage() {
             className="ferro-button ferro-button-primary"
             to="/guide/getting-started"
           >
-            Read the guide
+            Get started
             <ArrowRight size={16} />
           </Link>
           <a className="ferro-button ferro-button-secondary" href="https://docs.rs/ferrocat">
