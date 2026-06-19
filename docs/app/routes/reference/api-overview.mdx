@@ -787,7 +787,7 @@ part of this source-side metadata format.
 
 ## Error Surface
 
-`ApiError` and the lower-level `ParseError` are intentionally small today. `ApiError` distinguishes parse, I/O, invalid-argument, conflict, and unsupported-operation failures, and its `std::error::Error::source()` implementation preserves underlying parse and I/O causes. Disk helpers that know the affected path attach path context to `ApiError::Io`; call `ApiError::path()` to read that context without parsing the display string. PO `ParseError` keeps the existing human-readable display message and exposes `message()` plus optional `position()` metadata for tooling. Position metadata reports a zero-based byte offset plus one-based line and column when the parser can attach source context.
+`ApiError` and the lower-level `ParseError` are intentionally small today. `ApiError` distinguishes parse, I/O, invalid-argument, conflict, and unsupported-operation failures, and its `std::error::Error::source()` implementation preserves underlying parse and I/O causes. Disk helpers that know the affected path attach path context to `ApiError::Io`; call `ApiError::path()` to read that context without parsing the display string. PO `ParseError` keeps the existing human-readable display message and exposes `message()` plus optional `position()` metadata for tooling. Position metadata reports a zero-based byte offset plus one-based line and column when the parser can attach source context. For file or network input, use `ferrocat_po::parse_po_bytes` when you want Ferrocat to validate UTF-8 bytes and reject declared non-UTF-8 PO charsets before syntax parsing.
 
 ## Practical Rule Of Thumb
 
