@@ -580,16 +580,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
-For large or pipeline-oriented NDJSON catalogs, use the `ferrocat-po`
-streaming primitives directly. `NdjsonCatalogReader` validates frontmatter once
-and then yields `CatalogMessage` records from any `BufRead`;
-`NdjsonCatalogWriter` writes frontmatter once and appends one record at a time
-to any `Write`.
+For large or pipeline-oriented NDJSON catalogs, use the umbrella
+`ferrocat::catalog` streaming primitives directly. `NdjsonCatalogReader`
+validates frontmatter once and then yields `CatalogMessage` records from any
+`BufRead`; `NdjsonCatalogWriter` writes frontmatter once and appends one record
+at a time to any `Write`.
 
 ```rust
 use std::io::Cursor;
 
-use ferrocat_po::{
+use ferrocat::catalog::{
     CatalogMessage, NdjsonCatalogReader, NdjsonCatalogWriter, NdjsonCatalogWriterOptions,
     TranslationShape,
 };
