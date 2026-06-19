@@ -66,6 +66,25 @@
 //! assert!(report.has_errors());
 //! # Ok::<(), Box<dyn std::error::Error>>(())
 //! ```
+//!
+//! ```rust
+//! use std::io::Cursor;
+//!
+//! use ferrocat::catalog::NdjsonCatalogReader;
+//!
+//! let input = concat!(
+//!     "---\n",
+//!     "format: ferrocat.ndjson.v1\n",
+//!     "source_locale: en\n",
+//!     "---\n",
+//!     "{\"id\":\"Checkout\",\"str\":\"Zur Kasse\"}\n",
+//! );
+//! let messages = NdjsonCatalogReader::new(Cursor::new(input.as_bytes()), "en")?
+//!     .collect::<Result<Vec<_>, _>>()?;
+//!
+//! assert_eq!(messages[0].msgid, "Checkout");
+//! # Ok::<(), Box<dyn std::error::Error>>(())
+//! ```
 
 /// High-level catalog maintenance, audit, and runtime artifact APIs.
 pub mod catalog {
@@ -83,12 +102,14 @@ pub mod catalog {
         CompiledCatalogUnavailableId, CompiledKeyStrategy, CompiledMessage, CompiledTranslation,
         DescribeCompiledIdsReport, Diagnostic, DiagnosticSeverity, EffectiveTranslation,
         EffectiveTranslationRef, ExtractedMessage, ExtractedPluralMessage,
-        ExtractedSingularMessage, MachineTranslationMetadata, NormalizedParsedCatalog,
-        ObsoleteStrategy, OrderBy, ParseCatalogOptions, ParsedCatalog, PlaceholderCommentMode,
-        PluralEncoding, PluralSource, RenderOptions, SourceExtractedMessage, TranslationShape,
-        UpdateCatalogFileOptions, UpdateCatalogOptions, audit_catalogs, combine_catalogs,
-        compile_catalog_artifact, compile_catalog_artifact_selected, compiled_key,
-        machine_translation_hash, parse_catalog, update_catalog, update_catalog_file,
+        ExtractedSingularMessage, MachineTranslationMetadata, NdjsonCatalogReader,
+        NdjsonCatalogReaderOptions, NdjsonCatalogWriter, NdjsonCatalogWriterOptions,
+        NormalizedParsedCatalog, ObsoleteStrategy, OrderBy, ParseCatalogOptions, ParsedCatalog,
+        PlaceholderCommentMode, PluralEncoding, PluralSource, RenderOptions,
+        SourceExtractedMessage, TranslationShape, UpdateCatalogFileOptions, UpdateCatalogOptions,
+        audit_catalogs, combine_catalogs, compile_catalog_artifact,
+        compile_catalog_artifact_selected, compiled_key, machine_translation_hash, parse_catalog,
+        update_catalog, update_catalog_file,
     };
 }
 
@@ -166,11 +187,13 @@ pub use ferrocat_po::{
     CompiledKeyStrategy, CompiledMessage, CompiledTranslation, DescribeCompiledIdsReport,
     Diagnostic, DiagnosticSeverity, EffectiveTranslation, EffectiveTranslationRef,
     ExtractedMessage, ExtractedPluralMessage, ExtractedSingularMessage, MachineTranslationMetadata,
-    NormalizedParsedCatalog, ObsoleteStrategy, OrderBy, ParseCatalogOptions, ParsedCatalog,
-    PlaceholderCommentMode, PluralEncoding, PluralSource, RenderOptions, SourceExtractedMessage,
-    TranslationShape, UpdateCatalogFileOptions, UpdateCatalogOptions, audit_catalogs,
-    combine_catalogs, compile_catalog_artifact, compile_catalog_artifact_selected, compiled_key,
-    machine_translation_hash, parse_catalog, update_catalog, update_catalog_file,
+    NdjsonCatalogReader, NdjsonCatalogReaderOptions, NdjsonCatalogWriter,
+    NdjsonCatalogWriterOptions, NormalizedParsedCatalog, ObsoleteStrategy, OrderBy,
+    ParseCatalogOptions, ParsedCatalog, PlaceholderCommentMode, PluralEncoding, PluralSource,
+    RenderOptions, SourceExtractedMessage, TranslationShape, UpdateCatalogFileOptions,
+    UpdateCatalogOptions, audit_catalogs, combine_catalogs, compile_catalog_artifact,
+    compile_catalog_artifact_selected, compiled_key, machine_translation_hash, parse_catalog,
+    update_catalog, update_catalog_file,
 };
 pub use ferrocat_po::{
     BorrowedHeader, BorrowedMsgStr, BorrowedPoFile, BorrowedPoItem, Header, MsgStr, MsgStrIter,
