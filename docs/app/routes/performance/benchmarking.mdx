@@ -98,10 +98,6 @@ This checks the required executables and adapter packages and prints the detecte
   - extended external benchmark suite
   - broader gettext-only matrix with additional locale/family coverage
   - useful when you want more detail than the slim official profile
-- `gettext-workflows-v1`
-  - focused workflow suite for classic gettext merge paths
-  - compares `merge_catalog` against `msgmerge`
-  - kept separate from the slim official profile so workflow tuning does not dominate the main benchmark story
 - `gettext-workflows-ecosystem-v1`
   - extended workflow suite for classic gettext merge paths
   - compares `merge_catalog` against `msgmerge`, `pofile`, `pofile-ts`, and `polib`
@@ -150,31 +146,20 @@ For GNU gettext CLI scenarios, the report also records an `empty-cli-run` baseli
 
 The raw timing remains the primary comparison number. The adjusted timing is a secondary estimate for understanding how much of the CLI measurement is fixed overhead and how much is actual fixture work.
 
-For the workflow-oriented suite:
-
-```bash
-cargo run --release -p ferrocat-bench -- compare gettext-workflows-v1 --out benchmark/results/gettext-workflows-v1-$(date +%Y%m%d-%H%M%S).json
-```
-
-That profile covers:
-
-- `merge_catalog` versus `msgmerge`
-
-The `msgmerge` benchmark path runs with `--no-fuzzy-matching`. This makes the comparison closer to `ferrocat`'s exact-match merge model and avoids comparing heuristic translation carry-over against a library that intentionally does not optimize for msgid-based fuzzy recovery.
-
-For the broader workflow ecosystem suite:
+For the workflow ecosystem suite (the catalog-update comparison):
 
 ```bash
 cargo run --release -p ferrocat-bench -- compare gettext-workflows-ecosystem-v1 --out benchmark/results/gettext-workflows-ecosystem-v1-$(date +%Y%m%d-%H%M%S).json
 ```
 
-That profile extends the workflow comparison with:
+That profile compares `merge_catalog` against:
 
+- `msgmerge`
 - `pofile`
 - `pofile-ts`
 - `polib`
 
-These are measured as fair reconstructed workflows using each library's parse and stringify APIs around the same extracted-message merge step.
+Every tool runs the same file-to-file pipeline (parse `existing.po`, parse `template.pot`, merge, serialize), so the catalog-update numbers stay strictly apples-to-apples. The `msgmerge` path runs with `--no-fuzzy-matching`, which keeps the comparison close to `ferrocat`'s exact-match merge model instead of pitting it against heuristic fuzzy recovery.
 
 For the broader compatibility/detail suite:
 
@@ -186,11 +171,9 @@ Use this when you want more fixture variety than the slim official profile provi
 
 ## Result Storage
 
-- Internal microbenchmark history stays in `/performance/performance-history`
 - External comparison reports should be written under `benchmark/results/`
 - Scheduled Rust-only workflow reports stay attached to the `Benchmark Reports`
   workflow run unless they are promoted into a release or publication checkpoint
-- Do not copy external compare results into the internal performance history tables
 
 ## Current `gettext-official-v1` Shape
 
