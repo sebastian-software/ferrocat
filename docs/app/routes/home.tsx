@@ -191,16 +191,27 @@ const proof = [
   { value: "3", label: "catalog modes", detail: "explicit, no hidden defaults" },
 ]
 
-// ── Cross-runtime PO parse throughput, gettext-official-v1 profile ──
-// Same 10k-message gettext catalog, median MiB/s on an Apple M1 Pro.
+// ── Cross-runtime throughput, gettext-official + workflows profiles ──
+// Same 10k-message gettext catalog, median MiB/s on an Apple M1 Ultra.
+// Every tool reads the same files; see benchmark/results for the report.
 
-const parseCompare = [
-  { name: "Ferrocat", lang: "Rust, zero-copy", rate: 299, self: true },
-  { name: "pofile-ts", lang: "Node", rate: 104 },
-  { name: "gettext-parser", lang: "Node", rate: 18 },
-  { name: "polib", lang: "Python", rate: 10 },
+type Bar = { name: string; lang: string; rate: number; self?: boolean }
+
+const parseCompare: Bar[] = [
+  { name: "Ferrocat", lang: "Rust, zero-copy", rate: 298, self: true },
+  { name: "pofile-ts", lang: "Node", rate: 96 },
+  { name: "polib", lang: "Python", rate: 17 },
+  { name: "gettext-parser", lang: "Node", rate: 16 },
 ]
-const PARSE_MAX = 299
+const PARSE_MAX = 298
+
+const updateCompare: Bar[] = [
+  { name: "Ferrocat", lang: "Rust", rate: 201, self: true },
+  { name: "pofile-ts", lang: "Node", rate: 42 },
+  { name: "polib", lang: "Python", rate: 7 },
+  { name: "msgmerge", lang: "GNU gettext", rate: 4 },
+]
+const UPDATE_MAX = 201
 
 // ── Other open source from the same studio ──
 
@@ -331,38 +342,64 @@ export default function HomePage() {
           <h2>Rust throughput, in a Node-shaped world.</h2>
           <p className="ferro-sublead">
             Most i18n tooling for JavaScript and TypeScript runs on Node, where
-            catalog parsing is interpreted. Ferrocat is compiled Rust with
-            byte-oriented scanning and zero-copy reads. The same 10k-message PO
-            file, parsed by each tool on the same machine:
+            catalogs are parsed and rewritten in interpreted code. Ferrocat is
+            compiled Rust. Same 10k-message catalog, same input files, measured
+            on one machine:
           </p>
         </div>
-        <figure className="ferro-bars">
-          <figcaption>PO parsing throughput · MiB/s · higher is better</figcaption>
-          {parseCompare.map((bar) => (
-            <div
-              className={bar.self ? "ferro-bar is-self" : "ferro-bar"}
-              key={bar.name}
-            >
-              <span className="ferro-bar-label">
-                {bar.name}
-                <span className="ferro-bar-lang">{bar.lang}</span>
-              </span>
-              <span className="ferro-bar-track">
-                <span
-                  className="ferro-bar-fill"
-                  style={{ width: `${(bar.rate / PARSE_MAX) * 100}%` }}
-                />
-              </span>
-              <span className="ferro-bar-value">{bar.rate}</span>
-            </div>
-          ))}
-        </figure>
+        <div className="ferro-bar-charts">
+          <figure className="ferro-bars">
+            <figcaption>Parsing a catalog · MiB/s · higher is better</figcaption>
+            {parseCompare.map((bar) => (
+              <div
+                className={bar.self ? "ferro-bar is-self" : "ferro-bar"}
+                key={bar.name}
+              >
+                <span className="ferro-bar-label">
+                  {bar.name}
+                  <span className="ferro-bar-lang">{bar.lang}</span>
+                </span>
+                <span className="ferro-bar-track">
+                  <span
+                    className="ferro-bar-fill"
+                    style={{ width: `${(bar.rate / PARSE_MAX) * 100}%` }}
+                  />
+                </span>
+                <span className="ferro-bar-value">{bar.rate}</span>
+              </div>
+            ))}
+          </figure>
+          <figure className="ferro-bars">
+            <figcaption>
+              Updating with new strings · MiB/s · the release-time job
+            </figcaption>
+            {updateCompare.map((bar) => (
+              <div
+                className={bar.self ? "ferro-bar is-self" : "ferro-bar"}
+                key={bar.name}
+              >
+                <span className="ferro-bar-label">
+                  {bar.name}
+                  <span className="ferro-bar-lang">{bar.lang}</span>
+                </span>
+                <span className="ferro-bar-track">
+                  <span
+                    className="ferro-bar-fill"
+                    style={{ width: `${(bar.rate / UPDATE_MAX) * 100}%` }}
+                  />
+                </span>
+                <span className="ferro-bar-value">{bar.rate}</span>
+              </div>
+            ))}
+          </figure>
+        </div>
         <p className="ferro-perf-foot">
-          Serialization runs at about 1.1 GiB/s and catalog merge at 333 MiB/s,
-          with comparable margins. Median of repeated runs on an Apple M1 Pro,
-          gettext-official-v1 profile (pofile-ts 4.0.3, gettext-parser 9.0.2,
-          polib 1.2.0). <Link to="/performance/benchmarking">Methodology</Link>{" "}
-          and{" "}
+          Updating is the real release-time job: parse the existing catalog,
+          parse the freshly extracted strings, merge, and write. Serialization
+          reaches about 1.1 GiB/s on the same corpus. Median of 10 runs on an
+          Apple M1 Ultra, every tool reading the same files (pofile-ts 4.0.3,
+          gettext-parser 9.0.2, polib 1.2.0, GNU gettext 1.0).{" "}
+          <Link to="/performance/benchmarking">Methodology</Link> and{" "}
           <a href="https://github.com/sebastian-software/ferrocat/tree/main/benchmark/results">
             full report
           </a>

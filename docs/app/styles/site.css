@@ -648,9 +648,16 @@
   gap: 2.4rem;
 }
 
+.ferro-bar-charts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+  gap: 1.5rem;
+}
+
 .ferro-bars {
   display: grid;
   gap: 1.1rem;
+  align-content: start;
   margin: 0;
   padding: 1.7rem;
   border: 1px solid var(--ferro-line);
