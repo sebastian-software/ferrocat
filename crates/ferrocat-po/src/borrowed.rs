@@ -696,6 +696,36 @@ mod tests {
     use super::{BorrowedMsgStr, parse_po_borrowed};
 
     #[test]
+    fn borrowed_msgstr_helpers_cover_slot_promotion_and_plural_width() {
+        let mut msgstr = BorrowedMsgStr::None;
+
+        msgstr.set_slot(1, Cow::Borrowed("two"));
+        assert_eq!(
+            msgstr,
+            BorrowedMsgStr::Plural(vec![Cow::Borrowed(""), Cow::Borrowed("two")])
+        );
+
+        msgstr.append_slot(1, Cow::Borrowed(" plus"));
+        msgstr.append_slot(0, Cow::Borrowed("one"));
+        assert_eq!(
+            msgstr,
+            BorrowedMsgStr::Plural(vec![Cow::Borrowed("one"), Cow::Borrowed("two plus")])
+        );
+
+        let mut singular = BorrowedMsgStr::None;
+        singular.ensure_singular();
+        singular.expand_singular_to_plural_width(3);
+        assert_eq!(
+            singular,
+            BorrowedMsgStr::Plural(vec![
+                Cow::Borrowed(""),
+                Cow::Borrowed(""),
+                Cow::Borrowed(""),
+            ])
+        );
+    }
+
+    #[test]
     fn borrows_simple_fields() {
         let input = r#"
 # translator
