@@ -141,16 +141,82 @@ pub enum BorrowedMsgStr<'a> {
     Plural(Vec<Cow<'a, str>>),
 }
 
-impl BorrowedMsgStr<'_> {
-    const fn is_empty(&self) -> bool {
+impl<'a> BorrowedMsgStr<'a> {
+    pub(crate) const fn is_empty(&self) -> bool {
         matches!(self, Self::None)
     }
 
-    fn len(&self) -> usize {
+    pub(crate) fn set_slot(&mut self, plural_index: usize, value: Cow<'a, str>) {
+        match (&mut *self, plural_index) {
+            (Self::None, 0) => *self = Self::Singular(value),
+            (Self::Singular(existing), 0) => *existing = value,
+            (Self::Plural(values), 0) => {
+                if values.is_empty() {
+                    values.push(Cow::Borrowed(""));
+                }
+                values[0] = value;
+            }
+            _ => {
+                let values = self.promote_plural(plural_index);
+                values[plural_index] = value;
+            }
+        }
+    }
+
+    pub(crate) fn append_slot(&mut self, plural_index: usize, value: Cow<'a, str>) {
+        match (&mut *self, plural_index) {
+            (Self::None, 0) => *self = Self::Singular(value),
+            (Self::Singular(existing), 0) => existing.to_mut().push_str(value.as_ref()),
+            (Self::Plural(values), 0) => {
+                if values.is_empty() {
+                    values.push(Cow::Borrowed(""));
+                }
+                values[0].to_mut().push_str(value.as_ref());
+            }
+            _ => {
+                let values = self.promote_plural(plural_index);
+                values[plural_index].to_mut().push_str(value.as_ref());
+            }
+        }
+    }
+
+    pub(crate) fn ensure_singular(&mut self) {
+        if self.is_empty() {
+            *self = Self::Singular(Cow::Borrowed(""));
+        }
+    }
+
+    pub(crate) fn expand_singular_to_plural_width(&mut self, width: usize) {
         match self {
-            Self::None => 0,
-            Self::Singular(_) => 1,
-            Self::Plural(values) => values.len(),
+            Self::Singular(value) => {
+                let mut values = vec![std::mem::take(value)];
+                values.resize(width.max(1), Cow::Borrowed(""));
+                *self = Self::Plural(values);
+            }
+            Self::Plural(values) if values.len() == 1 => {
+                values.resize(width.max(1), Cow::Borrowed(""));
+            }
+            Self::None | Self::Plural(_) => {}
+        }
+    }
+
+    fn promote_plural(&mut self, plural_index: usize) -> &mut Vec<Cow<'a, str>> {
+        match self {
+            Self::None => {
+                *self = Self::Plural(Vec::with_capacity(2));
+                self.promote_plural(plural_index)
+            }
+            Self::Singular(value) => {
+                let value = std::mem::take(value);
+                *self = Self::Plural(vec![value]);
+                self.promote_plural(plural_index)
+            }
+            Self::Plural(values) => {
+                if values.len() <= plural_index {
+                    values.resize(plural_index + 1, Cow::Borrowed(""));
+                }
+                values
+            }
         }
     }
 
@@ -206,63 +272,16 @@ impl<'a> ParserState<'a> {
     }
 
     fn set_msgstr(&mut self, plural_index: usize, value: Cow<'a, str>) {
-        match (&mut self.msgstr, plural_index) {
-            (BorrowedMsgStr::None, 0) => self.msgstr = BorrowedMsgStr::Singular(value),
-            (BorrowedMsgStr::Singular(existing), 0) => *existing = value,
-            (BorrowedMsgStr::Plural(values), 0) => {
-                if values.is_empty() {
-                    values.push(Cow::Borrowed(""));
-                }
-                values[0] = value;
-            }
-            _ => {
-                let msgstr = self.promote_plural_msgstr(plural_index);
-                msgstr[plural_index] = value;
-            }
-        }
+        self.msgstr.set_slot(plural_index, value);
     }
 
     fn append_msgstr(&mut self, plural_index: usize, value: Cow<'a, str>) {
-        match (&mut self.msgstr, plural_index) {
-            (BorrowedMsgStr::None, 0) => self.msgstr = BorrowedMsgStr::Singular(value),
-            (BorrowedMsgStr::Singular(existing), 0) => existing.to_mut().push_str(value.as_ref()),
-            (BorrowedMsgStr::Plural(values), 0) => {
-                if values.is_empty() {
-                    values.push(Cow::Borrowed(""));
-                }
-                values[0].to_mut().push_str(value.as_ref());
-            }
-            _ => {
-                let msgstr = self.promote_plural_msgstr(plural_index);
-                msgstr[plural_index].to_mut().push_str(value.as_ref());
-            }
-        }
+        self.msgstr.append_slot(plural_index, value);
     }
 
     fn materialize_msgstr(&mut self) {
         debug_assert!(self.item.msgstr.is_empty());
         self.item.msgstr = std::mem::take(&mut self.msgstr);
-    }
-
-    fn promote_plural_msgstr(&mut self, plural_index: usize) -> &mut Vec<Cow<'a, str>> {
-        if !matches!(self.msgstr, BorrowedMsgStr::Plural(_)) {
-            self.msgstr = match std::mem::take(&mut self.msgstr) {
-                BorrowedMsgStr::None => BorrowedMsgStr::Plural(Vec::with_capacity(2)),
-                BorrowedMsgStr::Singular(value) => {
-                    let mut values = Vec::with_capacity(2);
-                    values.push(value);
-                    BorrowedMsgStr::Plural(values)
-                }
-                BorrowedMsgStr::Plural(values) => BorrowedMsgStr::Plural(values),
-            };
-        }
-        let BorrowedMsgStr::Plural(values) = &mut self.msgstr else {
-            unreachable!("plural msgstr promotion must yield plural storage");
-        };
-        if values.len() <= plural_index {
-            values.resize(plural_index + 1, Cow::Borrowed(""));
-        }
-        values
     }
 }
 
@@ -523,17 +542,12 @@ fn finish_item<'a>(
 
     state.materialize_msgstr();
 
-    if state.item.msgstr.is_empty() {
-        state.item.msgstr = BorrowedMsgStr::Singular(Cow::Borrowed(""));
-    }
-    if state.item.msgid_plural.is_some() && state.item.msgstr.len() == 1 {
-        let mut values = match std::mem::take(&mut state.item.msgstr) {
-            BorrowedMsgStr::None => Vec::new(),
-            BorrowedMsgStr::Singular(value) => vec![value],
-            BorrowedMsgStr::Plural(values) => values,
-        };
-        values.resize(state.item.nplurals.max(1), Cow::Borrowed(""));
-        state.item.msgstr = BorrowedMsgStr::Plural(values);
+    state.item.msgstr.ensure_singular();
+    if state.item.msgid_plural.is_some() {
+        state
+            .item
+            .msgstr
+            .expand_singular_to_plural_width(state.item.nplurals);
     }
 
     state.item.nplurals = *current_nplurals;
@@ -674,7 +688,79 @@ fn trimmed_cow(bytes: &[u8]) -> Cow<'_, str> {
 mod tests {
     use std::borrow::Cow;
 
+    use crate::MsgStr;
+
     use super::{BorrowedMsgStr, parse_po_borrowed};
+
+    #[test]
+    fn borrowed_msgstr_helpers_cover_slot_promotion_and_plural_width() {
+        assert_eq!(BorrowedMsgStr::None.into_owned(), MsgStr::None);
+
+        let mut appended_none = BorrowedMsgStr::None;
+        appended_none.append_slot(0, Cow::Borrowed("one"));
+        assert_eq!(
+            appended_none,
+            BorrowedMsgStr::Singular(Cow::Borrowed("one"))
+        );
+
+        let mut singular = BorrowedMsgStr::None;
+        singular.set_slot(0, Cow::Borrowed("one"));
+        singular.set_slot(0, Cow::Borrowed("uno"));
+        singular.append_slot(0, Cow::Borrowed(" plus"));
+        assert_eq!(
+            singular,
+            BorrowedMsgStr::Singular(Cow::Borrowed("uno plus"))
+        );
+
+        let mut append_empty_plural = BorrowedMsgStr::Plural(Vec::new());
+        append_empty_plural.append_slot(0, Cow::Borrowed("zero"));
+        assert_eq!(
+            append_empty_plural,
+            BorrowedMsgStr::Plural(vec![Cow::Borrowed("zero")])
+        );
+
+        let mut empty_plural = BorrowedMsgStr::Plural(Vec::new());
+        empty_plural.set_slot(0, Cow::Borrowed("zero"));
+        empty_plural.append_slot(0, Cow::Borrowed(" plus"));
+        assert_eq!(
+            empty_plural,
+            BorrowedMsgStr::Plural(vec![Cow::Borrowed("zero plus")])
+        );
+
+        let mut msgstr = BorrowedMsgStr::None;
+
+        msgstr.set_slot(1, Cow::Borrowed("two"));
+        assert_eq!(
+            msgstr,
+            BorrowedMsgStr::Plural(vec![Cow::Borrowed(""), Cow::Borrowed("two")])
+        );
+
+        msgstr.append_slot(1, Cow::Borrowed(" plus"));
+        msgstr.append_slot(0, Cow::Borrowed("one"));
+        assert_eq!(
+            msgstr,
+            BorrowedMsgStr::Plural(vec![Cow::Borrowed("one"), Cow::Borrowed("two plus")])
+        );
+
+        let mut defaulted = BorrowedMsgStr::None;
+        defaulted.ensure_singular();
+        defaulted.expand_singular_to_plural_width(3);
+        assert_eq!(
+            defaulted,
+            BorrowedMsgStr::Plural(vec![
+                Cow::Borrowed(""),
+                Cow::Borrowed(""),
+                Cow::Borrowed(""),
+            ])
+        );
+
+        let mut existing_plural = BorrowedMsgStr::Plural(vec![Cow::Borrowed("one")]);
+        existing_plural.expand_singular_to_plural_width(2);
+        assert_eq!(
+            existing_plural,
+            BorrowedMsgStr::Plural(vec![Cow::Borrowed("one"), Cow::Borrowed("")])
+        );
+    }
 
     #[test]
     fn borrows_simple_fields() {
