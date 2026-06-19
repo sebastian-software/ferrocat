@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.1.1](https://github.com/sebastian-software/ferrocat/compare/ferrocat-v1.1.0...ferrocat-v1.1.1) (2026-06-19)
+
+
+### Bug Fixes
+
+* **release:** trigger dependency maintenance patch ([805109c](https://github.com/sebastian-software/ferrocat/commit/805109cb270c83ef030507fcf93c44e2e971969f))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * ferrocat-icu bumped from 1.1.0 to 1.1.1
+    * ferrocat-po bumped from 1.1.0 to 1.1.1
+
 ## [1.1.0](https://github.com/sebastian-software/ferrocat/compare/ferrocat-v1.0.0...ferrocat-v1.1.0) (2026-06-19)
 
 
