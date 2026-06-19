@@ -36,6 +36,6 @@ anything. The default report checks completeness, target-only stale messages,
 ICU syntax, ICU source/translation compatibility, semantic metadata conflicts,
 obsolete entries, and visible `fuzzy` flags.
 
-`parse_po_borrowed` keeps many fields as references into the input buffer, so it currently accepts LF-only content. If your source can contain CRLF or bare CR line endings, normalize it before calling `parse_po_borrowed` or use the owned `parse_po` parser.
+`parse_po_borrowed` keeps many fields as references into the input buffer and accepts the same LF, CRLF, and bare CR line-ending forms as the owned `parse_po` parser.
 
 If you want the umbrella dependency instead, use [`ferrocat`](https://docs.rs/ferrocat).

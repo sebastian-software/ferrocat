@@ -55,6 +55,20 @@ fn owned_and_borrowed_parsers_match_on_shared_lf_inputs() {
 }
 
 #[test]
+fn owned_and_borrowed_parsers_match_on_crlf_and_bare_cr_inputs() {
+    for line_ending in ["\r\n", "\r"] {
+        let input = CASES[0].1.replace('\n', line_ending);
+        let owned = parse_po(&input)
+            .unwrap_or_else(|error| panic!("{line_ending:?}: owned parse: {error}"));
+        let borrowed = parse_po_borrowed(&input)
+            .unwrap_or_else(|error| panic!("{line_ending:?}: borrowed parse: {error}"))
+            .into_owned();
+
+        assert_eq!(borrowed, owned, "{line_ending:?}");
+    }
+}
+
+#[test]
 fn merge_parser_preserves_matching_existing_messages() {
     for (name, input) in CASES {
         let owned = parse_po(input).unwrap_or_else(|error| panic!("{name}: owned parse: {error}"));
@@ -65,6 +79,25 @@ fn merge_parser_preserves_matching_existing_messages() {
             parse_po(&merged).unwrap_or_else(|error| panic!("{name}: reparse merged: {error}"));
 
         assert_eq!(reparsed.items, owned.items, "{name}\nmerged:\n{merged}");
+    }
+}
+
+#[test]
+fn merge_parser_preserves_matching_crlf_and_bare_cr_messages() {
+    for line_ending in ["\r\n", "\r"] {
+        let input = CASES[0].1.replace('\n', line_ending);
+        let owned = parse_po(&input)
+            .unwrap_or_else(|error| panic!("{line_ending:?}: owned parse: {error}"));
+        let extracted = extracted_messages_from(&owned);
+        let merged = merge_catalog(&input, &extracted)
+            .unwrap_or_else(|error| panic!("{line_ending:?}: merge parse: {error}"));
+        let reparsed = parse_po(&merged)
+            .unwrap_or_else(|error| panic!("{line_ending:?}: reparse merged: {error}"));
+
+        assert_eq!(
+            reparsed.items, owned.items,
+            "{line_ending:?}\nmerged:\n{merged}"
+        );
     }
 }
 

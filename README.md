@@ -140,9 +140,8 @@ For the common "merge fresh extracted messages into an existing catalog" workflo
 rejects declared non-UTF-8 charsets before decoding and reports invalid UTF-8
 through Ferrocat's `ParseError` instead of making callers do their own
 `String::from_utf8` step. `parse_po_borrowed` is the allocation-light PO parser
-for read-heavy paths. It borrows from the source buffer where possible, but it
-currently requires LF-only input; normalize CRLF input first or use `parse_po`,
-which handles line-ending normalization internally.
+for read-heavy paths. It borrows from the source buffer where possible and uses
+the same LF, CRLF, and bare CR line-ending policy as `parse_po`.
 
 ICU-native workflows can use `analyze_icu`, `compare_icu_messages`, and `validate_icu_formatter_support` to catch missing arguments, formatter changes, unsupported runtime formatter kinds or styles, tag mismatches, select/plural branch drift, and discouraged pattern-style formatters. Runtime artifact compilation can opt into the same source/translation checks with `icu_compatibility`.
 

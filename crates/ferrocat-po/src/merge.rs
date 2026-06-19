@@ -145,18 +145,10 @@ pub fn merge_catalog<'a>(
     existing_po: &'a str,
     extracted_messages: &[ExtractedMessage<'a>],
 ) -> Result<String, ParseError> {
-    let normalized;
-    let input = if existing_po.as_bytes().contains(&b'\r') {
-        normalized = existing_po.replace("\r\n", "\n").replace('\r', "\n");
-        normalized.as_str()
-    } else {
-        existing_po
-    };
-
-    let existing = parse_merge_po(input)?;
+    let existing = parse_merge_po(existing_po)?;
     let nplurals = parse_nplurals(&existing.headers).unwrap_or(2);
     let options = SerializeOptions::default();
-    let mut out = String::with_capacity(estimate_merge_capacity(input, extracted_messages));
+    let mut out = String::with_capacity(estimate_merge_capacity(existing_po, extracted_messages));
     let mut scratch = String::new();
 
     write_file_preamble(&mut out, &existing);
