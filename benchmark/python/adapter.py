@@ -195,7 +195,6 @@ def run_polib(request):
         with open(request["pot_path"], "r", encoding="utf-8") as handle:
             template_content = handle.read()
         rendered = ""
-        summary = None
         started = time.perf_counter_ns()
         for _ in range(request["iterations"]):
             merged = merge_polib_catalog(
@@ -203,8 +202,9 @@ def run_polib(request):
                 polib.pofile(template_content),
             )
             rendered = str(merged)
-            summary = normalize_po_summary(polib.pofile(rendered))
         elapsed = time.perf_counter_ns() - started
+        # Reparse for the validation digest happens once, outside the timed loop.
+        summary = normalize_po_summary(polib.pofile(rendered))
         if request["capture_artifacts"] and request.get("po_output_path"):
             with open(request["po_output_path"], "w", encoding="utf-8") as handle:
                 handle.write(rendered)

@@ -928,7 +928,36 @@ impl PreparedScenario {
         let start = Instant::now();
         let mut bytes_processed = 0usize;
         for _ in 0..iterations {
-            let rendered = merge_catalog(&fixture.existing_po, &fixture.merge_messages)
+            // Parse the same template.pot the competitors read, then merge.
+            // This keeps the catalog-update comparison strictly file-to-file
+            // instead of handing ferrocat pre-structured messages.
+            let template = parse_po(&fixture.template_pot)
+                .map_err(|error| format!("merge template parse failed: {error}"))?;
+            let extracted: Vec<MergeExtractedMessage<'_>> = template
+                .items
+                .iter()
+                .map(|item| MergeExtractedMessage {
+                    msgctxt: item.msgctxt.as_deref().map(Cow::Borrowed),
+                    msgid: Cow::Borrowed(item.msgid.as_str()),
+                    msgid_plural: item.msgid_plural.as_deref().map(Cow::Borrowed),
+                    references: item
+                        .references
+                        .iter()
+                        .map(|value| Cow::Borrowed(value.as_str()))
+                        .collect(),
+                    extracted_comments: item
+                        .extracted_comments
+                        .iter()
+                        .map(|value| Cow::Borrowed(value.as_str()))
+                        .collect(),
+                    flags: item
+                        .flags
+                        .iter()
+                        .map(|value| Cow::Borrowed(value.as_str()))
+                        .collect(),
+                })
+                .collect();
+            let rendered = merge_catalog(&fixture.existing_po, &extracted)
                 .map_err(|error| format!("merge_catalog failed: {error}"))?;
             bytes_processed += rendered.len();
             last_rendered = Some(rendered);
@@ -1252,16 +1281,18 @@ impl PreparedScenario {
 #[derive(Debug, Clone)]
 struct OwnedMergeFixture {
     existing_po: String,
-    merge_messages: Vec<MergeExtractedMessage<'static>>,
     api_messages: Vec<ExtractedMessage>,
+    template_pot: String,
 }
 
 impl OwnedMergeFixture {
     fn from_fixture(fixture: &MergeFixture) -> Self {
         Self {
             existing_po: fixture.existing_po().to_owned(),
-            merge_messages: fixture.extracted_messages().to_vec(),
             api_messages: fixture.api_extracted_messages().to_vec(),
+            // Same template the competitors parse, so the merge comparison is
+            // apples-to-apples: every tool reads existing.po and template.pot.
+            template_pot: build_merge_pot(fixture),
         }
     }
 }

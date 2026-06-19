@@ -105,7 +105,8 @@ This checks the required executables and adapter packages and prints the detecte
 - `gettext-workflows-ecosystem-v1`
   - extended workflow suite for classic gettext merge paths
   - compares `merge_catalog` against `msgmerge`, `pofile`, `pofile-ts`, and `polib`
-  - external library numbers are measured as reconstructed parse -> merge -> serialize pipelines
+  - every tool runs the same file-to-file pipeline: parse `existing.po`, parse `template.pot`, merge, and serialize. Ferrocat reads the same `.pot` instead of pre-structured messages, so the update comparison stays strictly apples-to-apples
+  - the validation reparse used for the equivalence digest runs once outside the timed loop for every implementation, so no tool is charged for it
   - useful when you want workflow numbers across the broader gettext ecosystem
 - `serious-v1`
   - advanced/internal benchmark suite

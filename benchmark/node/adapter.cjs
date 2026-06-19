@@ -38,11 +38,11 @@ function shouldKeepHeader(key, value) {
 }
 
 function packageVersion(name) {
-  if (name === 'pofile-ts') {
-    const packageJsonPath = path.join(path.dirname(require.resolve('pofile-ts')), '..', 'package.json');
-    return JSON.parse(fs.readFileSync(packageJsonPath, 'utf8')).version;
-  }
-  return require(`${name}/package.json`).version;
+  // Read package.json directly from node_modules. Going through
+  // require('<name>/package.json') breaks for packages whose "exports" map
+  // does not expose ./package.json (e.g. recent @formatjs releases).
+  const packageJsonPath = path.join(__dirname, 'node_modules', name, 'package.json');
+  return JSON.parse(fs.readFileSync(packageJsonPath, 'utf8')).version;
 }
 
 function normalizePoSummary(parsed) {
@@ -430,7 +430,7 @@ function mergePoLikeCatalog(existingDoc, templateDoc) {
 }
 
 function runPofile(request) {
-  const toolVersion = `pofile@${require('pofile/package.json').version}`;
+  const toolVersion = `pofile@${packageVersion('pofile')}`;
 
   if (request.operation === 'parse') {
     const input = fs.readFileSync(request.po_input_path, 'utf8');
@@ -455,14 +455,14 @@ function runPofile(request) {
     const existingInput = fs.readFileSync(request.existing_po_path, 'utf8');
     const templateInput = fs.readFileSync(request.pot_path, 'utf8');
     let rendered = '';
-    let summary = null;
     const start = process.hrtime.bigint();
     for (let i = 0; i < request.iterations; i += 1) {
       const merged = mergePoLikeCatalog(PO.parse(existingInput), PO.parse(templateInput));
       rendered = merged.toString();
-      summary = normalizePoSummary(PO.parse(rendered));
     }
     const elapsed = process.hrtime.bigint() - start;
+    // Reparse for the validation digest happens once, outside the timed loop.
+    const summary = normalizePoSummary(PO.parse(rendered));
     if (request.capture_artifacts && request.po_output_path) {
       fs.writeFileSync(request.po_output_path, rendered, 'utf8');
     }
@@ -524,7 +524,6 @@ function runPofileTs(request) {
     const existingInput = fs.readFileSync(request.existing_po_path, 'utf8');
     const templateInput = fs.readFileSync(request.pot_path, 'utf8');
     let rendered = '';
-    let summary = null;
     const start = process.hrtime.bigint();
     for (let i = 0; i < request.iterations; i += 1) {
       const merged = mergePoLikeCatalog(
@@ -532,9 +531,10 @@ function runPofileTs(request) {
         pofileTs.parsePo(templateInput)
       );
       rendered = pofileTs.stringifyPo(merged);
-      summary = normalizePoSummary(pofileTs.parsePo(rendered));
     }
     const elapsed = process.hrtime.bigint() - start;
+    // Reparse for the validation digest happens once, outside the timed loop.
+    const summary = normalizePoSummary(pofileTs.parsePo(rendered));
     if (request.capture_artifacts && request.po_output_path) {
       fs.writeFileSync(request.po_output_path, rendered, 'utf8');
     }
@@ -615,7 +615,7 @@ function runGettextParser(request) {
 
 function runFormatjs(request) {
   const messages = JSON.parse(fs.readFileSync(request.icu_messages_path, 'utf8'));
-  const toolVersion = `@formatjs/icu-messageformat-parser@${require('@formatjs/icu-messageformat-parser/package.json').version}`;
+  const toolVersion = `@formatjs/icu-messageformat-parser@${packageVersion('@formatjs/icu-messageformat-parser')}`;
   let summary = null;
   const start = process.hrtime.bigint();
   for (let i = 0; i < request.iterations; i += 1) {
@@ -637,7 +637,7 @@ function runFormatjs(request) {
 
 function runMessageformat(request) {
   const messages = JSON.parse(fs.readFileSync(request.icu_messages_path, 'utf8'));
-  const toolVersion = `@messageformat/parser@${require('@messageformat/parser/package.json').version}`;
+  const toolVersion = `@messageformat/parser@${packageVersion('@messageformat/parser')}`;
   let summary = null;
   const start = process.hrtime.bigint();
   for (let i = 0; i < request.iterations; i += 1) {
@@ -663,8 +663,8 @@ function run() {
       `pofile@${packageVersion('pofile')}`,
       `pofile-ts@${packageVersion('pofile-ts')}`,
       `gettext-parser@${packageVersion('gettext-parser')}`,
-      `@formatjs/icu-messageformat-parser@${require('@formatjs/icu-messageformat-parser/package.json').version}`,
-      `@messageformat/parser@${require('@messageformat/parser/package.json').version}`
+      `@formatjs/icu-messageformat-parser@${packageVersion('@formatjs/icu-messageformat-parser')}`,
+      `@messageformat/parser@${packageVersion('@messageformat/parser')}`
     ];
     process.stdout.write(versions.join(', '));
     return;
