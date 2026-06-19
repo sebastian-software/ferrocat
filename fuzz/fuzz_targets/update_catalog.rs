@@ -1,9 +1,6 @@
 #![no_main]
 
-use ferrocat_po::{
-    CatalogSemantics, CatalogStorageFormat, PluralEncoding, SourceExtractedMessage,
-    UpdateCatalogOptions, update_catalog,
-};
+use ferrocat_po::{CatalogMode, SourceExtractedMessage, UpdateCatalogOptions, update_catalog};
 use libfuzzer_sys::fuzz_target;
 
 fuzz_target!(|data: &[u8]| {
@@ -13,13 +10,9 @@ fuzz_target!(|data: &[u8]| {
             ..SourceExtractedMessage::default()
         }];
         let _ = update_catalog(UpdateCatalogOptions {
-            source_locale: "en",
-            input: extracted.into(),
             existing: Some(input),
-            storage_format: CatalogStorageFormat::Po,
-            semantics: CatalogSemantics::IcuNative,
-            plural_encoding: PluralEncoding::Icu,
-            ..UpdateCatalogOptions::default()
+            mode: CatalogMode::IcuPo,
+            ..UpdateCatalogOptions::new("en", extracted)
         });
     }
 });
