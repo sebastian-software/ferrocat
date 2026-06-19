@@ -22,6 +22,8 @@ Ferrocat is an actively developed pre-`1.0` Rust project. The goal is stable and
 
 - **MSRV:** `1.93.0`
 - **MSRV policy:** align with OXC when practical, while avoiding churn from tracking only the newest stable toolchain
+- **MSRV bumps:** before `1.0`, raising the MSRV is allowed in a minor release
+  when the changelog calls it out; patch releases should not raise the MSRV.
 - **Semver:** the public API is treated seriously, but carefully documented breaking changes may still happen before `1.0`
 - **Documentation:** README examples, rustdoc, and repository docs aim to stay aligned
 - **Host bindings:** Ferrocat is currently a pure-Rust engine. JS/TS access

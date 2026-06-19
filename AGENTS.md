@@ -40,7 +40,7 @@ Examples:
   plus smoke tests. Add an explicit threshold when executable umbrella code
   grows.
 - If you add or change dependencies, make sure `Cargo.lock` is updated and the locked checks still pass before push.
-- Keep the declared MSRV in `Cargo.toml` covered by CI. The MSRV policy is to align with OXC when practical, while avoiding churn from tracking only the newest stable toolchain.
+- Keep the declared MSRV in `Cargo.toml` covered by CI. The MSRV policy is to align with OXC when practical, while avoiding churn from tracking only the newest stable toolchain. Before `1.0`, raising the MSRV is allowed in a minor release when the changelog calls it out; patch releases should not raise the MSRV.
 
 ## Public API Changes
 

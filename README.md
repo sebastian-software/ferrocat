@@ -152,6 +152,8 @@ Ferrocat's ICU scope is currently MessageFormat v1. MessageFormat 2 is tracked a
 
 - **MSRV:** Rust `1.93.0`
 - **MSRV policy:** align with OXC when practical, while avoiding churn from tracking only the newest stable toolchain
+- **MSRV bumps:** before `1.0`, raising the MSRV is allowed in a minor release
+  when the changelog calls it out; patch releases should not raise the MSRV.
 - **Semver:** the public API is treated seriously, but the project is still pre-`1.0`
 - **Error surface:** PO parse errors are intentionally compact today and do not yet expose source positions; adding structured positions would be a semver-relevant API change.
 - **Documentation surface:** README examples, rustdoc examples, and the docs site aim to stay aligned
