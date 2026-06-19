@@ -1,5 +1,6 @@
 mod audit;
 mod catalog;
+mod combine;
 mod compile;
 mod compile_types;
 mod file_io;
@@ -13,7 +14,8 @@ pub use self::audit::{
     CatalogAuditChecks, CatalogAuditDiagnostic, CatalogAuditMessageRef, CatalogAuditOptions,
     CatalogAuditReport, CatalogAuditSummary, audit_catalogs,
 };
-pub use self::catalog::{combine_catalogs, parse_catalog, update_catalog, update_catalog_file};
+pub use self::catalog::{parse_catalog, update_catalog, update_catalog_file};
+pub use self::combine::combine_catalogs;
 pub use self::compile::{
     compile_catalog_artifact, compile_catalog_artifact_selected, compiled_key,
 };
