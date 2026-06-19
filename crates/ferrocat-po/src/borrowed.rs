@@ -146,14 +146,6 @@ impl<'a> BorrowedMsgStr<'a> {
         matches!(self, Self::None)
     }
 
-    pub(crate) fn len(&self) -> usize {
-        match self {
-            Self::None => 0,
-            Self::Singular(_) => 1,
-            Self::Plural(values) => values.len(),
-        }
-    }
-
     pub(crate) fn set_slot(&mut self, plural_index: usize, value: Cow<'a, str>) {
         match (&mut *self, plural_index) {
             (Self::None, 0) => *self = Self::Singular(value),
@@ -195,34 +187,37 @@ impl<'a> BorrowedMsgStr<'a> {
     }
 
     pub(crate) fn expand_singular_to_plural_width(&mut self, width: usize) {
-        if self.len() != 1 {
-            return;
+        match self {
+            Self::Singular(value) => {
+                let mut values = vec![std::mem::take(value)];
+                values.resize(width.max(1), Cow::Borrowed(""));
+                *self = Self::Plural(values);
+            }
+            Self::Plural(values) if values.len() == 1 => {
+                values.resize(width.max(1), Cow::Borrowed(""));
+            }
+            Self::None | Self::Plural(_) => {}
         }
-
-        let mut values = match std::mem::take(self) {
-            Self::None => Vec::new(),
-            Self::Singular(value) => vec![value],
-            Self::Plural(values) => values,
-        };
-        values.resize(width.max(1), Cow::Borrowed(""));
-        *self = Self::Plural(values);
     }
 
     fn promote_plural(&mut self, plural_index: usize) -> &mut Vec<Cow<'a, str>> {
-        if !matches!(self, Self::Plural(_)) {
-            *self = match std::mem::take(self) {
-                Self::None => Self::Plural(Vec::with_capacity(2)),
-                Self::Singular(value) => Self::Plural(vec![value]),
-                Self::Plural(values) => Self::Plural(values),
-            };
+        match self {
+            Self::None => {
+                *self = Self::Plural(Vec::with_capacity(2));
+                self.promote_plural(plural_index)
+            }
+            Self::Singular(value) => {
+                let value = std::mem::take(value);
+                *self = Self::Plural(vec![value]);
+                self.promote_plural(plural_index)
+            }
+            Self::Plural(values) => {
+                if values.len() <= plural_index {
+                    values.resize(plural_index + 1, Cow::Borrowed(""));
+                }
+                values
+            }
         }
-        let Self::Plural(values) = self else {
-            unreachable!("plural msgstr promotion must yield plural storage");
-        };
-        if values.len() <= plural_index {
-            values.resize(plural_index + 1, Cow::Borrowed(""));
-        }
-        values
     }
 
     /// Converts the borrowed payload into an owned [`MsgStr`].
@@ -693,10 +688,21 @@ fn trimmed_cow(bytes: &[u8]) -> Cow<'_, str> {
 mod tests {
     use std::borrow::Cow;
 
+    use crate::MsgStr;
+
     use super::{BorrowedMsgStr, parse_po_borrowed};
 
     #[test]
     fn borrowed_msgstr_helpers_cover_slot_promotion_and_plural_width() {
+        assert_eq!(BorrowedMsgStr::None.into_owned(), MsgStr::None);
+
+        let mut appended_none = BorrowedMsgStr::None;
+        appended_none.append_slot(0, Cow::Borrowed("one"));
+        assert_eq!(
+            appended_none,
+            BorrowedMsgStr::Singular(Cow::Borrowed("one"))
+        );
+
         let mut singular = BorrowedMsgStr::None;
         singular.set_slot(0, Cow::Borrowed("one"));
         singular.set_slot(0, Cow::Borrowed("uno"));
@@ -704,6 +710,13 @@ mod tests {
         assert_eq!(
             singular,
             BorrowedMsgStr::Singular(Cow::Borrowed("uno plus"))
+        );
+
+        let mut append_empty_plural = BorrowedMsgStr::Plural(Vec::new());
+        append_empty_plural.append_slot(0, Cow::Borrowed("zero"));
+        assert_eq!(
+            append_empty_plural,
+            BorrowedMsgStr::Plural(vec![Cow::Borrowed("zero")])
         );
 
         let mut empty_plural = BorrowedMsgStr::Plural(Vec::new());
@@ -739,6 +752,13 @@ mod tests {
                 Cow::Borrowed(""),
                 Cow::Borrowed(""),
             ])
+        );
+
+        let mut existing_plural = BorrowedMsgStr::Plural(vec![Cow::Borrowed("one")]);
+        existing_plural.expand_singular_to_plural_width(2);
+        assert_eq!(
+            existing_plural,
+            BorrowedMsgStr::Plural(vec![Cow::Borrowed("one"), Cow::Borrowed("")])
         );
     }
 
