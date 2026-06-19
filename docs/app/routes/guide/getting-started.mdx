@@ -59,9 +59,9 @@ msgstr "world"
 
 - **MSRV:** Rust `1.93.0`
 - **MSRV policy:** align with OXC when practical, while avoiding churn from tracking only the newest stable toolchain
-- **MSRV bumps:** before `1.0`, raising the MSRV is allowed in a minor release
-  when the changelog calls it out; patch releases should not raise the MSRV.
-- **Semver:** the public API is treated seriously, but the project is still pre-`1.0`
+- **MSRV bumps:** raising the MSRV is treated as a minor-version change and
+  called out in the changelog; patch releases should not raise the MSRV.
+- **Semver:** the public API follows semantic versioning; breaking changes ship in a new major version
 - **Docs surface:** README examples, rustdoc, and the site should stay aligned
 
 ## Site-specific development
