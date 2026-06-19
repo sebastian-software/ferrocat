@@ -9,7 +9,7 @@
 
 The practical problem is simple: translations change constantly, and most projects need more than "load a JSON file at runtime." Teams need source identity, translator context, reviewable diffs, release checks, fallback behavior, and a runtime shape that does not hide catalog problems until production. Ferrocat is built for that middle layer.
 
-Under the hood, Ferrocat builds on proven ideas from PO catalogs, ICU MessageFormat, line-delimited JSON, and deterministic runtime compilation. You do not need to start with all of that terminology. The important part is that the catalog remains inspectable, testable, benchmarked, and portable across host-language adapters.
+You do not need to know PO files, ICU MessageFormat, or NDJSON to get started. What matters is that the catalog stays inspectable, testable, benchmarked, and portable across host-language adapters, instead of disappearing into format-specific tooling.
 
 Ferrocat is also part of the [Palamedes](https://github.com/sebastian-software/palamedes) ecosystem. Palamedes is the OSS i18n framework for JavaScript and TypeScript apps; Ferrocat supplies the shared catalog engine underneath it: exact updates, storage choices, release QA, runtime artifact compilation, and clear boundaries between catalog data and application integration. JavaScript and TypeScript access is a Palamedes concern, including the `palamedes-node` N-API bridge in that repository; this repository stays the pure-Rust catalog engine.
 
@@ -23,7 +23,7 @@ Ferrocat is also part of the [Palamedes](https://github.com/sebastian-software/p
 - **Runtime artifacts.** Compile catalogs into host-neutral payloads with stable keys, fallback behavior, missing reports, and optional ICU compatibility diagnostics.
 - **Reviewable storage.** Use PO when translator tooling matters, or NDJSON when large teams and automation need one message per line for cleaner diffs.
 - **Room for host frameworks.** Palamedes can own JS/TS extraction, bindings, and framework integration while Ferrocat owns the catalog behavior that should stay consistent underneath.
-- **Measured behavior.** Parser, serializer, merge, combine, audit, and runtime paths are covered by fixtures, conformance checks, and benchmark commands.
+- **Measured behavior.** Parser, serializer, merge, combine, audit, and runtime paths are covered by fixtures, 60 upstream-derived conformance cases (454 assertions), and reproducible benchmark commands.
 
 ## Technical Foundation
 
