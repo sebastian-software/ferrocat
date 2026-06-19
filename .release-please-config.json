@@ -25,7 +25,14 @@
     "crates/ferrocat": {
       "release-type": "rust",
       "package-name": "ferrocat",
-      "component": "ferrocat"
+      "component": "ferrocat",
+      "extra-files": [
+        {
+          "type": "json",
+          "path": "docs/package.json",
+          "jsonpath": "$.version"
+        }
+      ]
     },
     "crates/ferrocat-po": {
       "release-type": "rust",
