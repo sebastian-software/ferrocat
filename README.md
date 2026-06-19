@@ -53,6 +53,17 @@ on top of the Rust API: JS/TS applications should look to Palamedes and its
 directly, the `ferrocat` CLI audit gate, or host-specific bindings maintained
 at that layer.
 
+## Performance
+
+Most i18n catalog tooling for JavaScript and TypeScript runs on Node, where catalogs are parsed and rewritten in interpreted code. Ferrocat is compiled Rust with byte-oriented scanning and zero-copy parsing. On the same 10k-message gettext catalog, every tool reading the same files (Apple M1 Ultra, median of 10 runs):
+
+| Workload | Ferrocat | pofile-ts (Node) | polib (Python) | GNU msgmerge |
+|---|---:|---:|---:|---:|
+| Parse | **298 MiB/s** | 96 | 17 | — |
+| Update with new strings | **201 MiB/s** | 42 | 7 | 4 |
+
+Serialization reaches about 1.1 GiB/s on the same corpus. The catalog-update comparison is strictly file-to-file (parse existing, parse freshly extracted strings, merge, serialize), so the numbers stay apples-to-apples. See the [benchmark methodology](https://sebastian-software.github.io/ferrocat/performance/benchmarking) and the checked-in reports under [`benchmark/results/`](benchmark/results) for the full matrix and host details.
+
 ## Core Workflows
 
 Ferrocat focuses on the work that happens around real translation catalogs:
@@ -136,30 +147,15 @@ msgstr "world"
 
 For the common "merge fresh extracted messages into an existing catalog" workflow, `merge_catalog` is the lean Gettext-style entry point. For N-way catalog overlays and `msgcat`-style set operations, use `combine_catalogs`. For release checks across a source catalog and target catalogs, use `audit_catalogs`. For application delivery, compile requested-locale artifacts with fallback and ICU diagnostics. For large NDJSON pipelines, `ferrocat::catalog::NdjsonCatalogReader` and `NdjsonCatalogWriter` expose one-record-at-a-time streaming without requiring a direct `ferrocat-po` dependency. For richer high-level flows across PO and NDJSON storage, the docs site's [API overview](https://sebastian-software.github.io/ferrocat/reference/api-overview) is the best next stop.
 
-`parse_po_bytes` is the byte-oriented owned parser for UTF-8 PO input. It
-rejects declared non-UTF-8 charsets before decoding and reports invalid UTF-8
-through Ferrocat's `ParseError` instead of making callers do their own
-`String::from_utf8` step. `parse_po_borrowed` is the allocation-light PO parser
-for read-heavy paths. It borrows from the source buffer where possible and uses
-the same LF, CRLF, and bare CR line-ending policy as `parse_po`.
-
-ICU-native workflows can use `analyze_icu`, `compare_icu_messages`, and `validate_icu_formatter_support` to catch missing arguments, formatter changes, unsupported runtime formatter kinds or styles, tag mismatches, select/plural branch drift, and discouraged pattern-style formatters. Runtime artifact compilation can opt into the same source/translation checks with `icu_compatibility`.
-
-Semantic metadata workflows can use `normalize_message_metadata` to keep simple source-as-msgid records small while deriving argument, tag, and selector facts from ICU MessageFormat v1 when needed. The metadata model keeps `msgid + msgctxt` as catalog identity, so it fits both Palamedes-style source strings and ID-style catalogs.
-
-AI translation workflows can attach `MachineTranslationMetadata` to catalog entries. Ferrocat stores `model`, optional `modified`, optional `confidence`, and a translation hash in PO (`#@ ferrocat-mt ...`) or NDJSON (`mt`), and high-level writers remove that metadata when the hash no longer matches the current translation.
-
-Catalog QA workflows can use `audit_catalogs` to produce a read-only report over source and target catalogs. The default checks cover missing locales, missing or empty translations, extra target-only messages, ICU syntax, ICU source/translation compatibility, semantic metadata conflicts, obsolete entries, and visible `fuzzy` flags. The audit API reports what is shippable; it does not infer fuzzy matches or rewrite catalogs.
-
-Ferrocat's ICU scope is currently MessageFormat v1. MessageFormat 2 is tracked as a future standard, but it is not a near-term implementation target because the implementation surface is still transitional and MF1 authoring diagnostics solve the more immediate catalog problems.
+Beyond the basics, Ferrocat exposes byte-oriented and allocation-light borrowed parsers for hot paths, ICU analysis and source/translation compatibility checks (`analyze_icu`, `compare_icu_messages`, `validate_icu_formatter_support`), semantic metadata normalization around `msgid + msgctxt`, and AI-translation metadata that high-level writers clear automatically once a human edits the text. ICU scope is MessageFormat v1; MessageFormat 2 is tracked as a future standard but is not a near-term target. The [API overview](https://sebastian-software.github.io/ferrocat/reference/api-overview) documents each entry point in depth.
 
 ## Compatibility Snapshot
 
 - **MSRV:** Rust `1.93.0`
 - **MSRV policy:** align with OXC when practical, while avoiding churn from tracking only the newest stable toolchain
-- **MSRV bumps:** before `1.0`, raising the MSRV is allowed in a minor release
-  when the changelog calls it out; patch releases should not raise the MSRV.
-- **Semver:** the public API is treated seriously, but the project is still pre-`1.0`
+- **MSRV bumps:** raising the MSRV is treated as a minor-version change and
+  called out in the changelog; patch releases do not raise the MSRV.
+- **Semver:** the public API follows semantic versioning; breaking changes ship in a new major version and are documented in the changelog
 - **Error surface:** PO parse errors are intentionally compact today and do not yet expose source positions; adding structured positions would be a semver-relevant API change.
 - **Documentation surface:** README examples, rustdoc examples, and the docs site aim to stay aligned
 
@@ -169,7 +165,7 @@ If you already know what kind of question you have, these are the fastest entry 
 
 - [Getting started](https://sebastian-software.github.io/ferrocat/guide/getting-started) for installation, quick start, and the main next steps
 - [Ferrocat and Palamedes](https://sebastian-software.github.io/ferrocat/guide/palamedes) for the relationship between the catalog engine and the JS/TS i18n framework
-- [Releases and upgrading](https://sebastian-software.github.io/ferrocat/guide/upgrading) for changelogs, lockstep versions, and pre-`1.0` upgrade notes
+- [Releases and upgrading](https://sebastian-software.github.io/ferrocat/guide/upgrading) for changelogs, lockstep versions, and safe upgrades
 - [API overview](https://sebastian-software.github.io/ferrocat/reference/api-overview) for choosing between PO core, catalog workflows, and ICU helpers
 - [Gettext task landscape](https://sebastian-software.github.io/ferrocat/reference/gettext-task-landscape) for the workflow-level map across GNU gettext, common libraries, and Ferrocat
 - [Performance docs](https://sebastian-software.github.io/ferrocat/performance) for benchmark methodology, fixtures, and history
