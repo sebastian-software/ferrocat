@@ -102,7 +102,7 @@ cargo add ferrocat
 The public Rust entry point is the `ferrocat` crate. It re-exports the stable Rust surface from the lower-level workspace crates:
 
 - `ferrocat`: umbrella crate and recommended dependency for application code
-- `ferrocat-po`: PO parsing, serialization, merge/combine helpers, and higher-level catalog update flows
+- `ferrocat-po`: PO parsing, serialization, low-level merge helpers, and feature-gated higher-level catalog workflows
 - `ferrocat-icu`: ICU MessageFormat parsing, structural helpers, source/translation compatibility diagnostics, and semantic message metadata helpers
 
 For non-Rust CI release gates, install the CLI package and run `ferrocat audit`:

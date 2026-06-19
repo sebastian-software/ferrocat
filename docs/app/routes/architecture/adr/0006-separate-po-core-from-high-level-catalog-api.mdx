@@ -8,6 +8,7 @@ order: 60
 
 - Status: Accepted
 - Date: 2026-03-16
+- Refined by: [ADR 0020](/architecture/adr/0020-catalog-layer-packaging-boundary)
 
 ## Context
 
@@ -39,6 +40,8 @@ The project now has both layers:
 ## Decision
 
 Keep the PO core and the high-level catalog API as distinct layers with different responsibilities.
+
+ADR 0020 clarifies the 1.x packaging boundary: this distinction is an internal layer and feature-profile boundary inside `ferrocat-po`, not a separate `ferrocat-catalog` crate for the current major version.
 
 The PO core is:
 

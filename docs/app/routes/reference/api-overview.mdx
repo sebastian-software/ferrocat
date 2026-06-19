@@ -31,6 +31,10 @@ escape helpers, and low-level merge API available without pulling in SHA-256
 hashing, tempfile, or ICU4X CLDR plural data. Add the `serde` feature when that
 lean parser output should be serialized for caches or tooling.
 
+See [ADR 0020](/architecture/adr/0020-catalog-layer-packaging-boundary) for why
+the 1.x package boundary keeps the catalog layer in `ferrocat-po` behind feature
+profiles instead of moving it to a separate crate.
+
 The named feature profiles are:
 
 - `full`: the default profile with the complete current API surface
