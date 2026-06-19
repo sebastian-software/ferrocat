@@ -1,8 +1,8 @@
 {
-  "crates/ferrocat": "1.1.0",
-  "crates/ferrocat-po": "1.1.0",
-  "crates/ferrocat-icu": "1.1.0",
-  "crates/ferrocat-conformance": "1.1.0",
-  "crates/ferrocat-bench": "1.1.0",
-  "crates/ferrocat-cli": "1.1.0"
+  "crates/ferrocat": "1.1.1",
+  "crates/ferrocat-po": "1.1.1",
+  "crates/ferrocat-icu": "1.1.1",
+  "crates/ferrocat-conformance": "1.1.1",
+  "crates/ferrocat-bench": "1.1.1",
+  "crates/ferrocat-cli": "1.1.1"
 }

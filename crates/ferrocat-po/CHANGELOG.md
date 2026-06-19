@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.1.1](https://github.com/sebastian-software/ferrocat/compare/ferrocat-po-v1.1.0...ferrocat-po-v1.1.1) (2026-06-19)
+
+
+### Miscellaneous Chores
+
+* **ferrocat-po:** Synchronize ferrocat versions
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * ferrocat-icu bumped from 1.1.0 to 1.1.1
+
 ## [1.1.0](https://github.com/sebastian-software/ferrocat/compare/ferrocat-po-v1.0.0...ferrocat-po-v1.1.0) (2026-06-19)
 
 
