@@ -281,17 +281,13 @@ struct BorrowedLine<'a> {
 ///
 /// This parser keeps references into `input` for fields that do not need
 /// unescaping, which reduces allocations compared with [`crate::parse_po`].
+/// LF, CRLF, and bare CR line endings are accepted.
 ///
 /// # Errors
 ///
 /// Returns [`ParseError`] when the input is not valid PO syntax.
 pub fn parse_po_borrowed(input: &str) -> Result<BorrowedPoFile<'_>, ParseError> {
     let input = input.strip_prefix('\u{feff}').unwrap_or(input);
-    if input.as_bytes().contains(&b'\r') {
-        return Err(ParseError::new(
-            "borrowed PO parsing currently requires LF-only input",
-        ));
-    }
 
     let mut file = BorrowedPoFile::default();
     file.items.reserve((input.len() / 96).max(1));
@@ -802,10 +798,15 @@ msgstr "world"
     }
 
     #[test]
-    fn rejects_crlf_input_for_borrowed_parsing() {
-        let error = parse_po_borrowed("msgid \"foo\"\r\nmsgstr \"bar\"\r\n")
-            .expect_err("crlf should be rejected");
-        assert!(error.to_string().contains("LF-only"));
+    fn accepts_crlf_input_for_borrowed_parsing() {
+        let file = parse_po_borrowed("msgid \"foo\"\r\nmsgstr \"bar\"\r\n")
+            .expect("borrowed parse with crlf");
+
+        assert_eq!(file.items[0].msgid, Cow::Borrowed("foo"));
+        assert_eq!(
+            file.items[0].msgstr,
+            super::BorrowedMsgStr::Singular(Cow::Borrowed("bar"))
+        );
     }
 
     #[test]

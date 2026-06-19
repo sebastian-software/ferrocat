@@ -112,21 +112,14 @@ struct BorrowedLine<'a> {
 
 /// Parses PO content into the owned [`PoFile`] representation.
 ///
-/// Line endings are normalized before parsing, and the UTF-8 BOM is ignored
-/// when present.
+/// LF, CRLF, and bare CR line endings are accepted, and the UTF-8 BOM is
+/// ignored when present.
 ///
 /// # Errors
 ///
 /// Returns [`ParseError`] when the input is not valid PO syntax.
 pub fn parse_po(input: &str) -> Result<PoFile, ParseError> {
     let input = strip_utf8_bom(input);
-    let normalized;
-    let input = if input.as_bytes().contains(&b'\r') {
-        normalized = input.replace("\r\n", "\n").replace('\r', "\n");
-        normalized.as_str()
-    } else {
-        input
-    };
 
     let mut file = PoFile::default();
     file.items.reserve((input.len() / 96).max(1));

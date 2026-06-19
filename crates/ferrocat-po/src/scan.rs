@@ -1,9 +1,7 @@
-use memchr::Memchr;
-
 use crate::{ParseError, ParsePosition};
 
 mod backend {
-    use memchr::{memchr, memchr3, memrchr};
+    use memchr::{memchr, memchr2, memchr3, memrchr};
 
     #[inline]
     pub fn find_byte(byte: u8, haystack: &[u8]) -> Option<usize> {
@@ -11,15 +9,13 @@ mod backend {
     }
 
     #[inline]
-    pub fn find_last_byte(byte: u8, haystack: &[u8]) -> Option<usize> {
-        memrchr(byte, haystack)
+    pub fn find_either(first: u8, second: u8, haystack: &[u8]) -> Option<usize> {
+        memchr2(first, second, haystack)
     }
 
-    #[cfg(test)]
     #[inline]
-    pub fn find_either(first: u8, second: u8, haystack: &[u8]) -> Option<usize> {
-        use memchr::memchr2;
-        memchr2(first, second, haystack)
+    pub fn find_last_byte(byte: u8, haystack: &[u8]) -> Option<usize> {
+        memrchr(byte, haystack)
     }
 
     #[inline]
@@ -155,7 +151,6 @@ pub struct Line<'a> {
 
 pub struct LineScanner<'a> {
     bytes: &'a [u8],
-    newlines: Memchr<'a>,
     offset: usize,
     line_number: usize,
     finished: bool,
@@ -165,7 +160,6 @@ impl<'a> LineScanner<'a> {
     pub fn new(bytes: &'a [u8]) -> Self {
         Self {
             bytes,
-            newlines: Memchr::new(b'\n', bytes),
             offset: 0,
             line_number: 1,
             finished: false,
@@ -179,30 +173,29 @@ impl<'a> Iterator for LineScanner<'a> {
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
         while !self.finished {
-            let next_newline = if let Some(index) = self.newlines.next() {
-                index
-            } else {
+            if self.offset == self.bytes.len() {
                 self.finished = true;
-                self.bytes.len()
-            };
-            if self.finished && self.offset == self.bytes.len() {
                 return None;
             }
             let raw_offset = self.offset;
+            let line_end = find_either(b'\n', b'\r', &self.bytes[self.offset..])
+                .map_or(self.bytes.len(), |relative| self.offset + relative);
+            let separator = self.bytes.get(line_end).copied();
             let line_number = self.line_number;
             self.line_number += 1;
-            let raw = &self.bytes[self.offset..next_newline];
+            let raw = &self.bytes[self.offset..line_end];
 
-            if next_newline < self.bytes.len() {
-                self.offset = next_newline + 1;
-            } else {
-                self.offset = self.bytes.len();
-            }
+            self.offset = match separator {
+                Some(b'\r') if self.bytes.get(line_end + 1) == Some(&b'\n') => line_end + 2,
+                Some(b'\r' | b'\n') => line_end + 1,
+                Some(_) => unreachable!("line separator search only returns CR or LF"),
+                None => self.bytes.len(),
+            };
 
             let mut trimmed = trim_ascii_start(raw);
             let mut content_offset = raw_offset + raw.len() - trimmed.len();
             if trimmed.is_empty() {
-                if next_newline == self.bytes.len() {
+                if self.offset == self.bytes.len() {
                     return None;
                 }
                 continue;
@@ -215,7 +208,7 @@ impl<'a> Iterator for LineScanner<'a> {
                 content_offset += 2 + after_marker.len() - trimmed.len();
                 obsolete = true;
                 if trimmed.is_empty() {
-                    if next_newline == self.bytes.len() {
+                    if self.offset == self.bytes.len() {
                         return None;
                     }
                     continue;
@@ -267,7 +260,6 @@ pub fn find_last_byte(byte: u8, haystack: &[u8]) -> Option<usize> {
     backend::find_last_byte(byte, haystack)
 }
 
-#[cfg(test)]
 pub fn find_either(first: u8, second: u8, haystack: &[u8]) -> Option<usize> {
     backend::find_either(first, second, haystack)
 }
@@ -384,6 +376,27 @@ mod tests {
         assert_eq!(second.position.offset(), 17);
         assert_eq!(second.position.line(), 2);
         assert_eq!(second.position.column(), 4);
+
+        assert!(scanner.next().is_none());
+    }
+
+    #[test]
+    fn scans_crlf_and_bare_cr_line_endings() {
+        let input = b"msgid \"x\"\r\nmsgstr \"y\"\r#~ msgid \"old\"\r\n";
+        let mut scanner = LineScanner::new(input);
+
+        let first = scanner.next().expect("first line");
+        assert_eq!(first.trimmed, b"msgid \"x\"");
+        assert_eq!(first.position.line(), 1);
+
+        let second = scanner.next().expect("second line");
+        assert_eq!(second.trimmed, b"msgstr \"y\"");
+        assert_eq!(second.position.line(), 2);
+
+        let third = scanner.next().expect("third line");
+        assert_eq!(third.trimmed, b"msgid \"old\"");
+        assert!(third.obsolete);
+        assert_eq!(third.position.line(), 3);
 
         assert!(scanner.next().is_none());
     }
