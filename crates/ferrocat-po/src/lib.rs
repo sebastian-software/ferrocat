@@ -80,6 +80,7 @@
 mod api;
 mod borrowed;
 pub mod diagnostic_codes;
+mod line_state;
 mod merge;
 mod parse;
 mod scan;

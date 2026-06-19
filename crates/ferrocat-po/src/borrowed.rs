@@ -1,5 +1,6 @@
 use std::borrow::Cow;
 
+use crate::line_state::{PoLineContext, PoLineState};
 use crate::scan::{
     CommentKind, Keyword, LineKind, LineScanner, classify_line, find_quoted_bounds, has_byte,
     parse_plural_index, split_once_byte, trim_ascii, unrecognized_po_line,
@@ -233,24 +234,12 @@ impl<'a> BorrowedMsgStr<'a> {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum Context {
-    Id,
-    IdPlural,
-    Str,
-    Ctxt,
-}
-
 #[derive(Debug)]
 struct ParserState<'a> {
     item: BorrowedPoItem<'a>,
     header_entries: Vec<BorrowedHeader<'a>>,
     msgstr: BorrowedMsgStr<'a>,
-    context: Option<Context>,
-    plural_index: usize,
-    obsolete_line_count: usize,
-    content_line_count: usize,
-    has_keyword: bool,
+    line: PoLineState,
 }
 
 impl<'a> ParserState<'a> {
@@ -259,11 +248,7 @@ impl<'a> ParserState<'a> {
             item: BorrowedPoItem::new(nplurals),
             header_entries: Vec::new(),
             msgstr: BorrowedMsgStr::None,
-            context: None,
-            plural_index: 0,
-            obsolete_line_count: 0,
-            content_line_count: 0,
-            has_keyword: false,
+            line: PoLineState::default(),
         }
     }
 
@@ -424,27 +409,24 @@ fn parse_keyword_line<'a>(
 ) -> Result<(), ParseError> {
     match keyword {
         Keyword::IdPlural => {
-            state.obsolete_line_count += usize::from(obsolete);
+            state
+                .line
+                .mark_keyword(PoLineContext::IdPlural, 0, obsolete);
             state.item.msgid_plural = Some(at_line_position(
                 extract_quoted_bytes_cow(line_bytes),
                 position,
             )?);
-            state.context = Some(Context::IdPlural);
-            state.content_line_count += 1;
-            state.has_keyword = true;
         }
         Keyword::Id => {
             finish_item(state, file, current_nplurals);
-            state.obsolete_line_count += usize::from(obsolete);
+            state.line.mark_keyword(PoLineContext::Id, 0, obsolete);
             state.item.msgid = at_line_position(extract_quoted_bytes_cow(line_bytes), position)?;
-            state.context = Some(Context::Id);
-            state.content_line_count += 1;
-            state.has_keyword = true;
         }
         Keyword::Str => {
             let plural_index = parse_plural_index(line_bytes).unwrap_or(0);
-            state.plural_index = plural_index;
-            state.obsolete_line_count += usize::from(obsolete);
+            state
+                .line
+                .mark_keyword(PoLineContext::Str, plural_index, obsolete);
             state.set_msgstr(
                 plural_index,
                 at_line_position(extract_quoted_bytes_cow(line_bytes), position)?,
@@ -453,20 +435,14 @@ fn parse_keyword_line<'a>(
                 let headers = at_line_position(parse_header_fragment(line_bytes), position)?;
                 state.header_entries.extend(headers);
             }
-            state.context = Some(Context::Str);
-            state.content_line_count += 1;
-            state.has_keyword = true;
         }
         Keyword::Ctxt => {
             finish_item(state, file, current_nplurals);
-            state.obsolete_line_count += usize::from(obsolete);
+            state.line.mark_keyword(PoLineContext::Ctxt, 0, obsolete);
             state.item.msgctxt = Some(at_line_position(
                 extract_quoted_bytes_cow(line_bytes),
                 position,
             )?);
-            state.context = Some(Context::Ctxt);
-            state.content_line_count += 1;
-            state.has_keyword = true;
         }
     }
 
@@ -479,24 +455,23 @@ fn append_continuation<'a>(
     position: ParsePosition,
     state: &mut ParserState<'a>,
 ) -> Result<(), ParseError> {
-    state.obsolete_line_count += usize::from(obsolete);
-    state.content_line_count += 1;
+    state.line.mark_continuation(obsolete);
     let value = at_line_position(extract_quoted_bytes_cow(line_bytes), position)?;
 
-    match state.context {
-        Some(Context::Str) => {
-            state.append_msgstr(state.plural_index, value);
+    match state.line.context() {
+        Some(PoLineContext::Str) => {
+            state.append_msgstr(state.line.plural_index(), value);
             if is_header_candidate(state) {
                 let headers = at_line_position(parse_header_fragment(line_bytes), position)?;
                 state.header_entries.extend(headers);
             }
         }
-        Some(Context::Id) => state.item.msgid.to_mut().push_str(value.as_ref()),
-        Some(Context::IdPlural) => {
+        Some(PoLineContext::Id) => state.item.msgid.to_mut().push_str(value.as_ref()),
+        Some(PoLineContext::IdPlural) => {
             let target = state.item.msgid_plural.get_or_insert(Cow::Borrowed(""));
             target.to_mut().push_str(value.as_ref());
         }
-        Some(Context::Ctxt) => {
+        Some(PoLineContext::Ctxt) => {
             let target = state.item.msgctxt.get_or_insert(Cow::Borrowed(""));
             target.to_mut().push_str(value.as_ref());
         }
@@ -519,7 +494,7 @@ fn finish_item<'a>(
     file: &mut BorrowedPoFile<'a>,
     current_nplurals: &mut usize,
 ) {
-    if !state.has_keyword {
+    if !state.line.has_keyword() {
         return;
     }
 
@@ -527,7 +502,7 @@ fn finish_item<'a>(
         return;
     }
 
-    if state.obsolete_line_count >= state.content_line_count && state.content_line_count > 0 {
+    if state.line.is_obsolete_item() {
         state.item.obsolete = true;
     }
 
@@ -566,7 +541,7 @@ fn is_header_candidate(state: &ParserState<'_>) -> bool {
     state.item.msgid.is_empty()
         && state.item.msgctxt.is_none()
         && state.item.msgid_plural.is_none()
-        && state.plural_index == 0
+        && state.line.plural_index() == 0
 }
 
 fn parse_header_fragment(line_bytes: &[u8]) -> Result<Vec<BorrowedHeader<'_>>, ParseError> {
