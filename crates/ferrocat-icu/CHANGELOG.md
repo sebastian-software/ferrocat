@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.0.0](https://github.com/sebastian-software/ferrocat/compare/ferrocat-icu-v0.13.0...ferrocat-icu-v1.0.0) (2026-06-18)
+
+
+### Features
+
+* **api:** add diagnostic codes and io path context ([#103](https://github.com/sebastian-software/ferrocat/issues/103)) ([0a97a9e](https://github.com/sebastian-software/ferrocat/commit/0a97a9e1495f4a9dbec16e6261e7523982deb911))
+* **api:** mark growth-prone enums non-exhaustive ([#101](https://github.com/sebastian-software/ferrocat/issues/101)) ([b4e1ca4](https://github.com/sebastian-software/ferrocat/commit/b4e1ca4262345f6e8927582ae477f104075b1474))
+* **features:** add lean parser profiles ([#106](https://github.com/sebastian-software/ferrocat/issues/106)) ([2887beb](https://github.com/sebastian-software/ferrocat/commit/2887bebfedabb7664f15c12912ea96626b0d103b))
+* **icu:** expose stringify_icu ([#96](https://github.com/sebastian-software/ferrocat/issues/96)) ([a581dcb](https://github.com/sebastian-software/ferrocat/commit/a581dcb171a1f1321640f9f22f6da165d23c7f06))
+* **icu:** validate formatter support from analysis ([#79](https://github.com/sebastian-software/ferrocat/issues/79)) ([7089df6](https://github.com/sebastian-software/ferrocat/commit/7089df67cdb4803fa72dd79e9f077565aefc91cc))
+
 ## [0.13.0](https://github.com/sebastian-software/ferrocat/compare/ferrocat-icu-v0.12.0...ferrocat-icu-v0.13.0) (2026-06-12)
 
 

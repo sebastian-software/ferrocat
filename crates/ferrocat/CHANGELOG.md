@@ -1,5 +1,34 @@
 # Changelog
 
+## [1.0.0](https://github.com/sebastian-software/ferrocat/compare/ferrocat-v0.13.0...ferrocat-v1.0.0) (2026-06-18)
+
+
+### ⚠ BREAKING CHANGES
+
+* **api:** collapse redundant option fields into CatalogMode ([#102](https://github.com/sebastian-software/ferrocat/issues/102))
+
+### Features
+
+* **api:** add serializable schema outputs ([#107](https://github.com/sebastian-software/ferrocat/issues/107)) ([8e8bff0](https://github.com/sebastian-software/ferrocat/commit/8e8bff054ac76c6ce0aa76d5d7a707c92f24d9d8))
+* **api:** add umbrella namespace modules ([#104](https://github.com/sebastian-software/ferrocat/issues/104)) ([f72d1a5](https://github.com/sebastian-software/ferrocat/commit/f72d1a573cff29cb1bc955359c86531355610ca0))
+* **api:** collapse redundant option fields into CatalogMode ([#102](https://github.com/sebastian-software/ferrocat/issues/102)) ([2687df6](https://github.com/sebastian-software/ferrocat/commit/2687df6363755b0ef863594168da8be027d34614))
+* **features:** add lean parser profiles ([#106](https://github.com/sebastian-software/ferrocat/issues/106)) ([2887beb](https://github.com/sebastian-software/ferrocat/commit/2887bebfedabb7664f15c12912ea96626b0d103b))
+* **icu:** expose stringify_icu ([#96](https://github.com/sebastian-software/ferrocat/issues/96)) ([a581dcb](https://github.com/sebastian-software/ferrocat/commit/a581dcb171a1f1321640f9f22f6da165d23c7f06))
+* **icu:** validate formatter support from analysis ([#79](https://github.com/sebastian-software/ferrocat/issues/79)) ([7089df6](https://github.com/sebastian-software/ferrocat/commit/7089df67cdb4803fa72dd79e9f077565aefc91cc))
+
+
+### Bug Fixes
+
+* **api:** re-export CatalogSemantics from the umbrella crate ([a16e699](https://github.com/sebastian-software/ferrocat/commit/a16e6993b09e86d19712edc601b2fc0271ffcdaf)), closes [#47](https://github.com/sebastian-software/ferrocat/issues/47)
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * ferrocat-icu bumped from 0.13.0 to 1.0.0
+    * ferrocat-po bumped from 0.13.0 to 1.0.0
+
 ## [0.13.0](https://github.com/sebastian-software/ferrocat/compare/ferrocat-v0.12.0...ferrocat-v0.13.0) (2026-06-12)
 
 

@@ -1,5 +1,36 @@
 # Changelog
 
+## [1.0.0](https://github.com/sebastian-software/ferrocat/compare/ferrocat-po-v0.13.0...ferrocat-po-v1.0.0) (2026-06-18)
+
+
+### ⚠ BREAKING CHANGES
+
+* **api:** collapse redundant option fields into CatalogMode ([#102](https://github.com/sebastian-software/ferrocat/issues/102))
+
+### Features
+
+* **api:** add diagnostic codes and io path context ([#103](https://github.com/sebastian-software/ferrocat/issues/103)) ([0a97a9e](https://github.com/sebastian-software/ferrocat/commit/0a97a9e1495f4a9dbec16e6261e7523982deb911))
+* **api:** add serializable schema outputs ([#107](https://github.com/sebastian-software/ferrocat/issues/107)) ([8e8bff0](https://github.com/sebastian-software/ferrocat/commit/8e8bff054ac76c6ce0aa76d5d7a707c92f24d9d8))
+* **api:** collapse redundant option fields into CatalogMode ([#102](https://github.com/sebastian-software/ferrocat/issues/102)) ([2687df6](https://github.com/sebastian-software/ferrocat/commit/2687df6363755b0ef863594168da8be027d34614))
+* **api:** mark growth-prone enums non-exhaustive ([#101](https://github.com/sebastian-software/ferrocat/issues/101)) ([b4e1ca4](https://github.com/sebastian-software/ferrocat/commit/b4e1ca4262345f6e8927582ae477f104075b1474))
+* **features:** add lean parser profiles ([#106](https://github.com/sebastian-software/ferrocat/issues/106)) ([2887beb](https://github.com/sebastian-software/ferrocat/commit/2887bebfedabb7664f15c12912ea96626b0d103b))
+* **ndjson:** add streaming catalog reader writer ([#112](https://github.com/sebastian-software/ferrocat/issues/112)) ([de69e0f](https://github.com/sebastian-software/ferrocat/commit/de69e0f6d8e18fcef457a561c2aef7afbea69a39))
+* **po:** add safe gettext plural forms table ([#105](https://github.com/sebastian-software/ferrocat/issues/105)) ([c20b61b](https://github.com/sebastian-software/ferrocat/commit/c20b61bbfddba0b9e20929907e6b28f32bef0d1d))
+
+
+### Bug Fixes
+
+* **api:** preserve parse and io error sources ([#95](https://github.com/sebastian-software/ferrocat/issues/95)) ([9173e0e](https://github.com/sebastian-software/ferrocat/commit/9173e0e64041277df0c19bb5c5396a568958eea1))
+* **po:** reject unrecognized parser lines ([#110](https://github.com/sebastian-software/ferrocat/issues/110)) ([40044e6](https://github.com/sebastian-software/ferrocat/commit/40044e6e7c29df1c77b77ac5856db234f122765b))
+* **po:** use durable unique atomic writes ([#80](https://github.com/sebastian-software/ferrocat/issues/80)) ([34a80d5](https://github.com/sebastian-software/ferrocat/commit/34a80d5cb0d21d7b064d848fbcc6520651739d71))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * ferrocat-icu bumped from 0.13.0 to 1.0.0
+
 ## [0.13.0](https://github.com/sebastian-software/ferrocat/compare/ferrocat-po-v0.12.0...ferrocat-po-v0.13.0) (2026-06-12)
 
 
