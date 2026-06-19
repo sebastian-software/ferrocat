@@ -697,6 +697,23 @@ mod tests {
 
     #[test]
     fn borrowed_msgstr_helpers_cover_slot_promotion_and_plural_width() {
+        let mut singular = BorrowedMsgStr::None;
+        singular.set_slot(0, Cow::Borrowed("one"));
+        singular.set_slot(0, Cow::Borrowed("uno"));
+        singular.append_slot(0, Cow::Borrowed(" plus"));
+        assert_eq!(
+            singular,
+            BorrowedMsgStr::Singular(Cow::Borrowed("uno plus"))
+        );
+
+        let mut empty_plural = BorrowedMsgStr::Plural(Vec::new());
+        empty_plural.set_slot(0, Cow::Borrowed("zero"));
+        empty_plural.append_slot(0, Cow::Borrowed(" plus"));
+        assert_eq!(
+            empty_plural,
+            BorrowedMsgStr::Plural(vec![Cow::Borrowed("zero plus")])
+        );
+
         let mut msgstr = BorrowedMsgStr::None;
 
         msgstr.set_slot(1, Cow::Borrowed("two"));
@@ -712,11 +729,11 @@ mod tests {
             BorrowedMsgStr::Plural(vec![Cow::Borrowed("one"), Cow::Borrowed("two plus")])
         );
 
-        let mut singular = BorrowedMsgStr::None;
-        singular.ensure_singular();
-        singular.expand_singular_to_plural_width(3);
+        let mut defaulted = BorrowedMsgStr::None;
+        defaulted.ensure_singular();
+        defaulted.expand_singular_to_plural_width(3);
         assert_eq!(
-            singular,
+            defaulted,
             BorrowedMsgStr::Plural(vec![
                 Cow::Borrowed(""),
                 Cow::Borrowed(""),
