@@ -1,0 +1,57 @@
+---
+title: "ADR 0020: Keep the 1.x Catalog Layer in ferrocat-po Behind Feature Profiles"
+description: "Accepted architecture decision record: keep the 1.x catalog layer in ferrocat-po behind feature profiles."
+order: 200
+---
+
+# ADR 0020: Keep the 1.x Catalog Layer in ferrocat-po Behind Feature Profiles
+
+- Status: Accepted
+- Date: 2026-06-19
+- Refines: [ADR 0006](/architecture/adr/0006-separate-po-core-from-high-level-catalog-api)
+
+## Context
+
+ADR 0006 separates the low-level PO core from the high-level catalog API by responsibility:
+
+- the PO core owns format-level parsing, borrowed parsing, serialization, and lean merge helpers
+- the high-level catalog API owns task-level operations such as update, combine, audit, NDJSON storage, machine-translation metadata, and runtime artifact compilation
+
+That layering is still correct, but the packaging boundary needs to match the 1.x release reality.
+
+`ferrocat-po` is now a published 1.x crate. Moving `parse_catalog`, `update_catalog`, `combine_catalogs`, audit, compile, NDJSON, and machine-translation APIs into a new `ferrocat-catalog` crate would remove public APIs from `ferrocat-po` or require a dependency cycle where `ferrocat-po` depends on a catalog crate that itself needs the PO core. Either option is a breaking packaging change, not a safe 1.x cleanup.
+
+The immediate dependency-weight concern is already handled by feature profiles:
+
+- `ferrocat-po` with default features exposes the full catalog workflow surface
+- `ferrocat-po` with `default-features = false` keeps the PO parser, borrowed parser, serializer, string helpers, and low-level merge API available without catalog-only dependencies
+- the umbrella `ferrocat` crate remains the stable facade for application users
+
+## Decision
+
+For the 1.x line, keep the high-level catalog layer in `ferrocat-po` and treat the PO-core/catalog separation as an internal layer boundary enforced by modules, feature profiles, tests, and documentation.
+
+Do not extract a `ferrocat-catalog` crate during the 1.x line unless the project intentionally plans a major-version packaging break.
+
+Concretely:
+
+- `ferrocat-po` remains the published crate for both PO-core APIs and opt-in catalog workflow APIs
+- `default-features = false` is the supported pure PO-core dependency profile
+- catalog-only dependencies stay behind the `catalog` feature profile
+- the umbrella `ferrocat::catalog` facade continues to re-export the high-level catalog APIs
+- a future `ferrocat-catalog` crate requires a major-version design because it changes crate ownership and public import paths
+
+## Consequences
+
+Positive:
+
+- the 1.x public API stays semver-compatible
+- PO-only users can avoid catalog-only dependency weight without changing crates
+- the architecture documentation now matches the published crate topology
+- future catalog work can keep improving module boundaries without creating package churn
+
+Negative:
+
+- the crate name `ferrocat-po` continues to carry more than a pure PO format core by default
+- contributors must distinguish the internal layer boundary from the crate boundary
+- a later `ferrocat-catalog` extraction remains possible, but it is a major-version packaging project rather than a routine refactor

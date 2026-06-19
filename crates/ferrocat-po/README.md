@@ -2,7 +2,7 @@
 
 Performance-first catalog parsing, serialization, merge helpers, release audits, and runtime compilation for `ferrocat`.
 
-This crate is the catalog-workflow layer. Use it when translation files need to be updated, reviewed, checked for release readiness, or compiled into application-facing payloads.
+This crate contains the PO core plus the feature-gated catalog workflow layer. Use it when translation files need to be parsed, serialized, updated, reviewed, checked for release readiness, or compiled into application-facing payloads.
 
 Add it with:
 
@@ -10,7 +10,7 @@ Add it with:
 cargo add ferrocat-po
 ```
 
-This crate covers both the low-level PO surface and the higher-level catalog layer.
+This crate covers both the low-level PO surface and the higher-level catalog layer. For PO-only dependency profiles, disable default features.
 
 At the catalog layer, it supports three explicit modes:
 
