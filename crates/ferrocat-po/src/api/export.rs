@@ -225,3 +225,119 @@ pub(super) fn append_placeholder_comments(
 fn normalize_placeholder_value(value: &str) -> String {
     value.replace('\n', " ")
 }
+
+#[cfg(test)]
+mod tests {
+    use super::super::{CatalogMode, CatalogOrigin, CatalogUpdateInput};
+    use super::*;
+
+    fn message_with_translation(translation: CanonicalTranslation) -> CanonicalMessage {
+        CanonicalMessage {
+            msgid: "items".to_owned(),
+            msgctxt: None,
+            translation,
+            comments: Vec::new(),
+            origins: vec![CatalogOrigin {
+                file: "src/lib.rs".to_owned(),
+                line: None,
+            }],
+            placeholders: BTreeMap::new(),
+            obsolete: false,
+            machine_translation: None,
+            translator_comments: Vec::new(),
+            flags: Vec::new(),
+        }
+    }
+
+    fn singular_message(value: &str) -> CanonicalMessage {
+        message_with_translation(CanonicalTranslation::Singular {
+            value: value.to_owned(),
+        })
+    }
+
+    fn plural_message(translation_by_category: BTreeMap<String, String>) -> CanonicalMessage {
+        message_with_translation(CanonicalTranslation::Plural {
+            source: PluralSource {
+                one: Some("item".to_owned()),
+                other: "items".to_owned(),
+            },
+            translation_by_category,
+            variable: "count".to_owned(),
+        })
+    }
+
+    #[test]
+    fn gettext_export_rejects_plural_translation_without_other_category() {
+        let catalog = Catalog {
+            messages: vec![plural_message(BTreeMap::from([(
+                "one".to_owned(),
+                "Artikel".to_owned(),
+            )]))],
+            ..Catalog::default()
+        };
+        let options = UpdateCatalogOptions {
+            mode: CatalogMode::GettextPo,
+            ..UpdateCatalogOptions::new("en", CatalogUpdateInput::default())
+        };
+        let mut diagnostics = Vec::new();
+
+        let error = export_catalog_content(&catalog, &options, Some("de"), &mut diagnostics)
+            .expect_err("missing other category should be rejected");
+
+        assert!(matches!(error, ApiError::Unsupported(message) if message.contains("other")));
+        assert_eq!(diagnostics.len(), 1);
+        assert_eq!(
+            diagnostics[0].code.as_str(),
+            diagnostic_codes::plural::UNSUPPORTED_GETTEXT_EXPORT
+        );
+    }
+
+    #[test]
+    fn base_po_item_renders_origin_without_line_and_can_omit_origins() {
+        let message = singular_message("Hallo");
+        let options = UpdateCatalogOptions::new("en", CatalogUpdateInput::default());
+
+        let item = base_po_item(&message, &options, 1);
+        assert_eq!(item.references, vec!["src/lib.rs"]);
+
+        let options = UpdateCatalogOptions {
+            render: super::super::RenderOptions {
+                include_origins: false,
+                ..Default::default()
+            },
+            ..UpdateCatalogOptions::new("en", CatalogUpdateInput::default())
+        };
+        let item = base_po_item(&message, &options, 1);
+        assert!(item.references.is_empty());
+    }
+
+    #[test]
+    fn machine_translation_metadata_validation_handles_invalid_and_plural_cases() {
+        let mut invalid = singular_message("Hallo");
+        invalid.machine_translation = Some(MachineTranslationMetadata {
+            model: String::new(),
+            modified: None,
+            confidence: None,
+            hash: machine_translation_hash(EffectiveTranslationRef::Singular("Hallo")),
+        });
+        assert!(valid_machine_translation_metadata(&invalid).is_none());
+
+        let translations = BTreeMap::from([
+            ("one".to_owned(), "Artikel".to_owned()),
+            ("other".to_owned(), "Artikel".to_owned()),
+        ]);
+        let hash = machine_translation_hash(EffectiveTranslationRef::Plural(&translations));
+        let mut plural = plural_message(translations);
+        plural.machine_translation = Some(MachineTranslationMetadata {
+            model: "openai/gpt-5.5-high".to_owned(),
+            modified: None,
+            confidence: Some(95),
+            hash: hash.clone(),
+        });
+
+        assert_eq!(
+            valid_machine_translation_metadata(&plural).map(|metadata| metadata.hash.as_str()),
+            Some(hash.as_str())
+        );
+    }
+}
