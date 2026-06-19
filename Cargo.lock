@@ -129,7 +129,7 @@ checksum = "9f1f227452a390804cdb637b74a86990f2a7d7ba4b7d5693aac9b4dd6defd8d6"
 
 [[package]]
 name = "ferrocat"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "ferrocat-icu",
  "ferrocat-po",
@@ -137,7 +137,7 @@ dependencies = [
 
 [[package]]
 name = "ferrocat-bench"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "ferrocat-conformance",
  "ferrocat-icu",
@@ -152,7 +152,7 @@ dependencies = [
 
 [[package]]
 name = "ferrocat-cli"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "ferrocat-po",
  "serde_json",
@@ -161,11 +161,11 @@ dependencies = [
 
 [[package]]
 name = "ferrocat-conformance"
-version = "1.0.0"
+version = "1.1.0"
 
 [[package]]
 name = "ferrocat-icu"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "ferrocat-conformance",
  "proptest",
@@ -175,7 +175,7 @@ dependencies = [
 
 [[package]]
 name = "ferrocat-po"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "ferrocat-conformance",
  "ferrocat-icu",
