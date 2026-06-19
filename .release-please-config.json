@@ -1,5 +1,6 @@
 {
   "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
+  "release-type": "rust",
   "separate-pull-requests": false,
   "plugins": [
     {
@@ -23,40 +24,21 @@
   ],
   "packages": {
     "crates/ferrocat": {
-      "release-type": "rust",
-      "package-name": "ferrocat",
-      "component": "ferrocat",
-      "extra-files": [
-        {
-          "type": "json",
-          "path": "docs/package.json",
-          "jsonpath": "$.version"
-        }
-      ]
+      "component": "ferrocat"
     },
     "crates/ferrocat-po": {
-      "release-type": "rust",
-      "package-name": "ferrocat-po",
       "component": "ferrocat-po"
     },
     "crates/ferrocat-icu": {
-      "release-type": "rust",
-      "package-name": "ferrocat-icu",
       "component": "ferrocat-icu"
     },
     "crates/ferrocat-conformance": {
-      "release-type": "rust",
-      "package-name": "ferrocat-conformance",
       "component": "ferrocat-conformance"
     },
     "crates/ferrocat-bench": {
-      "release-type": "rust",
-      "package-name": "ferrocat-bench",
       "component": "ferrocat-bench"
     },
     "crates/ferrocat-cli": {
-      "release-type": "rust",
-      "package-name": "ferrocat-cli",
       "component": "ferrocat-cli"
     }
   }
