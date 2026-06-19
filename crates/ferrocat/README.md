@@ -7,6 +7,8 @@ Public umbrella crate for the `ferrocat` workspace.
 
 Ferrocat is a Rust-native translation catalog engine. It gives applications and host-language adapters one place to parse, update, audit, validate, and compile translation catalogs into runtime-ready data.
 
+Patch releases may also carry workspace dependency and release-maintenance refreshes that keep the published crate set reproducible.
+
 Add it with:
 
 ```bash
