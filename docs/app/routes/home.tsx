@@ -191,13 +191,16 @@ const proof = [
   { value: "3", label: "catalog modes", detail: "explicit, no hidden defaults" },
 ]
 
-// ── Throughput on a 10k-message catalog, release build ──
+// ── Cross-runtime PO parse throughput, gettext-official-v1 profile ──
+// Same 10k-message gettext catalog, median MiB/s on an Apple M1 Pro.
 
-const perf = [
-  { op: "PO parsing", rate: "540 MiB/s", note: "zero-copy borrowed path" },
-  { op: "PO serialization", rate: "1.1 GiB/s", note: "direct buffer writes" },
-  { op: "Catalog merge", rate: "360 MiB/s", note: "existing translations kept first" },
+const parseCompare = [
+  { name: "Ferrocat", lang: "Rust, zero-copy", rate: 299, self: true },
+  { name: "pofile-ts", lang: "Node", rate: 104 },
+  { name: "gettext-parser", lang: "Node", rate: 18 },
+  { name: "polib", lang: "Python", rate: 10 },
 ]
+const PARSE_MAX = 299
 
 // ── Other open source from the same studio ──
 
@@ -328,25 +331,42 @@ export default function HomePage() {
           <h2>Rust throughput, in a Node-shaped world.</h2>
           <p className="ferro-sublead">
             Most i18n tooling for JavaScript and TypeScript runs on Node, where
-            catalog parsing and validation are interpreted. Ferrocat is compiled
-            Rust: byte-oriented scanning, zero-copy parsing, and SIMD-accelerated
-            escaping on the hot paths.
+            catalog parsing is interpreted. Ferrocat is compiled Rust with
+            byte-oriented scanning and zero-copy reads. The same 10k-message PO
+            file, parsed by each tool on the same machine:
           </p>
         </div>
-        <div className="ferro-perf-board">
-          {perf.map((row) => (
-            <div className="ferro-perf-row" key={row.op}>
-              <span className="ferro-perf-op">{row.op}</span>
-              <span className="ferro-perf-rate">{row.rate}</span>
-              <span className="ferro-perf-note">{row.note}</span>
+        <figure className="ferro-bars">
+          <figcaption>PO parsing throughput · MiB/s · higher is better</figcaption>
+          {parseCompare.map((bar) => (
+            <div
+              className={bar.self ? "ferro-bar is-self" : "ferro-bar"}
+              key={bar.name}
+            >
+              <span className="ferro-bar-label">
+                {bar.name}
+                <span className="ferro-bar-lang">{bar.lang}</span>
+              </span>
+              <span className="ferro-bar-track">
+                <span
+                  className="ferro-bar-fill"
+                  style={{ width: `${(bar.rate / PARSE_MAX) * 100}%` }}
+                />
+              </span>
+              <span className="ferro-bar-value">{bar.rate}</span>
             </div>
           ))}
-        </div>
+        </figure>
         <p className="ferro-perf-foot">
-          Release build on a 10k-message catalog.{" "}
-          <Link to="/performance/benchmarking">See the methodology</Link>, which
-          includes a cross-runtime suite against GNU gettext, Node, and Python
-          tooling.
+          Serialization runs at about 1.1 GiB/s and catalog merge at 333 MiB/s,
+          with comparable margins. Median of repeated runs on an Apple M1 Pro,
+          gettext-official-v1 profile (pofile-ts 4.0.3, gettext-parser 9.0.2,
+          polib 1.2.0). <Link to="/performance/benchmarking">Methodology</Link>{" "}
+          and{" "}
+          <a href="https://github.com/sebastian-software/ferrocat/tree/main/benchmark/results">
+            full report
+          </a>
+          .
         </p>
       </section>
 
