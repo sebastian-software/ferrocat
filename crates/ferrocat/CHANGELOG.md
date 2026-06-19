@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.1.0](https://github.com/sebastian-software/ferrocat/compare/ferrocat-v1.0.0...ferrocat-v1.1.0) (2026-06-19)
+
+
+### Features
+
+* **api:** re-export ndjson streaming APIs ([#117](https://github.com/sebastian-software/ferrocat/issues/117)) ([15d3b9d](https://github.com/sebastian-software/ferrocat/commit/15d3b9dc4eb35289adac77b28d4f97216c72ad47))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * ferrocat-icu bumped from 1.0.0 to 1.1.0
+    * ferrocat-po bumped from 1.0.0 to 1.1.0
+
 ## [1.0.0](https://github.com/sebastian-software/ferrocat/compare/ferrocat-v0.13.0...ferrocat-v1.0.0) (2026-06-18)
 
 

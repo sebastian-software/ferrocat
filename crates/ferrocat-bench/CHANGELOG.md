@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.0](https://github.com/sebastian-software/ferrocat/compare/ferrocat-bench-v1.0.0...ferrocat-bench-v1.1.0) (2026-06-19)
+
+
+### Miscellaneous Chores
+
+* **ferrocat-bench:** Synchronize ferrocat versions
+
 ## [1.0.0](https://github.com/sebastian-software/ferrocat/compare/ferrocat-bench-v0.13.0...ferrocat-bench-v1.0.0) (2026-06-18)
 
 

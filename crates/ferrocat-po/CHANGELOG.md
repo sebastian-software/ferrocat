@@ -1,5 +1,24 @@
 # Changelog
 
+## [1.1.0](https://github.com/sebastian-software/ferrocat/compare/ferrocat-po-v1.0.0...ferrocat-po-v1.1.0) (2026-06-19)
+
+
+### Features
+
+* **po:** add bytes parser charset guard ([#115](https://github.com/sebastian-software/ferrocat/issues/115)) ([e9873a0](https://github.com/sebastian-software/ferrocat/commit/e9873a096f609d0658dd31363fe7de645d97fdeb))
+
+
+### Bug Fixes
+
+* **po:** align parser line ending handling ([#123](https://github.com/sebastian-software/ferrocat/issues/123)) ([f9007b8](https://github.com/sebastian-software/ferrocat/commit/f9007b8de2a914d246aef388855a90d71575cfb4))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * ferrocat-icu bumped from 1.0.0 to 1.1.0
+
 ## [1.0.0](https://github.com/sebastian-software/ferrocat/compare/ferrocat-po-v0.13.0...ferrocat-po-v1.0.0) (2026-06-18)
 
 
