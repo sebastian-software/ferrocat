@@ -8,6 +8,7 @@ import type { SidebarItem } from "ardo"
 import config from "virtual:ardo/config"
 import sidebar from "virtual:ardo/sidebar"
 import type { MetaFunction } from "react-router"
+import { version } from "../package.json"
 import {
   BookOpen,
   Box,
@@ -87,7 +88,7 @@ export default function Root() {
         project: undefined,
         children: (
           <p className="ferro-footer-note">
-            Ferrocat Docs v0.9.0
+            Ferrocat Docs v{version}
             <span>Performance-first localization tooling for Gettext, ICU MessageFormat, and JSON-oriented delivery.</span>
           </p>
         ),
