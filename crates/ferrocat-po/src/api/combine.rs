@@ -8,9 +8,9 @@ use std::collections::{BTreeMap, BTreeSet};
 use crate::diagnostic_codes;
 
 use super::catalog::{
-    CanonicalMessage, CanonicalTranslation, Catalog, apply_header_defaults, export_catalog_content,
-    sort_messages,
+    CanonicalMessage, CanonicalTranslation, Catalog, apply_header_defaults, sort_messages,
 };
+use super::export::export_catalog_content;
 use super::helpers::{merge_placeholders, merge_unique_origins, merge_unique_strings};
 use super::{
     ApiError, CatalogCombineResult, CatalogCombineStats, CatalogConflictStrategy,

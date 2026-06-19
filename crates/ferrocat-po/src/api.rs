@@ -3,6 +3,7 @@ mod catalog;
 mod combine;
 mod compile;
 mod compile_types;
+mod export;
 mod file_io;
 mod helpers;
 mod mt;

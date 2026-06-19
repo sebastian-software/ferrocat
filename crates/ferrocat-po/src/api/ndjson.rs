@@ -4,9 +4,10 @@ use std::io::{BufRead, Write};
 use serde::{Deserialize, Serialize};
 
 use super::catalog::{
-    CanonicalMessage, CanonicalTranslation, Catalog, append_placeholder_comments,
-    plural_source_branches, public_message_from_canonical, split_placeholder_comments,
+    CanonicalMessage, CanonicalTranslation, Catalog, public_message_from_canonical,
+    split_placeholder_comments,
 };
+use super::export::{append_placeholder_comments, plural_source_branches};
 use super::mt::{
     MachineTranslationMetadata, machine_translation_hash, validate_machine_translation_metadata,
 };
