@@ -640,6 +640,146 @@ fn compile_catalog_artifact_collects_or_raises_invalid_icu_messages() {
 }
 
 #[test]
+fn compile_catalog_artifact_strict_policy_reports_literal_apostrophes() {
+    let source = normalized_catalog(
+        "msgid \"Hours\"\nmsgstr \"Hours\"\n",
+        Some("en"),
+        PluralEncoding::Icu,
+    );
+    let requested = normalized_catalog(
+        "msgid \"Hours\"\nmsgstr \"You're available.\"\n",
+        Some("de"),
+        PluralEncoding::Icu,
+    );
+
+    let artifact = compile_catalog_artifact(
+        &[&requested, &source],
+        &CompileCatalogArtifactOptions::new("de", "en"),
+    )
+    .expect("compile artifact");
+
+    assert!(
+        artifact
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == "compile.invalid_icu_message")
+    );
+}
+
+#[test]
+fn compile_catalog_artifact_runtime_literal_apostrophes_policy_accepts_runtime_valid_messages() {
+    let source = normalized_catalog(
+        "msgid \"Openings\"\nmsgstr \"Openings\"\n",
+        Some("en"),
+        PluralEncoding::Icu,
+    );
+    let requested = normalized_catalog(
+        "msgid \"Openings\"\nmsgstr \"We've got {count, plural, one {one opening} other {# openings}}.\"\n",
+        Some("de"),
+        PluralEncoding::Icu,
+    );
+
+    let artifact = compile_catalog_artifact_with_icu_options(
+        &[&requested, &source],
+        &CompileCatalogArtifactOptions::new("de", "en"),
+        &CompileCatalogArtifactIcuOptions::new()
+            .with_syntax_policy(IcuSyntaxPolicy::RuntimeLiteralApostrophes),
+    )
+    .expect("compile artifact");
+
+    assert!(artifact.diagnostics.is_empty());
+}
+
+#[test]
+fn compile_catalog_artifact_selected_uses_runtime_literal_apostrophes_policy() {
+    let source = normalized_catalog(
+        "msgid \"Hours\"\nmsgstr \"Hours\"\n",
+        Some("en"),
+        PluralEncoding::Icu,
+    );
+    let requested = normalized_catalog(
+        "msgid \"Hours\"\nmsgstr \"You're available.\"\n",
+        Some("de"),
+        PluralEncoding::Icu,
+    );
+    let index =
+        CompiledCatalogIdIndex::new(&[&requested, &source], CompiledKeyStrategy::FerrocatV1)
+            .expect("index");
+    let compiled_ids = index
+        .iter()
+        .map(|(id, _)| id.to_owned())
+        .collect::<Vec<_>>();
+
+    let artifact = compile_catalog_artifact_selected_with_icu_options(
+        &[&requested, &source],
+        &index,
+        &CompileSelectedCatalogArtifactOptions {
+            compiled_ids: &compiled_ids,
+            options: CompileCatalogArtifactOptions::new("de", "en"),
+        },
+        &CompileCatalogArtifactIcuOptions::new()
+            .with_syntax_policy(IcuSyntaxPolicy::RuntimeLiteralApostrophes),
+    )
+    .expect("compile selected artifact");
+
+    assert!(artifact.diagnostics.is_empty());
+}
+
+#[test]
+fn strict_icu_respects_runtime_literal_apostrophes_policy() {
+    let source = normalized_catalog(
+        "msgid \"Hours\"\nmsgstr \"Hours\"\n",
+        Some("en"),
+        PluralEncoding::Icu,
+    );
+    let requested = normalized_catalog(
+        "msgid \"Hours\"\nmsgstr \"You're available.\"\n",
+        Some("de"),
+        PluralEncoding::Icu,
+    );
+
+    let artifact = compile_catalog_artifact_with_icu_options(
+        &[&requested, &source],
+        &CompileCatalogArtifactOptions {
+            strict_icu: true,
+            ..CompileCatalogArtifactOptions::new("de", "en")
+        },
+        &CompileCatalogArtifactIcuOptions::new()
+            .with_syntax_policy(IcuSyntaxPolicy::RuntimeLiteralApostrophes),
+    )
+    .expect("strict runtime-valid artifact");
+
+    assert!(artifact.diagnostics.is_empty());
+}
+
+#[test]
+fn strict_icu_keeps_real_syntax_errors_with_runtime_literal_apostrophes_policy() {
+    let source = normalized_catalog(
+        "msgid \"Hello\"\nmsgstr \"Hello\"\n",
+        Some("en"),
+        PluralEncoding::Icu,
+    );
+    let requested = normalized_catalog(
+        "msgid \"Hello\"\nmsgstr \"Hello {{name}}\"\n",
+        Some("de"),
+        PluralEncoding::Icu,
+    );
+
+    let error = compile_catalog_artifact_with_icu_options(
+        &[&requested, &source],
+        &CompileCatalogArtifactOptions {
+            strict_icu: true,
+            ..CompileCatalogArtifactOptions::new("de", "en")
+        },
+        &CompileCatalogArtifactIcuOptions::new()
+            .with_syntax_policy(IcuSyntaxPolicy::RuntimeLiteralApostrophes),
+    )
+    .expect_err("real invalid icu should fail");
+
+    assert!(matches!(error, ApiError::Unsupported(_)));
+}
+
+#[test]
 fn compile_catalog_artifact_icu_compatibility_is_optional() {
     let source = normalized_catalog(
         "msgid \"{count, number, integer} for {name}\"\nmsgstr \"{count, number, integer} for {name}\"\n",

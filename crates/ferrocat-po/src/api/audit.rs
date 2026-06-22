@@ -2,16 +2,17 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use ferrocat_icu::{
     IcuCompatibilityOptions, IcuDiagnosticSeverity, MessageMetadataInput, compare_icu_messages,
-    normalize_message_metadata, parse_icu, validate_message_metadata,
+    normalize_message_metadata, validate_message_metadata,
 };
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
 use crate::diagnostic_codes;
 
+use super::icu_syntax::parse_icu_with_syntax_policy;
 use super::{
     ApiError, CatalogMessage, CatalogMessageKey, DiagnosticSeverity, EffectiveTranslationRef,
-    NormalizedParsedCatalog, validate_source_locale,
+    IcuSyntaxPolicy, NormalizedParsedCatalog, validate_source_locale,
 };
 
 /// Options controlling catalog audit checks.
@@ -35,6 +36,29 @@ impl<'a> CatalogAuditOptions<'a> {
             source_locale,
             ..Self::default()
         }
+    }
+}
+
+/// ICU-specific options used by catalog audit checks.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[non_exhaustive]
+pub struct CatalogAuditIcuOptions {
+    /// ICU parser behavior used by syntax and compatibility checks.
+    pub syntax_policy: IcuSyntaxPolicy,
+}
+
+impl CatalogAuditIcuOptions {
+    /// Creates audit ICU options with default strict parser behavior.
+    #[must_use]
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Returns options that parse messages with the given ICU syntax policy.
+    #[must_use]
+    pub fn with_syntax_policy(mut self, syntax_policy: IcuSyntaxPolicy) -> Self {
+        self.syntax_policy = syntax_policy;
+        self
     }
 }
 
@@ -204,6 +228,21 @@ pub fn audit_catalogs(
     catalogs: &[&NormalizedParsedCatalog],
     options: &CatalogAuditOptions<'_>,
 ) -> Result<CatalogAuditReport, ApiError> {
+    audit_catalogs_with_icu_options(catalogs, options, &CatalogAuditIcuOptions::default())
+}
+
+/// Audits normalized catalogs with explicit ICU syntax options.
+///
+/// # Errors
+///
+/// Returns [`ApiError::InvalidArguments`] when `source_locale` is empty or when
+/// catalogs cannot be inspected because their declared locales are missing or
+/// duplicated.
+pub fn audit_catalogs_with_icu_options(
+    catalogs: &[&NormalizedParsedCatalog],
+    options: &CatalogAuditOptions<'_>,
+    icu_options: &CatalogAuditIcuOptions,
+) -> Result<CatalogAuditReport, ApiError> {
     validate_source_locale(options.source_locale)?;
     let catalog_index = index_catalogs(catalogs)?;
     let mut report = CatalogAuditReport::default();
@@ -228,7 +267,14 @@ pub fn audit_catalogs(
     let source_locale = source_catalog.parsed_catalog().locale.as_deref();
 
     if options.checks.fuzzy_flags || options.checks.obsolete_entries || options.checks.icu_syntax {
-        audit_catalog_entries(source_catalog, source_locale, true, options, &mut report);
+        audit_catalog_entries(
+            source_catalog,
+            source_locale,
+            true,
+            options,
+            icu_options,
+            &mut report,
+        );
     }
     if options.checks.semantic_metadata {
         audit_metadata(options.metadata, &source_keys, &mut report);
@@ -243,6 +289,7 @@ pub fn audit_catalogs(
             Some(target_locale),
             false,
             options,
+            icu_options,
             &mut report,
         );
         audit_target_catalog(
@@ -250,6 +297,7 @@ pub fn audit_catalogs(
             target_locale,
             &source_keys,
             options,
+            icu_options,
             &mut report,
         );
     }
@@ -330,6 +378,7 @@ fn audit_catalog_entries(
     locale: Option<&str>,
     validate_source_identity: bool,
     options: &CatalogAuditOptions<'_>,
+    icu_options: &CatalogAuditIcuOptions,
     report: &mut CatalogAuditReport,
 ) {
     for (key, message) in catalog.iter() {
@@ -353,7 +402,13 @@ fn audit_catalog_entries(
             ));
         }
         if options.checks.icu_syntax && !message.obsolete {
-            audit_icu_syntax_for_message(message, validate_source_identity, &message_ref, report);
+            audit_icu_syntax_for_message(
+                message,
+                validate_source_identity,
+                icu_options.syntax_policy,
+                &message_ref,
+                report,
+            );
         }
     }
 }
@@ -363,6 +418,7 @@ fn audit_target_catalog(
     target_locale: &str,
     source_keys: &BTreeSet<CatalogMessageKey>,
     options: &CatalogAuditOptions<'_>,
+    icu_options: &CatalogAuditIcuOptions,
     report: &mut CatalogAuditReport,
 ) {
     if options.checks.completeness {
@@ -408,13 +464,20 @@ fn audit_target_catalog(
     }
 
     if options.checks.icu_compatibility {
-        audit_icu_compatibility(target_catalog, target_locale, source_keys, report);
+        audit_icu_compatibility(
+            target_catalog,
+            target_locale,
+            source_keys,
+            icu_options,
+            report,
+        );
     }
 }
 
 fn audit_icu_syntax_for_message(
     message: &CatalogMessage,
     validate_source_identity: bool,
+    syntax_policy: IcuSyntaxPolicy,
     message_ref: &CatalogAuditMessageRef,
     report: &mut CatalogAuditReport,
 ) {
@@ -422,7 +485,7 @@ fn audit_icu_syntax_for_message(
         if value.trim().is_empty() {
             continue;
         }
-        if let Err(error) = parse_icu(value) {
+        if let Err(error) = parse_icu_with_syntax_policy(value, syntax_policy) {
             report.diagnostics.push(CatalogAuditDiagnostic::new(
                 DiagnosticSeverity::Error,
                 diagnostic_codes::icu::INVALID_SYNTAX,
@@ -438,6 +501,7 @@ fn audit_icu_compatibility(
     target_catalog: &NormalizedParsedCatalog,
     target_locale: &str,
     source_keys: &BTreeSet<CatalogMessageKey>,
+    icu_options: &CatalogAuditIcuOptions,
     report: &mut CatalogAuditReport,
 ) {
     for key in source_keys {
@@ -451,10 +515,11 @@ fn audit_icu_compatibility(
             continue;
         };
 
-        let Ok(source) = parse_icu(&key.msgid) else {
+        let Ok(source) = parse_icu_with_syntax_policy(&key.msgid, icu_options.syntax_policy) else {
             continue;
         };
-        let Ok(translation) = parse_icu(target_value) else {
+        let Ok(translation) = parse_icu_with_syntax_policy(target_value, icu_options.syntax_policy)
+        else {
             continue;
         };
         let compatibility =

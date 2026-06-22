@@ -6,21 +6,20 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use ferrocat_icu::{
-    IcuCompatibilityOptions, IcuDiagnosticSeverity, compare_icu_messages, parse_icu,
-};
+use ferrocat_icu::{IcuCompatibilityOptions, IcuDiagnosticSeverity, compare_icu_messages};
 use sha2::{Digest, Sha256};
 
 use crate::diagnostic_codes;
 
+use super::icu_syntax::parse_icu_with_syntax_policy;
 use super::plural::synthesize_icu_plural;
 use super::{
-    ApiError, CatalogMessage, CatalogMessageKey, CatalogSemantics, CompileCatalogArtifactOptions,
-    CompileCatalogOptions, CompileSelectedCatalogArtifactOptions, CompiledCatalog,
-    CompiledCatalogArtifact, CompiledCatalogDiagnostic, CompiledCatalogIdIndex,
-    CompiledCatalogMissingMessage, CompiledCatalogTranslationKind, CompiledKeyStrategy,
-    CompiledMessage, CompiledTranslation, DiagnosticSeverity, EffectiveTranslation,
-    NormalizedParsedCatalog, TranslationShape,
+    ApiError, CatalogMessage, CatalogMessageKey, CatalogSemantics,
+    CompileCatalogArtifactIcuOptions, CompileCatalogArtifactOptions, CompileCatalogOptions,
+    CompileSelectedCatalogArtifactOptions, CompiledCatalog, CompiledCatalogArtifact,
+    CompiledCatalogDiagnostic, CompiledCatalogIdIndex, CompiledCatalogMissingMessage,
+    CompiledCatalogTranslationKind, CompiledKeyStrategy, CompiledMessage, CompiledTranslation,
+    DiagnosticSeverity, EffectiveTranslation, NormalizedParsedCatalog, TranslationShape,
 };
 
 impl NormalizedParsedCatalog {
@@ -130,6 +129,13 @@ struct ResolvedArtifactMessage {
     message: String,
 }
 
+#[derive(Debug, Clone, Copy)]
+struct CompiledIcuDiagnosticTarget<'a> {
+    source_key: &'a CatalogMessageKey,
+    compiled_key: &'a str,
+    locale: &'a str,
+}
+
 /// Compiles one requested-locale runtime artifact from one or more normalized catalogs.
 ///
 /// The artifact is host-neutral: it produces the final runtime message strings keyed by
@@ -145,6 +151,26 @@ pub fn compile_catalog_artifact(
     catalogs: &[&NormalizedParsedCatalog],
     options: &CompileCatalogArtifactOptions<'_>,
 ) -> Result<CompiledCatalogArtifact, ApiError> {
+    compile_catalog_artifact_with_icu_options(
+        catalogs,
+        options,
+        &CompileCatalogArtifactIcuOptions::default(),
+    )
+}
+
+/// Compiles one requested-locale runtime artifact with explicit ICU syntax options.
+///
+/// # Errors
+///
+/// Returns [`ApiError::InvalidArguments`] when required locales are missing, duplicated,
+/// or inconsistent with the provided catalog set; [`ApiError::Conflict`] when two source
+/// identities compile to the same derived key; or [`ApiError::Unsupported`] when
+/// `strict_icu` is enabled and a final runtime message fails ICU validation.
+pub fn compile_catalog_artifact_with_icu_options(
+    catalogs: &[&NormalizedParsedCatalog],
+    options: &CompileCatalogArtifactOptions<'_>,
+    icu_options: &CompileCatalogArtifactIcuOptions,
+) -> Result<CompiledCatalogArtifact, ApiError> {
     let locales = prepare_compiled_catalog_artifact_catalogs(
         catalogs,
         options.requested_locale,
@@ -156,6 +182,7 @@ pub fn compile_catalog_artifact(
         &locales,
         collect_compiled_catalog_artifact_source_keys(&locales),
         options,
+        icu_options,
     )
 }
 
@@ -171,6 +198,28 @@ pub fn compile_catalog_artifact_selected(
     catalogs: &[&NormalizedParsedCatalog],
     index: &CompiledCatalogIdIndex,
     options: &CompileSelectedCatalogArtifactOptions<'_>,
+) -> Result<CompiledCatalogArtifact, ApiError> {
+    compile_catalog_artifact_selected_with_icu_options(
+        catalogs,
+        index,
+        options,
+        &CompileCatalogArtifactIcuOptions::default(),
+    )
+}
+
+/// Compiles a selected subset of compiled IDs with explicit ICU syntax options.
+///
+/// # Errors
+///
+/// Returns [`ApiError::InvalidArguments`] when the selected IDs are unknown or the
+/// catalog inputs are inconsistent, [`ApiError::Conflict`] on compiled-key collisions,
+/// or [`ApiError::Unsupported`] when `strict_icu` is enabled and a final runtime
+/// message fails ICU validation.
+pub fn compile_catalog_artifact_selected_with_icu_options(
+    catalogs: &[&NormalizedParsedCatalog],
+    index: &CompiledCatalogIdIndex,
+    options: &CompileSelectedCatalogArtifactOptions<'_>,
+    icu_options: &CompileCatalogArtifactIcuOptions,
 ) -> Result<CompiledCatalogArtifact, ApiError> {
     let artifact_options = &options.options;
     let locales = prepare_compiled_catalog_artifact_catalogs(
@@ -198,7 +247,7 @@ pub fn compile_catalog_artifact_selected(
         source_keys.insert(source_key.clone());
     }
 
-    compile_catalog_artifact_from_source_keys(&locales, source_keys, artifact_options)
+    compile_catalog_artifact_from_source_keys(&locales, source_keys, artifact_options, icu_options)
 }
 
 fn compiled_translation_for_message(
@@ -477,6 +526,7 @@ fn compile_catalog_artifact_from_source_keys<I>(
     locales: &BTreeMap<String, &NormalizedParsedCatalog>,
     source_keys: I,
     options: &CompileCatalogArtifactOptions<'_>,
+    icu_options: &CompileCatalogArtifactIcuOptions,
 ) -> Result<CompiledCatalogArtifact, ApiError>
 where
     I: IntoIterator<Item = CatalogMessageKey>,
@@ -514,7 +564,10 @@ where
             continue;
         };
 
-        let resolved_icu = match parse_icu(&resolved.message) {
+        let resolved_icu = match parse_icu_with_syntax_policy(
+            &resolved.message,
+            icu_options.syntax_policy,
+        ) {
             Ok(message) => Some(message),
             Err(error) => {
                 if options.strict_icu {
@@ -539,11 +592,14 @@ where
         if let Some(resolved_icu) = resolved_icu.as_ref() {
             push_icu_compatibility_diagnostics(
                 locales,
-                &source_key,
-                &compiled_key,
-                &resolved,
+                CompiledIcuDiagnosticTarget {
+                    source_key: &source_key,
+                    compiled_key: &compiled_key,
+                    locale: resolved.locale.as_str(),
+                },
                 resolved_icu,
                 options,
+                icu_options,
                 &mut artifact,
             );
         }
@@ -556,11 +612,10 @@ where
 
 fn push_icu_compatibility_diagnostics(
     locales: &BTreeMap<String, &NormalizedParsedCatalog>,
-    source_key: &CatalogMessageKey,
-    compiled_key: &str,
-    resolved: &ResolvedArtifactMessage,
+    target: CompiledIcuDiagnosticTarget<'_>,
     resolved_icu: &ferrocat_icu::IcuMessage,
     options: &CompileCatalogArtifactOptions<'_>,
+    icu_options: &CompileCatalogArtifactIcuOptions,
     artifact: &mut CompiledCatalogArtifact,
 ) {
     if !options.icu_compatibility {
@@ -571,13 +626,14 @@ fn push_icu_compatibility_diagnostics(
     };
     let Some(source_message) = rendered_compiled_catalog_artifact_message(
         source_catalog,
-        source_key,
+        target.source_key,
         options.source_locale,
         true,
     ) else {
         return;
     };
-    let Ok(source_icu) = parse_icu(&source_message) else {
+    let Ok(source_icu) = parse_icu_with_syntax_policy(&source_message, icu_options.syntax_policy)
+    else {
         return;
     };
 
@@ -591,10 +647,10 @@ fn push_icu_compatibility_diagnostics(
             severity: icu_diagnostic_severity(diagnostic.severity),
             code: diagnostic.code,
             message: diagnostic.message,
-            key: compiled_key.to_owned(),
-            msgid: source_key.msgid.clone(),
-            msgctxt: source_key.msgctxt.clone(),
-            locale: resolved.locale.clone(),
+            key: target.compiled_key.to_owned(),
+            msgid: target.source_key.msgid.clone(),
+            msgctxt: target.source_key.msgctxt.clone(),
+            locale: target.locale.to_owned(),
         });
     }
 }

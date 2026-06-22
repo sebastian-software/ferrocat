@@ -663,6 +663,21 @@ pub enum CatalogSemantics {
     GettextCompat,
 }
 
+/// ICU parser behavior used by catalog audit and runtime artifact validation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[non_exhaustive]
+pub enum IcuSyntaxPolicy {
+    /// Parse ICU MessageFormat v1 with Ferrocat's strict apostrophe rules.
+    #[default]
+    Strict,
+    /// Treat ordinary literal apostrophes as runtime-valid text before parsing.
+    ///
+    /// Use this when a downstream runtime accepts messages such as `you're`
+    /// and `We've got {count, plural, one {...} other {...}}` without requiring
+    /// translators to double every literal apostrophe.
+    RuntimeLiteralApostrophes,
+}
+
 /// Valid high-level catalog mode combinations.
 ///
 /// This type groups the storage format, semantic model, and plural encoding

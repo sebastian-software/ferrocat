@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 
 use super::{
-    ApiError, CatalogMessageKey, CatalogSemantics, NormalizedParsedCatalog,
+    ApiError, CatalogMessageKey, CatalogSemantics, IcuSyntaxPolicy, NormalizedParsedCatalog,
     compile::{
         compiled_catalog_translation_kind_for_message, compiled_key_for,
         describe_compiled_id_catalogs,
@@ -114,6 +114,29 @@ impl<'a> CompileCatalogArtifactOptions<'a> {
             icu_compatibility: false,
             semantics: CatalogSemantics::IcuNative,
         }
+    }
+}
+
+/// ICU-specific options used while compiling catalog artifacts.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[non_exhaustive]
+pub struct CompileCatalogArtifactIcuOptions {
+    /// ICU parser behavior used for final runtime message validation.
+    pub syntax_policy: IcuSyntaxPolicy,
+}
+
+impl CompileCatalogArtifactIcuOptions {
+    /// Creates artifact ICU options with default strict parser behavior.
+    #[must_use]
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Returns options that parse messages with the given ICU syntax policy.
+    #[must_use]
+    pub fn with_syntax_policy(mut self, syntax_policy: IcuSyntaxPolicy) -> Self {
+        self.syntax_policy = syntax_policy;
+        self
     }
 }
 

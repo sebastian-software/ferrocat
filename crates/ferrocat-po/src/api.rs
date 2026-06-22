@@ -6,26 +6,31 @@ mod compile_types;
 mod export;
 mod file_io;
 mod helpers;
+mod icu_syntax;
 mod mt;
 mod ndjson;
 mod plural;
 mod types;
 
 pub use self::audit::{
-    CatalogAuditChecks, CatalogAuditDiagnostic, CatalogAuditMessageRef, CatalogAuditOptions,
-    CatalogAuditReport, CatalogAuditSummary, audit_catalogs,
+    CatalogAuditChecks, CatalogAuditDiagnostic, CatalogAuditIcuOptions, CatalogAuditMessageRef,
+    CatalogAuditOptions, CatalogAuditReport, CatalogAuditSummary, audit_catalogs,
+    audit_catalogs_with_icu_options,
 };
 pub use self::catalog::{parse_catalog, update_catalog, update_catalog_file};
 pub use self::combine::combine_catalogs;
 pub use self::compile::{
-    compile_catalog_artifact, compile_catalog_artifact_selected, compiled_key,
+    compile_catalog_artifact, compile_catalog_artifact_selected,
+    compile_catalog_artifact_selected_with_icu_options, compile_catalog_artifact_with_icu_options,
+    compiled_key,
 };
 pub use self::compile_types::{
-    COMPILED_CATALOG_ARTIFACT_SCHEMA_VERSION, CompileCatalogArtifactOptions, CompileCatalogOptions,
-    CompileSelectedCatalogArtifactOptions, CompiledCatalog, CompiledCatalogArtifact,
-    CompiledCatalogDiagnostic, CompiledCatalogIdDescription, CompiledCatalogIdIndex,
-    CompiledCatalogMissingMessage, CompiledCatalogTranslationKind, CompiledCatalogUnavailableId,
-    CompiledKeyStrategy, CompiledMessage, CompiledTranslation, DescribeCompiledIdsReport,
+    COMPILED_CATALOG_ARTIFACT_SCHEMA_VERSION, CompileCatalogArtifactIcuOptions,
+    CompileCatalogArtifactOptions, CompileCatalogOptions, CompileSelectedCatalogArtifactOptions,
+    CompiledCatalog, CompiledCatalogArtifact, CompiledCatalogDiagnostic,
+    CompiledCatalogIdDescription, CompiledCatalogIdIndex, CompiledCatalogMissingMessage,
+    CompiledCatalogTranslationKind, CompiledCatalogUnavailableId, CompiledKeyStrategy,
+    CompiledMessage, CompiledTranslation, DescribeCompiledIdsReport,
 };
 pub use self::mt::{MachineTranslationMetadata, machine_translation_hash};
 pub use self::ndjson::{
@@ -38,10 +43,10 @@ pub use self::types::{
     CatalogMessageKey, CatalogMode, CatalogOrigin, CatalogSemantics, CatalogStats,
     CatalogStorageFormat, CatalogUpdateInput, CatalogUpdateResult, CombineCatalogOptions,
     Diagnostic, DiagnosticSeverity, EffectiveTranslation, EffectiveTranslationRef,
-    ExtractedMessage, ExtractedPluralMessage, ExtractedSingularMessage, NormalizedParsedCatalog,
-    ObsoleteStrategy, OrderBy, ParseCatalogOptions, ParsedCatalog, PlaceholderCommentMode,
-    PluralEncoding, PluralSource, RenderOptions, SourceExtractedMessage, TranslationShape,
-    UpdateCatalogFileOptions, UpdateCatalogOptions,
+    ExtractedMessage, ExtractedPluralMessage, ExtractedSingularMessage, IcuSyntaxPolicy,
+    NormalizedParsedCatalog, ObsoleteStrategy, OrderBy, ParseCatalogOptions, ParsedCatalog,
+    PlaceholderCommentMode, PluralEncoding, PluralSource, RenderOptions, SourceExtractedMessage,
+    TranslationShape, UpdateCatalogFileOptions, UpdateCatalogOptions,
 };
 
 fn validate_source_locale(source_locale: &str) -> Result<(), ApiError> {
