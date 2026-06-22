@@ -507,6 +507,11 @@ Important semantics:
   `CompileCatalogArtifactIcuOptions` set to
   `IcuSyntaxPolicy::RuntimeLiteralApostrophes` when the runtime accepts ordinary
   literal apostrophes
+- runtime-specific formatter support diagnostics are opt-in with
+  `CompileCatalogArtifactIcuOptions::with_formatter_support`; the callback
+  decides which ICU formatter kinds and styles are supported while Ferrocat
+  attaches compiled-key, source-key, and resolved locale metadata to the emitted
+  diagnostics
 
 ### `compile_catalog_artifact_selected`
 

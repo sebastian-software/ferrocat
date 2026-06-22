@@ -1,3 +1,5 @@
+use ferrocat_icu::{IcuArgumentKind, IcuDiagnosticSeverity, IcuFormatter, IcuFormatterSupport};
+
 use super::*;
 
 #[test]
@@ -777,6 +779,180 @@ fn strict_icu_keeps_real_syntax_errors_with_runtime_literal_apostrophes_policy()
     .expect_err("real invalid icu should fail");
 
     assert!(matches!(error, ApiError::Unsupported(_)));
+}
+
+#[test]
+fn compile_catalog_artifact_formatter_support_accepts_supported_runtime_styles() {
+    let source = normalized_catalog(
+        concat!(
+            "msgid \"Number default\"\nmsgstr \"Number default\"\n\n",
+            "msgid \"Number percent\"\nmsgstr \"Number percent\"\n\n",
+            "msgid \"Number integer\"\nmsgstr \"Number integer\"\n\n",
+            "msgid \"Number skeleton percent\"\nmsgstr \"Number skeleton percent\"\n\n",
+            "msgid \"Number skeleton integer\"\nmsgstr \"Number skeleton integer\"\n\n",
+            "msgid \"Number skeleton currency\"\nmsgstr \"Number skeleton currency\"\n\n",
+            "msgid \"Date short\"\nmsgstr \"Date short\"\n\n",
+            "msgid \"Time full\"\nmsgstr \"Time full\"\n",
+        ),
+        Some("en"),
+        PluralEncoding::Icu,
+    );
+    let requested = normalized_catalog(
+        concat!(
+            "msgid \"Number default\"\nmsgstr \"{count, number}\"\n\n",
+            "msgid \"Number percent\"\nmsgstr \"{ratio, number, percent}\"\n\n",
+            "msgid \"Number integer\"\nmsgstr \"{count, number, integer}\"\n\n",
+            "msgid \"Number skeleton percent\"\nmsgstr \"{ratio, number, ::percent}\"\n\n",
+            "msgid \"Number skeleton integer\"\nmsgstr \"{count, number, ::integer}\"\n\n",
+            "msgid \"Number skeleton currency\"\nmsgstr \"{price, number, ::currency/USD}\"\n\n",
+            "msgid \"Date short\"\nmsgstr \"{created, date, short}\"\n\n",
+            "msgid \"Time full\"\nmsgstr \"{created, time, full}\"\n",
+        ),
+        Some("de"),
+        PluralEncoding::Icu,
+    );
+
+    let artifact = compile_catalog_artifact_with_icu_options(
+        &[&requested, &source],
+        &CompileCatalogArtifactOptions::new("de", "en"),
+        &CompileCatalogArtifactIcuOptions::new().with_formatter_support(runtime_formatter_support),
+    )
+    .expect("compile artifact");
+
+    assert!(artifact.diagnostics.is_empty());
+}
+
+#[test]
+fn compile_catalog_artifact_formatter_support_reports_unsupported_styles_and_kinds() {
+    let source = normalized_catalog(
+        concat!(
+            "msgid \"Currency predefined\"\nmsgstr \"Currency predefined\"\n\n",
+            "msgid \"List formatter\"\nmsgstr \"List formatter\"\n",
+        ),
+        Some("en"),
+        PluralEncoding::Icu,
+    );
+    let requested = normalized_catalog(
+        concat!(
+            "msgid \"Currency predefined\"\nmsgstr \"{price, number, currency}\"\n\n",
+            "msgid \"List formatter\"\nmsgstr \"{items, list}\"\n",
+        ),
+        Some("de"),
+        PluralEncoding::Icu,
+    );
+
+    let artifact = compile_catalog_artifact_with_icu_options(
+        &[&requested, &source],
+        &CompileCatalogArtifactOptions::new("de", "en"),
+        &CompileCatalogArtifactIcuOptions::new().with_formatter_support(runtime_formatter_support),
+    )
+    .expect("compile artifact");
+
+    assert!(artifact.diagnostics.iter().any(|diagnostic| {
+        diagnostic.code == "icu.unsupported_formatter_style"
+            && diagnostic.severity == DiagnosticSeverity::Warning
+            && diagnostic.msgid == "Currency predefined"
+            && diagnostic.locale == "de"
+    }));
+    assert!(artifact.diagnostics.iter().any(|diagnostic| {
+        diagnostic.code == "icu.unsupported_formatter_kind"
+            && diagnostic.severity == DiagnosticSeverity::Error
+            && diagnostic.msgid == "List formatter"
+            && diagnostic.locale == "de"
+    }));
+}
+
+#[test]
+fn compile_catalog_artifact_selected_uses_formatter_support_diagnostics() {
+    let source = normalized_catalog(
+        "msgid \"List formatter\"\nmsgstr \"List formatter\"\n",
+        Some("en"),
+        PluralEncoding::Icu,
+    );
+    let requested = normalized_catalog(
+        "msgid \"List formatter\"\nmsgstr \"{items, list}\"\n",
+        Some("de"),
+        PluralEncoding::Icu,
+    );
+    let index =
+        CompiledCatalogIdIndex::new(&[&requested, &source], CompiledKeyStrategy::FerrocatV1)
+            .expect("index");
+    let compiled_ids = index
+        .iter()
+        .map(|(id, _)| id.to_owned())
+        .collect::<Vec<_>>();
+
+    let artifact = compile_catalog_artifact_selected_with_icu_options(
+        &[&requested, &source],
+        &index,
+        &CompileSelectedCatalogArtifactOptions {
+            compiled_ids: &compiled_ids,
+            options: CompileCatalogArtifactOptions::new("de", "en"),
+        },
+        &CompileCatalogArtifactIcuOptions::new().with_formatter_support(runtime_formatter_support),
+    )
+    .expect("compile selected artifact");
+
+    let diagnostic = artifact
+        .diagnostics
+        .iter()
+        .find(|diagnostic| diagnostic.code == "icu.unsupported_formatter_kind")
+        .expect("formatter diagnostic");
+    assert_eq!(diagnostic.msgid, "List formatter");
+    assert_eq!(diagnostic.locale, "de");
+    assert!(artifact.messages.contains_key(&diagnostic.key));
+}
+
+fn runtime_formatter_support(formatter: &IcuFormatter) -> IcuFormatterSupport {
+    match formatter.kind {
+        IcuArgumentKind::Number => runtime_formatter_style_support(
+            is_supported_runtime_number_style(formatter.style.as_deref()),
+        ),
+        IcuArgumentKind::Date | IcuArgumentKind::Time => runtime_formatter_style_support(
+            is_supported_runtime_date_time_style(formatter.style.as_deref()),
+        ),
+        _ => IcuFormatterSupport::UnsupportedKind {
+            severity: IcuDiagnosticSeverity::Error,
+        },
+    }
+}
+
+const fn runtime_formatter_style_support(supported: bool) -> IcuFormatterSupport {
+    if supported {
+        IcuFormatterSupport::Supported
+    } else {
+        IcuFormatterSupport::UnsupportedStyle {
+            severity: IcuDiagnosticSeverity::Warning,
+        }
+    }
+}
+
+fn is_supported_runtime_number_style(style: Option<&str>) -> bool {
+    let Some(style) = style.map(str::trim).filter(|style| !style.is_empty()) else {
+        return true;
+    };
+
+    if let Some(skeleton) = style.strip_prefix("::") {
+        return matches!(skeleton, "percent" | "integer") || supported_currency_skeleton(skeleton);
+    }
+
+    matches!(style, "percent" | "integer")
+}
+
+fn supported_currency_skeleton(style: &str) -> bool {
+    let Some(currency) = style.strip_prefix("currency/") else {
+        return false;
+    };
+
+    currency.len() == 3 && currency.bytes().all(|byte| byte.is_ascii_alphabetic())
+}
+
+fn is_supported_runtime_date_time_style(style: Option<&str>) -> bool {
+    let Some(style) = style.map(str::trim).filter(|style| !style.is_empty()) else {
+        return true;
+    };
+
+    matches!(style, "short" | "medium" | "long" | "full")
 }
 
 #[test]
