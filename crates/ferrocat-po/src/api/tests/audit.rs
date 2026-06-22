@@ -3,9 +3,11 @@ use ferrocat_icu::{
     MessageSelectorMetadata,
 };
 
+use crate::{CatalogAuditIcuOptions, audit_catalogs_with_icu_options};
+
 use super::{
-    CatalogAuditOptions, CatalogMode, DiagnosticSeverity, ParseCatalogOptions, audit_catalogs,
-    parse_catalog,
+    CatalogAuditOptions, CatalogMode, DiagnosticSeverity, IcuSyntaxPolicy, ParseCatalogOptions,
+    audit_catalogs, parse_catalog,
 };
 
 fn catalog(content: &str, locale: &str) -> super::super::NormalizedParsedCatalog {
@@ -139,6 +141,78 @@ fn audit_surfaces_icu_syntax_errors() {
         audit_catalogs(&[&source, &target], &CatalogAuditOptions::new("en")).expect("audit");
 
     assert!(diagnostic_codes(&report).contains(&"icu.invalid_syntax"));
+}
+
+#[test]
+fn audit_strict_policy_reports_literal_apostrophes() {
+    let source = catalog(
+        "msgid \"Set your hours when you're available.\"\nmsgstr \"Set your hours when you're available.\"\n",
+        "en",
+    );
+
+    let report = audit_catalogs(&[&source], &CatalogAuditOptions::new("en")).expect("audit");
+
+    assert!(diagnostic_codes(&report).contains(&"icu.invalid_syntax"));
+}
+
+#[test]
+fn audit_runtime_literal_apostrophes_policy_accepts_runtime_valid_messages() {
+    let source = catalog(
+        concat!(
+            "msgid \"Set your hours when you're available.\"\n",
+            "msgstr \"Set your hours when you're available.\"\n\n",
+            "msgid \"We've got {count, plural, one {one opening} other {# openings}}.\"\n",
+            "msgstr \"We've got {count, plural, one {one opening} other {# openings}}.\"\n",
+        ),
+        "en",
+    );
+
+    let report = audit_catalogs_with_icu_options(
+        &[&source],
+        &CatalogAuditOptions::new("en"),
+        &CatalogAuditIcuOptions::new()
+            .with_syntax_policy(IcuSyntaxPolicy::RuntimeLiteralApostrophes),
+    )
+    .expect("audit");
+
+    assert!(!diagnostic_codes(&report).contains(&"icu.invalid_syntax"));
+}
+
+#[test]
+fn audit_runtime_literal_apostrophes_policy_keeps_real_invalid_icu() {
+    let source = catalog("msgid \"Hello\"\nmsgstr \"Hello {{name}}\"\n", "en");
+
+    let report = audit_catalogs_with_icu_options(
+        &[&source],
+        &CatalogAuditOptions::new("en"),
+        &CatalogAuditIcuOptions::new()
+            .with_syntax_policy(IcuSyntaxPolicy::RuntimeLiteralApostrophes),
+    )
+    .expect("audit");
+
+    assert!(diagnostic_codes(&report).contains(&"icu.invalid_syntax"));
+}
+
+#[test]
+fn audit_runtime_literal_apostrophes_policy_still_reports_compatibility_changes() {
+    let source = catalog(
+        "msgid \"We've got {count, plural, one {one opening} other {# openings}}.\"\nmsgstr \"We've got {count, plural, one {one opening} other {# openings}}.\"\n",
+        "en",
+    );
+    let target = catalog(
+        "msgid \"We've got {count, plural, one {one opening} other {# openings}}.\"\nmsgstr \"Wir haben freie Termine.\"\n",
+        "de",
+    );
+
+    let report = audit_catalogs_with_icu_options(
+        &[&source, &target],
+        &CatalogAuditOptions::new("en"),
+        &CatalogAuditIcuOptions::new()
+            .with_syntax_policy(IcuSyntaxPolicy::RuntimeLiteralApostrophes),
+    )
+    .expect("audit");
+
+    assert!(diagnostic_codes(&report).contains(&"icu.missing_argument"));
 }
 
 #[test]
