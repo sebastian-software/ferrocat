@@ -30,7 +30,7 @@ pub use self::compile_types::{
     CompiledCatalog, CompiledCatalogArtifact, CompiledCatalogDiagnostic,
     CompiledCatalogIdDescription, CompiledCatalogIdIndex, CompiledCatalogMissingMessage,
     CompiledCatalogTranslationKind, CompiledCatalogUnavailableId, CompiledKeyStrategy,
-    CompiledMessage, CompiledTranslation, DescribeCompiledIdsReport,
+    CompiledMessage, CompiledTranslation, DescribeCompiledIdsReport, IcuFormatterSupportPolicy,
 };
 pub use self::mt::{MachineTranslationMetadata, machine_translation_hash};
 pub use self::ndjson::{

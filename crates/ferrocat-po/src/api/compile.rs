@@ -6,7 +6,10 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use ferrocat_icu::{IcuCompatibilityOptions, IcuDiagnosticSeverity, compare_icu_messages};
+use ferrocat_icu::{
+    IcuCompatibilityOptions, IcuDiagnosticSeverity, compare_icu_messages,
+    validate_icu_formatter_support,
+};
 use sha2::{Digest, Sha256};
 
 use crate::diagnostic_codes;
@@ -590,15 +593,22 @@ where
         };
 
         if let Some(resolved_icu) = resolved_icu.as_ref() {
+            let diagnostic_target = CompiledIcuDiagnosticTarget {
+                source_key: &source_key,
+                compiled_key: &compiled_key,
+                locale: resolved.locale.as_str(),
+            };
             push_icu_compatibility_diagnostics(
                 locales,
-                CompiledIcuDiagnosticTarget {
-                    source_key: &source_key,
-                    compiled_key: &compiled_key,
-                    locale: resolved.locale.as_str(),
-                },
+                diagnostic_target,
                 resolved_icu,
                 options,
+                icu_options,
+                &mut artifact,
+            );
+            push_formatter_support_diagnostics(
+                diagnostic_target,
+                resolved_icu,
                 icu_options,
                 &mut artifact,
             );
@@ -608,6 +618,25 @@ where
     }
 
     Ok(artifact)
+}
+
+fn push_formatter_support_diagnostics(
+    target: CompiledIcuDiagnosticTarget<'_>,
+    resolved_icu: &ferrocat_icu::IcuMessage,
+    icu_options: &CompileCatalogArtifactIcuOptions,
+    artifact: &mut CompiledCatalogArtifact,
+) {
+    let Some(formatter_support) = icu_options.formatter_support else {
+        return;
+    };
+    let report = validate_icu_formatter_support(resolved_icu, formatter_support);
+    push_icu_diagnostics_for_compiled_message(
+        report.diagnostics,
+        target.source_key,
+        target.compiled_key,
+        target.locale,
+        artifact,
+    );
 }
 
 fn push_icu_compatibility_diagnostics(
@@ -642,15 +671,31 @@ fn push_icu_compatibility_diagnostics(
         resolved_icu,
         &IcuCompatibilityOptions::default(),
     );
-    for diagnostic in report.diagnostics {
+    push_icu_diagnostics_for_compiled_message(
+        report.diagnostics,
+        target.source_key,
+        target.compiled_key,
+        target.locale,
+        artifact,
+    );
+}
+
+fn push_icu_diagnostics_for_compiled_message(
+    diagnostics: Vec<ferrocat_icu::IcuDiagnostic>,
+    source_key: &CatalogMessageKey,
+    compiled_key: &str,
+    locale: &str,
+    artifact: &mut CompiledCatalogArtifact,
+) {
+    for diagnostic in diagnostics {
         artifact.diagnostics.push(CompiledCatalogDiagnostic {
             severity: icu_diagnostic_severity(diagnostic.severity),
             code: diagnostic.code,
             message: diagnostic.message,
-            key: target.compiled_key.to_owned(),
-            msgid: target.source_key.msgid.clone(),
-            msgctxt: target.source_key.msgctxt.clone(),
-            locale: target.locale.to_owned(),
+            key: compiled_key.to_owned(),
+            msgid: source_key.msgid.clone(),
+            msgctxt: source_key.msgctxt.clone(),
+            locale: locale.to_owned(),
         });
     }
 }
