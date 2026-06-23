@@ -255,7 +255,8 @@ pub fn catalog_review(
             locales: options.locales,
             include_details: options.include_details,
         },
-    )?;
+    )
+    .expect("validated current catalogs must produce a coverage report");
     let mut locales = Vec::with_capacity(target_locales.len());
 
     for locale in target_locales {
@@ -354,12 +355,10 @@ fn translation_change_report(
         else {
             continue;
         };
-        let Some(current_message) = current_target
+        let current_message = current_target
             .get(source_key)
             .filter(|message| !message.obsolete)
-        else {
-            continue;
-        };
+            .expect("translated classification must have an active current message");
         let previous = previous_message.effective_translation();
         let current = current_message.effective_translation();
         if previous == current {
@@ -512,23 +511,46 @@ fn select_target_locales(
 #[cfg(test)]
 mod tests {
     use super::{
-        CatalogMachineTranslationStatus, CatalogReviewOptions, CatalogReviewTranslation,
-        CatalogSourceChangeKind, catalog_review,
+        CatalogMachineTranslationReview, CatalogMachineTranslationStatus, CatalogReviewOptions,
+        CatalogReviewTranslation, CatalogSourceChangeKind, catalog_review,
     };
     use crate::api::{
-        CatalogMessageKey, CatalogMode, EffectiveTranslationRef, ParseCatalogOptions,
+        ApiError, CatalogMessageKey, CatalogMode, EffectiveTranslationRef, ParseCatalogOptions,
         machine_translation_hash, parse_catalog,
     };
 
     fn catalog(content: &str, locale: &str) -> crate::api::NormalizedParsedCatalog {
+        catalog_with_mode(content, Some(locale), CatalogMode::IcuPo)
+    }
+
+    fn catalog_with_locale(
+        content: &str,
+        locale: Option<&str>,
+    ) -> crate::api::NormalizedParsedCatalog {
+        catalog_with_mode(content, locale, CatalogMode::IcuPo)
+    }
+
+    fn gettext_catalog(content: &str, locale: &str) -> crate::api::NormalizedParsedCatalog {
+        catalog_with_mode(content, Some(locale), CatalogMode::GettextPo)
+    }
+
+    fn catalog_with_mode(
+        content: &str,
+        locale: Option<&str>,
+        mode: CatalogMode,
+    ) -> crate::api::NormalizedParsedCatalog {
         parse_catalog(ParseCatalogOptions {
-            locale: Some(locale),
-            mode: CatalogMode::IcuPo,
+            locale,
+            mode,
             ..ParseCatalogOptions::new(content, "en")
         })
         .expect("parse catalog")
         .into_normalized_view()
         .expect("normalize catalog")
+    }
+
+    fn error_debug(error: ApiError) -> String {
+        format!("{error:?}")
     }
 
     #[test]
@@ -628,5 +650,195 @@ mod tests {
         assert!(report.locales[0].machine_translation.details.is_empty());
         assert!(report.locales[0].coverage.details.is_empty());
         assert_eq!(report.locales[0].coverage.translated, 1);
+    }
+
+    #[test]
+    fn catalog_review_rejects_invalid_locale_inputs() {
+        let source = catalog("msgid \"Hello\"\nmsgstr \"Hello\"\n", "en");
+        let duplicate_source = catalog("msgid \"Bye\"\nmsgstr \"Bye\"\n", "en");
+        let missing_locale = catalog_with_locale("msgid \"Hello\"\nmsgstr \"Hallo\"\n", None);
+        let target = catalog("msgid \"Hello\"\nmsgstr \"Hallo\"\n", "de");
+        let requested = ["fr"];
+
+        let missing_previous_source = catalog_review(
+            &[&target],
+            &[&source, &target],
+            &CatalogReviewOptions::new("en"),
+        )
+        .expect_err("missing previous source should fail");
+        assert!(error_debug(missing_previous_source).contains("previous catalogs"));
+
+        let missing_current_source = catalog_review(
+            &[&source, &target],
+            &[&target],
+            &CatalogReviewOptions::new("en"),
+        )
+        .expect_err("missing current source should fail");
+        assert!(error_debug(missing_current_source).contains("current catalogs"));
+
+        let undeclared_locale = catalog_review(
+            &[&missing_locale],
+            &[&source, &target],
+            &CatalogReviewOptions::new("en"),
+        )
+        .expect_err("missing declared locale should fail");
+        assert!(error_debug(undeclared_locale).contains("declare a locale"));
+
+        let duplicate_locale = catalog_review(
+            &[&source, &duplicate_source],
+            &[&source, &target],
+            &CatalogReviewOptions::new("en"),
+        )
+        .expect_err("duplicate locale should fail");
+        assert!(error_debug(duplicate_locale).contains("duplicate catalog locale"));
+
+        let missing_requested = catalog_review(
+            &[&source, &target],
+            &[&source, &target],
+            &CatalogReviewOptions {
+                locales: &requested,
+                ..CatalogReviewOptions::new("en")
+            },
+        )
+        .expect_err("missing requested locale should fail");
+        assert!(error_debug(missing_requested).contains("requested locale"));
+    }
+
+    #[test]
+    fn catalog_review_filters_requested_locales_and_handles_new_target_locale() {
+        let source = catalog("msgid \"Hello\"\nmsgstr \"Hello\"\n", "en");
+        let de = catalog("msgid \"Hello\"\nmsgstr \"Hallo\"\n", "de");
+        let fr = catalog("msgid \"Hello\"\nmsgstr \"Bonjour\"\n", "fr");
+        let requested = ["en", "de", "de", "fr"];
+
+        let report = catalog_review(
+            &[&source],
+            &[&source, &de, &fr],
+            &CatalogReviewOptions {
+                locales: &requested,
+                ..CatalogReviewOptions::new("en")
+            },
+        )
+        .expect("review");
+
+        assert_eq!(report.summary.target_locales, 2);
+        assert_eq!(report.locales[0].locale, "de");
+        assert_eq!(report.locales[1].locale, "fr");
+        assert_eq!(report.summary.translation_changed, 0);
+        assert_eq!(report.locales[0].translations.changed, 0);
+    }
+
+    #[test]
+    fn catalog_review_ignores_new_messages_when_tracking_translation_changes() {
+        let previous_source = catalog("msgid \"Hello\"\nmsgstr \"Hello\"\n", "en");
+        let current_source = catalog(
+            "msgid \"Hello\"\nmsgstr \"Hello\"\n\nmsgid \"Added\"\nmsgstr \"Added\"\n",
+            "en",
+        );
+        let previous_target = catalog("msgid \"Hello\"\nmsgstr \"Hallo\"\n", "de");
+        let current_target = catalog(
+            "msgid \"Hello\"\nmsgstr \"Hallo\"\n\nmsgid \"Added\"\nmsgstr \"Neu\"\n",
+            "de",
+        );
+
+        let report = catalog_review(
+            &[&previous_source, &previous_target],
+            &[&current_source, &current_target],
+            &CatalogReviewOptions::new("en").with_details(true),
+        )
+        .expect("review");
+
+        assert_eq!(report.locales[0].translations.changed, 0);
+        assert!(report.locales[0].translations.details.is_empty());
+    }
+
+    #[test]
+    fn catalog_review_reports_plural_translation_changes() {
+        let previous_source = gettext_catalog(
+            concat!(
+                "msgid \"book\"\n",
+                "msgid_plural \"books\"\n",
+                "msgstr[0] \"book\"\n",
+                "msgstr[1] \"books\"\n",
+            ),
+            "en",
+        );
+        let current_source = gettext_catalog(
+            concat!(
+                "msgid \"book\"\n",
+                "msgid_plural \"books\"\n",
+                "msgstr[0] \"book\"\n",
+                "msgstr[1] \"books\"\n",
+            ),
+            "en",
+        );
+        let previous_target = gettext_catalog(
+            concat!(
+                "msgid \"book\"\n",
+                "msgid_plural \"books\"\n",
+                "msgstr[0] \"Buch\"\n",
+                "msgstr[1] \"Buecher\"\n",
+            ),
+            "de",
+        );
+        let current_target = gettext_catalog(
+            concat!(
+                "msgid \"book\"\n",
+                "msgid_plural \"books\"\n",
+                "msgstr[0] \"Buch\"\n",
+                "msgstr[1] \"Buecher neu\"\n",
+            ),
+            "de",
+        );
+
+        let report = catalog_review(
+            &[&previous_source, &previous_target],
+            &[&current_source, &current_target],
+            &CatalogReviewOptions::new("en").with_details(true),
+        )
+        .expect("review");
+        let detail = &report.locales[0].translations.details[0];
+
+        assert_eq!(report.locales[0].translations.changed, 1);
+        assert!(matches!(
+            detail.current,
+            CatalogReviewTranslation::Plural(_)
+        ));
+    }
+
+    #[test]
+    fn catalog_review_skips_obsolete_machine_translation_entries() {
+        let source = catalog("msgid \"Hello\"\nmsgstr \"Hello\"\n", "en");
+        let target = catalog(
+            "msgid \"Hello\"\nmsgstr \"Hallo\"\n\n#~ msgid \"Old\"\n#~ msgstr \"Alt\"\n",
+            "de",
+        );
+
+        let report = catalog_review(
+            &[&source, &target],
+            &[&source, &target],
+            &CatalogReviewOptions::new("en").with_details(true),
+        )
+        .expect("review");
+        let machine_translation = &report.locales[0].machine_translation;
+
+        assert_eq!(machine_translation.absent, 1);
+        assert_eq!(machine_translation.details.len(), 1);
+        assert_eq!(
+            machine_translation.details[0].source_key,
+            CatalogMessageKey::new("Hello", None)
+        );
+    }
+
+    #[test]
+    fn increment_machine_translation_status_counts_invalid_status() {
+        let mut report = CatalogMachineTranslationReview::default();
+
+        super::increment_machine_translation_status(
+            &mut report,
+            CatalogMachineTranslationStatus::Invalid,
+        );
+
+        assert_eq!(report.invalid, 1);
     }
 }
