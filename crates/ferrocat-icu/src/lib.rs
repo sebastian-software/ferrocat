@@ -62,6 +62,7 @@ pub mod diagnostic_codes;
 mod error;
 mod metadata;
 mod parser;
+mod pseudolocalization;
 mod serialize;
 mod utils;
 
@@ -82,6 +83,9 @@ pub use metadata::{
     derive_message_metadata_from_icu, normalize_message_metadata, validate_message_metadata,
 };
 pub use parser::{IcuParserOptions, parse_icu, parse_icu_with_options};
+pub use pseudolocalization::{
+    IcuPseudolocalizationOptions, pseudolocalize_icu, pseudolocalize_icu_message,
+};
 pub use serialize::stringify_icu;
 pub use utils::{
     extract_variables, has_plural, has_select, has_selectordinal, has_tag, validate_icu,

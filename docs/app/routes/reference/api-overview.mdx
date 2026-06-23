@@ -126,6 +126,7 @@ NDJSON is the line-delimited JSON storage choice. It is useful when catalogs are
 | Compile a normalized catalog into runtime lookup entries | `NormalizedParsedCatalog::compile` |
 | Compile a requested-locale runtime artifact with fallbacks and missing reports | `compile_catalog_artifact` |
 | Compile only a selected subset of compiled runtime IDs | `compile_catalog_artifact_selected` |
+| Pseudolocalize final runtime artifacts for UI/layout QA | `pseudolocalize_compiled_catalog_artifact` |
 | Perform a full in-memory catalog update | `update_catalog` |
 | Perform a full catalog update and write the result to disk only when changed | `update_catalog_file` |
 | Compute the metadata hash for a machine-generated translation | `machine_translation_hash` |
@@ -513,6 +514,12 @@ Important semantics:
   attaches compiled-key, source-key, and resolved locale metadata to the emitted
   diagnostics
 
+Use `pseudolocalize_compiled_catalog_artifact` when a host wants a pseudo-locale
+variant of the final runtime artifact. It transforms only ICU literal text in
+the artifact `messages` map and preserves placeholders, formatter syntax,
+plural selectors, `#`, tag names, missing-message records, and diagnostics.
+Pseudo-locale routing and framework output remain host responsibilities.
+
 ### `compile_catalog_artifact_selected`
 
 Use this when a host adapter already knows the exact compiled runtime IDs it needs and wants only that slice of a requested-locale artifact.
@@ -728,6 +735,36 @@ text again. The serializer is canonical rather than byte-preserving: whitespace
 and apostrophe quoting may differ from the source, but parse -> stringify ->
 parse preserves the supported AST structure.
 
+### `pseudolocalize_icu`
+
+Use this when you need pseudo-locale text while preserving the ICU message
+contract. The transform parses the message, walks the AST, modifies only
+literal text, and renders through `stringify_icu`.
+
+It preserves:
+
+- argument names and placeholders
+- formatter kinds and styles
+- plural/select selectors and plural offsets
+- `#` placeholders inside plural branches
+- rich-text tag names
+
+```rust
+use ferrocat::{IcuPseudolocalizationOptions, pseudolocalize_icu};
+
+let pseudo = pseudolocalize_icu(
+    "Hello {name}",
+    &IcuPseudolocalizationOptions::new().with_expansion_percent(0),
+)?;
+assert_eq!(pseudo, "[!! Ĥéļļö {name} !!]");
+# Ok::<(), ferrocat::IcuParseError>(())
+```
+
+Default options add a visible wrapper and 30% literal filler for layout
+pressure. Wrapping and ASCII-letter mapping are stable across accidental repeat
+application, so pseudolocalizing an already pseudolocalized message does not
+keep growing it.
+
 ### `validate_icu`
 
 Use this when you only need a yes/no syntax check with an error surface.
@@ -822,3 +859,4 @@ part of this source-side metadata format.
 - Selected locale artifact generation by compiled ID: `compile_catalog_artifact_selected`
 - Release QA across catalog sets: `audit_catalogs`
 - ICU analysis: `parse_icu`
+- ICU-aware pseudolocalization: `pseudolocalize_icu`
