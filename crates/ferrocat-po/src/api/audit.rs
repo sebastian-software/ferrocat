@@ -10,6 +10,10 @@ use serde::{Deserialize, Serialize};
 use crate::diagnostic_codes;
 
 use super::icu_syntax::parse_icu_with_syntax_policy;
+use super::message_status::{
+    CatalogMessageStatus, active_message_keys, classify_expected_message, is_extra_target_message,
+    message_has_fuzzy_flag,
+};
 use super::{
     ApiError, CatalogMessage, CatalogMessageKey, DiagnosticSeverity, EffectiveTranslationRef,
     IcuSyntaxPolicy, NormalizedParsedCatalog, validate_source_locale,
@@ -262,7 +266,7 @@ pub fn audit_catalogs_with_icu_options(
         return Ok(report);
     };
 
-    let source_keys = active_keys(source_catalog);
+    let source_keys = active_message_keys(source_catalog);
     let target_locales = select_target_locales(&catalog_index, options, &mut report);
     let source_locale = source_catalog.parsed_catalog().locale.as_deref();
 
@@ -366,13 +370,6 @@ fn select_target_locales(
     locales
 }
 
-fn active_keys(catalog: &NormalizedParsedCatalog) -> BTreeSet<CatalogMessageKey> {
-    catalog
-        .iter()
-        .filter_map(|(key, message)| (!message.obsolete).then_some(key.clone()))
-        .collect()
-}
-
 fn audit_catalog_entries(
     catalog: &NormalizedParsedCatalog,
     locale: Option<&str>,
@@ -424,32 +421,38 @@ fn audit_target_catalog(
     if options.checks.completeness {
         for key in source_keys {
             let message_ref = CatalogAuditMessageRef::new(Some(target_locale), key);
-            let Some(target_message) = target_catalog.get(key).filter(|message| !message.obsolete)
-            else {
-                report.diagnostics.push(CatalogAuditDiagnostic::new(
-                    DiagnosticSeverity::Error,
-                    diagnostic_codes::catalog::MISSING_TRANSLATION,
-                    format!("Locale `{target_locale}` is missing translation for source message."),
-                    Some(message_ref),
-                    Some(target_locale.to_owned()),
-                ));
-                continue;
-            };
-            if translation_is_empty(target_message) {
-                report.diagnostics.push(CatalogAuditDiagnostic::new(
-                    DiagnosticSeverity::Error,
-                    diagnostic_codes::catalog::EMPTY_TRANSLATION,
-                    format!("Locale `{target_locale}` has an empty translation."),
-                    Some(message_ref),
-                    Some(target_locale.to_owned()),
-                ));
+            match classify_expected_message(target_catalog, key) {
+                CatalogMessageStatus::Missing | CatalogMessageStatus::Obsolete => {
+                    report.diagnostics.push(CatalogAuditDiagnostic::new(
+                        DiagnosticSeverity::Error,
+                        diagnostic_codes::catalog::MISSING_TRANSLATION,
+                        format!(
+                            "Locale `{target_locale}` is missing translation for source message."
+                        ),
+                        Some(message_ref),
+                        Some(target_locale.to_owned()),
+                    ));
+                }
+                CatalogMessageStatus::Empty => {
+                    report.diagnostics.push(CatalogAuditDiagnostic::new(
+                        DiagnosticSeverity::Error,
+                        diagnostic_codes::catalog::EMPTY_TRANSLATION,
+                        format!("Locale `{target_locale}` has an empty translation."),
+                        Some(message_ref),
+                        Some(target_locale.to_owned()),
+                    ));
+                }
+                CatalogMessageStatus::Translated | CatalogMessageStatus::Fuzzy => {}
+                CatalogMessageStatus::Extra => {
+                    unreachable!("expected source-key classification cannot produce extra status")
+                }
             }
         }
     }
 
     if options.checks.extra_messages {
         for (key, message) in target_catalog.iter() {
-            if !message.obsolete && !source_keys.contains(key) {
+            if is_extra_target_message(source_keys, key, message) {
                 report.diagnostics.push(CatalogAuditDiagnostic::new(
                     DiagnosticSeverity::Warning,
                     diagnostic_codes::catalog::EXTRA_TRANSLATION,
@@ -613,22 +616,6 @@ fn singular_translation(message: &CatalogMessage) -> Option<&str> {
         EffectiveTranslationRef::Singular(value) => Some(value),
         EffectiveTranslationRef::Plural(_) => None,
     }
-}
-
-fn translation_is_empty(message: &CatalogMessage) -> bool {
-    match message.effective_translation() {
-        EffectiveTranslationRef::Singular(value) => value.trim().is_empty(),
-        EffectiveTranslationRef::Plural(translations) => {
-            translations.is_empty() || translations.values().any(|value| value.trim().is_empty())
-        }
-    }
-}
-
-fn message_has_fuzzy_flag(message: &CatalogMessage) -> bool {
-    message
-        .extra
-        .as_ref()
-        .is_some_and(|extra| extra.flags.iter().any(|flag| flag == "fuzzy"))
 }
 
 fn severity_from_icu(severity: IcuDiagnosticSeverity) -> DiagnosticSeverity {

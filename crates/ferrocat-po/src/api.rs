@@ -3,10 +3,12 @@ mod catalog;
 mod combine;
 mod compile;
 mod compile_types;
+mod coverage;
 mod export;
 mod file_io;
 mod helpers;
 mod icu_syntax;
+mod message_status;
 mod mt;
 mod ndjson;
 mod plural;
@@ -35,6 +37,11 @@ pub use self::compile_types::{
     CompiledCatalogTranslationKind, CompiledCatalogUnavailableId, CompiledKeyStrategy,
     CompiledMessage, CompiledTranslation, DescribeCompiledIdsReport, IcuFormatterSupportPolicy,
 };
+pub use self::coverage::{
+    CatalogCoverageMessage, CatalogCoverageOptions, CatalogCoverageReport, CatalogLocaleCoverage,
+    catalog_coverage,
+};
+pub use self::message_status::CatalogMessageStatus;
 pub use self::mt::{MachineTranslationMetadata, machine_translation_hash};
 pub use self::ndjson::{
     NdjsonCatalogReader, NdjsonCatalogReaderOptions, NdjsonCatalogWriter,

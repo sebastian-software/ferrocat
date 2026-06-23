@@ -1,18 +1,18 @@
 pub(super) use super::{
     ApiError, CatalogAuditOptions, CatalogCombineInput, CatalogCombineSelection,
-    CatalogConflictStrategy, CatalogMessageKey, CatalogMode, CatalogOrigin, CatalogSemantics,
-    CatalogUpdateInput, CombineCatalogOptions, CompileCatalogArtifactIcuOptions,
-    CompileCatalogArtifactOptions, CompileCatalogOptions, CompileSelectedCatalogArtifactOptions,
-    CompiledCatalogIdIndex, CompiledCatalogTranslationKind, CompiledKeyStrategy,
-    CompiledTranslation, DiagnosticSeverity, EffectiveTranslation, EffectiveTranslationRef,
-    ExtractedMessage, ExtractedPluralMessage, ExtractedSingularMessage, IcuSyntaxPolicy,
-    ObsoleteStrategy, OrderBy, ParseCatalogOptions, PlaceholderCommentMode, PluralEncoding,
-    PluralSource, RenderOptions, SourceExtractedMessage, TranslationShape,
-    UpdateCatalogFileOptions, UpdateCatalogOptions, audit_catalogs, combine_catalogs,
-    compile::compiled_key_for, compile_catalog_artifact, compile_catalog_artifact_selected,
-    compile_catalog_artifact_selected_with_icu_options, compile_catalog_artifact_with_icu_options,
-    compiled_key, machine_translation_hash, parse_catalog,
-    plural::cached_icu_plural_categories_for, update_catalog, update_catalog_file,
+    CatalogConflictStrategy, CatalogCoverageOptions, CatalogMessageKey, CatalogMessageStatus,
+    CatalogMode, CatalogOrigin, CatalogSemantics, CatalogUpdateInput, CombineCatalogOptions,
+    CompileCatalogArtifactIcuOptions, CompileCatalogArtifactOptions, CompileCatalogOptions,
+    CompileSelectedCatalogArtifactOptions, CompiledCatalogIdIndex, CompiledCatalogTranslationKind,
+    CompiledKeyStrategy, CompiledTranslation, DiagnosticSeverity, EffectiveTranslation,
+    EffectiveTranslationRef, ExtractedMessage, ExtractedPluralMessage, ExtractedSingularMessage,
+    IcuSyntaxPolicy, ObsoleteStrategy, OrderBy, ParseCatalogOptions, PlaceholderCommentMode,
+    PluralEncoding, PluralSource, RenderOptions, SourceExtractedMessage, TranslationShape,
+    UpdateCatalogFileOptions, UpdateCatalogOptions, audit_catalogs, catalog_coverage,
+    combine_catalogs, compile::compiled_key_for, compile_catalog_artifact,
+    compile_catalog_artifact_selected, compile_catalog_artifact_selected_with_icu_options,
+    compile_catalog_artifact_with_icu_options, compiled_key, machine_translation_hash,
+    parse_catalog, plural::cached_icu_plural_categories_for, update_catalog, update_catalog_file,
 };
 pub(super) use crate::parse_po;
 pub(super) use std::collections::{BTreeMap, HashMap};
@@ -22,6 +22,7 @@ pub(super) use std::sync::Mutex;
 mod audit;
 mod catalog;
 mod compile;
+mod coverage;
 mod plural;
 
 pub(super) fn structured_input(messages: Vec<ExtractedMessage>) -> CatalogUpdateInput {
