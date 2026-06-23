@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.2.1](https://github.com/sebastian-software/ferrocat/compare/ferrocat-bench-v1.2.0...ferrocat-bench-v1.2.1) (2026-06-23)
+
+
+### Bug Fixes
+
+* **bench:** report semantic benchmark changes ([8b54340](https://github.com/sebastian-software/ferrocat/commit/8b54340566719d0a4ecd83f0d397891288b4a835))
+
+
+### Performance Improvements
+
+* **bench:** add benchmark regression checks ([a06ea4a](https://github.com/sebastian-software/ferrocat/commit/a06ea4a673a2158f286f0e6e310891025a0fe1b7))
+
 ## [1.2.0](https://github.com/sebastian-software/ferrocat/compare/ferrocat-bench-v1.1.1...ferrocat-bench-v1.2.0) (2026-06-23)
 
 
