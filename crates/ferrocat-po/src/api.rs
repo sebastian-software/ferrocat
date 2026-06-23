@@ -25,7 +25,7 @@ pub use self::audit::{
     audit_catalogs_with_icu_options,
 };
 pub use self::catalog::{parse_catalog, update_catalog, update_catalog_file};
-pub use self::combine::combine_catalogs;
+pub use self::combine::{combine_catalog_files, combine_catalogs};
 pub use self::compile::{
     compile_catalog_artifact, compile_catalog_artifact_report, compile_catalog_artifact_selected,
     compile_catalog_artifact_selected_with_icu_options, compile_catalog_artifact_with_icu_options,
@@ -65,14 +65,15 @@ pub use self::review::{
 };
 pub use self::types::{
     ApiError, CatalogCombineInput, CatalogCombineResult, CatalogCombineSelection,
-    CatalogCombineStats, CatalogConflictStrategy, CatalogMessage, CatalogMessageExtra,
-    CatalogMessageKey, CatalogMode, CatalogOrigin, CatalogSemantics, CatalogStats,
-    CatalogStorageFormat, CatalogUpdateInput, CatalogUpdateResult, CombineCatalogOptions,
-    Diagnostic, DiagnosticSeverity, EffectiveTranslation, EffectiveTranslationRef,
-    ExtractedMessage, ExtractedPluralMessage, ExtractedSingularMessage, IcuSyntaxPolicy,
-    NormalizedParsedCatalog, ObsoleteStrategy, OrderBy, ParseCatalogOptions, ParsedCatalog,
-    PlaceholderCommentMode, PluralEncoding, PluralSource, RenderOptions, SourceExtractedMessage,
-    TranslationShape, UpdateCatalogFileOptions, UpdateCatalogOptions,
+    CatalogCombineStats, CatalogConflictStrategy, CatalogFileCombineResult, CatalogFileFormat,
+    CatalogMessage, CatalogMessageExtra, CatalogMessageKey, CatalogMode, CatalogOrigin,
+    CatalogSemantics, CatalogStats, CatalogStorageFormat, CatalogUpdateInput, CatalogUpdateResult,
+    CombineCatalogFilesOptions, CombineCatalogOptions, Diagnostic, DiagnosticSeverity,
+    EffectiveTranslation, EffectiveTranslationRef, ExtractedMessage, ExtractedPluralMessage,
+    ExtractedSingularMessage, IcuSyntaxPolicy, NormalizedParsedCatalog, ObsoleteStrategy, OrderBy,
+    ParseCatalogOptions, ParsedCatalog, PlaceholderCommentMode, PluralEncoding, PluralSource,
+    RenderOptions, SourceExtractedMessage, TranslationShape, UpdateCatalogFileOptions,
+    UpdateCatalogOptions,
 };
 fn validate_source_locale(source_locale: &str) -> Result<(), ApiError> {
     if source_locale.trim().is_empty() {

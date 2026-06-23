@@ -4,6 +4,8 @@
 //! and export mechanics while still sharing the canonical catalog model.
 
 use std::collections::{BTreeMap, BTreeSet};
+use std::fs;
+use std::path::{Path, PathBuf};
 
 use crate::diagnostic_codes;
 
@@ -11,11 +13,13 @@ use super::catalog::{
     CanonicalMessage, CanonicalTranslation, Catalog, apply_header_defaults, sort_messages,
 };
 use super::export::export_catalog_content;
+use super::file_io::atomic_write;
 use super::helpers::{merge_placeholders, merge_unique_origins, merge_unique_strings};
 use super::{
-    ApiError, CatalogCombineResult, CatalogCombineStats, CatalogConflictStrategy,
-    CatalogStorageFormat, CatalogUpdateInput, CombineCatalogOptions, Diagnostic,
-    DiagnosticSeverity, ObsoleteStrategy, PlaceholderCommentMode, RenderOptions,
+    ApiError, CatalogCombineInput, CatalogCombineResult, CatalogCombineStats,
+    CatalogConflictStrategy, CatalogFileCombineResult, CatalogFileFormat, CatalogMode,
+    CatalogStorageFormat, CatalogUpdateInput, CombineCatalogFilesOptions, CombineCatalogOptions,
+    Diagnostic, DiagnosticSeverity, ObsoleteStrategy, PlaceholderCommentMode, RenderOptions,
     UpdateCatalogOptions,
 };
 
@@ -157,6 +161,116 @@ pub fn combine_catalogs(
         stats,
         diagnostics,
     })
+}
+
+/// Combines catalog files and atomically replaces the requested output path.
+///
+/// This is the disk-based counterpart to [`combine_catalogs`]. Ferrocat reads
+/// each input path in precedence order, infers or applies a single file format,
+/// delegates merge semantics to [`combine_catalogs`], and writes the output only
+/// after validation, parsing, and combining all succeed.
+///
+/// # Errors
+///
+/// Returns [`ApiError`] when required options are missing, a file format cannot
+/// be inferred, inferred input/output formats disagree, a file cannot be read or
+/// written, or the underlying combine operation fails.
+#[expect(
+    clippy::needless_pass_by_value,
+    reason = "Public API takes owned option structs so callers can build and move them ergonomically."
+)]
+pub fn combine_catalog_files(
+    options: CombineCatalogFilesOptions<'_>,
+) -> Result<CatalogFileCombineResult, ApiError> {
+    super::validate_source_locale(options.source_locale)?;
+    if options.input_paths.is_empty() {
+        return Err(ApiError::InvalidArguments(
+            "input_paths must not be empty".to_owned(),
+        ));
+    }
+
+    let format = match options.format {
+        Some(format) => format,
+        None => infer_catalog_file_format(options.input_paths, options.output_path)?,
+    };
+    let mode = catalog_mode_for_file_format(format, options.mode)?;
+    let contents = read_catalog_files(options.input_paths)?;
+    let labels = options
+        .input_paths
+        .iter()
+        .map(|path| path.display().to_string())
+        .collect::<Vec<_>>();
+    let inputs = contents
+        .iter()
+        .zip(labels.iter())
+        .map(|(content, label)| CatalogCombineInput::labeled(content.as_str(), label.as_str()))
+        .collect::<Vec<_>>();
+
+    let result = combine_catalogs(CombineCatalogOptions {
+        inputs: &inputs,
+        locale: options.locale,
+        source_locale: options.source_locale,
+        mode,
+        conflict_strategy: options.conflict_strategy,
+        selection: options.selection,
+        order_by: options.order_by,
+        include_origins: options.include_origins,
+        include_line_numbers: options.include_line_numbers,
+        include_obsolete: options.include_obsolete,
+    })?;
+
+    atomic_write(options.output_path, &result.content)?;
+
+    Ok(CatalogFileCombineResult {
+        output_path: options.output_path.to_path_buf(),
+        format,
+        stats: result.stats,
+        diagnostics: result.diagnostics,
+    })
+}
+
+fn read_catalog_files(input_paths: &[PathBuf]) -> Result<Vec<String>, ApiError> {
+    input_paths
+        .iter()
+        .map(|path| fs::read_to_string(path).map_err(|error| ApiError::io_with_path(path, error)))
+        .collect()
+}
+
+fn infer_catalog_file_format(
+    input_paths: &[PathBuf],
+    output_path: &Path,
+) -> Result<CatalogFileFormat, ApiError> {
+    let output_format = CatalogFileFormat::infer_from_path(output_path)?;
+    for path in input_paths {
+        let input_format = CatalogFileFormat::infer_from_path(path)?;
+        if input_format != output_format {
+            return Err(ApiError::InvalidArguments(format!(
+                "catalog input `{}` uses {:?}, but output `{}` uses {:?}",
+                path.display(),
+                input_format,
+                output_path.display(),
+                output_format
+            )));
+        }
+    }
+    Ok(output_format)
+}
+
+fn catalog_mode_for_file_format(
+    format: CatalogFileFormat,
+    mode: Option<CatalogMode>,
+) -> Result<CatalogMode, ApiError> {
+    let Some(mode) = mode else {
+        return Ok(format.default_mode());
+    };
+    if mode.storage_format() == format.default_mode().storage_format() {
+        Ok(mode)
+    } else {
+        Err(ApiError::InvalidArguments(format!(
+            "catalog mode {:?} does not match file format {:?}",
+            mode, format
+        )))
+    }
 }
 
 fn input_label(label: Option<&str>, index: usize) -> String {

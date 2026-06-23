@@ -454,6 +454,127 @@ pub struct CatalogCombineResult {
     pub diagnostics: Vec<Diagnostic>,
 }
 
+/// File format used by disk-based catalog combine operations.
+///
+/// This enum is non-exhaustive because Ferrocat can add additional catalog
+/// file formats over time. The NDJSON variant also accepts `.json` as a path
+/// inference alias for existing host integrations that expose Ferrocat NDJSON
+/// catalogs behind a generic JSON extension.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[non_exhaustive]
+pub enum CatalogFileFormat {
+    /// Classic gettext PO catalog files.
+    #[default]
+    Po,
+    /// Ferrocat NDJSON catalog files.
+    Ndjson,
+}
+
+impl CatalogFileFormat {
+    /// Infers a catalog file format from a path extension.
+    ///
+    /// Supported path suffixes are `.po`, `.ndjson`, `.fcat.ndjson`, and the
+    /// compatibility alias `.json`.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ApiError::Unsupported`] when the path suffix does not map to a
+    /// supported catalog file format.
+    pub fn infer_from_path(path: &Path) -> Result<Self, ApiError> {
+        let name = path
+            .file_name()
+            .and_then(|name| name.to_str())
+            .unwrap_or_default()
+            .to_ascii_lowercase();
+
+        if name.ends_with(".po") {
+            return Ok(Self::Po);
+        }
+        if name.ends_with(".ndjson") || name.ends_with(".fcat.ndjson") || name.ends_with(".json") {
+            return Ok(Self::Ndjson);
+        }
+
+        Err(ApiError::Unsupported(format!(
+            "could not infer catalog file format from `{}`; expected .po, .ndjson, .fcat.ndjson, or .json",
+            path.display()
+        )))
+    }
+
+    pub(super) const fn default_mode(self) -> CatalogMode {
+        match self {
+            Self::Po => CatalogMode::IcuPo,
+            Self::Ndjson => CatalogMode::IcuNdjson,
+        }
+    }
+}
+
+/// Options for combining catalog files on disk.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CombineCatalogFilesOptions<'a> {
+    /// Input catalog paths in precedence order.
+    pub input_paths: &'a [PathBuf],
+    /// Output catalog path to atomically replace after a successful combine.
+    pub output_path: &'a Path,
+    /// Optional explicit file format. When `None`, Ferrocat infers it from the
+    /// input and output paths and requires all inferred formats to match.
+    pub format: Option<CatalogFileFormat>,
+    /// Optional high-level catalog mode. When `None`, Ferrocat chooses
+    /// `CatalogMode::IcuPo` for PO files and `CatalogMode::IcuNdjson` for NDJSON files.
+    pub mode: Option<CatalogMode>,
+    /// Locale of the combined catalog. When `None`, Ferrocat uses the first input locale if present.
+    pub locale: Option<&'a str>,
+    /// Source locale used for source-side semantics and validation.
+    pub source_locale: &'a str,
+    /// Strategy for resolving conflicting non-empty translations.
+    pub conflict_strategy: CatalogConflictStrategy,
+    /// Message identity selection rule applied after all inputs are read.
+    pub selection: CatalogCombineSelection,
+    /// Sort order for the final rendered catalog.
+    pub order_by: OrderBy,
+    /// Whether source origins should be rendered as references.
+    pub include_origins: bool,
+    /// Whether rendered references should include line numbers.
+    pub include_line_numbers: bool,
+    /// Whether obsolete definitions should participate in the combine operation.
+    pub include_obsolete: bool,
+}
+
+impl<'a> CombineCatalogFilesOptions<'a> {
+    /// Creates file combine options with required fields set.
+    ///
+    /// Optional fields use the same defaults as [`CombineCatalogOptions`].
+    #[must_use]
+    pub fn new(input_paths: &'a [PathBuf], output_path: &'a Path, source_locale: &'a str) -> Self {
+        Self {
+            input_paths,
+            output_path,
+            format: None,
+            mode: None,
+            locale: None,
+            source_locale,
+            conflict_strategy: CatalogConflictStrategy::UseFirst,
+            selection: CatalogCombineSelection::All,
+            order_by: OrderBy::Msgid,
+            include_origins: true,
+            include_line_numbers: true,
+            include_obsolete: false,
+        }
+    }
+}
+
+/// Result returned by catalog file combine operations.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CatalogFileCombineResult {
+    /// Output path replaced by the operation.
+    pub output_path: PathBuf,
+    /// File format used for reading inputs and writing the output.
+    pub format: CatalogFileFormat,
+    /// Summary counters for the operation.
+    pub stats: CatalogCombineStats,
+    /// Non-fatal diagnostics collected during processing.
+    pub diagnostics: Vec<Diagnostic>,
+}
+
 /// Parsed catalog plus diagnostics and normalized headers.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ParsedCatalog {
@@ -1077,16 +1198,16 @@ mod tests {
     use std::collections::BTreeMap;
     use std::error::Error;
     use std::io;
-    use std::path::Path;
+    use std::path::{Path, PathBuf};
 
     use super::{
         ApiError, CatalogCombineInput, CatalogCombineSelection, CatalogConflictStrategy,
-        CatalogMessage, CatalogMessageExtra, CatalogMessageKey, CatalogMode, CatalogSemantics,
-        CatalogStorageFormat, CatalogUpdateInput, CombineCatalogOptions, Diagnostic,
-        DiagnosticSeverity, EffectiveTranslation, EffectiveTranslationRef, NormalizedParsedCatalog,
-        ObsoleteStrategy, OrderBy, ParseCatalogOptions, ParsedCatalog, PlaceholderCommentMode,
-        PluralEncoding, PluralSource, TranslationShape, UpdateCatalogFileOptions,
-        UpdateCatalogOptions,
+        CatalogFileFormat, CatalogMessage, CatalogMessageExtra, CatalogMessageKey, CatalogMode,
+        CatalogSemantics, CatalogStorageFormat, CatalogUpdateInput, CombineCatalogFilesOptions,
+        CombineCatalogOptions, Diagnostic, DiagnosticSeverity, EffectiveTranslation,
+        EffectiveTranslationRef, NormalizedParsedCatalog, ObsoleteStrategy, OrderBy,
+        ParseCatalogOptions, ParsedCatalog, PlaceholderCommentMode, PluralEncoding, PluralSource,
+        TranslationShape, UpdateCatalogFileOptions, UpdateCatalogOptions,
     };
     use crate::ParseError;
 
@@ -1296,6 +1417,44 @@ mod tests {
         assert!(combine.include_origins);
         assert!(combine.include_line_numbers);
         assert!(!combine.include_obsolete);
+
+        let input_paths = [PathBuf::from("locale/de.po")];
+        let combine_files =
+            CombineCatalogFilesOptions::new(&input_paths, Path::new("locale/merged.po"), "en");
+        assert_eq!(combine_files.input_paths, &input_paths);
+        assert_eq!(combine_files.output_path, Path::new("locale/merged.po"));
+        assert_eq!(combine_files.format, None);
+        assert_eq!(combine_files.mode, None);
+        assert_eq!(combine_files.source_locale, "en");
+        assert_eq!(
+            combine_files.conflict_strategy,
+            CatalogConflictStrategy::UseFirst
+        );
+        assert_eq!(combine_files.selection, CatalogCombineSelection::All);
+        assert!(combine_files.include_origins);
+        assert!(combine_files.include_line_numbers);
+        assert!(!combine_files.include_obsolete);
+    }
+
+    #[test]
+    fn catalog_file_format_infers_supported_suffixes() {
+        assert_eq!(
+            CatalogFileFormat::infer_from_path(Path::new("locale/de.po")).expect("po"),
+            CatalogFileFormat::Po
+        );
+        assert_eq!(
+            CatalogFileFormat::infer_from_path(Path::new("locale/de.fcat.ndjson"))
+                .expect("fcat ndjson"),
+            CatalogFileFormat::Ndjson
+        );
+        assert_eq!(
+            CatalogFileFormat::infer_from_path(Path::new("locale/de.json")).expect("json alias"),
+            CatalogFileFormat::Ndjson
+        );
+        assert!(matches!(
+            CatalogFileFormat::infer_from_path(Path::new("locale/de.txt")),
+            Err(ApiError::Unsupported(message)) if message.contains("could not infer")
+        ));
     }
 
     #[test]
