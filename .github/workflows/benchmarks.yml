@@ -1,6 +1,13 @@
 name: Benchmark Reports
 
 on:
+  pull_request:
+    paths:
+      - ".github/workflows/benchmarks.yml"
+      - "benchmark/**"
+      - "crates/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
   workflow_dispatch:
     inputs:
       profile:
@@ -27,10 +34,13 @@ jobs:
     timeout-minutes: 30
     env:
       BENCHMARK_PROFILE: ${{ github.event.inputs.profile || 'rust-scheduled-v1' }}
+      CARGO_TARGET_DIR: ${{ github.workspace }}/target
 
     steps:
       - name: Check out repository
         uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
 
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@stable
@@ -38,24 +48,55 @@ jobs:
       - name: Cache Rust build artifacts
         uses: Swatinem/rust-cache@v2
 
+      - name: Run baseline benchmark profile
+        if: ${{ github.event_name == 'pull_request' }}
+        run: |
+          mkdir -p target/benchmark
+          git worktree add target/benchmark/base "${{ github.event.pull_request.base.sha }}"
+          trap 'git worktree remove --force target/benchmark/base || true' EXIT
+          cargo run --release --manifest-path target/benchmark/base/Cargo.toml -p ferrocat-bench -- compare "$BENCHMARK_PROFILE" --out "$GITHUB_WORKSPACE/target/benchmark/${BENCHMARK_PROFILE}-baseline-${GITHUB_RUN_ID}.json"
+
       - name: Run Rust-only benchmark profile
         run: |
           mkdir -p target/benchmark
-          cargo run --release -p ferrocat-bench -- compare "$BENCHMARK_PROFILE" --out "target/benchmark/${BENCHMARK_PROFILE}-${GITHUB_RUN_ID}.json"
+          cargo run --release -p ferrocat-bench -- compare "$BENCHMARK_PROFILE" --out "target/benchmark/${BENCHMARK_PROFILE}-current-${GITHUB_RUN_ID}.json"
+
+      - name: Check benchmark regression
+        if: ${{ github.event_name == 'pull_request' }}
+        run: >-
+          cargo run --release -p ferrocat-bench -- regression-check
+          --baseline "target/benchmark/${BENCHMARK_PROFILE}-baseline-${GITHUB_RUN_ID}.json"
+          --current "target/benchmark/${BENCHMARK_PROFILE}-current-${GITHUB_RUN_ID}.json"
+          --max-regression-percent 20
+          > target/benchmark/regression-summary.txt
 
       - name: Write benchmark summary
+        if: always()
         run: |
           {
             echo "## Rust benchmark report"
             echo ""
             echo "- Profile: \`$BENCHMARK_PROFILE\`"
             echo "- Report artifact: \`benchmark-report-${BENCHMARK_PROFILE}-${GITHUB_RUN_ID}\`"
-            echo "- Policy: informational report only; noisy hosted-runner numbers are not a PR gate."
+            if [ "${{ github.event_name }}" = "pull_request" ]; then
+              echo "- Policy: PR regression check fails only when matching, non-noisy scenarios exceed a 20% median elapsed regression."
+              echo ""
+              if [ -f target/benchmark/regression-summary.txt ]; then
+                cat target/benchmark/regression-summary.txt
+              else
+                echo "Regression summary was not produced."
+              fi
+            else
+              echo "- Policy: scheduled report is trend visibility; PR runs perform the regression check."
+            fi
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload benchmark report
+        if: always()
         uses: actions/upload-artifact@v7
         with:
           name: benchmark-report-${{ env.BENCHMARK_PROFILE }}-${{ github.run_id }}
-          path: target/benchmark/*.json
+          path: |
+            target/benchmark/*.json
+            target/benchmark/regression-summary.txt
           if-no-files-found: error

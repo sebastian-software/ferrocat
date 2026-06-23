@@ -17,11 +17,40 @@ be started manually. It uses the Rust-only `rust-scheduled-v1` profile by
 default, writes a JSON report under `target/benchmark/`, and uploads that report
 as a workflow artifact.
 
-Treat these hosted-runner reports as trend visibility and noise detection, not
-as a hard PR gate or publication-grade benchmark. Hosted runners are shared and
-variable, so the workflow intentionally reports median timing, coefficient of
-variation, relative span, and noisy scenario flags without failing on benchmark
-movement.
+Scheduled hosted-runner reports are trend visibility and noise detection, not
+publication-grade benchmarks. Pull request runs compare the PR report against a
+fresh baseline report from the PR base SHA and fail only when matching,
+non-noisy scenarios exceed a `20%` median elapsed regression. Scenarios marked
+noisy by coefficient of variation or relative span are reported in the summary
+but do not fail the workflow.
+
+The comparison command is also available locally:
+
+```bash
+cargo run --release -p ferrocat-bench -- regression-check \
+  --baseline target/benchmark/rust-scheduled-v1-baseline.json \
+  --current target/benchmark/rust-scheduled-v1-current.json \
+  --max-regression-percent 20
+```
+
+## Regression Budgets
+
+The `rust-scheduled-v1` profile is the PR-visible regression guard. Its budget
+is intentionally relative to a same-run baseline rather than a fixed hosted
+runner throughput number:
+
+- fail matching, non-noisy scenarios above `20%` median elapsed regression
+- skip noisy scenarios and surface them in the job summary
+- treat scheduled reports as trend artifacts unless a maintainer promotes one
+  into release notes or a reference-host checkpoint
+
+The slowest current Rust-only path under review was
+`po-update/catalog-icu-heavy/ferrocat`. Its budget is no worse than the same
+`20%` PR regression band. If it trips the guard or a same-host local run drops
+below roughly `40 MiB/s`, profile the path before changing the threshold. The
+first profiling pass should separate repeated ICU parsing/projection, plural
+category resolution, allocation/cloning, serialization, and catalog
+normalization costs.
 
 ## Reproduce A Fast Baseline
 
