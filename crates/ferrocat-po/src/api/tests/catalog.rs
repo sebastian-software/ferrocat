@@ -1575,6 +1575,53 @@ fn combine_catalogs_use_last_overlays_conflicting_translation() {
 }
 
 #[test]
+fn combine_catalogs_use_last_keeps_existing_translation_when_later_template_is_empty() {
+    let first = "msgid \"Hello\"\nmsgstr \"Hallo\"\n";
+    let second = "msgid \"Hello\"\nmsgstr \"\"\n";
+    let inputs = [
+        CatalogCombineInput::labeled(first, "first.po"),
+        CatalogCombineInput::labeled(second, "template.pot"),
+    ];
+
+    let result = combine_catalogs(CombineCatalogOptions {
+        inputs: &inputs,
+        source_locale: "en",
+        locale: Some("de"),
+        conflict_strategy: CatalogConflictStrategy::UseLast,
+        ..CombineCatalogOptions::new(&[], "en")
+    })
+    .expect("combine");
+
+    let parsed = parse_po(&result.content).expect("parse output");
+    assert_eq!(parsed.items[0].msgstr[0], "Hallo");
+    assert_eq!(result.stats.conflicts_resolved, 0);
+    assert!(result.diagnostics.is_empty());
+}
+
+#[test]
+fn combine_catalogs_use_first_fills_empty_translation_from_later_definition() {
+    let first = "msgid \"Hello\"\nmsgstr \"\"\n";
+    let second = "msgid \"Hello\"\nmsgstr \"Hallo\"\n";
+    let inputs = [
+        CatalogCombineInput::labeled(first, "template.pot"),
+        CatalogCombineInput::labeled(second, "de.po"),
+    ];
+
+    let result = combine_catalogs(CombineCatalogOptions {
+        inputs: &inputs,
+        source_locale: "en",
+        locale: Some("de"),
+        ..CombineCatalogOptions::new(&[], "en")
+    })
+    .expect("combine");
+
+    let parsed = parse_po(&result.content).expect("parse output");
+    assert_eq!(parsed.items[0].msgstr[0], "Hallo");
+    assert_eq!(result.stats.conflicts_resolved, 0);
+    assert!(result.diagnostics.is_empty());
+}
+
+#[test]
 fn combine_catalogs_error_rejects_conflicting_translation() {
     let inputs = [
         CatalogCombineInput::new("msgid \"Hello\"\nmsgstr \"Hallo\"\n"),
@@ -1780,6 +1827,44 @@ fn combine_catalogs_gettext_compat_preserves_plural_slots() {
     assert_eq!(parsed.items[0].msgid_plural.as_deref(), Some("items"));
     assert_eq!(parsed.items[0].msgstr[0], "Ding");
     assert_eq!(parsed.items[0].msgstr[1], "Dinge");
+}
+
+#[test]
+fn combine_catalogs_use_last_preserves_non_empty_plural_slots_when_later_slot_is_empty() {
+    let existing = concat!(
+        "msgid \"\"\n",
+        "msgstr \"\"\n",
+        "\"Plural-Forms: nplurals=2; plural=(n != 1);\\n\"\n\n",
+        "msgid \"item\"\n",
+        "msgid_plural \"items\"\n",
+        "msgstr[0] \"Ding\"\n",
+        "msgstr[1] \"Dinge\"\n",
+    );
+    let overlay = concat!(
+        "msgid \"item\"\n",
+        "msgid_plural \"items\"\n",
+        "msgstr[0] \"Teil\"\n",
+        "msgstr[1] \"\"\n",
+    );
+    let inputs = [
+        CatalogCombineInput::labeled(existing, "existing.po"),
+        CatalogCombineInput::labeled(overlay, "overlay.po"),
+    ];
+
+    let result = combine_catalogs(CombineCatalogOptions {
+        inputs: &inputs,
+        source_locale: "en",
+        locale: Some("de"),
+        mode: CatalogMode::GettextPo,
+        conflict_strategy: CatalogConflictStrategy::UseLast,
+        ..CombineCatalogOptions::new(&[], "en")
+    })
+    .expect("combine");
+
+    let parsed = parse_po(&result.content).expect("parse output");
+    assert_eq!(parsed.items[0].msgstr[0], "Teil");
+    assert_eq!(parsed.items[0].msgstr[1], "Dinge");
+    assert_eq!(result.stats.conflicts_resolved, 1);
 }
 
 #[test]

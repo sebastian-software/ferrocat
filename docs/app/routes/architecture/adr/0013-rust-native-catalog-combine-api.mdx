@@ -32,7 +32,7 @@ The API is intentionally Rust-native rather than shell-compatible:
 - obsolete definitions are skipped by default and included only by opt-in
 - singular/plural shape conflicts fail with `ApiError::Conflict`
 
-The default strategy is `UseFirst`, so callers can pass an existing translated catalog first and newer templates or overlays later. Non-empty translation conflicts resolved by `UseFirst` or `UseLast` produce diagnostics instead of GNU conflict-marker strings.
+The default strategy is `UseFirst`, so callers can pass an existing translated catalog first and newer templates or overlays later. Empty template translations never clear non-empty translations; they only fill gaps when no non-empty translation has been selected yet. Non-empty translation conflicts resolved by `UseFirst` or `UseLast` produce diagnostics instead of GNU conflict-marker strings.
 
 Add `combine_catalog_files` as the disk-based counterpart. It keeps the same
 combine semantics, but owns host-neutral file orchestration:

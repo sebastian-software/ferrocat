@@ -57,6 +57,20 @@ impl<'a> CombineConfig<'a> {
             include_obsolete: options.include_obsolete,
         }
     }
+
+    fn from_file_options(options: &CombineCatalogFilesOptions<'a>, mode: CatalogMode) -> Self {
+        Self {
+            locale: options.locale,
+            source_locale: options.source_locale,
+            mode,
+            conflict_strategy: options.conflict_strategy,
+            selection: options.selection,
+            order_by: options.order_by,
+            include_origins: options.include_origins,
+            include_line_numbers: options.include_line_numbers,
+            include_obsolete: options.include_obsolete,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -203,8 +217,9 @@ impl CombineState {
 /// This is Ferrocat's Rust-native N-way catalog combine API. It covers the
 /// useful `msgcat`/`msgmerge`-shaped workflow without reproducing GNU gettext's
 /// conflict-marker output: identical `msgid`/`msgctxt` definitions are merged,
-/// metadata is cumulated, and non-empty translation conflicts are resolved or
-/// rejected according to [`CatalogConflictStrategy`].
+/// metadata is cumulated, empty template translations do not replace non-empty
+/// translations, and non-empty translation conflicts are resolved or rejected
+/// according to [`CatalogConflictStrategy`].
 ///
 /// # Errors
 ///
@@ -290,17 +305,7 @@ pub fn combine_catalog_files(
         None => infer_catalog_file_format(options.input_paths, options.output_path)?,
     };
     let mode = catalog_mode_for_file_format(format, options.mode)?;
-    let config = CombineConfig {
-        locale: options.locale,
-        source_locale: options.source_locale,
-        mode,
-        conflict_strategy: options.conflict_strategy,
-        selection: options.selection,
-        order_by: options.order_by,
-        include_origins: options.include_origins,
-        include_line_numbers: options.include_line_numbers,
-        include_obsolete: options.include_obsolete,
-    };
+    let config = CombineConfig::from_file_options(&options, mode);
     let mut state = CombineState::new(options.input_paths.len(), options.locale);
     for (input_index, path) in options.input_paths.iter().enumerate() {
         let content =
@@ -416,8 +421,17 @@ fn merge_combine_message(
         }
     }
 
-    if conflict_strategy == CatalogConflictStrategy::UseLast {
-        entry.message.translation = message.translation.clone();
+    let translation_merge = merge_combine_translation(
+        &mut entry.message.translation,
+        &message.translation,
+        conflict_strategy,
+    );
+    if translation_merge.changed {
+        entry.message.machine_translation = translation_merge
+            .matches_source
+            .then(|| message.machine_translation.clone())
+            .flatten();
+    } else if translation_merge.matches_source && entry.message.machine_translation.is_none() {
         entry.message.machine_translation = message.machine_translation.clone();
     }
 
@@ -444,9 +458,6 @@ fn merge_combine_metadata(target: &mut CanonicalMessage, source: CanonicalMessag
     merge_placeholders(&mut target.placeholders, source.placeholders);
     merge_unique_strings(&mut target.translator_comments, source.translator_comments);
     merge_unique_strings(&mut target.flags, source.flags);
-    if target.machine_translation.is_none() {
-        target.machine_translation = source.machine_translation;
-    }
     target.obsolete = target.obsolete && source.obsolete;
 }
 
@@ -456,10 +467,88 @@ enum TranslationKind {
     Plural,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct TranslationMergeOutcome {
+    changed: bool,
+    matches_source: bool,
+}
+
 fn translation_shape(translation: &CanonicalTranslation) -> TranslationKind {
     match translation {
         CanonicalTranslation::Singular { .. } => TranslationKind::Singular,
         CanonicalTranslation::Plural { .. } => TranslationKind::Plural,
+    }
+}
+
+fn merge_combine_translation(
+    target: &mut CanonicalTranslation,
+    source: &CanonicalTranslation,
+    conflict_strategy: CatalogConflictStrategy,
+) -> TranslationMergeOutcome {
+    match (target, source) {
+        (
+            CanonicalTranslation::Singular { value: target },
+            CanonicalTranslation::Singular { value: source },
+        ) => {
+            let should_replace = (!source.is_empty() && target.is_empty())
+                || (!source.is_empty()
+                    && target != source
+                    && conflict_strategy == CatalogConflictStrategy::UseLast);
+            if should_replace {
+                target.clone_from(source);
+            }
+            TranslationMergeOutcome {
+                changed: should_replace,
+                matches_source: target == source,
+            }
+        }
+        (
+            CanonicalTranslation::Plural {
+                translation_by_category: target,
+                ..
+            },
+            CanonicalTranslation::Plural {
+                translation_by_category: source,
+                ..
+            },
+        ) => {
+            let categories = target
+                .keys()
+                .chain(source.keys())
+                .cloned()
+                .collect::<BTreeSet<_>>();
+            let mut changed = false;
+            for category in categories {
+                let source_value = source
+                    .get(&category)
+                    .map(String::as_str)
+                    .unwrap_or_default();
+                if source_value.is_empty() {
+                    continue;
+                }
+
+                let target_value = target
+                    .get(&category)
+                    .map(String::as_str)
+                    .unwrap_or_default();
+                let should_replace = target_value.is_empty()
+                    || (target_value != source_value
+                        && conflict_strategy == CatalogConflictStrategy::UseLast);
+                if should_replace {
+                    target.insert(category, source_value.to_owned());
+                    changed = true;
+                }
+            }
+
+            TranslationMergeOutcome {
+                changed,
+                matches_source: target == source,
+            }
+        }
+        _ => TranslationMergeOutcome {
+            changed: false,
+            matches_source: false,
+        },
     }
 }
 

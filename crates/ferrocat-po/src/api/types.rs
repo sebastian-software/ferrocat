@@ -392,10 +392,10 @@ impl<'a> CatalogCombineInput<'a> {
 /// Strategy used when multiple catalogs define conflicting translations for one identity.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum CatalogConflictStrategy {
-    /// Keep the first translation encountered for each `msgid`/`msgctxt`.
+    /// Keep the first non-empty translation encountered for each `msgid`/`msgctxt`.
     #[default]
     UseFirst,
-    /// Replace the current translation with the latest definition.
+    /// Replace the current non-empty translation with the latest non-empty definition.
     UseLast,
     /// Return an error when two non-empty translations differ.
     Error,
@@ -526,6 +526,7 @@ pub struct CombineCatalogFilesOptions<'a> {
     /// Source locale used for source-side semantics and validation.
     pub source_locale: &'a str,
     /// Strategy for resolving conflicting non-empty translations.
+    /// Empty template translations never clear non-empty values.
     pub conflict_strategy: CatalogConflictStrategy,
     /// Message identity selection rule applied after all inputs are read.
     pub selection: CatalogCombineSelection,
@@ -1020,6 +1021,7 @@ pub struct CombineCatalogOptions<'a> {
     /// High-level catalog mode used when reading inputs and rendering the result.
     pub mode: CatalogMode,
     /// Strategy for resolving conflicting non-empty translations.
+    /// Empty template translations never clear non-empty values.
     pub conflict_strategy: CatalogConflictStrategy,
     /// Message identity selection rule applied after all inputs are read.
     pub selection: CatalogCombineSelection,
