@@ -54,6 +54,7 @@ jobs:
           mkdir -p target/benchmark
           git worktree add target/benchmark/base "${{ github.event.pull_request.base.sha }}"
           trap 'git worktree remove --force target/benchmark/base || true' EXIT
+          mkdir -p target/benchmark/base/target
           cargo run --release --manifest-path target/benchmark/base/Cargo.toml -p ferrocat-bench -- compare "$BENCHMARK_PROFILE" --out "$GITHUB_WORKSPACE/target/benchmark/${BENCHMARK_PROFILE}-baseline-${GITHUB_RUN_ID}.json"
 
       - name: Run Rust-only benchmark profile
