@@ -240,10 +240,11 @@ This is the Rust-native counterpart to the useful parts of GNU `msgcat`, `msgcom
 - treat `msgid` plus `msgctxt` as the message identity
 - keep the first translation by default, so existing catalogs can be listed before newer templates
 - choose `UseLast` or `Error` when overlay or strict-conflict behavior is more appropriate
+- preserve non-empty translations when a later definition only has an empty template value
 - select all, common, less-common, or unique identities with `CatalogCombineSelection`
 - skip obsolete definitions by default, with an explicit opt-in when obsolete entries should participate
 
-Ferrocat does not emit GNU-style conflict-marker translations for differing strings. Non-empty translation conflicts are either resolved with a warning diagnostic or rejected with `ApiError::Conflict`, depending on `CatalogConflictStrategy`.
+Ferrocat does not emit GNU-style conflict-marker translations for differing strings. Empty template translations fill gaps but never clear non-empty translations. Non-empty translation conflicts are either resolved with a warning diagnostic or rejected with `ApiError::Conflict`, depending on `CatalogConflictStrategy`.
 
 ```rust
 use ferrocat::{CatalogCombineInput, CombineCatalogOptions, combine_catalogs};
@@ -262,6 +263,22 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 ```
+
+### `combine_catalog_files`
+
+Use this when the inputs and output are files on disk, but you want the same deterministic combine semantics as `combine_catalogs`.
+
+The helper reads input paths in precedence order, infers a single file format from the input and output paths unless one is supplied explicitly, applies the same semantics as `combine_catalogs`, and atomically replaces the output path only after validation, parsing, and combining succeed. That means unsupported formats, mixed inferred formats, read failures, parse errors, and rejected conflicts leave the existing output file unchanged.
+
+Supported inferred suffixes are:
+
+- `.po` for `CatalogFileFormat::Po`
+- `.ndjson` and `.fcat.ndjson` for `CatalogFileFormat::Ndjson`
+- `.json` as a compatibility alias for Ferrocat NDJSON catalogs
+
+The file helper returns the output path, the file format used, combine stats, and non-fatal diagnostics. It supports one or more input files, so two-file host workflows can stay thin while larger overlay workflows do not need a separate wrapper.
+
+When no mode is provided, `CatalogFileFormat::Po` uses `CatalogMode::IcuPo` and `CatalogFileFormat::Ndjson` uses `CatalogMode::IcuNdjson`. PO callers that need classic gettext plural semantics can set `mode: Some(CatalogMode::GettextPo)`.
 
 ### `parse_catalog`
 

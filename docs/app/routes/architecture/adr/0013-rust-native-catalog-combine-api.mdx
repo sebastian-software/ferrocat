@@ -32,7 +32,17 @@ The API is intentionally Rust-native rather than shell-compatible:
 - obsolete definitions are skipped by default and included only by opt-in
 - singular/plural shape conflicts fail with `ApiError::Conflict`
 
-The default strategy is `UseFirst`, so callers can pass an existing translated catalog first and newer templates or overlays later. Non-empty translation conflicts resolved by `UseFirst` or `UseLast` produce diagnostics instead of GNU conflict-marker strings.
+The default strategy is `UseFirst`, so callers can pass an existing translated catalog first and newer templates or overlays later. Empty template translations never clear non-empty translations; they only fill gaps when no non-empty translation has been selected yet. Non-empty translation conflicts resolved by `UseFirst` or `UseLast` produce diagnostics instead of GNU conflict-marker strings.
+
+Add `combine_catalog_files` as the disk-based counterpart. It keeps the same
+combine semantics, but owns host-neutral file orchestration:
+
+- input paths are read in precedence order
+- PO and NDJSON formats can be inferred from input and output suffixes
+- `.json` is accepted as a compatibility alias for Ferrocat NDJSON catalogs
+- all inferred input and output formats must match
+- callers can override the default file-to-mode mapping when PO files need `GettextCompat`
+- output replacement is atomic and happens only after validation, parsing, and combining succeed
 
 ## Consequences
 
@@ -42,12 +52,14 @@ Positive:
 - conflict behavior is deterministic and machine-readable
 - the implementation stays in the high-level catalog layer, preserving the PO-core/catalog split
 - the same explicit `IcuNative` and `GettextCompat` semantics apply as in parse/update APIs
+- file-based host integrations can avoid duplicating safe-write and format-inference glue
 
 Negative:
 
 - this is not a byte-for-byte `msgcat` clone
 - callers that expect GNU fuzzy conflict-marker translations must handle diagnostics instead
 - the API introduces another public catalog workflow surface that needs docs, tests, and benchmarks
+- `.json` inference is a compatibility alias for Ferrocat NDJSON, not support for arbitrary JSON catalog shapes
 
 ## Follow-Up Roadmap
 
