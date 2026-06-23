@@ -1,0 +1,78 @@
+name: Fuzz
+
+on:
+  workflow_dispatch:
+    inputs:
+      max_total_time:
+        description: "Per-target fuzzing budget in seconds"
+        required: false
+        default: "45"
+  schedule:
+    - cron: "17 3 * * 1"
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  FUZZ_MAX_TOTAL_TIME: ${{ github.event.inputs.max_total_time || '45' }}
+
+jobs:
+  fuzz:
+    name: ${{ matrix.target }}
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: parse_po
+            seed_dir: seed-corpus/po
+          - target: parse_po_borrowed
+            seed_dir: seed-corpus/po
+          - target: parse_catalog_po
+            seed_dir: seed-corpus/po
+          - target: parse_catalog_ndjson
+            seed_dir: seed-corpus/ndjson
+          - target: parse_icu
+            seed_dir: seed-corpus/icu
+          - target: merge_catalog
+            seed_dir: seed-corpus/po
+          - target: update_catalog
+            seed_dir: seed-corpus/po
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up nightly Rust
+        uses: dtolnay/rust-toolchain@nightly
+
+      - name: Cache Rust build artifacts
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: fuzz -> target
+
+      - name: Install cargo-fuzz
+        uses: taiki-e/install-action@cargo-fuzz
+
+      - name: Prepare target corpus
+        run: |
+          mkdir -p "fuzz/corpus/${{ matrix.target }}" "fuzz/artifacts/${{ matrix.target }}"
+          cp -R "fuzz/${{ matrix.seed_dir }}/." "fuzz/corpus/${{ matrix.target }}/"
+
+      - name: Run bounded fuzz target
+        run: >-
+          cargo fuzz run ${{ matrix.target }} fuzz/corpus/${{ matrix.target }}
+          --
+          -max_total_time="${FUZZ_MAX_TOTAL_TIME}"
+          -timeout=10
+          -rss_limit_mb=2048
+          -artifact_prefix="fuzz/artifacts/${{ matrix.target }}/"
+
+      - name: Upload fuzz artifacts
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: fuzz-artifacts-${{ matrix.target }}
+          path: fuzz/artifacts/${{ matrix.target }}
+          if-no-files-found: ignore

@@ -1,0 +1,6 @@
+msgid "unterminated
+msgstr ""
+
+#: broken.rs:1
+msgid "{count, plural, one {# item}"
+msgstr ""

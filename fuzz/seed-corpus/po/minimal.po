@@ -1,0 +1,20 @@
+msgid ""
+msgstr ""
+"Language: de\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+#: app.rs:10
+msgid "Hello {name}"
+msgstr "Hallo {name}"
+
+#. Translator note
+#, fuzzy
+msgctxt "dashboard"
+msgid "Project"
+msgstr "Projekt"
+
+#: cart.rs:12
+msgid "{count} item"
+msgid_plural "{count} items"
+msgstr[0] "{count} Element"
+msgstr[1] "{count} Elemente"
