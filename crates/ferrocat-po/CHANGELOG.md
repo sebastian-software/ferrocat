@@ -1,5 +1,30 @@
 # Changelog
 
+## [1.3.0](https://github.com/sebastian-software/ferrocat/compare/ferrocat-po-v1.2.1...ferrocat-po-v1.3.0) (2026-06-23)
+
+
+### Features
+
+* **api:** add catalog file combine workflow ([ff3ab76](https://github.com/sebastian-software/ferrocat/commit/ff3ab765373aaf241bc076dd4a0c2096e5e37644))
+* **api:** add catalog file combine workflow ([c26486e](https://github.com/sebastian-software/ferrocat/commit/c26486ecdd2bedb209ad13c7b373ffa3fb3660e6))
+
+
+### Bug Fixes
+
+* **api:** keep non-empty translations during combine ([a21191a](https://github.com/sebastian-software/ferrocat/commit/a21191a8903e5c839de9b29352b746f61ceddeda))
+
+
+### Performance Improvements
+
+* **api:** stream catalog file combine inputs ([a952e55](https://github.com/sebastian-software/ferrocat/commit/a952e5560048ef9ecfcb403c3d831914e6969d64))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * ferrocat-icu bumped from 1.2.1 to 1.3.0
+
 ## [1.2.1](https://github.com/sebastian-software/ferrocat/compare/ferrocat-po-v1.2.0...ferrocat-po-v1.2.1) (2026-06-23)
 
 
