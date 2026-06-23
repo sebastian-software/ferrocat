@@ -266,7 +266,7 @@ fn select_target_locales(
 
 #[cfg(test)]
 mod tests {
-    use super::{CatalogCoverageOptions, catalog_coverage};
+    use super::{CatalogCoverageOptions, CatalogLocaleCoverage, catalog_coverage};
     use crate::api::{CatalogMessageStatus, CatalogMode, ParseCatalogOptions, parse_catalog};
 
     fn catalog(content: &str, locale: &str) -> crate::api::NormalizedParsedCatalog {
@@ -345,5 +345,14 @@ mod tests {
 
         assert_eq!(report.target_locales, 1);
         assert_eq!(report.locales[0].locale, "fr");
+    }
+
+    #[test]
+    fn increment_status_counts_extra_status() {
+        let mut coverage = CatalogLocaleCoverage::default();
+
+        super::increment_status(&mut coverage, CatalogMessageStatus::Extra);
+
+        assert_eq!(coverage.extra, 1);
     }
 }
