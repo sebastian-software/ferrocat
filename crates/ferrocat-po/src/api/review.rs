@@ -3,7 +3,9 @@ use std::collections::{BTreeMap, BTreeSet};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
+use super::catalog_index::{index_catalogs, select_target_locales};
 use super::message_status::{active_message_keys, classify_expected_message};
+use super::mt::validate_machine_translation_metadata;
 use super::{
     ApiError, CatalogCoverageOptions, CatalogLocaleCoverage, CatalogMessage, CatalogMessageKey,
     CatalogMessageStatus, EffectiveTranslationRef, NormalizedParsedCatalog, catalog_coverage,
@@ -218,6 +220,9 @@ pub enum CatalogMachineTranslationStatus {
 /// `msgctxt + msgid`; semantic rename detection is intentionally out of scope.
 /// Target status rollups reuse [`CatalogMessageStatus`] and therefore match
 /// [`super::audit_catalogs`] and [`super::catalog_coverage`] semantics.
+/// Translation change details are limited to source identities whose current
+/// target status is [`CatalogMessageStatus::Translated`]; missing, empty,
+/// fuzzy, and obsolete current entries are surfaced by the coverage counters.
 ///
 /// # Errors
 ///
@@ -242,21 +247,23 @@ pub fn catalog_review(
         .ok_or_else(|| missing_source_error("current", options.source_locale))?;
     let previous_source_keys = active_message_keys(previous_source);
     let current_source_keys = active_message_keys(current_source);
-    let target_locales = select_target_locales(&current_index, options)?;
+    let target_locales = select_target_locales(
+        &current_index,
+        options.source_locale,
+        options.locales,
+        "catalog_review",
+    )?;
     let source_changes = source_change_report(
         &previous_source_keys,
         &current_source_keys,
         options.include_details,
     );
-    let coverage = catalog_coverage(
-        current_catalogs,
-        &CatalogCoverageOptions {
-            source_locale: options.source_locale,
-            locales: options.locales,
-            include_details: options.include_details,
-        },
-    )
-    .expect("validated current catalogs must produce a coverage report");
+    let coverage_options = CatalogCoverageOptions {
+        source_locale: options.source_locale,
+        locales: options.locales,
+        include_details: options.include_details,
+    };
+    let coverage = catalog_coverage(current_catalogs, &coverage_options)?;
     let mut locales = Vec::with_capacity(target_locales.len());
 
     for locale in target_locales {
@@ -407,6 +414,9 @@ fn machine_translation_status(message: &CatalogMessage) -> CatalogMachineTransla
     let Some(metadata) = message.machine_translation.as_ref() else {
         return CatalogMachineTranslationStatus::Absent;
     };
+    if validate_machine_translation_metadata(metadata).is_err() {
+        return CatalogMachineTranslationStatus::Invalid;
+    }
     if metadata.hash == machine_translation_hash(message.effective_translation()) {
         CatalogMachineTranslationStatus::Current
     } else {
@@ -455,68 +465,18 @@ fn owned_translation(value: EffectiveTranslationRef<'_>) -> CatalogReviewTransla
     }
 }
 
-fn index_catalogs<'a>(
-    catalogs: &'a [&'a NormalizedParsedCatalog],
-    label: &str,
-) -> Result<BTreeMap<String, &'a NormalizedParsedCatalog>, ApiError> {
-    let mut index = BTreeMap::new();
-    for catalog in catalogs {
-        let locale = catalog
-            .parsed_catalog()
-            .locale
-            .as_deref()
-            .filter(|locale| !locale.trim().is_empty())
-            .ok_or_else(|| {
-                ApiError::InvalidArguments(format!(
-                    "{label} requires every catalog to declare a locale"
-                ))
-            })?;
-        if index.insert(locale.to_owned(), *catalog).is_some() {
-            return Err(ApiError::InvalidArguments(format!(
-                "{label} received duplicate catalog locale {locale:?}"
-            )));
-        }
-    }
-    Ok(index)
-}
-
-fn select_target_locales(
-    catalog_index: &BTreeMap<String, &NormalizedParsedCatalog>,
-    options: &CatalogReviewOptions<'_>,
-) -> Result<Vec<String>, ApiError> {
-    if options.locales.is_empty() {
-        return Ok(catalog_index
-            .keys()
-            .filter(|locale| locale.as_str() != options.source_locale)
-            .cloned()
-            .collect());
-    }
-
-    let mut seen = BTreeSet::new();
-    let mut locales = Vec::new();
-    for locale in options.locales {
-        if *locale == options.source_locale || !seen.insert((*locale).to_owned()) {
-            continue;
-        }
-        if !catalog_index.contains_key(*locale) {
-            return Err(ApiError::InvalidArguments(format!(
-                "catalog_review did not receive requested locale {locale:?}"
-            )));
-        }
-        locales.push((*locale).to_owned());
-    }
-    Ok(locales)
-}
-
 #[cfg(test)]
 mod tests {
+    use std::collections::BTreeMap;
+
     use super::{
-        CatalogMachineTranslationReview, CatalogMachineTranslationStatus, CatalogReviewOptions,
-        CatalogReviewTranslation, CatalogSourceChangeKind, catalog_review,
+        CatalogMachineTranslationStatus, CatalogReviewOptions, CatalogReviewTranslation,
+        CatalogSourceChangeKind, catalog_review,
     };
     use crate::api::{
-        ApiError, CatalogMessageKey, CatalogMode, EffectiveTranslationRef, ParseCatalogOptions,
-        machine_translation_hash, parse_catalog,
+        ApiError, CatalogMessage, CatalogMessageKey, CatalogMode, CatalogSemantics,
+        EffectiveTranslationRef, MachineTranslationMetadata, ParseCatalogOptions, ParsedCatalog,
+        TranslationShape, machine_translation_hash, parse_catalog,
     };
 
     fn catalog(content: &str, locale: &str) -> crate::api::NormalizedParsedCatalog {
@@ -545,6 +505,21 @@ mod tests {
             ..ParseCatalogOptions::new(content, "en")
         })
         .expect("parse catalog")
+        .into_normalized_view()
+        .expect("normalize catalog")
+    }
+
+    fn catalog_with_messages(
+        locale: &str,
+        messages: Vec<CatalogMessage>,
+    ) -> crate::api::NormalizedParsedCatalog {
+        ParsedCatalog {
+            locale: Some(locale.to_owned()),
+            semantics: CatalogSemantics::IcuNative,
+            headers: BTreeMap::new(),
+            messages,
+            diagnostics: Vec::new(),
+        }
         .into_normalized_view()
         .expect("normalize catalog")
     }
@@ -630,6 +605,46 @@ mod tests {
         assert!(machine_translation.details.iter().any(|detail| {
             detail.source_key == CatalogMessageKey::new("Stale", None)
                 && detail.status == CatalogMachineTranslationStatus::Stale
+        }));
+    }
+
+    #[test]
+    fn catalog_review_reports_invalid_machine_translation_metadata() {
+        let source = catalog("msgid \"Hello\"\nmsgstr \"Hello\"\n", "en");
+        let target = catalog_with_messages(
+            "de",
+            vec![CatalogMessage {
+                msgid: "Hello".to_owned(),
+                msgctxt: None,
+                translation: TranslationShape::Singular {
+                    value: "Hallo".to_owned(),
+                },
+                comments: Vec::new(),
+                origin: Vec::new(),
+                obsolete: false,
+                machine_translation: Some(MachineTranslationMetadata {
+                    model: String::new(),
+                    modified: None,
+                    confidence: None,
+                    hash: machine_translation_hash(EffectiveTranslationRef::Singular("Hallo")),
+                }),
+                extra: None,
+            }],
+        );
+
+        let report = catalog_review(
+            &[&source, &target],
+            &[&source, &target],
+            &CatalogReviewOptions::new("en").with_details(true),
+        )
+        .expect("review");
+        let machine_translation = &report.locales[0].machine_translation;
+
+        assert_eq!(machine_translation.invalid, 1);
+        assert_eq!(report.summary.machine_translation_invalid, 1);
+        assert!(machine_translation.details.iter().any(|detail| {
+            detail.source_key == CatalogMessageKey::new("Hello", None)
+                && detail.status == CatalogMachineTranslationStatus::Invalid
         }));
     }
 
@@ -828,17 +843,5 @@ mod tests {
             machine_translation.details[0].source_key,
             CatalogMessageKey::new("Hello", None)
         );
-    }
-
-    #[test]
-    fn increment_machine_translation_status_counts_invalid_status() {
-        let mut report = CatalogMachineTranslationReview::default();
-
-        super::increment_machine_translation_status(
-            &mut report,
-            CatalogMachineTranslationStatus::Invalid,
-        );
-
-        assert_eq!(report.invalid, 1);
     }
 }

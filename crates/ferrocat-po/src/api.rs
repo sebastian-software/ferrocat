@@ -1,5 +1,6 @@
 mod audit;
 mod catalog;
+mod catalog_index;
 mod combine;
 mod compile;
 mod compile_types;
