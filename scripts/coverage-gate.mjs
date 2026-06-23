@@ -14,7 +14,7 @@ if (!summaryPath) {
 
 const summary = JSON.parse(fs.readFileSync(summaryPath, "utf8"));
 const files = summary?.data?.[0]?.files ?? [];
-const crates = ["ferrocat", "ferrocat-po", "ferrocat-icu"];
+const crates = ["ferrocat", "ferrocat-cli", "ferrocat-po", "ferrocat-icu"];
 const thresholds = new Map();
 
 for (const arg of thresholdArgs) {

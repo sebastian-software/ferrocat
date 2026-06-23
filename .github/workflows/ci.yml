@@ -208,7 +208,7 @@ jobs:
         # coverage-gate but not threshold-gated while it only re-exports lower
         # level crates plus smoke tests. Add a threshold here when executable
         # umbrella code grows.
-        run: node scripts/coverage-gate.mjs target/coverage-summary.json ferrocat-po=95 ferrocat-icu=95
+        run: node scripts/coverage-gate.mjs target/coverage-summary.json ferrocat-cli=85 ferrocat-po=95 ferrocat-icu=95
 
       - name: Upload coverage to Codecov
         if: ${{ github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && !startsWith(github.head_ref, 'dependabot/')) }}

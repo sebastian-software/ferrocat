@@ -11,6 +11,7 @@ The repository exposes workspace-local Cargo aliases for coverage reporting thro
 
 The long-term goal for the shipped library surface is:
 
+- `85%+` line coverage for `ferrocat-cli`, with room to ratchet toward the library threshold as more CLI workflows ship
 - `95%+` line coverage for `ferrocat-po`
 - `95%+` line coverage for `ferrocat-icu`
 - `95%+` line coverage for `ferrocat` once the umbrella crate contains measurable executable logic beyond re-exports
@@ -23,25 +24,29 @@ The coverage commands intentionally exclude:
 That keeps the report focused on the public and internal library crates that matter most in day-to-day development:
 
 - `ferrocat`
+- `ferrocat-cli`
 - `ferrocat-po`
 - `ferrocat-icu`
 
 ## Current Gate
 
-Measured locally on `2026-05-12` with `cargo coverage-lcov`, a JSON summary export, and the crate-aware gate script:
+Measured locally on `2026-06-23` with the CI coverage commands, a JSON summary export, and the crate-aware gate script:
 
-- `ferrocat-po`: `95.08%` line coverage
-- `ferrocat-icu`: `96.00%` line coverage
+- `ferrocat-cli`: `87.32%` line coverage
+- `ferrocat-po`: `96.82%` line coverage
+- `ferrocat-icu`: `96.98%` line coverage
 - `ferrocat`: `N/A` in `llvm-cov` today because the umbrella crate is almost entirely re-exports and does not currently surface measurable executable lines in the report
 
 The CI coverage job enforces these crate-level thresholds:
 
+- `ferrocat-cli >= 85%`
 - `ferrocat-po >= 95%`
 - `ferrocat-icu >= 95%`
 - `ferrocat` is still reported, but not percentage-gated until `llvm-cov` has measurable lines for the crate
 
 The next high-yield test targets are:
 
+- `crates/ferrocat-cli/src/main.rs`
 - `ferrocat-po/src/api/catalog.rs`
 - `ferrocat-po/src/api/compile.rs`
 - `ferrocat-po/src/api/audit.rs`

@@ -31,13 +31,23 @@ Audit options:
 
 fn main() -> ExitCode {
     let mut stdout = io::stdout().lock();
-    match run_with_writer(env::args().skip(1), &mut stdout) {
+    let mut stderr = io::stderr().lock();
+    run_cli(env::args().skip(1), &mut stdout, &mut stderr)
+}
+
+fn run_cli<I, W, E>(args: I, stdout: &mut W, stderr: &mut E) -> ExitCode
+where
+    I: IntoIterator<Item = String>,
+    W: Write,
+    E: Write,
+{
+    match run_with_writer(args, stdout) {
         Ok(exit_code) => exit_code,
         Err(error) => {
-            eprintln!("{error}");
+            let _ = writeln!(stderr, "{error}");
             if matches!(error, CliError::Usage(_)) {
-                eprintln!();
-                eprint!("{USAGE}");
+                let _ = writeln!(stderr);
+                let _ = write!(stderr, "{USAGE}");
             }
             ExitCode::from(EXIT_USAGE_OR_RUNTIME_ERROR)
         }
@@ -456,8 +466,8 @@ mod tests {
     use std::fs;
 
     use super::{
-        AuditConfig, CliStorageFormat, EXIT_AUDIT_FAILED, OutputFormat, TargetCatalog,
-        run_with_writer,
+        AuditConfig, CliStorageFormat, EXIT_AUDIT_FAILED, EXIT_USAGE_OR_RUNTIME_ERROR,
+        OutputFormat, TargetCatalog, run_cli, run_with_writer,
     };
 
     #[test]
@@ -583,7 +593,182 @@ mod tests {
         assert_eq!(json["summary"]["target_locales"], 1);
     }
 
+    #[test]
+    fn cli_returns_usage_exit_code_for_unknown_command() {
+        let mut stdout = Vec::new();
+        let mut stderr = Vec::new();
+        let exit_code = run_cli(["unknown".to_owned()], &mut stdout, &mut stderr);
+
+        assert_eq!(
+            exit_code,
+            std::process::ExitCode::from(EXIT_USAGE_OR_RUNTIME_ERROR)
+        );
+        assert!(stdout.is_empty());
+        let error = String::from_utf8(stderr).expect("stderr should be UTF-8");
+        assert!(error.contains("unknown command `unknown`"));
+        assert!(error.contains("Usage:"));
+    }
+
+    #[test]
+    fn cli_returns_usage_exit_code_for_missing_flag_value() {
+        let mut stdout = Vec::new();
+        let mut stderr = Vec::new();
+        let exit_code = run_cli(
+            ["audit".to_owned(), "--source-locale".to_owned()],
+            &mut stdout,
+            &mut stderr,
+        );
+
+        assert_eq!(
+            exit_code,
+            std::process::ExitCode::from(EXIT_USAGE_OR_RUNTIME_ERROR)
+        );
+        let error = String::from_utf8(stderr).expect("stderr should be UTF-8");
+        assert!(error.contains("--source-locale requires a value"));
+        assert!(error.contains("Usage:"));
+    }
+
+    #[test]
+    fn cli_returns_runtime_exit_code_for_missing_source_file() {
+        let tempdir = tempfile_dir();
+        let target_path = tempdir.path().join("de.po");
+        fs::write(&target_path, "msgid \"Checkout\"\nmsgstr \"Zur Kasse\"\n")
+            .expect("write target fixture");
+
+        let mut stdout = Vec::new();
+        let mut stderr = Vec::new();
+        let exit_code = run_cli(
+            [
+                "audit".to_owned(),
+                "--source-locale".to_owned(),
+                "en".to_owned(),
+                "--source".to_owned(),
+                tempdir.path().join("missing.po").display().to_string(),
+                "--target".to_owned(),
+                format!("de={}", target_path.display()),
+            ],
+            &mut stdout,
+            &mut stderr,
+        );
+
+        assert_eq!(
+            exit_code,
+            std::process::ExitCode::from(EXIT_USAGE_OR_RUNTIME_ERROR)
+        );
+        let error = String::from_utf8(stderr).expect("stderr should be UTF-8");
+        assert!(error.contains("failed to read"));
+        assert!(!error.contains("Usage:"));
+    }
+
+    #[test]
+    fn audit_command_filters_requested_target_locale() {
+        let tempdir = tempfile_dir();
+        let source_path = tempdir.path().join("en.po");
+        let de_path = tempdir.path().join("de.po");
+        let fr_path = tempdir.path().join("fr.po");
+        fs::write(&source_path, "msgid \"Checkout\"\nmsgstr \"Checkout\"\n")
+            .expect("write source fixture");
+        fs::write(&de_path, "").expect("write incomplete German fixture");
+        fs::write(&fr_path, "msgid \"Checkout\"\nmsgstr \"Paiement\"\n")
+            .expect("write French fixture");
+
+        let mut stdout = Vec::new();
+        let exit_code = run_with_writer(
+            [
+                "audit".to_owned(),
+                "--source-locale".to_owned(),
+                "en".to_owned(),
+                "--source".to_owned(),
+                source_path.display().to_string(),
+                "--target".to_owned(),
+                format!("de={}", de_path.display()),
+                "--target".to_owned(),
+                format!("fr={}", fr_path.display()),
+                "--locale".to_owned(),
+                "fr".to_owned(),
+            ],
+            &mut stdout,
+        )
+        .expect("filtered audit should run");
+
+        assert_eq!(exit_code, std::process::ExitCode::SUCCESS);
+        let output = String::from_utf8(stdout).expect("text output should be UTF-8");
+        assert!(output.contains("1 target locales"));
+        assert!(!output.contains("catalog.missing_translation"));
+    }
+
+    #[test]
+    fn audit_command_reads_ndjson_catalogs() {
+        let tempdir = tempfile_dir();
+        let source_path = tempdir.path().join("en.ndjson");
+        let target_path = tempdir.path().join("de.ndjson");
+        fs::write(&source_path, ndjson_catalog("en", "Checkout")).expect("write source fixture");
+        fs::write(&target_path, ndjson_catalog("de", "Zur Kasse")).expect("write target fixture");
+
+        let mut stdout = Vec::new();
+        let exit_code = run_with_writer(
+            [
+                "audit".to_owned(),
+                "--source-locale".to_owned(),
+                "en".to_owned(),
+                "--source".to_owned(),
+                source_path.display().to_string(),
+                "--target".to_owned(),
+                format!("de={}", target_path.display()),
+                "--storage".to_owned(),
+                "ndjson".to_owned(),
+                "--format".to_owned(),
+                "json".to_owned(),
+            ],
+            &mut stdout,
+        )
+        .expect("NDJSON audit should run");
+
+        assert_eq!(exit_code, std::process::ExitCode::SUCCESS);
+        let json: serde_json::Value =
+            serde_json::from_slice(&stdout).expect("JSON output should parse");
+        assert_eq!(json["summary"]["errors"], 0);
+    }
+
+    #[test]
+    fn audit_command_reports_ndjson_parse_errors() {
+        let tempdir = tempfile_dir();
+        let source_path = tempdir.path().join("en.ndjson");
+        let target_path = tempdir.path().join("de.ndjson");
+        fs::write(
+            &source_path,
+            "---\nformat: ferrocat.ndjson.v1\nlocale: en\nsource_locale: en\n---\n{\"id\":\"broken\"",
+        )
+        .expect("write malformed source fixture");
+        fs::write(&target_path, ndjson_catalog("de", "Zur Kasse")).expect("write target fixture");
+
+        let mut stdout = Vec::new();
+        let error = run_with_writer(
+            [
+                "audit".to_owned(),
+                "--source-locale".to_owned(),
+                "en".to_owned(),
+                "--source".to_owned(),
+                source_path.display().to_string(),
+                "--target".to_owned(),
+                format!("de={}", target_path.display()),
+                "--storage".to_owned(),
+                "ndjson".to_owned(),
+            ],
+            &mut stdout,
+        )
+        .expect_err("malformed NDJSON should fail");
+
+        assert!(error.to_string().contains("failed to parse"));
+    }
+
     fn tempfile_dir() -> tempfile::TempDir {
         tempfile::tempdir().expect("tempdir should be created")
+    }
+
+    fn ndjson_catalog(locale: &str, translation: &str) -> String {
+        format!(
+            "---\nformat: ferrocat.ndjson.v1\nlocale: {locale}\nsource_locale: en\n---\n{{\"id\":\"Checkout\",\"str\":\"{translation}\"}}\n"
+        )
     }
 }
