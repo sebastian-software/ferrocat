@@ -18,11 +18,14 @@ use super::icu_syntax::parse_icu_with_syntax_policy;
 use super::plural::synthesize_icu_plural;
 use super::{
     ApiError, CatalogMessage, CatalogMessageKey, CatalogSemantics,
-    CompileCatalogArtifactIcuOptions, CompileCatalogArtifactOptions, CompileCatalogOptions,
-    CompileSelectedCatalogArtifactOptions, CompiledCatalog, CompiledCatalogArtifact,
-    CompiledCatalogDiagnostic, CompiledCatalogIdIndex, CompiledCatalogMissingMessage,
-    CompiledCatalogTranslationKind, CompiledKeyStrategy, CompiledMessage, CompiledTranslation,
-    DiagnosticSeverity, EffectiveTranslation, NormalizedParsedCatalog, TranslationShape,
+    CompileCatalogArtifactIcuOptions, CompileCatalogArtifactOptions,
+    CompileCatalogArtifactReportOptions, CompileCatalogArtifactReportSelection,
+    CompileCatalogOptions, CompileSelectedCatalogArtifactOptions, CompiledCatalog,
+    CompiledCatalogArtifact, CompiledCatalogArtifactReport, CompiledCatalogDiagnostic,
+    CompiledCatalogIdIndex, CompiledCatalogMissingMessage, CompiledCatalogProvenanceReport,
+    CompiledCatalogResolution, CompiledCatalogResolutionKind, CompiledCatalogTranslationKind,
+    CompiledKeyStrategy, CompiledMessage, CompiledTranslation, DiagnosticSeverity,
+    EffectiveTranslation, NormalizedParsedCatalog, TranslationShape,
 };
 
 impl NormalizedParsedCatalog {
@@ -132,6 +135,12 @@ struct ResolvedArtifactMessage {
     message: String,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct CompiledCatalogArtifactOutput {
+    artifact: CompiledCatalogArtifact,
+    provenance: Option<CompiledCatalogProvenanceReport>,
+}
+
 #[derive(Debug, Clone, Copy)]
 struct CompiledIcuDiagnosticTarget<'a> {
     source_key: &'a CatalogMessageKey,
@@ -233,24 +242,63 @@ pub fn compile_catalog_artifact_selected_with_icu_options(
         artifact_options.semantics,
     )?;
 
-    let mut source_keys = BTreeSet::new();
-    for compiled_id in options.compiled_ids {
-        let source_key = index.get(compiled_id).ok_or_else(|| {
-            ApiError::InvalidArguments(format!(
-                "compile_catalog_artifact_selected received unknown compiled ID {:?}",
-                compiled_id
-            ))
-        })?;
-        if !compiled_catalog_artifact_catalogs_contain_key(&locales, source_key) {
-            return Err(ApiError::InvalidArguments(format!(
-                "compile_catalog_artifact_selected compiled ID {:?} was not present in the provided catalog set",
-                compiled_id
-            )));
-        }
-        source_keys.insert(source_key.clone());
-    }
+    let source_keys = selected_compiled_catalog_artifact_source_keys(
+        &locales,
+        index,
+        options.compiled_ids,
+        "compile_catalog_artifact_selected",
+    )?;
 
     compile_catalog_artifact_from_source_keys(&locales, source_keys, artifact_options, icu_options)
+}
+
+/// Compiles one requested-locale runtime artifact with a sibling provenance report.
+///
+/// This is the report-oriented entry point for both full and selected artifact
+/// compilation. The returned artifact uses the same schema and semantics as
+/// [`compile_catalog_artifact`], while the sibling provenance report records how
+/// each compiled source identity resolved.
+///
+/// # Errors
+///
+/// Returns [`ApiError::InvalidArguments`] when required locales are missing,
+/// duplicated, or inconsistent with the provided catalog set; when selected IDs
+/// are unknown or absent from the catalog set; [`ApiError::Conflict`] when two
+/// source identities compile to the same derived key; or [`ApiError::Unsupported`]
+/// when `strict_icu` is enabled and a final runtime message fails ICU validation.
+pub fn compile_catalog_artifact_report(
+    catalogs: &[&NormalizedParsedCatalog],
+    options: &CompileCatalogArtifactReportOptions<'_>,
+) -> Result<CompiledCatalogArtifactReport, ApiError> {
+    let artifact_options = &options.options;
+    let locales = prepare_compiled_catalog_artifact_catalogs(
+        catalogs,
+        artifact_options.requested_locale,
+        artifact_options.source_locale,
+        artifact_options.fallback_chain,
+        artifact_options.semantics,
+    )?;
+    let source_keys = match options.selection {
+        CompileCatalogArtifactReportSelection::All => {
+            collect_compiled_catalog_artifact_source_keys(&locales)
+        }
+        CompileCatalogArtifactReportSelection::Selected {
+            index,
+            compiled_ids,
+        } => selected_compiled_catalog_artifact_source_keys(
+            &locales,
+            index,
+            compiled_ids,
+            "compile_catalog_artifact_report",
+        )?,
+    };
+
+    compile_catalog_artifact_report_from_source_keys(
+        &locales,
+        source_keys,
+        artifact_options,
+        &options.icu_options,
+    )
 }
 
 fn compiled_translation_for_message(
@@ -521,6 +569,29 @@ fn compiled_catalog_artifact_catalogs_contain_key(
     })
 }
 
+fn selected_compiled_catalog_artifact_source_keys(
+    locales: &BTreeMap<String, &NormalizedParsedCatalog>,
+    index: &CompiledCatalogIdIndex,
+    compiled_ids: &[String],
+    function_name: &str,
+) -> Result<BTreeSet<CatalogMessageKey>, ApiError> {
+    let mut source_keys = BTreeSet::new();
+    for compiled_id in compiled_ids {
+        let source_key = index.get(compiled_id).ok_or_else(|| {
+            ApiError::InvalidArguments(format!(
+                "{function_name} received unknown compiled ID {compiled_id:?}"
+            ))
+        })?;
+        if !compiled_catalog_artifact_catalogs_contain_key(locales, source_key) {
+            return Err(ApiError::InvalidArguments(format!(
+                "{function_name} compiled ID {compiled_id:?} was not present in the provided catalog set"
+            )));
+        }
+        source_keys.insert(source_key.clone());
+    }
+    Ok(source_keys)
+}
+
 /// Compiles the final runtime artifact for a known set of source identities.
 ///
 /// This is where derived key collision checks, fallback bookkeeping, and final
@@ -534,8 +605,58 @@ fn compile_catalog_artifact_from_source_keys<I>(
 where
     I: IntoIterator<Item = CatalogMessageKey>,
 {
+    let output = compile_catalog_artifact_from_source_keys_inner(
+        locales,
+        source_keys,
+        options,
+        icu_options,
+        false,
+    )?;
+    Ok(output.artifact)
+}
+
+fn compile_catalog_artifact_report_from_source_keys<I>(
+    locales: &BTreeMap<String, &NormalizedParsedCatalog>,
+    source_keys: I,
+    options: &CompileCatalogArtifactOptions<'_>,
+    icu_options: &CompileCatalogArtifactIcuOptions,
+) -> Result<CompiledCatalogArtifactReport, ApiError>
+where
+    I: IntoIterator<Item = CatalogMessageKey>,
+{
+    let output = compile_catalog_artifact_from_source_keys_inner(
+        locales,
+        source_keys,
+        options,
+        icu_options,
+        true,
+    )?;
+    Ok(CompiledCatalogArtifactReport {
+        artifact: output.artifact,
+        provenance: output
+            .provenance
+            .expect("provenance report requested for artifact compile output"),
+    })
+}
+
+fn compile_catalog_artifact_from_source_keys_inner<I>(
+    locales: &BTreeMap<String, &NormalizedParsedCatalog>,
+    source_keys: I,
+    options: &CompileCatalogArtifactOptions<'_>,
+    icu_options: &CompileCatalogArtifactIcuOptions,
+    include_provenance: bool,
+) -> Result<CompiledCatalogArtifactOutput, ApiError>
+where
+    I: IntoIterator<Item = CatalogMessageKey>,
+{
     let mut compiled_keys = BTreeMap::<String, CatalogMessageKey>::new();
     let mut artifact = CompiledCatalogArtifact::default();
+    let mut provenance = include_provenance.then(|| CompiledCatalogProvenanceReport {
+        requested_locale: options.requested_locale.to_owned(),
+        source_locale: options.source_locale.to_owned(),
+        fallback_chain: options.fallback_chain.to_vec(),
+        messages: Vec::new(),
+    });
 
     for source_key in source_keys {
         let compiled_key = compiled_key_for(options.key_strategy, &source_key);
@@ -551,6 +672,16 @@ where
         }
 
         let resolved = resolve_compiled_catalog_artifact_message(locales, &source_key, options);
+        if let Some(provenance) = provenance.as_mut() {
+            provenance.messages.push(CompiledCatalogResolution {
+                key: compiled_key.clone(),
+                source_key: source_key.clone(),
+                requested_locale: options.requested_locale.to_owned(),
+                resolved_locale: resolved.as_ref().map(|value| value.locale.clone()),
+                kind: compiled_catalog_resolution_kind(options, resolved.as_ref()),
+            });
+        }
+
         if options.requested_locale != options.source_locale {
             let resolved_locale = resolved.as_ref().map(|value| value.locale.clone());
             if resolved_locale.as_deref() != Some(options.requested_locale) {
@@ -617,7 +748,26 @@ where
         artifact.messages.insert(compiled_key, resolved.message);
     }
 
-    Ok(artifact)
+    Ok(CompiledCatalogArtifactOutput {
+        artifact,
+        provenance,
+    })
+}
+
+fn compiled_catalog_resolution_kind(
+    options: &CompileCatalogArtifactOptions<'_>,
+    resolved: Option<&ResolvedArtifactMessage>,
+) -> CompiledCatalogResolutionKind {
+    let Some(resolved) = resolved else {
+        return CompiledCatalogResolutionKind::Unresolved;
+    };
+    if resolved.locale == options.requested_locale {
+        return CompiledCatalogResolutionKind::Requested;
+    }
+    if resolved.locale == options.source_locale {
+        return CompiledCatalogResolutionKind::SourceFallback;
+    }
+    CompiledCatalogResolutionKind::Fallback
 }
 
 fn push_formatter_support_diagnostics(

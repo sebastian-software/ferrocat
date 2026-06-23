@@ -442,6 +442,212 @@ fn compile_catalog_artifact_can_fill_from_source_locale_when_enabled() {
 }
 
 #[test]
+fn compile_catalog_artifact_report_records_resolution_provenance() {
+    let source = normalized_catalog(
+        concat!(
+            "msgid \"Requested\"\n",
+            "msgstr \"Requested\"\n\n",
+            "msgid \"Fallback\"\n",
+            "msgstr \"Fallback\"\n\n",
+            "msgid \"SourceFallback\"\n",
+            "msgstr \"Source fallback\"\n",
+        ),
+        Some("en"),
+        PluralEncoding::Icu,
+    );
+    let requested = normalized_catalog(
+        concat!(
+            "msgid \"Requested\"\n",
+            "msgstr \"Angefragt\"\n\n",
+            "msgid \"Fallback\"\n",
+            "msgstr \"\"\n\n",
+            "msgid \"SourceFallback\"\n",
+            "msgstr \"\"\n\n",
+            "msgid \"Unresolved\"\n",
+            "msgstr \"\"\n",
+        ),
+        Some("de"),
+        PluralEncoding::Icu,
+    );
+    let fallback = normalized_catalog(
+        concat!("msgid \"Fallback\"\n", "msgstr \"Repli\"\n",),
+        Some("fr"),
+        PluralEncoding::Icu,
+    );
+    let fallback_chain = vec!["fr".to_owned()];
+    let mut options = CompileCatalogArtifactReportOptions::new("de", "en");
+    options.options.fallback_chain = &fallback_chain;
+    options.options.source_fallback = true;
+
+    let report = compile_catalog_artifact_report(&[&requested, &fallback, &source], &options)
+        .expect("compile artifact report");
+    let provenance_by_msgid = report
+        .provenance
+        .messages
+        .iter()
+        .map(|message| (message.source_key.msgid.as_str(), message))
+        .collect::<HashMap<_, _>>();
+
+    assert_eq!(report.provenance.requested_locale, "de");
+    assert_eq!(report.provenance.source_locale, "en");
+    assert_eq!(report.provenance.fallback_chain, fallback_chain);
+    assert_eq!(report.provenance.messages.len(), 4);
+    assert_eq!(
+        provenance_by_msgid["Requested"].kind,
+        CompiledCatalogResolutionKind::Requested
+    );
+    assert_eq!(
+        provenance_by_msgid["Requested"].resolved_locale.as_deref(),
+        Some("de")
+    );
+    assert_eq!(
+        provenance_by_msgid["Fallback"].kind,
+        CompiledCatalogResolutionKind::Fallback
+    );
+    assert_eq!(
+        provenance_by_msgid["Fallback"].resolved_locale.as_deref(),
+        Some("fr")
+    );
+    assert_eq!(
+        provenance_by_msgid["SourceFallback"].kind,
+        CompiledCatalogResolutionKind::SourceFallback
+    );
+    assert_eq!(
+        provenance_by_msgid["SourceFallback"]
+            .resolved_locale
+            .as_deref(),
+        Some("en")
+    );
+    assert_eq!(
+        provenance_by_msgid["Unresolved"].kind,
+        CompiledCatalogResolutionKind::Unresolved
+    );
+    assert_eq!(provenance_by_msgid["Unresolved"].resolved_locale, None);
+
+    let unresolved_key = compiled_key("Unresolved", None);
+    assert!(!report.artifact.messages.contains_key(&unresolved_key));
+    assert!(
+        report
+            .artifact
+            .missing
+            .iter()
+            .any(|missing| missing.key == unresolved_key && missing.resolved_locale.is_none())
+    );
+}
+
+#[test]
+fn compile_catalog_artifact_report_can_select_compiled_ids() {
+    let source = normalized_catalog(
+        concat!(
+            "msgid \"Hello\"\n",
+            "msgstr \"Hello\"\n\n",
+            "msgid \"Bye\"\n",
+            "msgstr \"Bye\"\n",
+        ),
+        Some("en"),
+        PluralEncoding::Icu,
+    );
+    let requested = normalized_catalog(
+        concat!(
+            "msgid \"Hello\"\n",
+            "msgstr \"Hallo\"\n\n",
+            "msgid \"Bye\"\n",
+            "msgstr \"Tschuess\"\n",
+        ),
+        Some("de"),
+        PluralEncoding::Icu,
+    );
+    let index =
+        CompiledCatalogIdIndex::new(&[&requested, &source], CompiledKeyStrategy::FerrocatV1)
+            .expect("compiled id index");
+    let hello_id = compiled_key("Hello", None);
+    let bye_id = compiled_key("Bye", None);
+    let selected_ids = vec![hello_id.clone(), hello_id.clone()];
+    let options = CompileCatalogArtifactReportOptions::selected("de", "en", &index, &selected_ids);
+
+    let report = compile_catalog_artifact_report(&[&requested, &source], &options)
+        .expect("compile selected artifact report");
+
+    assert_eq!(report.artifact.messages.len(), 1);
+    assert_eq!(
+        report.artifact.messages.get(&hello_id).map(String::as_str),
+        Some("Hallo")
+    );
+    assert!(!report.artifact.messages.contains_key(&bye_id));
+    assert_eq!(report.provenance.messages.len(), 1);
+    assert_eq!(report.provenance.messages[0].key, hello_id);
+    assert_eq!(
+        report.provenance.messages[0].kind,
+        CompiledCatalogResolutionKind::Requested
+    );
+}
+
+#[test]
+fn compile_catalog_artifact_report_rejects_unknown_selected_ids() {
+    let source = normalized_catalog(
+        "msgid \"Hello\"\nmsgstr \"Hello\"\n",
+        Some("en"),
+        PluralEncoding::Icu,
+    );
+    let requested = normalized_catalog(
+        "msgid \"Hello\"\nmsgstr \"Hallo\"\n",
+        Some("de"),
+        PluralEncoding::Icu,
+    );
+    let index =
+        CompiledCatalogIdIndex::new(&[&requested, &source], CompiledKeyStrategy::FerrocatV1)
+            .expect("compiled id index");
+    let selected_ids = vec!["missing-id".to_owned()];
+    let options = CompileCatalogArtifactReportOptions::selected("de", "en", &index, &selected_ids);
+
+    let error = compile_catalog_artifact_report(&[&requested, &source], &options)
+        .expect_err("unknown compiled id");
+
+    assert!(
+        matches!(error, ApiError::InvalidArguments(message) if message.contains("compile_catalog_artifact_report"))
+    );
+}
+
+#[cfg(feature = "serde")]
+#[test]
+fn compile_catalog_artifact_report_keeps_artifact_wire_shape_unchanged() {
+    let source = normalized_catalog(
+        "msgid \"Hello\"\nmsgstr \"Hello\"\n",
+        Some("en"),
+        PluralEncoding::Icu,
+    );
+    let requested = normalized_catalog(
+        "msgid \"Hello\"\nmsgstr \"Hallo\"\n",
+        Some("de"),
+        PluralEncoding::Icu,
+    );
+
+    let plain_artifact = compile_catalog_artifact(
+        &[&requested, &source],
+        &CompileCatalogArtifactOptions::new("de", "en"),
+    )
+    .expect("compile artifact");
+    let report = compile_catalog_artifact_report(
+        &[&requested, &source],
+        &CompileCatalogArtifactReportOptions::new("de", "en"),
+    )
+    .expect("compile artifact report");
+
+    let plain_json = serde_json::to_value(&plain_artifact).expect("plain artifact json");
+    let report_artifact_json =
+        serde_json::to_value(&report.artifact).expect("report artifact json");
+
+    assert_eq!(report.artifact, plain_artifact);
+    assert_eq!(report_artifact_json, plain_json);
+    assert!(
+        !report_artifact_json
+            .as_object()
+            .expect("artifact object")
+            .contains_key("provenance")
+    );
+}
+
+#[test]
 fn compile_catalog_artifact_materializes_empty_source_locale_messages() {
     let source = normalized_catalog(
         "msgid \"Hello\"\nmsgstr \"\"\n",

@@ -128,6 +128,7 @@ NDJSON is the line-delimited JSON storage choice. It is useful when catalogs are
 | Compile a requested-locale runtime artifact with fallbacks and missing reports | `compile_catalog_artifact` |
 | Compile only a selected subset of compiled runtime IDs | `compile_catalog_artifact_selected` |
 | Pseudolocalize final runtime artifacts for UI/layout QA | `pseudolocalize_compiled_catalog_artifact`, `pseudolocalize_compiled_catalog_artifact_with_syntax_policy` |
+| Compile a runtime artifact with a sibling resolution-provenance report | `compile_catalog_artifact_report` |
 | Perform a full in-memory catalog update | `update_catalog` |
 | Perform a full catalog update and write the result to disk only when changed | `update_catalog_file` |
 | Compute the metadata hash for a machine-generated translation | `machine_translation_hash` |
@@ -589,6 +590,25 @@ Choose this when a bundler/plugin layer has already mapped modules or chunks to 
 
 Like the broader artifact API, the request struct borrows locale data and selection slices, so callers can reuse existing vectors or arrays of compiled IDs without another owned wrapper.
 
+### `compile_catalog_artifact_report`
+
+Use this when host tooling needs the final runtime artifact plus an explanation of how each compiled message resolved.
+
+The returned `CompiledCatalogArtifactReport` contains:
+
+- `artifact`, the unchanged `CompiledCatalogArtifact` payload
+- `provenance.requested_locale`, `source_locale`, and `fallback_chain`
+- `provenance.messages`, with one row per compiled source identity
+
+Each provenance row includes the compiled `key`, original `source_key`, requested locale, resolved locale, and a resolution kind:
+
+- `requested` when the requested locale supplied the runtime value
+- `fallback` when a configured non-source fallback locale supplied it
+- `source_fallback` when the source locale supplied it through explicit source fallback
+- `unresolved` when no runtime value was available
+
+Use `CompileCatalogArtifactReportOptions::new` for the full artifact/report pair, or `CompileCatalogArtifactReportOptions::selected` when a host adapter already has a `CompiledCatalogIdIndex` and selected compiled IDs. The same report-oriented entry point accepts ICU options through `CompileCatalogArtifactReportOptions::icu_options`, so provenance does not add another full cross-product of compile functions.
+
 ### `CompiledCatalogIdIndex`
 
 Use this when you need stable compiled-ID metadata without compiling message payloads immediately.
@@ -911,6 +931,7 @@ part of this source-side metadata format.
 - Parsed catalog consumption with keyed accessors: `parse_catalog` + `into_normalized_view`
 - Locale-specific runtime artifact generation: `compile_catalog_artifact`
 - Selected locale artifact generation by compiled ID: `compile_catalog_artifact_selected`
+- Runtime artifact provenance reporting: `compile_catalog_artifact_report`
 - Release QA across catalog sets: `audit_catalogs`
 - Per-locale completeness dashboards: `catalog_coverage`
 - ICU analysis: `parse_icu`
