@@ -51,6 +51,9 @@ pub enum CompiledKeyStrategy {
 /// The callback receives each formatter discovered in a final runtime ICU
 /// message and returns whether that runtime supports the formatter kind and
 /// style.
+///
+/// This is intentionally a non-capturing function pointer so ICU options stay
+/// cheap to copy.
 pub type IcuFormatterSupportPolicy = fn(&IcuFormatter) -> IcuFormatterSupport;
 
 /// Options controlling runtime catalog compilation.
@@ -155,26 +158,6 @@ impl CompileCatalogArtifactIcuOptions {
     pub fn with_formatter_support(mut self, formatter_support: IcuFormatterSupportPolicy) -> Self {
         self.formatter_support = Some(formatter_support);
         self
-    }
-}
-
-impl PartialEq for CompileCatalogArtifactIcuOptions {
-    fn eq(&self, other: &Self) -> bool {
-        self.syntax_policy == other.syntax_policy
-            && formatter_support_policy_eq(self.formatter_support, other.formatter_support)
-    }
-}
-
-impl Eq for CompileCatalogArtifactIcuOptions {}
-
-fn formatter_support_policy_eq(
-    left: Option<IcuFormatterSupportPolicy>,
-    right: Option<IcuFormatterSupportPolicy>,
-) -> bool {
-    match (left, right) {
-        (None, None) => true,
-        (Some(left), Some(right)) => std::ptr::fn_addr_eq(left, right),
-        _ => false,
     }
 }
 
