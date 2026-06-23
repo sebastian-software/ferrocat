@@ -40,7 +40,10 @@ pub use self::ndjson::{
     NdjsonCatalogReader, NdjsonCatalogReaderOptions, NdjsonCatalogWriter,
     NdjsonCatalogWriterOptions,
 };
-pub use self::pseudolocalization::pseudolocalize_compiled_catalog_artifact;
+pub use self::pseudolocalization::{
+    pseudolocalize_compiled_catalog_artifact,
+    pseudolocalize_compiled_catalog_artifact_with_syntax_policy,
+};
 pub use self::types::{
     ApiError, CatalogCombineInput, CatalogCombineResult, CatalogCombineSelection,
     CatalogCombineStats, CatalogConflictStrategy, CatalogMessage, CatalogMessageExtra,

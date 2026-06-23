@@ -109,7 +109,9 @@ pub mod catalog {
         RenderOptions, SourceExtractedMessage, TranslationShape, UpdateCatalogFileOptions,
         UpdateCatalogOptions, audit_catalogs, combine_catalogs, compile_catalog_artifact,
         compile_catalog_artifact_selected, compiled_key, machine_translation_hash, parse_catalog,
-        pseudolocalize_compiled_catalog_artifact, update_catalog, update_catalog_file,
+        pseudolocalize_compiled_catalog_artifact,
+        pseudolocalize_compiled_catalog_artifact_with_syntax_policy, update_catalog,
+        update_catalog_file,
     };
 }
 
@@ -194,7 +196,9 @@ pub use ferrocat_po::{
     RenderOptions, SourceExtractedMessage, TranslationShape, UpdateCatalogFileOptions,
     UpdateCatalogOptions, audit_catalogs, combine_catalogs, compile_catalog_artifact,
     compile_catalog_artifact_selected, compiled_key, machine_translation_hash, parse_catalog,
-    pseudolocalize_compiled_catalog_artifact, update_catalog, update_catalog_file,
+    pseudolocalize_compiled_catalog_artifact,
+    pseudolocalize_compiled_catalog_artifact_with_syntax_policy, update_catalog,
+    update_catalog_file,
 };
 pub use ferrocat_po::{
     BorrowedHeader, BorrowedMsgStr, BorrowedPoFile, BorrowedPoItem, Header, MsgStr, MsgStrIter,

@@ -1,6 +1,7 @@
-use ferrocat_icu::{IcuPseudolocalizationOptions, pseudolocalize_icu};
+use ferrocat_icu::{IcuPseudolocalizationOptions, pseudolocalize_icu_message, stringify_icu};
 
-use super::{ApiError, CompiledCatalogArtifact};
+use super::icu_syntax::parse_icu_with_syntax_policy;
+use super::{ApiError, CompiledCatalogArtifact, IcuSyntaxPolicy};
 
 /// Pseudolocalizes the final runtime messages in a compiled catalog artifact.
 ///
@@ -17,13 +18,36 @@ pub fn pseudolocalize_compiled_catalog_artifact(
     artifact: &CompiledCatalogArtifact,
     options: &IcuPseudolocalizationOptions<'_>,
 ) -> Result<CompiledCatalogArtifact, ApiError> {
+    pseudolocalize_compiled_catalog_artifact_with_syntax_policy(
+        artifact,
+        options,
+        IcuSyntaxPolicy::Strict,
+    )
+}
+
+/// Pseudolocalizes a compiled catalog artifact with the provided ICU syntax policy.
+///
+/// Use this variant when pseudolocalizing artifacts compiled for a runtime whose
+/// accepted ICU syntax differs from Ferrocat's strict parser behavior. The
+/// syntax policy should match the one used while compiling the artifact.
+///
+/// # Errors
+///
+/// Returns [`ApiError::Unsupported`] if any runtime message in the artifact
+/// cannot be parsed with the provided ICU syntax policy.
+pub fn pseudolocalize_compiled_catalog_artifact_with_syntax_policy(
+    artifact: &CompiledCatalogArtifact,
+    options: &IcuPseudolocalizationOptions<'_>,
+    syntax_policy: IcuSyntaxPolicy,
+) -> Result<CompiledCatalogArtifact, ApiError> {
     let mut pseudolocalized = artifact.clone();
-    for message in pseudolocalized.messages.values_mut() {
-        *message = pseudolocalize_icu(message, options).map_err(|error| {
+    for (key, message) in &mut pseudolocalized.messages {
+        let parsed = parse_icu_with_syntax_policy(message, syntax_policy).map_err(|error| {
             ApiError::Unsupported(format!(
-                "compiled catalog artifact message cannot be pseudolocalized: {error}"
+                "compiled catalog artifact message {key:?} cannot be pseudolocalized: {error}"
             ))
         })?;
+        *message = stringify_icu(&pseudolocalize_icu_message(&parsed, options));
     }
     Ok(pseudolocalized)
 }
@@ -34,9 +58,13 @@ mod tests {
 
     use ferrocat_icu::IcuPseudolocalizationOptions;
 
-    use super::pseudolocalize_compiled_catalog_artifact;
+    use super::{
+        pseudolocalize_compiled_catalog_artifact,
+        pseudolocalize_compiled_catalog_artifact_with_syntax_policy,
+    };
     use crate::api::{
         ApiError, CatalogMessageKey, CompiledCatalogArtifact, CompiledCatalogMissingMessage,
+        IcuSyntaxPolicy,
     };
 
     #[test]
@@ -81,7 +109,29 @@ mod tests {
         .expect_err("invalid runtime message");
 
         assert!(
-            matches!(error, ApiError::Unsupported(message) if message.contains("cannot be pseudolocalized"))
+            matches!(error, ApiError::Unsupported(message) if message.contains("message \"runtime-key\" cannot be pseudolocalized"))
+        );
+    }
+
+    #[test]
+    fn pseudolocalize_compiled_artifact_uses_runtime_apostrophe_policy() {
+        let artifact = CompiledCatalogArtifact {
+            messages: BTreeMap::from([("runtime-key".to_owned(), "You're {name}".to_owned())]),
+            missing: Vec::new(),
+            diagnostics: Vec::new(),
+        };
+
+        let pseudolocalized = pseudolocalize_compiled_catalog_artifact_with_syntax_policy(
+            &artifact,
+            &IcuPseudolocalizationOptions::new().with_expansion_percent(0),
+            IcuSyntaxPolicy::RuntimeLiteralApostrophes,
+        )
+        .expect("pseudolocalize artifact");
+
+        assert!(pseudolocalized.messages["runtime-key"].contains("{name}"));
+        assert_ne!(
+            pseudolocalized.messages["runtime-key"],
+            artifact.messages["runtime-key"]
         );
     }
 }
