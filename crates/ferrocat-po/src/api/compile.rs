@@ -630,13 +630,7 @@ fn push_formatter_support_diagnostics(
         return;
     };
     let report = validate_icu_formatter_support(resolved_icu, formatter_support);
-    push_icu_diagnostics_for_compiled_message(
-        report.diagnostics,
-        target.source_key,
-        target.compiled_key,
-        target.locale,
-        artifact,
-    );
+    push_icu_diagnostics_for_compiled_message(report.diagnostics, target, artifact);
 }
 
 fn push_icu_compatibility_diagnostics(
@@ -671,20 +665,12 @@ fn push_icu_compatibility_diagnostics(
         resolved_icu,
         &IcuCompatibilityOptions::default(),
     );
-    push_icu_diagnostics_for_compiled_message(
-        report.diagnostics,
-        target.source_key,
-        target.compiled_key,
-        target.locale,
-        artifact,
-    );
+    push_icu_diagnostics_for_compiled_message(report.diagnostics, target, artifact);
 }
 
 fn push_icu_diagnostics_for_compiled_message(
     diagnostics: Vec<ferrocat_icu::IcuDiagnostic>,
-    source_key: &CatalogMessageKey,
-    compiled_key: &str,
-    locale: &str,
+    target: CompiledIcuDiagnosticTarget<'_>,
     artifact: &mut CompiledCatalogArtifact,
 ) {
     for diagnostic in diagnostics {
@@ -692,10 +678,10 @@ fn push_icu_diagnostics_for_compiled_message(
             severity: icu_diagnostic_severity(diagnostic.severity),
             code: diagnostic.code,
             message: diagnostic.message,
-            key: compiled_key.to_owned(),
-            msgid: source_key.msgid.clone(),
-            msgctxt: source_key.msgctxt.clone(),
-            locale: locale.to_owned(),
+            key: target.compiled_key.to_owned(),
+            msgid: target.source_key.msgid.clone(),
+            msgctxt: target.source_key.msgctxt.clone(),
+            locale: target.locale.to_owned(),
         });
     }
 }
