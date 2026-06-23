@@ -25,17 +25,20 @@ pub use self::audit::{
 pub use self::catalog::{parse_catalog, update_catalog, update_catalog_file};
 pub use self::combine::combine_catalogs;
 pub use self::compile::{
-    compile_catalog_artifact, compile_catalog_artifact_selected,
+    compile_catalog_artifact, compile_catalog_artifact_report, compile_catalog_artifact_selected,
     compile_catalog_artifact_selected_with_icu_options, compile_catalog_artifact_with_icu_options,
     compiled_key,
 };
 pub use self::compile_types::{
     COMPILED_CATALOG_ARTIFACT_SCHEMA_VERSION, CompileCatalogArtifactIcuOptions,
-    CompileCatalogArtifactOptions, CompileCatalogOptions, CompileSelectedCatalogArtifactOptions,
-    CompiledCatalog, CompiledCatalogArtifact, CompiledCatalogDiagnostic,
-    CompiledCatalogIdDescription, CompiledCatalogIdIndex, CompiledCatalogMissingMessage,
-    CompiledCatalogTranslationKind, CompiledCatalogUnavailableId, CompiledKeyStrategy,
-    CompiledMessage, CompiledTranslation, DescribeCompiledIdsReport, IcuFormatterSupportPolicy,
+    CompileCatalogArtifactOptions, CompileCatalogArtifactReportOptions,
+    CompileCatalogArtifactReportSelection, CompileCatalogOptions,
+    CompileSelectedCatalogArtifactOptions, CompiledCatalog, CompiledCatalogArtifact,
+    CompiledCatalogArtifactReport, CompiledCatalogDiagnostic, CompiledCatalogIdDescription,
+    CompiledCatalogIdIndex, CompiledCatalogMissingMessage, CompiledCatalogProvenanceReport,
+    CompiledCatalogResolution, CompiledCatalogResolutionKind, CompiledCatalogTranslationKind,
+    CompiledCatalogUnavailableId, CompiledKeyStrategy, CompiledMessage, CompiledTranslation,
+    DescribeCompiledIdsReport, IcuFormatterSupportPolicy,
 };
 pub use self::coverage::{
     CatalogCoverageMessage, CatalogCoverageOptions, CatalogCoverageReport, CatalogLocaleCoverage,

@@ -188,6 +188,61 @@ impl<'a> CompileSelectedCatalogArtifactOptions<'a> {
     }
 }
 
+/// Message selection for [`super::compile_catalog_artifact_report`].
+#[derive(Debug, Clone, Copy)]
+pub enum CompileCatalogArtifactReportSelection<'a> {
+    /// Compile and report every non-obsolete source identity available in the catalog set.
+    All,
+    /// Compile and report only the requested compiled runtime IDs.
+    Selected {
+        /// Stable ID index used to map compiled IDs back to source identities.
+        index: &'a CompiledCatalogIdIndex,
+        /// Requested compiled runtime IDs to include in the artifact and provenance report.
+        compiled_ids: &'a [String],
+    },
+}
+
+/// Options controlling compiled artifact generation with a sibling provenance report.
+#[derive(Debug, Clone)]
+pub struct CompileCatalogArtifactReportOptions<'a> {
+    /// Shared artifact compile options applied to the generated artifact.
+    pub options: CompileCatalogArtifactOptions<'a>,
+    /// ICU-specific options applied while validating final runtime messages.
+    pub icu_options: CompileCatalogArtifactIcuOptions,
+    /// Source identity selection for the generated artifact and provenance report.
+    pub selection: CompileCatalogArtifactReportSelection<'a>,
+}
+
+impl<'a> CompileCatalogArtifactReportOptions<'a> {
+    /// Creates report compile options for every non-obsolete source identity.
+    #[must_use]
+    pub fn new(requested_locale: &'a str, source_locale: &'a str) -> Self {
+        Self {
+            options: CompileCatalogArtifactOptions::new(requested_locale, source_locale),
+            icu_options: CompileCatalogArtifactIcuOptions::new(),
+            selection: CompileCatalogArtifactReportSelection::All,
+        }
+    }
+
+    /// Creates report compile options for a selected subset of compiled runtime IDs.
+    #[must_use]
+    pub fn selected(
+        requested_locale: &'a str,
+        source_locale: &'a str,
+        index: &'a CompiledCatalogIdIndex,
+        compiled_ids: &'a [String],
+    ) -> Self {
+        Self {
+            options: CompileCatalogArtifactOptions::new(requested_locale, source_locale),
+            icu_options: CompileCatalogArtifactIcuOptions::new(),
+            selection: CompileCatalogArtifactReportSelection::Selected {
+                index,
+                compiled_ids,
+            },
+        }
+    }
+}
+
 /// High-level translation kind associated with a compiled runtime ID.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
@@ -471,6 +526,66 @@ pub struct CompiledCatalogArtifact {
     pub diagnostics: Vec<CompiledCatalogDiagnostic>,
 }
 
+/// Result returned by [`super::compile_catalog_artifact_report`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
+pub struct CompiledCatalogArtifactReport {
+    /// Host-neutral runtime artifact produced by the same compile path as
+    /// [`super::compile_catalog_artifact`].
+    pub artifact: CompiledCatalogArtifact,
+    /// Sibling report describing how each compiled message resolved.
+    pub provenance: CompiledCatalogProvenanceReport,
+}
+
+/// Provenance metadata for one compiled requested-locale artifact.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
+pub struct CompiledCatalogProvenanceReport {
+    /// Requested locale used for artifact compilation.
+    pub requested_locale: String,
+    /// Source locale used for explicit source fallback behavior.
+    pub source_locale: String,
+    /// Ordered fallback locales configured for this compile request.
+    pub fallback_chain: Vec<String>,
+    /// Per-message resolution rows in the same deterministic source-key order as compilation.
+    pub messages: Vec<CompiledCatalogResolution>,
+}
+
+/// Provenance row for one compiled runtime message identity.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
+pub struct CompiledCatalogResolution {
+    /// Stable runtime key derived from the source identity.
+    pub key: String,
+    /// Original gettext identity preserved for diagnostics and tooling.
+    pub source_key: CatalogMessageKey,
+    /// Requested locale for this artifact compilation.
+    pub requested_locale: String,
+    /// Locale that ultimately provided the runtime value, if any.
+    pub resolved_locale: Option<String>,
+    /// Resolution category for this message.
+    pub kind: CompiledCatalogResolutionKind,
+}
+
+/// How one compiled runtime message resolved for a requested-locale artifact.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "snake_case"))]
+#[non_exhaustive]
+pub enum CompiledCatalogResolutionKind {
+    /// The requested locale provided the final runtime message.
+    Requested,
+    /// A configured non-source fallback locale provided the final runtime message.
+    Fallback,
+    /// The source locale provided the final runtime message through source fallback.
+    SourceFallback,
+    /// No locale provided a final runtime message.
+    Unresolved,
+}
+
 #[cfg(feature = "serde")]
 #[derive(Serialize)]
 struct CompiledCatalogArtifactWireRef<'a> {
@@ -573,6 +688,7 @@ mod tests {
 
     use super::{
         COMPILED_CATALOG_ARTIFACT_SCHEMA_VERSION, CompileCatalogArtifactOptions,
+        CompileCatalogArtifactReportOptions, CompileCatalogArtifactReportSelection,
         CompileCatalogOptions, CompileSelectedCatalogArtifactOptions, CompiledCatalogArtifact,
         CompiledCatalogDiagnostic, CompiledCatalogMissingMessage, CompiledKeyStrategy,
     };
@@ -599,6 +715,14 @@ mod tests {
             selected.options.key_strategy,
             CompiledKeyStrategy::FerrocatV1
         );
+
+        let report = CompileCatalogArtifactReportOptions::new("de", "en");
+        assert_eq!(report.options.requested_locale, "de");
+        assert_eq!(report.options.source_locale, "en");
+        assert!(matches!(
+            report.selection,
+            CompileCatalogArtifactReportSelection::All
+        ));
     }
 
     #[cfg(feature = "serde")]
