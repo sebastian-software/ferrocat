@@ -284,6 +284,66 @@ mod tests {
     }
 
     #[test]
+    fn pseudolocalize_icu_covers_ascii_accent_mapping() {
+        let output = pseudolocalize_icu(
+            "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz",
+            &IcuPseudolocalizationOptions::new()
+                .with_wrapper("", "")
+                .with_expansion_percent(0),
+        )
+        .expect("pseudo");
+
+        assert_eq!(
+            output,
+            "ÀƁÇÐÉƑĞĤÏĴĶĻṀÑÖÞQŔŠŦÛṼŴẊÝŽàƀçðéƒğĥïĵķļṁñöþqŕšŧûṽŵẋýž"
+        );
+    }
+
+    #[test]
+    fn pseudolocalize_icu_preserves_formatter_nodes() {
+        let input = concat!(
+            "{n, number, integer} ",
+            "{d, date, short} ",
+            "{t, time, ::HHmm} ",
+            "{items, list, disjunction} ",
+            "{elapsed, duration} ",
+            "{age, ago} ",
+            "{owner, name}",
+        );
+        let output = pseudolocalize_icu(input, &no_expansion()).expect("pseudo");
+
+        assert_eq!(output, format!("[!! {input} !!]"));
+    }
+
+    #[test]
+    fn pseudolocalize_icu_preserves_select_structure() {
+        let output = pseudolocalize_icu(
+            "{gender, select, female {She} male {He} other {They}}",
+            &no_expansion(),
+        )
+        .expect("pseudo");
+
+        assert_eq!(
+            output,
+            "[!! {gender, select, female {Šĥé} male {Ĥé} other {Ŧĥéý}} !!]"
+        );
+    }
+
+    #[test]
+    fn pseudolocalize_icu_supports_empty_wrapper_and_custom_expansion() {
+        let output = pseudolocalize_icu(
+            "Hi",
+            &IcuPseudolocalizationOptions::new()
+                .with_wrapper("", "")
+                .with_expansion_percent(50)
+                .with_expansion_char('*'),
+        )
+        .expect("pseudo");
+
+        assert_eq!(output, "Ĥï*");
+    }
+
+    #[test]
     fn pseudolocalize_icu_preserves_tag_names() {
         let output =
             pseudolocalize_icu("Click <link>{name}</link>", &no_expansion()).expect("pseudo");
@@ -306,5 +366,12 @@ mod tests {
         let twice = pseudolocalize_icu(&once, &options).expect("second pseudo");
 
         assert_eq!(twice, once);
+    }
+
+    #[test]
+    fn pseudolocalize_icu_returns_parse_errors() {
+        let error = pseudolocalize_icu("{broken", &no_expansion()).expect_err("invalid ICU");
+
+        assert!(error.to_string().contains("Expected"));
     }
 }
