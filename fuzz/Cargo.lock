@@ -114,14 +114,14 @@ dependencies = [
 
 [[package]]
 name = "ferrocat-icu"
-version = "1.1.0"
+version = "1.2.0"
 dependencies = [
  "serde",
 ]
 
 [[package]]
 name = "ferrocat-po"
-version = "1.1.0"
+version = "1.2.0"
 dependencies = [
  "ferrocat-icu",
  "icu_locale",
