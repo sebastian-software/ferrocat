@@ -111,7 +111,9 @@ pub use api::{
     audit_catalogs_with_icu_options, combine_catalogs, compile_catalog_artifact,
     compile_catalog_artifact_selected, compile_catalog_artifact_selected_with_icu_options,
     compile_catalog_artifact_with_icu_options, compiled_key, machine_translation_hash,
-    parse_catalog, pseudolocalize_compiled_catalog_artifact, update_catalog, update_catalog_file,
+    parse_catalog, pseudolocalize_compiled_catalog_artifact,
+    pseudolocalize_compiled_catalog_artifact_with_syntax_policy, update_catalog,
+    update_catalog_file,
 };
 pub use borrowed::{
     BorrowedHeader, BorrowedMsgStr, BorrowedPoFile, BorrowedPoItem, parse_po_borrowed,

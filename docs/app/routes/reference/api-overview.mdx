@@ -126,7 +126,7 @@ NDJSON is the line-delimited JSON storage choice. It is useful when catalogs are
 | Compile a normalized catalog into runtime lookup entries | `NormalizedParsedCatalog::compile` |
 | Compile a requested-locale runtime artifact with fallbacks and missing reports | `compile_catalog_artifact` |
 | Compile only a selected subset of compiled runtime IDs | `compile_catalog_artifact_selected` |
-| Pseudolocalize final runtime artifacts for UI/layout QA | `pseudolocalize_compiled_catalog_artifact` |
+| Pseudolocalize final runtime artifacts for UI/layout QA | `pseudolocalize_compiled_catalog_artifact`, `pseudolocalize_compiled_catalog_artifact_with_syntax_policy` |
 | Perform a full in-memory catalog update | `update_catalog` |
 | Perform a full catalog update and write the result to disk only when changed | `update_catalog_file` |
 | Compute the metadata hash for a machine-generated translation | `machine_translation_hash` |
@@ -518,6 +518,10 @@ Use `pseudolocalize_compiled_catalog_artifact` when a host wants a pseudo-locale
 variant of the final runtime artifact. It transforms only ICU literal text in
 the artifact `messages` map and preserves placeholders, formatter syntax,
 plural selectors, `#`, tag names, missing-message records, and diagnostics.
+Use `pseudolocalize_compiled_catalog_artifact_with_syntax_policy` when the
+artifact was compiled with a non-default ICU syntax policy such as
+`IcuSyntaxPolicy::RuntimeLiteralApostrophes`; pass the same policy so
+pseudolocalization accepts the same final runtime strings as compilation.
 Pseudo-locale routing and framework output remain host responsibilities.
 
 ### `compile_catalog_artifact_selected`
