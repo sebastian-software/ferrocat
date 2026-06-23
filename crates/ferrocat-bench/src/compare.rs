@@ -29,6 +29,7 @@ use crate::fixtures::{
 
 const INTERNAL_TOOL_VERSION: &str = concat!("ferrocat@", env!("CARGO_PKG_VERSION"));
 const DEFAULT_MIN_SAMPLE_MILLIS: u64 = 250;
+const DEFAULT_MAX_REGRESSION_PERCENT: f64 = 20.0;
 const CALIBRATION_PROBE_RUNS: usize = 3;
 const NOISE_CV_WARNING_THRESHOLD: f64 = 0.05;
 const NOISE_RELATIVE_SPAN_WARNING_THRESHOLD: f64 = 10.0;
@@ -108,6 +109,39 @@ pub fn run_compare_command(
     }
 
     Ok(())
+}
+
+pub fn run_regression_check_command(args: impl Iterator<Item = String>) -> Result<(), String> {
+    let options = RegressionCheckCliOptions::parse(args)?;
+    let baseline = load_compare_report(&options.baseline)?;
+    let current = load_compare_report(&options.current)?;
+    let report = compare_regression_reports(&baseline, &current, options.max_regression_percent)?;
+
+    print!("{}", report.render());
+    if report.has_failures() {
+        return Err(format!(
+            "benchmark regression check failed: {} scenario(s) exceeded {:.2}%",
+            report.failures.len(),
+            options.max_regression_percent
+        ));
+    }
+
+    Ok(())
+}
+
+fn load_compare_report(path: &Path) -> Result<CompareReport, String> {
+    let content = fs::read_to_string(path).map_err(|error| {
+        format!(
+            "failed to read benchmark report {}: {error}",
+            path.display()
+        )
+    })?;
+    serde_json::from_str(&content).map_err(|error| {
+        format!(
+            "failed to parse benchmark report {}: {error}",
+            path.display()
+        )
+    })
 }
 
 #[expect(
@@ -362,6 +396,246 @@ impl CompareCliOptions {
             out: out.ok_or_else(|| "compare requires --out <json-path>".to_owned())?,
         })
     }
+}
+
+#[derive(Debug)]
+struct RegressionCheckCliOptions {
+    baseline: PathBuf,
+    current: PathBuf,
+    max_regression_percent: f64,
+}
+
+impl RegressionCheckCliOptions {
+    fn parse(mut args: impl Iterator<Item = String>) -> Result<Self, String> {
+        let mut baseline = None;
+        let mut current = None;
+        let mut max_regression_percent = DEFAULT_MAX_REGRESSION_PERCENT;
+
+        while let Some(arg) = args.next() {
+            match arg.as_str() {
+                "--baseline" => {
+                    let value = args
+                        .next()
+                        .ok_or_else(|| "--baseline requires a path value".to_owned())?;
+                    baseline = Some(PathBuf::from(value));
+                }
+                "--current" => {
+                    let value = args
+                        .next()
+                        .ok_or_else(|| "--current requires a path value".to_owned())?;
+                    current = Some(PathBuf::from(value));
+                }
+                "--max-regression-percent" => {
+                    let value = args.next().ok_or_else(|| {
+                        "--max-regression-percent requires a numeric value".to_owned()
+                    })?;
+                    max_regression_percent =
+                        parse_positive_f64("--max-regression-percent", &value)?;
+                }
+                value => return Err(format!("unknown regression-check flag: {value}")),
+            }
+        }
+
+        Ok(Self {
+            baseline: baseline
+                .ok_or_else(|| "regression-check requires --baseline <json-path>".to_owned())?,
+            current: current
+                .ok_or_else(|| "regression-check requires --current <json-path>".to_owned())?,
+            max_regression_percent,
+        })
+    }
+}
+
+fn parse_positive_f64(label: &str, value: &str) -> Result<f64, String> {
+    let parsed = value
+        .parse::<f64>()
+        .map_err(|_| format!("invalid {label} value: {value}"))?;
+    if !parsed.is_finite() || parsed <= 0.0 {
+        return Err(format!("{label} must be a positive finite number"));
+    }
+    Ok(parsed)
+}
+
+#[derive(Debug)]
+struct BenchmarkRegressionReport {
+    profile: String,
+    max_regression_percent: f64,
+    passed: Vec<BenchmarkRegressionScenario>,
+    failures: Vec<BenchmarkRegressionScenario>,
+    skipped_noisy: Vec<BenchmarkRegressionScenario>,
+    missing_baseline: Vec<String>,
+    missing_current: Vec<String>,
+}
+
+impl BenchmarkRegressionReport {
+    fn has_failures(&self) -> bool {
+        !self.failures.is_empty() || !self.missing_current.is_empty()
+    }
+
+    fn render(&self) -> String {
+        let mut out = String::new();
+        out.push_str("Benchmark regression check\n");
+        out.push_str(&format!("profile: {}\n", self.profile));
+        out.push_str(&format!(
+            "max-regression-percent: {:.2}\n",
+            self.max_regression_percent
+        ));
+        out.push_str(&format!(
+            "passed: {} failed: {} skipped-noisy: {} missing-baseline: {} missing-current: {}\n",
+            self.passed.len(),
+            self.failures.len(),
+            self.skipped_noisy.len(),
+            self.missing_baseline.len(),
+            self.missing_current.len()
+        ));
+
+        for scenario in &self.failures {
+            out.push_str(&format!(
+                "FAIL {}: +{:.2}% median elapsed ({} -> {})\n",
+                scenario.id,
+                scenario.regression_percent,
+                format_duration_ns(scenario.baseline_median_elapsed_ns),
+                format_duration_ns(scenario.current_median_elapsed_ns)
+            ));
+        }
+        for scenario in &self.skipped_noisy {
+            out.push_str(&format!(
+                "SKIP noisy {}: {:+.2}% median elapsed (baseline noisy={} current noisy={})\n",
+                scenario.id,
+                scenario.regression_percent,
+                scenario.baseline_noisy,
+                scenario.current_noisy
+            ));
+        }
+        for id in &self.missing_baseline {
+            out.push_str(&format!("SKIP missing-baseline {id}\n"));
+        }
+        for id in &self.missing_current {
+            out.push_str(&format!("FAIL missing-current {id}\n"));
+        }
+        if self.has_failures() {
+            out.push_str("result: FAIL\n");
+        } else {
+            out.push_str("result: PASS\n");
+        }
+        out
+    }
+}
+
+#[derive(Debug)]
+struct BenchmarkRegressionScenario {
+    id: String,
+    baseline_median_elapsed_ns: u128,
+    current_median_elapsed_ns: u128,
+    regression_percent: f64,
+    baseline_noisy: bool,
+    current_noisy: bool,
+}
+
+fn compare_regression_reports(
+    baseline: &CompareReport,
+    current: &CompareReport,
+    max_regression_percent: f64,
+) -> Result<BenchmarkRegressionReport, String> {
+    if baseline.profile != current.profile {
+        return Err(format!(
+            "cannot compare benchmark profiles {} and {}",
+            baseline.profile, current.profile
+        ));
+    }
+
+    let baseline_by_id = baseline
+        .scenarios
+        .iter()
+        .map(|scenario| (scenario.id.as_str(), scenario))
+        .collect::<BTreeMap<_, _>>();
+    let current_by_id = current
+        .scenarios
+        .iter()
+        .map(|scenario| (scenario.id.as_str(), scenario))
+        .collect::<BTreeMap<_, _>>();
+
+    let mut passed = Vec::new();
+    let mut failures = Vec::new();
+    let mut skipped_noisy = Vec::new();
+    let mut missing_baseline = Vec::new();
+    let mut missing_current = Vec::new();
+
+    for scenario in &current.scenarios {
+        let Some(baseline_scenario) = baseline_by_id.get(scenario.id.as_str()) else {
+            missing_baseline.push(scenario.id.clone());
+            continue;
+        };
+        let regression = regression_scenario(baseline_scenario, scenario)?;
+        if regression.baseline_noisy || regression.current_noisy {
+            skipped_noisy.push(regression);
+        } else if regression.regression_percent > max_regression_percent {
+            failures.push(regression);
+        } else {
+            passed.push(regression);
+        }
+    }
+
+    for scenario in &baseline.scenarios {
+        if !current_by_id.contains_key(scenario.id.as_str()) {
+            missing_current.push(scenario.id.clone());
+        }
+    }
+
+    if passed.is_empty()
+        && failures.is_empty()
+        && skipped_noisy.is_empty()
+        && missing_baseline.is_empty()
+    {
+        return Err("benchmark reports have no comparable scenarios".to_owned());
+    }
+
+    Ok(BenchmarkRegressionReport {
+        profile: current.profile.clone(),
+        max_regression_percent,
+        passed,
+        failures,
+        skipped_noisy,
+        missing_baseline,
+        missing_current,
+    })
+}
+
+fn regression_scenario(
+    baseline: &ScenarioReport,
+    current: &ScenarioReport,
+) -> Result<BenchmarkRegressionScenario, String> {
+    if baseline.semantic_digest != current.semantic_digest {
+        return Err(format!(
+            "scenario {} changed semantic digest (baseline {}, current {})",
+            current.id, baseline.semantic_digest, current.semantic_digest
+        ));
+    }
+
+    let baseline_elapsed = baseline.statistics.median_elapsed_ns;
+    let current_elapsed = current.statistics.median_elapsed_ns;
+    if baseline_elapsed == 0 {
+        return Err(format!(
+            "scenario {} has zero baseline median elapsed time",
+            baseline.id
+        ));
+    }
+
+    let regression_percent =
+        ((f64_from_u128(current_elapsed) / f64_from_u128(baseline_elapsed)) - 1.0) * 100.0;
+
+    Ok(BenchmarkRegressionScenario {
+        id: current.id.clone(),
+        baseline_median_elapsed_ns: baseline_elapsed,
+        current_median_elapsed_ns: current_elapsed,
+        regression_percent,
+        baseline_noisy: baseline.statistics.noisy,
+        current_noisy: current.statistics.noisy,
+    })
+}
+
+fn format_duration_ns(value: u128) -> String {
+    format!("{:.3} ms", nanos_to_millis(value))
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -2013,7 +2287,7 @@ fn sort_json_value(value: serde_json::Value) -> serde_json::Value {
     }
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 struct CompareReport {
     profile: String,
     generated_at: String,
@@ -2022,7 +2296,7 @@ struct CompareReport {
     scenarios: Vec<ScenarioReport>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 struct ScenarioReport {
     id: String,
     comparison_group: String,
@@ -2041,7 +2315,7 @@ struct ScenarioReport {
     samples: Vec<ScenarioSampleReport>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 struct ScenarioSampleReport {
     elapsed_ns: u128,
     baseline_elapsed_ns: Option<u128>,
@@ -2085,7 +2359,7 @@ impl ScenarioSampleReport {
     }
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 struct ScenarioStatistics {
     median_elapsed_ns: u128,
     mean_elapsed_ns: f64,
@@ -2346,7 +2620,7 @@ enum ExecutionArtifact {
     RenderedPoPath(PathBuf),
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 struct EnvironmentMetadata {
     git_sha: String,
     system_label: String,
@@ -3448,6 +3722,77 @@ mod tests {
     }
 
     #[test]
+    fn regression_check_passes_growth_within_threshold() {
+        let baseline = regression_report([regression_scenario_report(
+            "po-parse/mixed-10000/ferrocat-owned",
+            100_000_000,
+            false,
+        )]);
+        let current = regression_report([regression_scenario_report(
+            "po-parse/mixed-10000/ferrocat-owned",
+            110_000_000,
+            false,
+        )]);
+
+        let report =
+            compare_regression_reports(&baseline, &current, 20.0).expect("regression report");
+
+        assert!(!report.has_failures());
+        assert_eq!(report.passed.len(), 1);
+        assert!(report.render().contains("result: PASS"));
+    }
+
+    #[test]
+    fn regression_check_flags_meaningful_slowdown() {
+        let baseline = regression_report([regression_scenario_report(
+            "po-update/catalog-icu-heavy/ferrocat",
+            100_000_000,
+            false,
+        )]);
+        let current = regression_report([regression_scenario_report(
+            "po-update/catalog-icu-heavy/ferrocat",
+            130_000_000,
+            false,
+        )]);
+
+        let report =
+            compare_regression_reports(&baseline, &current, 20.0).expect("regression report");
+
+        assert!(report.has_failures());
+        assert_eq!(report.failures.len(), 1);
+        assert!(
+            report
+                .render()
+                .contains("FAIL po-update/catalog-icu-heavy/ferrocat")
+        );
+    }
+
+    #[test]
+    fn regression_check_skips_noisy_scenarios() {
+        let baseline = regression_report([regression_scenario_report(
+            "icu-parse/icu-nested-1000/ferrocat",
+            100_000_000,
+            false,
+        )]);
+        let current = regression_report([regression_scenario_report(
+            "icu-parse/icu-nested-1000/ferrocat",
+            180_000_000,
+            true,
+        )]);
+
+        let report =
+            compare_regression_reports(&baseline, &current, 20.0).expect("regression report");
+
+        assert!(!report.has_failures());
+        assert_eq!(report.skipped_noisy.len(), 1);
+        assert!(
+            report
+                .render()
+                .contains("SKIP noisy icu-parse/icu-nested-1000/ferrocat")
+        );
+    }
+
+    #[test]
     fn round_robin_schedule_interleaves_scenarios_by_round() {
         assert_eq!(round_robin_schedule(&[2, 1, 3]), vec![0, 1, 2, 0, 2, 2]);
     }
@@ -3639,5 +3984,75 @@ mod tests {
             canonical_json_string(&owned_summary).expect("owned json"),
             canonical_json_string(&borrowed_summary).expect("borrowed json")
         );
+    }
+
+    fn regression_report<const N: usize>(scenarios: [ScenarioReport; N]) -> CompareReport {
+        CompareReport {
+            profile: "rust-scheduled-v1".to_owned(),
+            generated_at: "2026-06-23T00:00:00Z".to_owned(),
+            reference_host_policy: "test".to_owned(),
+            environment: EnvironmentMetadata {
+                git_sha: "test".to_owned(),
+                system_label: "test".to_owned(),
+                os: "test".to_owned(),
+                cpu_model: "test".to_owned(),
+                memory_bytes: 1,
+                rustc_version: "rustc test".to_owned(),
+                node_version: "node test".to_owned(),
+                python_version: "python test".to_owned(),
+                msgmerge_version: "msgmerge test".to_owned(),
+                msgcat_version: "msgcat test".to_owned(),
+                node_adapter_version: "node adapters test".to_owned(),
+                python_adapter_version: "python adapters test".to_owned(),
+            },
+            scenarios: scenarios.into_iter().collect(),
+        }
+    }
+
+    fn regression_scenario_report(
+        id: &str,
+        median_elapsed_ns: u128,
+        noisy: bool,
+    ) -> ScenarioReport {
+        ScenarioReport {
+            id: id.to_owned(),
+            comparison_group: id
+                .rsplit_once('/')
+                .map_or(id, |(group, _)| group)
+                .to_owned(),
+            workload: "test".to_owned(),
+            operation: "test".to_owned(),
+            fixture: "test".to_owned(),
+            implementation: "ferrocat-test".to_owned(),
+            tool_version: "ferrocat@test".to_owned(),
+            iterations_per_sample: 1,
+            warmup_runs: 0,
+            measured_runs: 3,
+            semantic_digest: "digest".to_owned(),
+            baseline_strategy: None,
+            baseline_fixture: None,
+            statistics: regression_statistics(median_elapsed_ns, noisy),
+            samples: Vec::new(),
+        }
+    }
+
+    fn regression_statistics(median_elapsed_ns: u128, noisy: bool) -> ScenarioStatistics {
+        ScenarioStatistics {
+            median_elapsed_ns,
+            mean_elapsed_ns: f64_from_u128(median_elapsed_ns),
+            min_elapsed_ns: median_elapsed_ns,
+            max_elapsed_ns: median_elapsed_ns,
+            stddev_elapsed_ns: 0.0,
+            median_absolute_deviation_ns: 0,
+            coefficient_of_variation: if noisy { 0.06 } else { 0.01 },
+            relative_span_percent: if noisy { 11.0 } else { 1.0 },
+            noisy,
+            median_mib_per_sec: 1.0,
+            median_units_per_sec: 1.0,
+            median_baseline_elapsed_ns: None,
+            median_adjusted_elapsed_ns: None,
+            median_adjusted_mib_per_sec: None,
+            median_adjusted_units_per_sec: None,
+        }
     }
 }

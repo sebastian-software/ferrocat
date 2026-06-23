@@ -45,6 +45,7 @@ fn run() -> Result<(), String> {
                 .ok_or_else(|| "compare requires a profile name".to_owned())?;
             compare::run_compare_command(&profile_name, args)
         }
+        "regression-check" => compare::run_regression_check_command(args),
         "parse" => {
             let fixture_name = args.next().unwrap_or_else(|| "realistic".to_owned());
             let config = parse_bench_config(args, &fixture_name)?;
@@ -158,7 +159,7 @@ fn run() -> Result<(), String> {
             Ok(())
         }
         other => Err(format!(
-            "unknown command: {other} (use verify-benchmark-env, compare, parse, parse-borrowed, parse-catalog-po, parse-catalog-ndjson, parse-icu, validate-icu, extract-icu-variables, stringify, stringify-catalog-po, stringify-catalog-ndjson, merge, update-catalog, update-catalog-file, update-catalog-file-ndjson, combine-catalogs, describe, or conformance-report)"
+            "unknown command: {other} (use verify-benchmark-env, compare, regression-check, parse, parse-borrowed, parse-catalog-po, parse-catalog-ndjson, parse-icu, validate-icu, extract-icu-variables, stringify, stringify-catalog-po, stringify-catalog-ndjson, merge, update-catalog, update-catalog-file, update-catalog-file-ndjson, combine-catalogs, describe, or conformance-report)"
         )),
     }
 }
