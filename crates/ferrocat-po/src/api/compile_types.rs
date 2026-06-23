@@ -562,8 +562,6 @@ pub struct CompiledCatalogResolution {
     pub key: String,
     /// Original gettext identity preserved for diagnostics and tooling.
     pub source_key: CatalogMessageKey,
-    /// Requested locale for this artifact compilation.
-    pub requested_locale: String,
     /// Locale that ultimately provided the runtime value, if any.
     pub resolved_locale: Option<String>,
     /// Resolution category for this message.
