@@ -77,6 +77,7 @@ Ferrocat focuses on the work that happens around real translation catalogs:
 - Preserve AI translation metadata in PO and NDJSON catalogs, including stale-metadata cleanup when translations are edited.
 - Audit catalog sets before release with structured diagnostics.
 - Compile catalogs into runtime artifacts for application delivery.
+- Generate ICU-aware pseudolocalized runtime messages for UI/layout QA.
 - Compare performance and conformance behavior across fixtures.
 
 See the [API overview](https://sebastian-software.github.io/ferrocat/reference/api-overview) when you want the Rust entry points. The [Gettext task landscape](https://sebastian-software.github.io/ferrocat/reference/gettext-task-landscape) is a deeper reference for readers mapping long-standing command-line workflows to Ferrocat APIs.

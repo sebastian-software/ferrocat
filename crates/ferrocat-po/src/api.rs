@@ -10,7 +10,10 @@ mod icu_syntax;
 mod mt;
 mod ndjson;
 mod plural;
+mod pseudolocalization;
 mod types;
+
+pub use ferrocat_icu::IcuPseudolocalizationOptions;
 
 pub use self::audit::{
     CatalogAuditChecks, CatalogAuditDiagnostic, CatalogAuditIcuOptions, CatalogAuditMessageRef,
@@ -37,6 +40,7 @@ pub use self::ndjson::{
     NdjsonCatalogReader, NdjsonCatalogReaderOptions, NdjsonCatalogWriter,
     NdjsonCatalogWriterOptions,
 };
+pub use self::pseudolocalization::pseudolocalize_compiled_catalog_artifact;
 pub use self::types::{
     ApiError, CatalogCombineInput, CatalogCombineResult, CatalogCombineSelection,
     CatalogCombineStats, CatalogConflictStrategy, CatalogMessage, CatalogMessageExtra,
