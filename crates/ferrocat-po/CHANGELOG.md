@@ -1,5 +1,32 @@
 # Changelog
 
+## [1.2.0](https://github.com/sebastian-software/ferrocat/compare/ferrocat-po-v1.1.1...ferrocat-po-v1.2.0) (2026-06-23)
+
+
+### Features
+
+* **api:** add artifact formatter support diagnostics ([754e053](https://github.com/sebastian-software/ferrocat/commit/754e053443605ec023abd5dfdf8d1375e7b82a6c))
+* **api:** add runtime ICU syntax policy ([2e1fc69](https://github.com/sebastian-software/ferrocat/commit/2e1fc692fe96cce2a32e9dfebe8f01d413d5d202))
+* **icu:** add ICU-aware pseudolocalization ([7553319](https://github.com/sebastian-software/ferrocat/commit/75533192985d6d781cd3d7dfd045fdbf4a337fc9))
+* **po:** add artifact provenance report API ([c17caf4](https://github.com/sebastian-software/ferrocat/commit/c17caf4f568be2431f6b543b67e88da19560a321))
+* **po:** add catalog coverage report API ([3409b33](https://github.com/sebastian-software/ferrocat/commit/3409b33e94f82b4e49194d224c98e0f69c5aecba))
+* **po:** add catalog review report API ([4d9d825](https://github.com/sebastian-software/ferrocat/commit/4d9d82593b64ec0a8f7759599afb2569704bf1e2))
+
+
+### Bug Fixes
+
+* **api:** remove formatter ICU option equality ([13a5ee9](https://github.com/sebastian-software/ferrocat/commit/13a5ee9641c228eaf63aff4c7bc93114b94bbb97))
+* **po:** address catalog review report feedback ([638bd2b](https://github.com/sebastian-software/ferrocat/commit/638bd2b708c81316228c8fef4f0f5ceae14983bc))
+* **po:** honor artifact pseudolocalization syntax policy ([da8fb59](https://github.com/sebastian-software/ferrocat/commit/da8fb597b2b3a131b04a6881e112d8dfcfa82daf))
+* **po:** simplify provenance report rows ([871482b](https://github.com/sebastian-software/ferrocat/commit/871482b0573812b85d8dc8f5fa0d7e052cbeac31))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * ferrocat-icu bumped from 1.1.1 to 1.2.0
+
 ## [1.1.1](https://github.com/sebastian-software/ferrocat/compare/ferrocat-po-v1.1.0...ferrocat-po-v1.1.1) (2026-06-19)
 
 

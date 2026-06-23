@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.0](https://github.com/sebastian-software/ferrocat/compare/ferrocat-icu-v1.1.1...ferrocat-icu-v1.2.0) (2026-06-23)
+
+
+### Features
+
+* **icu:** add ICU-aware pseudolocalization ([7553319](https://github.com/sebastian-software/ferrocat/commit/75533192985d6d781cd3d7dfd045fdbf4a337fc9))
+
 ## [1.1.1](https://github.com/sebastian-software/ferrocat/compare/ferrocat-icu-v1.1.0...ferrocat-icu-v1.1.1) (2026-06-19)
 
 

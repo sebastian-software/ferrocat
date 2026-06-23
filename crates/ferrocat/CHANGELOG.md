@@ -1,5 +1,28 @@
 # Changelog
 
+## [1.2.0](https://github.com/sebastian-software/ferrocat/compare/ferrocat-v1.1.1...ferrocat-v1.2.0) (2026-06-23)
+
+
+### Features
+
+* **icu:** add ICU-aware pseudolocalization ([7553319](https://github.com/sebastian-software/ferrocat/commit/75533192985d6d781cd3d7dfd045fdbf4a337fc9))
+* **po:** add artifact provenance report API ([c17caf4](https://github.com/sebastian-software/ferrocat/commit/c17caf4f568be2431f6b543b67e88da19560a321))
+* **po:** add catalog coverage report API ([3409b33](https://github.com/sebastian-software/ferrocat/commit/3409b33e94f82b4e49194d224c98e0f69c5aecba))
+* **po:** add catalog review report API ([4d9d825](https://github.com/sebastian-software/ferrocat/commit/4d9d82593b64ec0a8f7759599afb2569704bf1e2))
+
+
+### Bug Fixes
+
+* **po:** honor artifact pseudolocalization syntax policy ([da8fb59](https://github.com/sebastian-software/ferrocat/commit/da8fb597b2b3a131b04a6881e112d8dfcfa82daf))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * ferrocat-icu bumped from 1.1.1 to 1.2.0
+    * ferrocat-po bumped from 1.1.1 to 1.2.0
+
 ## [1.1.1](https://github.com/sebastian-software/ferrocat/compare/ferrocat-v1.1.0...ferrocat-v1.1.1) (2026-06-19)
 
 
