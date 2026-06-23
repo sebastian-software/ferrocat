@@ -35,7 +35,9 @@ mod tests {
     use ferrocat_icu::IcuPseudolocalizationOptions;
 
     use super::pseudolocalize_compiled_catalog_artifact;
-    use crate::api::{CatalogMessageKey, CompiledCatalogArtifact, CompiledCatalogMissingMessage};
+    use crate::api::{
+        ApiError, CatalogMessageKey, CompiledCatalogArtifact, CompiledCatalogMissingMessage,
+    };
 
     #[test]
     fn pseudolocalize_compiled_artifact_transforms_messages_only() {
@@ -62,5 +64,24 @@ mod tests {
         );
         assert_eq!(pseudolocalized.missing, artifact.missing);
         assert_eq!(pseudolocalized.diagnostics, artifact.diagnostics);
+    }
+
+    #[test]
+    fn pseudolocalize_compiled_artifact_reports_invalid_runtime_messages() {
+        let artifact = CompiledCatalogArtifact {
+            messages: BTreeMap::from([("runtime-key".to_owned(), "{broken".to_owned())]),
+            missing: Vec::new(),
+            diagnostics: Vec::new(),
+        };
+
+        let error = pseudolocalize_compiled_catalog_artifact(
+            &artifact,
+            &IcuPseudolocalizationOptions::new(),
+        )
+        .expect_err("invalid runtime message");
+
+        assert!(
+            matches!(error, ApiError::Unsupported(message) if message.contains("cannot be pseudolocalized"))
+        );
     }
 }
