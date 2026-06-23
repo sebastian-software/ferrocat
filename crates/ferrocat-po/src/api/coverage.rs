@@ -1,8 +1,7 @@
-use std::collections::BTreeMap;
-
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
+use super::catalog_index::{index_catalogs, select_target_locales};
 use super::message_status::{
     CatalogMessageStatus, active_message_keys, classify_expected_message, is_extra_target_message,
 };
@@ -128,7 +127,7 @@ pub fn catalog_coverage(
     options: &CatalogCoverageOptions<'_>,
 ) -> Result<CatalogCoverageReport, ApiError> {
     validate_source_locale(options.source_locale)?;
-    let catalog_index = index_catalogs(catalogs)?;
+    let catalog_index = index_catalogs(catalogs, "catalog_coverage")?;
     let source_catalog = catalog_index
         .get(options.source_locale)
         .copied()
@@ -139,7 +138,12 @@ pub fn catalog_coverage(
             ))
         })?;
     let source_keys = active_message_keys(source_catalog);
-    let target_locales = select_target_locales(&catalog_index, options)?;
+    let target_locales = select_target_locales(
+        &catalog_index,
+        options.source_locale,
+        options.locales,
+        "catalog_coverage",
+    )?;
     let mut locale_reports = Vec::with_capacity(target_locales.len());
 
     for target_locale in &target_locales {
@@ -210,56 +214,4 @@ fn increment_status(coverage: &mut CatalogLocaleCoverage, status: CatalogMessage
         CatalogMessageStatus::Obsolete => coverage.obsolete += 1,
         CatalogMessageStatus::Extra => coverage.extra += 1,
     }
-}
-
-fn index_catalogs<'a>(
-    catalogs: &'a [&'a NormalizedParsedCatalog],
-) -> Result<BTreeMap<String, &'a NormalizedParsedCatalog>, ApiError> {
-    let mut index = BTreeMap::new();
-    for catalog in catalogs {
-        let locale = catalog
-            .parsed_catalog()
-            .locale
-            .as_deref()
-            .filter(|locale| !locale.trim().is_empty())
-            .ok_or_else(|| {
-                ApiError::InvalidArguments(
-                    "catalog_coverage requires every catalog to declare a locale".to_owned(),
-                )
-            })?;
-        if index.insert(locale.to_owned(), *catalog).is_some() {
-            return Err(ApiError::InvalidArguments(format!(
-                "catalog_coverage received duplicate catalog locale {locale:?}"
-            )));
-        }
-    }
-    Ok(index)
-}
-
-fn select_target_locales(
-    catalog_index: &BTreeMap<String, &NormalizedParsedCatalog>,
-    options: &CatalogCoverageOptions<'_>,
-) -> Result<Vec<String>, ApiError> {
-    if options.locales.is_empty() {
-        return Ok(catalog_index
-            .keys()
-            .filter(|locale| locale.as_str() != options.source_locale)
-            .cloned()
-            .collect());
-    }
-
-    let mut seen = std::collections::BTreeSet::new();
-    let mut locales = Vec::new();
-    for locale in options.locales {
-        if *locale == options.source_locale || !seen.insert((*locale).to_owned()) {
-            continue;
-        }
-        if !catalog_index.contains_key(*locale) {
-            return Err(ApiError::InvalidArguments(format!(
-                "catalog_coverage did not receive requested locale {locale:?}"
-            )));
-        }
-        locales.push((*locale).to_owned());
-    }
-    Ok(locales)
 }
