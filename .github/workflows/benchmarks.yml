@@ -5,7 +5,9 @@ on:
     paths:
       - ".github/workflows/benchmarks.yml"
       - "benchmark/**"
-      - "crates/**"
+      - "crates/ferrocat-bench/**"
+      - "crates/ferrocat-icu/**"
+      - "crates/ferrocat-po/**"
       - "Cargo.toml"
       - "Cargo.lock"
   workflow_dispatch:

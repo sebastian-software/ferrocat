@@ -463,6 +463,7 @@ struct BenchmarkRegressionReport {
     passed: Vec<BenchmarkRegressionScenario>,
     failures: Vec<BenchmarkRegressionScenario>,
     skipped_noisy: Vec<BenchmarkRegressionScenario>,
+    skipped_semantics_changed: Vec<BenchmarkSemanticsChangedScenario>,
     missing_baseline: Vec<String>,
     missing_current: Vec<String>,
 }
@@ -481,10 +482,11 @@ impl BenchmarkRegressionReport {
             self.max_regression_percent
         ));
         out.push_str(&format!(
-            "passed: {} failed: {} skipped-noisy: {} missing-baseline: {} missing-current: {}\n",
+            "passed: {} failed: {} skipped-noisy: {} skipped-semantics-changed: {} missing-baseline: {} missing-current: {}\n",
             self.passed.len(),
             self.failures.len(),
             self.skipped_noisy.len(),
+            self.skipped_semantics_changed.len(),
             self.missing_baseline.len(),
             self.missing_current.len()
         ));
@@ -505,6 +507,12 @@ impl BenchmarkRegressionReport {
                 scenario.regression_percent,
                 scenario.baseline_noisy,
                 scenario.current_noisy
+            ));
+        }
+        for scenario in &self.skipped_semantics_changed {
+            out.push_str(&format!(
+                "SKIP semantics-changed {}: baseline digest {} -> current digest {}\n",
+                scenario.id, scenario.baseline_semantic_digest, scenario.current_semantic_digest
             ));
         }
         for id in &self.missing_baseline {
@@ -530,6 +538,13 @@ struct BenchmarkRegressionScenario {
     regression_percent: f64,
     baseline_noisy: bool,
     current_noisy: bool,
+}
+
+#[derive(Debug)]
+struct BenchmarkSemanticsChangedScenario {
+    id: String,
+    baseline_semantic_digest: String,
+    current_semantic_digest: String,
 }
 
 fn compare_regression_reports(
@@ -558,6 +573,7 @@ fn compare_regression_reports(
     let mut passed = Vec::new();
     let mut failures = Vec::new();
     let mut skipped_noisy = Vec::new();
+    let mut skipped_semantics_changed = Vec::new();
     let mut missing_baseline = Vec::new();
     let mut missing_current = Vec::new();
 
@@ -566,6 +582,14 @@ fn compare_regression_reports(
             missing_baseline.push(scenario.id.clone());
             continue;
         };
+        if baseline_scenario.semantic_digest != scenario.semantic_digest {
+            skipped_semantics_changed.push(BenchmarkSemanticsChangedScenario {
+                id: scenario.id.clone(),
+                baseline_semantic_digest: baseline_scenario.semantic_digest.clone(),
+                current_semantic_digest: scenario.semantic_digest.clone(),
+            });
+            continue;
+        }
         let regression = regression_scenario(baseline_scenario, scenario)?;
         if regression.baseline_noisy || regression.current_noisy {
             skipped_noisy.push(regression);
@@ -585,7 +609,9 @@ fn compare_regression_reports(
     if passed.is_empty()
         && failures.is_empty()
         && skipped_noisy.is_empty()
+        && skipped_semantics_changed.is_empty()
         && missing_baseline.is_empty()
+        && missing_current.is_empty()
     {
         return Err("benchmark reports have no comparable scenarios".to_owned());
     }
@@ -596,6 +622,7 @@ fn compare_regression_reports(
         passed,
         failures,
         skipped_noisy,
+        skipped_semantics_changed,
         missing_baseline,
         missing_current,
     })
@@ -605,13 +632,6 @@ fn regression_scenario(
     baseline: &ScenarioReport,
     current: &ScenarioReport,
 ) -> Result<BenchmarkRegressionScenario, String> {
-    if baseline.semantic_digest != current.semantic_digest {
-        return Err(format!(
-            "scenario {} changed semantic digest (baseline {}, current {})",
-            current.id, baseline.semantic_digest, current.semantic_digest
-        ));
-    }
-
     let baseline_elapsed = baseline.statistics.median_elapsed_ns;
     let current_elapsed = current.statistics.median_elapsed_ns;
     if baseline_elapsed == 0 {
@@ -3793,6 +3813,57 @@ mod tests {
     }
 
     #[test]
+    fn regression_check_skips_semantic_digest_changes() {
+        let baseline = regression_report([regression_scenario_report_with_digest(
+            "po-parse/mixed-10000/ferrocat-owned",
+            100_000_000,
+            false,
+            "digest-a",
+        )]);
+        let current = regression_report([regression_scenario_report_with_digest(
+            "po-parse/mixed-10000/ferrocat-owned",
+            140_000_000,
+            false,
+            "digest-b",
+        )]);
+
+        let report =
+            compare_regression_reports(&baseline, &current, 20.0).expect("regression report");
+
+        assert!(!report.has_failures());
+        assert_eq!(report.skipped_semantics_changed.len(), 1);
+        assert!(
+            report
+                .render()
+                .contains("SKIP semantics-changed po-parse/mixed-10000/ferrocat-owned")
+        );
+    }
+
+    #[test]
+    fn regression_check_fails_when_baseline_scenario_disappears() {
+        let baseline = regression_report([regression_scenario_report(
+            "po-parse/mixed-10000/ferrocat-borrowed",
+            100_000_000,
+            false,
+        )]);
+        let current = regression_report([]);
+
+        let report =
+            compare_regression_reports(&baseline, &current, 20.0).expect("regression report");
+
+        assert!(report.has_failures());
+        assert_eq!(
+            report.missing_current,
+            vec!["po-parse/mixed-10000/ferrocat-borrowed"]
+        );
+        assert!(
+            report
+                .render()
+                .contains("FAIL missing-current po-parse/mixed-10000/ferrocat-borrowed")
+        );
+    }
+
+    #[test]
     fn round_robin_schedule_interleaves_scenarios_by_round() {
         assert_eq!(round_robin_schedule(&[2, 1, 3]), vec![0, 1, 2, 0, 2, 2]);
     }
@@ -4014,6 +4085,15 @@ mod tests {
         median_elapsed_ns: u128,
         noisy: bool,
     ) -> ScenarioReport {
+        regression_scenario_report_with_digest(id, median_elapsed_ns, noisy, "digest")
+    }
+
+    fn regression_scenario_report_with_digest(
+        id: &str,
+        median_elapsed_ns: u128,
+        noisy: bool,
+        semantic_digest: &str,
+    ) -> ScenarioReport {
         ScenarioReport {
             id: id.to_owned(),
             comparison_group: id
@@ -4028,7 +4108,7 @@ mod tests {
             iterations_per_sample: 1,
             warmup_runs: 0,
             measured_runs: 3,
-            semantic_digest: "digest".to_owned(),
+            semantic_digest: semantic_digest.to_owned(),
             baseline_strategy: None,
             baseline_fixture: None,
             statistics: regression_statistics(median_elapsed_ns, noisy),
