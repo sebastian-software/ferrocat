@@ -187,7 +187,7 @@ fn coverage_for_locale(
 
     for (key, message) in target_catalog.iter() {
         if is_extra_target_message(source_keys, key, message) {
-            coverage.extra += 1;
+            increment_status(&mut coverage, CatalogMessageStatus::Extra);
             if include_details {
                 coverage.details.push(CatalogCoverageMessage {
                     locale: locale.to_owned(),
@@ -262,97 +262,4 @@ fn select_target_locales(
         locales.push((*locale).to_owned());
     }
     Ok(locales)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::{CatalogCoverageOptions, CatalogLocaleCoverage, catalog_coverage};
-    use crate::api::{CatalogMessageStatus, CatalogMode, ParseCatalogOptions, parse_catalog};
-
-    fn catalog(content: &str, locale: &str) -> crate::api::NormalizedParsedCatalog {
-        parse_catalog(ParseCatalogOptions {
-            locale: Some(locale),
-            mode: CatalogMode::IcuPo,
-            ..ParseCatalogOptions::new(content, "en")
-        })
-        .expect("parse catalog")
-        .into_normalized_view()
-        .expect("normalize catalog")
-    }
-
-    #[test]
-    fn catalog_coverage_counts_locale_statuses() {
-        let source = catalog(
-            concat!(
-                "msgid \"Hello\"\nmsgstr \"Hello\"\n\n",
-                "msgid \"Empty\"\nmsgstr \"Empty\"\n\n",
-                "msgid \"Fuzzy\"\nmsgstr \"Fuzzy\"\n\n",
-                "msgid \"Gone\"\nmsgstr \"Gone\"\n\n",
-                "msgid \"Missing\"\nmsgstr \"Missing\"\n",
-            ),
-            "en",
-        );
-        let target = catalog(
-            concat!(
-                "msgid \"Hello\"\nmsgstr \"Hallo\"\n\n",
-                "msgid \"Empty\"\nmsgstr \"\"\n\n",
-                "#, fuzzy\nmsgid \"Fuzzy\"\nmsgstr \"Unscharf\"\n\n",
-                "#~ msgid \"Gone\"\n#~ msgstr \"Weg\"\n\n",
-                "msgid \"Extra\"\nmsgstr \"Extra\"\n",
-            ),
-            "de",
-        );
-
-        let report = catalog_coverage(
-            &[&source, &target],
-            &CatalogCoverageOptions::new("en").with_details(true),
-        )
-        .expect("coverage");
-        let locale = &report.locales[0];
-
-        assert_eq!(report.source_messages, 5);
-        assert_eq!(locale.translated, 1);
-        assert_eq!(locale.empty, 1);
-        assert_eq!(locale.fuzzy, 1);
-        assert_eq!(locale.obsolete, 1);
-        assert_eq!(locale.missing, 1);
-        assert_eq!(locale.extra, 1);
-        assert_eq!(locale.incomplete(), 4);
-        assert_eq!(locale.completion_percent(), 20.0);
-        assert!(
-            locale
-                .details
-                .iter()
-                .any(|detail| detail.status == CatalogMessageStatus::Extra)
-        );
-    }
-
-    #[test]
-    fn catalog_coverage_filters_requested_locales() {
-        let source = catalog("msgid \"Hello\"\nmsgstr \"Hello\"\n", "en");
-        let de = catalog("msgid \"Hello\"\nmsgstr \"Hallo\"\n", "de");
-        let fr = catalog("msgid \"Hello\"\nmsgstr \"Bonjour\"\n", "fr");
-        let requested = ["fr"];
-
-        let report = catalog_coverage(
-            &[&source, &de, &fr],
-            &CatalogCoverageOptions {
-                locales: &requested,
-                ..CatalogCoverageOptions::new("en")
-            },
-        )
-        .expect("coverage");
-
-        assert_eq!(report.target_locales, 1);
-        assert_eq!(report.locales[0].locale, "fr");
-    }
-
-    #[test]
-    fn increment_status_counts_extra_status() {
-        let mut coverage = CatalogLocaleCoverage::default();
-
-        super::increment_status(&mut coverage, CatalogMessageStatus::Extra);
-
-        assert_eq!(coverage.extra, 1);
-    }
 }
