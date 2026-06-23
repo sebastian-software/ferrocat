@@ -13,6 +13,7 @@ mod mt;
 mod ndjson;
 mod plural;
 mod pseudolocalization;
+mod review;
 mod types;
 
 pub use ferrocat_icu::IcuPseudolocalizationOptions;
@@ -54,6 +55,13 @@ pub use self::pseudolocalization::{
     pseudolocalize_compiled_catalog_artifact,
     pseudolocalize_compiled_catalog_artifact_with_syntax_policy,
 };
+pub use self::review::{
+    CatalogLocaleReview, CatalogMachineTranslationMessage, CatalogMachineTranslationReview,
+    CatalogMachineTranslationStatus, CatalogReviewOptions, CatalogReviewReport,
+    CatalogReviewSummary, CatalogReviewTranslation, CatalogSourceChange, CatalogSourceChangeKind,
+    CatalogSourceChangeReport, CatalogTranslationChange, CatalogTranslationChangeReport,
+    catalog_review,
+};
 pub use self::types::{
     ApiError, CatalogCombineInput, CatalogCombineResult, CatalogCombineSelection,
     CatalogCombineStats, CatalogConflictStrategy, CatalogMessage, CatalogMessageExtra,
@@ -65,7 +73,6 @@ pub use self::types::{
     PlaceholderCommentMode, PluralEncoding, PluralSource, RenderOptions, SourceExtractedMessage,
     TranslationShape, UpdateCatalogFileOptions, UpdateCatalogOptions,
 };
-
 fn validate_source_locale(source_locale: &str) -> Result<(), ApiError> {
     if source_locale.trim().is_empty() {
         return Err(ApiError::InvalidArguments(

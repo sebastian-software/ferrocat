@@ -123,6 +123,7 @@ NDJSON is the line-delimited JSON storage choice. It is useful when catalogs are
 | Build keyed lookup/helpers on top of a parsed catalog | `ParsedCatalog::into_normalized_view` |
 | Audit source and target catalogs for release readiness | `audit_catalogs` |
 | Summarize per-locale catalog completeness | `catalog_coverage` |
+| Compare catalog states for translator review handoffs | `catalog_review` |
 | Derive the default stable runtime key from `msgid` and `msgctxt` | `compiled_key` |
 | Compile a normalized catalog into runtime lookup entries | `NormalizedParsedCatalog::compile` |
 | Compile a requested-locale runtime artifact with fallbacks and missing reports | `compile_catalog_artifact` |
@@ -484,6 +485,67 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 Set `CatalogCoverageOptions::with_details(true)` when callers also need
 per-message rows. File discovery, threshold failures, JSON/table formatting, and
 pseudo-locale filtering stay outside the core API.
+
+### `catalog_review`
+
+Use this when a host needs a deterministic translator handoff or CI review
+report between two normalized catalog states. The API compares previous and
+current catalog sets, using `msgctxt + msgid` as the canonical identity.
+
+The report includes:
+
+- source identity additions and removals
+- per-locale current coverage using the `CatalogMessageStatus` taxonomy
+- active target translations whose effective value changed
+- machine-translation metadata freshness based on `machine_translation_hash`
+
+Rename detection is intentionally out of scope: if a source identity changes,
+Ferrocat reports a removal plus an addition instead of guessing intent.
+
+```rust
+use ferrocat::{
+    CatalogReviewOptions, ParseCatalogOptions, catalog_review, parse_catalog,
+};
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let previous_source = parse_catalog(ParseCatalogOptions {
+        locale: Some("en"),
+        ..ParseCatalogOptions::new("msgid \"Checkout\"\nmsgstr \"Checkout\"\n", "en")
+    })?
+    .into_normalized_view()?;
+    let current_source = parse_catalog(ParseCatalogOptions {
+        locale: Some("en"),
+        ..ParseCatalogOptions::new(
+            "msgid \"Checkout\"\nmsgstr \"Checkout\"\n\nmsgid \"Cancel\"\nmsgstr \"Cancel\"\n",
+            "en",
+        )
+    })?
+    .into_normalized_view()?;
+    let previous_de = parse_catalog(ParseCatalogOptions {
+        locale: Some("de"),
+        ..ParseCatalogOptions::new("msgid \"Checkout\"\nmsgstr \"Zur Kasse\"\n", "en")
+    })?
+    .into_normalized_view()?;
+    let current_de = parse_catalog(ParseCatalogOptions {
+        locale: Some("de"),
+        ..ParseCatalogOptions::new("msgid \"Checkout\"\nmsgstr \"Checkout\"\n", "en")
+    })?
+    .into_normalized_view()?;
+
+    let report = catalog_review(
+        &[&previous_source, &previous_de],
+        &[&current_source, &current_de],
+        &CatalogReviewOptions::new("en").with_details(true),
+    )?;
+    assert_eq!(report.summary.source_added, 1);
+    assert_eq!(report.summary.translation_changed, 1);
+    Ok(())
+}
+```
+
+Set `CatalogReviewOptions::with_details(false)` when callers need summary-only
+output without large per-message vectors. Git history lookup, PR comments,
+repository layout, and reviewer UI remain caller responsibilities.
 
 ### `compiled_key`
 
@@ -934,5 +996,6 @@ part of this source-side metadata format.
 - Runtime artifact provenance reporting: `compile_catalog_artifact_report`
 - Release QA across catalog sets: `audit_catalogs`
 - Per-locale completeness dashboards: `catalog_coverage`
+- Translator handoff diffs: `catalog_review`
 - ICU analysis: `parse_icu`
 - ICU-aware pseudolocalization: `pseudolocalize_icu`
