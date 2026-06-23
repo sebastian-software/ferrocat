@@ -122,6 +122,7 @@ NDJSON is the line-delimited JSON storage choice. It is useful when catalogs are
 | Read a Gettext PO or NDJSON catalog into the higher-level canonical catalog model | `parse_catalog` |
 | Build keyed lookup/helpers on top of a parsed catalog | `ParsedCatalog::into_normalized_view` |
 | Audit source and target catalogs for release readiness | `audit_catalogs` |
+| Summarize per-locale catalog completeness | `catalog_coverage` |
 | Derive the default stable runtime key from `msgid` and `msgctxt` | `compiled_key` |
 | Compile a normalized catalog into runtime lookup entries | `NormalizedParsedCatalog::compile` |
 | Compile a requested-locale runtime artifact with fallbacks and missing reports | `compile_catalog_artifact` |
@@ -433,6 +434,55 @@ let has_missing = report
     .iter()
     .any(|diagnostic| diagnostic.code == diagnostic_codes::catalog::MISSING_TRANSLATION);
 ```
+
+### `catalog_coverage`
+
+Use this when you need per-locale completeness counters for dashboards, CI
+thresholds, or translator handoff summaries without rebuilding Ferrocat's
+catalog-state rules in application code.
+
+The coverage API accepts normalized catalogs and a required source locale. The
+source locale's active, non-obsolete identities define the expected set for each
+target locale. Each target message is classified with the same shared status
+taxonomy used by catalog audit:
+
+- `translated`: active target entry with a non-empty, non-fuzzy translation
+- `fuzzy`: active target entry carrying a visible `fuzzy` flag
+- `missing`: no active or obsolete target entry exists
+- `empty`: active target entry exists, but its effective translation is empty
+- `obsolete`: target entry exists for the source identity, but is obsolete
+- `extra`: active target entry is not present in the active source set
+
+Only `translated` messages count toward completion. Fuzzy, empty, obsolete, and
+absent entries remain visible as separate counters so hosts can choose their own
+threshold and presentation rules.
+
+```rust
+use ferrocat::{
+    CatalogCoverageOptions, ParseCatalogOptions, catalog_coverage, parse_catalog,
+};
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let source = parse_catalog(ParseCatalogOptions {
+        locale: Some("en"),
+        ..ParseCatalogOptions::new("msgid \"Checkout\"\nmsgstr \"Checkout\"\n", "en")
+    })?
+    .into_normalized_view()?;
+    let target = parse_catalog(ParseCatalogOptions {
+        locale: Some("de"),
+        ..ParseCatalogOptions::new("msgid \"Checkout\"\nmsgstr \"Zur Kasse\"\n", "en")
+    })?
+    .into_normalized_view()?;
+
+    let report = catalog_coverage(&[&source, &target], &CatalogCoverageOptions::new("en"))?;
+    assert_eq!(report.locales[0].completion_percent(), 100.0);
+    Ok(())
+}
+```
+
+Set `CatalogCoverageOptions::with_details(true)` when callers also need
+per-message rows. File discovery, threshold failures, JSON/table formatting, and
+pseudo-locale filtering stay outside the core API.
 
 ### `compiled_key`
 
@@ -862,5 +912,6 @@ part of this source-side metadata format.
 - Locale-specific runtime artifact generation: `compile_catalog_artifact`
 - Selected locale artifact generation by compiled ID: `compile_catalog_artifact_selected`
 - Release QA across catalog sets: `audit_catalogs`
+- Per-locale completeness dashboards: `catalog_coverage`
 - ICU analysis: `parse_icu`
 - ICU-aware pseudolocalization: `pseudolocalize_icu`

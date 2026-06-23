@@ -76,6 +76,7 @@ Ferrocat focuses on the work that happens around real translation catalogs:
 - Normalize semantic message metadata around `msgid + msgctxt`.
 - Preserve AI translation metadata in PO and NDJSON catalogs, including stale-metadata cleanup when translations are edited.
 - Audit catalog sets before release with structured diagnostics.
+- Summarize per-locale catalog coverage for dashboards and CI thresholds.
 - Compile catalogs into runtime artifacts for application delivery.
 - Generate ICU-aware pseudolocalized runtime messages for UI/layout QA.
 - Compare performance and conformance behavior across fixtures.
