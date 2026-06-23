@@ -1502,6 +1502,16 @@ fn parse_catalog_reports_plural_expression_without_nplurals() {
 }
 
 #[test]
+fn combine_catalogs_rejects_empty_inputs() {
+    let error = combine_catalogs(CombineCatalogOptions::new(&[], "en")).expect_err("empty inputs");
+
+    assert!(matches!(
+        error,
+        ApiError::InvalidArguments(message) if message.contains("inputs")
+    ));
+}
+
+#[test]
 fn combine_catalogs_use_first_preserves_existing_translations_and_adds_missing() {
     let existing = concat!("msgid \"Hello\"\n", "msgstr \"Hallo\"\n",);
     let template = concat!(
@@ -2027,6 +2037,121 @@ fn combine_catalog_files_leaves_output_unchanged_when_format_is_unsupported() {
     .expect_err("unsupported format");
 
     assert!(matches!(error, ApiError::Unsupported(message) if message.contains("could not infer")));
+    assert_eq!(
+        fs::read_to_string(&output).expect("read output"),
+        "unchanged"
+    );
+
+    let _ = fs::remove_dir_all(temp_dir);
+}
+
+#[test]
+fn combine_catalog_files_accepts_explicit_format_for_extensionless_paths() {
+    let temp_dir = unique_catalog_temp_dir("combine-files-explicit-format");
+    let ours = temp_dir.join("ours");
+    let theirs = temp_dir.join("theirs");
+    let output = temp_dir.join("merged");
+    fs::write(&ours, "msgid \"Hello\"\nmsgstr \"Hallo\"\n").expect("write ours");
+    fs::write(&theirs, "msgid \"New\"\nmsgstr \"Neu\"\n").expect("write theirs");
+    let input_paths = vec![ours, theirs];
+
+    let result = combine_catalog_files(CombineCatalogFilesOptions {
+        input_paths: &input_paths,
+        output_path: &output,
+        format: Some(CatalogFileFormat::Po),
+        locale: Some("de"),
+        ..CombineCatalogFilesOptions::new(&[], &output, "en")
+    })
+    .expect("combine files");
+
+    assert_eq!(result.format, CatalogFileFormat::Po);
+    let parsed =
+        parse_po(&fs::read_to_string(&output).expect("read output")).expect("parse output");
+    assert!(parsed.items.iter().any(|item| item.msgid == "Hello"));
+    assert!(parsed.items.iter().any(|item| item.msgid == "New"));
+
+    let _ = fs::remove_dir_all(temp_dir);
+}
+
+#[test]
+fn combine_catalog_files_rejects_empty_input_paths() {
+    let temp_dir = unique_catalog_temp_dir("combine-files-empty-inputs");
+    let output = temp_dir.join("merged.po");
+
+    let error = combine_catalog_files(CombineCatalogFilesOptions {
+        input_paths: &[],
+        output_path: &output,
+        locale: Some("de"),
+        ..CombineCatalogFilesOptions::new(&[], &output, "en")
+    })
+    .expect_err("empty inputs");
+
+    assert!(matches!(
+        error,
+        ApiError::InvalidArguments(message) if message.contains("input_paths")
+    ));
+    assert!(!output.exists());
+
+    let _ = fs::remove_dir_all(temp_dir);
+}
+
+#[test]
+fn combine_catalog_files_rejects_mode_that_does_not_match_file_format() {
+    let temp_dir = unique_catalog_temp_dir("combine-files-mode-mismatch");
+    let input = temp_dir.join("ours.json");
+    let output = temp_dir.join("merged.json");
+    fs::write(
+        &input,
+        concat!(
+            "---\n",
+            "format: ferrocat.ndjson.v1\n",
+            "source_locale: en\n",
+            "---\n",
+            "{\"id\":\"Hello\",\"str\":\"Hallo\"}\n",
+        ),
+    )
+    .expect("write input");
+    fs::write(&output, "unchanged").expect("write output");
+    let input_paths = vec![input];
+
+    let error = combine_catalog_files(CombineCatalogFilesOptions {
+        input_paths: &input_paths,
+        output_path: &output,
+        mode: Some(CatalogMode::GettextPo),
+        locale: Some("de"),
+        ..CombineCatalogFilesOptions::new(&[], &output, "en")
+    })
+    .expect_err("mode mismatch");
+
+    assert!(matches!(
+        error,
+        ApiError::InvalidArguments(message) if message.contains("does not match")
+    ));
+    assert_eq!(
+        fs::read_to_string(&output).expect("read output"),
+        "unchanged"
+    );
+
+    let _ = fs::remove_dir_all(temp_dir);
+}
+
+#[test]
+fn combine_catalog_files_leaves_output_unchanged_when_input_read_fails() {
+    let temp_dir = unique_catalog_temp_dir("combine-files-read-error");
+    let missing = temp_dir.join("missing.po");
+    let output = temp_dir.join("merged.po");
+    fs::write(&output, "unchanged").expect("write output");
+    let input_paths = vec![missing.clone()];
+
+    let error = combine_catalog_files(CombineCatalogFilesOptions {
+        input_paths: &input_paths,
+        output_path: &output,
+        locale: Some("de"),
+        ..CombineCatalogFilesOptions::new(&[], &output, "en")
+    })
+    .expect_err("read error");
+
+    assert_eq!(error.path(), Some(missing.as_path()));
     assert_eq!(
         fs::read_to_string(&output).expect("read output"),
         "unchanged"
