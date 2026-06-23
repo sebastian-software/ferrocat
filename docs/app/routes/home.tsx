@@ -26,7 +26,7 @@ export const meta: MetaFunction = () => [
   {
     name: "description",
     content:
-      "Parse, update, audit, and compile your translations with a Rust-native catalog engine. Missing strings, ICU mistakes, and stale copy fail CI instead of reaching production.",
+      "Parse, update, review, audit, and compile translations with a Rust-native catalog engine. Missing strings, ICU mistakes, stale copy, and weak coverage fail CI instead of reaching production.",
   },
 ]
 
@@ -49,7 +49,7 @@ const family: FamilyTool[] = [
   {
     name: "ferrocat",
     role: "Translation catalogs",
-    body: "PO, NDJSON, and ICU MessageFormat with merge, audit, and runtime compilation.",
+    body: "PO, NDJSON, and ICU MessageFormat with merge, review, audit, and runtime compilation.",
     icon: <Languages size={19} />,
     href: GITHUB,
     current: true,
@@ -105,19 +105,29 @@ const benefits = [
     icon: <GitMerge size={20} />,
   },
   {
-    title: "Release QA that blocks bad ships",
-    body: "Audit for missing locales, empty translations, stale targets, ICU errors, and metadata conflicts. The report says what is shippable, in diagnostics CI can read.",
+    title: "Release QA with numbers",
+    body: "Audit for missing locales, empty translations, stale targets, ICU errors, metadata conflicts, and fuzzy flags. Coverage reports make the gap visible before release day.",
     icon: <ShieldCheck size={20} />,
   },
   {
+    title: "Review reports for handoffs",
+    body: "Compare catalog states before a translator handoff. Source additions, removed strings, changed translations, and machine-translation freshness all land in one report.",
+    icon: <BookOpenText size={20} />,
+  },
+  {
     title: "Rich messages that keep their values",
-    body: "Analyze placeholders, formatters, plurals, selects, and tags so a translation can never quietly drop a runtime value the source needs.",
+    body: "Analyze placeholders, formatters, plurals, selects, and tags. Runtime-specific formatter support stays explicit, so unsupported message shapes fail before they ship.",
     icon: <ScanSearch size={20} />,
   },
   {
-    title: "Runtime artifacts, not reparsing",
-    body: "Compile locale-resolved payloads with stable keys and explicit fallback. Your app loads compiled data instead of parsing translator files in production.",
+    title: "Runtime artifacts you can explain",
+    body: "Compile locale-resolved payloads with stable keys, explicit fallback, missing-message records, and provenance rows for host tools that need to show where a string came from.",
     icon: <Package size={20} />,
+  },
+  {
+    title: "Pseudo-locales without broken ICU",
+    body: "Pseudolocalize final ICU messages and compiled artifacts while preserving placeholders, plural selectors, formatter syntax, and rich-text tags.",
+    icon: <Languages size={20} />,
   },
   {
     title: "AI translation you can trust",
@@ -138,12 +148,16 @@ const steps = [
     body: "Merge new messages and combine catalogs, preserving existing translations before anything else.",
   },
   {
+    label: "Review",
+    body: "Summarize coverage and catalog-state changes before translator handoff or CI thresholds.",
+  },
+  {
     label: "Audit",
-    body: "Run release checks across source and target locales and emit structured diagnostics.",
+    body: "Run release checks across source and target locales with diagnostics CI can read.",
   },
   {
     label: "Compile",
-    body: "Emit host-neutral runtime artifacts with stable keys and explicit fallback behavior.",
+    body: "Emit host-neutral runtime artifacts, provenance reports, and pseudo-locale variants.",
   },
 ]
 
@@ -173,11 +187,15 @@ const catalogModes = [
 const positioning = [
   {
     before: "Translations live in loose JSON files nobody reviews.",
-    after: "Source text, context, plurals, and obsolete messages stay visible and inspectable.",
+    after: "Source text, context, plurals, obsolete messages, and coverage gaps stay visible.",
   },
   {
     before: "Missing or broken strings surface as production bugs.",
     after: "A structured audit fails the build before the release ships.",
+  },
+  {
+    before: "Translator handoffs depend on ad hoc diff reading.",
+    after: "Catalog review reports show what changed and which locales need work.",
   },
   {
     before: "Every framework reimplements catalog logic from scratch.",
@@ -188,7 +206,7 @@ const positioning = [
 const proof = [
   { value: "60", label: "conformance cases", detail: "derived from upstream gettext" },
   { value: "454", label: "assertions", detail: "checked by the harness" },
-  { value: "3", label: "catalog modes", detail: "explicit, no hidden defaults" },
+  { value: "95%+", label: "library coverage gate", detail: "for the main catalog crates" },
 ]
 
 // ── Cross-runtime throughput, gettext-official + workflows profiles ──
@@ -245,9 +263,9 @@ export default function HomePage() {
         </h1>
         <p className="ferro-lead">
           Ferrocat is a Rust-native catalog engine that treats localized copy as
-          product data: parse it, merge updates by exact identity, audit every
-          locale, and compile runtime artifacts for production, all in one
-          inspectable layer.
+          product data: parse it, merge updates by exact identity, review what
+          changed, audit every locale, and compile runtime artifacts for
+          production. Catalog problems stay in CI, where they belong.
         </p>
         <div className="ferro-hero-cta">
           <pre className="ferro-install">
@@ -410,7 +428,12 @@ export default function HomePage() {
       {/* ── Benefits ── */}
       <section className="ferro-benefits ferro-reveal">
         <div className="ferro-section-heading">
-          <h2>Everything around the catalog, not just the file.</h2>
+          <h2>Everything around the catalog file.</h2>
+          <p className="ferro-sublead">
+            A parser is only the start. The harder work is what happens around
+            it: handoffs, coverage thresholds, runtime provenance,
+            pseudo-locales, and checks your release process can trust.
+          </p>
         </div>
         <div className="ferro-benefit-grid">
           {benefits.map((item) => (
@@ -426,10 +449,11 @@ export default function HomePage() {
       {/* ── How it works ── */}
       <section className="ferro-flow ferro-reveal">
         <div className="ferro-section-heading">
-          <h2>One catalog, four stages.</h2>
+          <h2>One catalog, five jobs.</h2>
           <p className="ferro-sublead">
-            Each stage is a Rust API you can call on its own or chain into a
-            release pipeline.
+            Each job is a Rust API you can call on its own or chain into a
+            release pipeline. Start small, then add the checks that match your
+            risk.
           </p>
         </div>
         <ol className="ferro-flow-steps">
@@ -510,8 +534,9 @@ export default function HomePage() {
               <span className="ferro-stack-tag">Rust engine</span>
             </div>
             <p>
-              Parsing, deterministic updates, release QA, and runtime artifacts.
-              Usable directly from Rust or through the ferrocat-cli audit gate.
+              Parsing, deterministic updates, review reports, release QA,
+              runtime artifacts, and pseudo-locale output. Usable directly from
+              Rust or through the ferrocat-cli audit gate.
             </p>
             <Link className="ferro-way-link" to="/guide/palamedes">
               How they fit together
@@ -528,7 +553,8 @@ export default function HomePage() {
             <h2>Quality is part of the catalog contract.</h2>
             <p className="ferro-proof-lead">
               Ferrocat's behavior is pinned by conformance fixtures derived from
-              upstream gettext and by repeatable benchmark commands, not by hope.
+              upstream gettext, crate-level coverage gates, and benchmark
+              regression checks that run on pull requests.
             </p>
           </div>
           <div className="ferro-proof-stats">
@@ -543,6 +569,10 @@ export default function HomePage() {
           <div className="ferro-proof-links">
             <Link to="/quality/conformance">
               Conformance snapshot
+              <ArrowRight size={16} />
+            </Link>
+            <Link to="/quality/test-coverage">
+              Coverage policy
               <ArrowRight size={16} />
             </Link>
             <Link to="/performance/benchmarking">
@@ -609,8 +639,9 @@ export default function HomePage() {
         <div className="ferro-cta-copy">
           <h2>Put broken translations on the wrong side of your CI.</h2>
           <p className="ferro-sublead">
-            Start with one catalog and a single audit call. Add modes, runtime
-            artifacts, and AI metadata when you need them.
+            Start with one catalog and a single audit call. Add coverage,
+            review reports, runtime artifacts, pseudo-locales, and AI metadata
+            when the workflow needs them.
           </p>
         </div>
         <div className="ferro-actions">
