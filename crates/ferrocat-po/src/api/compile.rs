@@ -138,7 +138,7 @@ struct ResolvedArtifactMessage {
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct CompiledCatalogArtifactOutput {
     artifact: CompiledCatalogArtifact,
-    provenance: Option<CompiledCatalogProvenanceReport>,
+    provenance: CompiledCatalogProvenanceReport,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -610,7 +610,6 @@ where
         source_keys,
         options,
         icu_options,
-        false,
     )?;
     Ok(output.artifact)
 }
@@ -629,13 +628,10 @@ where
         source_keys,
         options,
         icu_options,
-        true,
     )?;
     Ok(CompiledCatalogArtifactReport {
         artifact: output.artifact,
-        provenance: output
-            .provenance
-            .expect("provenance report requested for artifact compile output"),
+        provenance: output.provenance,
     })
 }
 
@@ -644,19 +640,18 @@ fn compile_catalog_artifact_from_source_keys_inner<I>(
     source_keys: I,
     options: &CompileCatalogArtifactOptions<'_>,
     icu_options: &CompileCatalogArtifactIcuOptions,
-    include_provenance: bool,
 ) -> Result<CompiledCatalogArtifactOutput, ApiError>
 where
     I: IntoIterator<Item = CatalogMessageKey>,
 {
     let mut compiled_keys = BTreeMap::<String, CatalogMessageKey>::new();
     let mut artifact = CompiledCatalogArtifact::default();
-    let mut provenance = include_provenance.then(|| CompiledCatalogProvenanceReport {
+    let mut provenance = CompiledCatalogProvenanceReport {
         requested_locale: options.requested_locale.to_owned(),
         source_locale: options.source_locale.to_owned(),
         fallback_chain: options.fallback_chain.to_vec(),
         messages: Vec::new(),
-    });
+    };
 
     for source_key in source_keys {
         let compiled_key = compiled_key_for(options.key_strategy, &source_key);
@@ -672,15 +667,12 @@ where
         }
 
         let resolved = resolve_compiled_catalog_artifact_message(locales, &source_key, options);
-        if let Some(provenance) = provenance.as_mut() {
-            provenance.messages.push(CompiledCatalogResolution {
-                key: compiled_key.clone(),
-                source_key: source_key.clone(),
-                requested_locale: options.requested_locale.to_owned(),
-                resolved_locale: resolved.as_ref().map(|value| value.locale.clone()),
-                kind: compiled_catalog_resolution_kind(options, resolved.as_ref()),
-            });
-        }
+        provenance.messages.push(CompiledCatalogResolution {
+            key: compiled_key.clone(),
+            source_key: source_key.clone(),
+            resolved_locale: resolved.as_ref().map(|value| value.locale.clone()),
+            kind: compiled_catalog_resolution_kind(options, resolved.as_ref()),
+        });
 
         if options.requested_locale != options.source_locale {
             let resolved_locale = resolved.as_ref().map(|value| value.locale.clone());
