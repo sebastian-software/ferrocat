@@ -346,7 +346,9 @@ fn execute_scenario(
         }
         "polib-rust-parse" => prepared.run_polib_rust_parse(iterations),
         "polib-rust-stringify" => prepared.run_polib_rust_stringify(iterations, capture_artifacts),
-        "polib" => prepared.run_python_adapter(workspace, scenario, iterations, capture_artifacts),
+        "polib" | "babel" => {
+            prepared.run_python_adapter(workspace, scenario, iterations, capture_artifacts)
+        }
         "msgcat" => prepared.run_msgcat(iterations, capture_artifacts),
         "msgmerge" => prepared.run_msgmerge(iterations, capture_artifacts),
         other => Err(format!("unsupported benchmark implementation: {other}")),
