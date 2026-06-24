@@ -136,6 +136,16 @@
   text-wrap: pretty;
 }
 
+.ferro-hero-craft {
+  max-width: 54ch;
+  margin: 1rem 0 0;
+  font-size: 0.96rem;
+  line-height: 1.6;
+  font-style: italic;
+  color: var(--ferro-meta);
+  text-wrap: pretty;
+}
+
 .ferro-sublead {
   max-width: 64ch;
   margin: 0;
@@ -741,6 +751,17 @@
   color: var(--ferro-accent);
   font-weight: 600;
   text-decoration: none;
+}
+
+.ferro-perf-craft {
+  max-width: 62ch;
+  margin: 0 0 1.5rem;
+  padding-left: 1rem;
+  border-left: 2px solid var(--ferro-accent);
+  font-size: 1.02rem;
+  line-height: 1.7;
+  color: var(--ferro-body);
+  text-wrap: pretty;
 }
 
 /* ── Palamedes stack ── */

@@ -59,12 +59,14 @@ at that layer.
 
 Most i18n catalog tooling for JavaScript and TypeScript runs on Node, where catalogs are parsed and rewritten in interpreted code. Ferrocat is compiled Rust with byte-oriented scanning and zero-copy parsing. On the same 10k-message gettext catalog, every tool reading the same files (Apple M1 Ultra, median of 10 runs):
 
-| Workload | Ferrocat | pofile-ts (Node) | polib (Python) | GNU msgmerge |
-|---|---:|---:|---:|---:|
-| Parse | **298 MiB/s** | 96 | 17 | — |
-| Update with new strings | **201 MiB/s** | 42 | 7 | 4 |
+| Workload | Ferrocat | pofile-ts (Node) | gettext/gettext (PHP) | polib (Python) | GNU msgmerge |
+|---|---:|---:|---:|---:|---:|
+| Parse | **455 MiB/s** | 145 | 49 | 20 | — |
+| Update with new strings | **192 MiB/s** | 40 | 16 | 7 | 4 |
 
-Serialization reaches about 1.1 GiB/s on the same corpus. The catalog-update comparison is strictly file-to-file (parse existing, parse freshly extracted strings, merge, serialize), so the numbers stay apples-to-apples. See the [benchmark methodology](https://sebastian-software.github.io/ferrocat/performance/benchmarking) and the checked-in reports under [`benchmark/results/`](benchmark/results) for the full matrix and host details.
+None of this comes free with picking Rust. The hot path is written by hand: memchr scanning, NEON SIMD on Apple Silicon, borrowed parsing that never copies the source, and a merge that moves data instead of cloning it. Months of low-level work you inherit the moment you add the crate.
+
+The parse row uses borrowed, zero-copy parsing; reading into a fully owned model still reaches 362 MiB/s. Serialization runs at about 1.16 GiB/s on the same corpus. The catalog-update comparison is strictly file-to-file (parse existing, parse freshly extracted strings, merge, serialize), so the numbers stay apples-to-apples. See the [benchmark methodology](https://sebastian-software.github.io/ferrocat/performance/benchmarking) and the checked-in reports under [`benchmark/results/`](benchmark/results) for the full matrix and host details.
 
 ## Core Workflows
 
