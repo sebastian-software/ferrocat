@@ -26,3 +26,10 @@ todo = "deny"
 unwrap_used = "deny"
 needless_borrow = "deny"
 redundant_clone = "deny"
+
+# Fat LTO + a single codegen unit trade longer release builds for faster
+# binaries. This applies to the workspace's own binaries (CLI, benches);
+# library consumers build under their own release profile.
+[profile.release]
+lto = "fat"
+codegen-units = 1
