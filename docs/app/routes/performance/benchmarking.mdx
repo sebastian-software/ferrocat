@@ -27,9 +27,10 @@ The same holds for PO itself: there is no widely adopted Rust PO library to
 compare against. The one Rust PO crate (`polib`) has effectively no ecosystem
 adoption (single author, ~14 stars, no reverse dependencies on crates.io), so it
 is left out for the same reason as niche ICU parsers. PO comparisons therefore
-run against the established JS/Python tools (`pofile`, `gettext-parser`, Python
-`polib`). For catalog updates, `babel`'s `Catalog.update` and GNU `msgmerge` are
-the maintained tools with real merge semantics.
+run against the established JS, Python, and PHP tools (`pofile`,
+`gettext-parser`, Python `polib`, and PHP `gettext/gettext`). For catalog
+updates, `gettext/gettext`'s `mergeWith`, `babel`'s `Catalog.update`, and GNU
+`msgmerge` are the maintained tools with real merge semantics.
 
 ICU compile-to-runtime (`@messageformat/core`, `@formatjs/cli`, Lingui) is a
 separate axis and is intentionally not wired up yet: those tools precompile ICU
@@ -102,6 +103,7 @@ Keep the generated JSON report with your notes when a change is performance-moti
 - Rust toolchain able to run `cargo run -p ferrocat-bench`
 - Node.js plus the packages declared in `benchmark/node/package.json`
 - Python 3 plus the packages declared in `benchmark/python/requirements.txt`
+- PHP 8.1+ and Composer for the `gettext/gettext` adapter under `benchmark/php`
 - GNU gettext commands `msgcat` and `msgmerge`
 
 Suggested setup:

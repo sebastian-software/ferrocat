@@ -347,6 +347,9 @@ fn execute_scenario(
         "polib" | "babel" => {
             prepared.run_python_adapter(workspace, scenario, iterations, capture_artifacts)
         }
+        "php-gettext" => {
+            prepared.run_php_adapter(workspace, scenario, iterations, capture_artifacts)
+        }
         "msgcat" => prepared.run_msgcat(iterations, capture_artifacts),
         "msgmerge" => prepared.run_msgmerge(iterations, capture_artifacts),
         other => Err(format!("unsupported benchmark implementation: {other}")),
@@ -1420,6 +1423,19 @@ impl PreparedScenario {
         let python = preferred_python_program(workspace);
         let args = vec![script.into_os_string()];
         run_external_adapter(python.as_os_str(), &args, workspace, &request)
+    }
+
+    fn run_php_adapter(
+        &self,
+        workspace: &Path,
+        scenario: &BenchmarkScenario,
+        iterations: usize,
+        capture_artifacts: bool,
+    ) -> Result<ExecutionResult, String> {
+        let request = self.adapter_request(scenario, iterations, capture_artifacts);
+        let script = workspace.join("benchmark").join("php").join("adapter.php");
+        let args = vec![script.into_os_string()];
+        run_external_adapter("php", &args, workspace, &request)
     }
 
     fn run_msgcat(
