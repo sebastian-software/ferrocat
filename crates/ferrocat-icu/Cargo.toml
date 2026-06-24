@@ -20,6 +20,7 @@ default = ["serde"]
 serde = ["dep:serde"]
 
 [dependencies]
+memchr = "2.7.6"
 serde = { version = "1.0.228", features = ["derive"], optional = true }
 
 [package.metadata.docs.rs]

@@ -104,7 +104,22 @@ impl<'a> Parser<'a> {
                     nodes.push(IcuNode::Pound);
                 }
                 b'\'' => literal.push_str(&self.parse_apostrophe_literal()?),
-                _ => literal.push(self.advance_char().expect("byte implies char")),
+                b'<' => {
+                    // A `<` that is not an open tag (close tags are handled above):
+                    // copy it as a literal byte and continue scanning.
+                    literal.push('<');
+                    self.pos += 1;
+                }
+                _ => {
+                    // Bulk-copy the literal run up to the next syntactically significant
+                    // byte (memchr/SIMD jump) instead of decoding+copying char by char.
+                    let rest = &self.input_bytes[self.pos..];
+                    let stop = find_literal_stop(rest, plural_depth > 0)
+                        .unwrap_or(rest.len())
+                        .max(1);
+                    literal.push_str(&self.input[self.pos..self.pos + stop]);
+                    self.pos += stop;
+                }
             }
         }
 
@@ -505,6 +520,30 @@ enum FormatterKind {
 
 fn has_other_clause(options: &[IcuOption]) -> bool {
     options.iter().any(|option| option.selector == "other")
+}
+
+/// Finds the offset of the next byte that ends a plain-literal run: an ICU
+/// structural byte (`{`, `}`, `<`, `'`) or, inside a plural/selectordinal body,
+/// `#`. Uses memchr (SIMD) so long literal segments are skipped in bulk.
+#[inline]
+fn find_literal_stop(haystack: &[u8], in_plural: bool) -> Option<usize> {
+    let structural = memchr::memchr3(b'{', b'}', b'<', haystack);
+    let quote = memchr::memchr(b'\'', haystack);
+    let stop = min_option(structural, quote);
+    if in_plural {
+        min_option(stop, memchr::memchr(b'#', haystack))
+    } else {
+        stop
+    }
+}
+
+#[inline]
+fn min_option(first: Option<usize>, second: Option<usize>) -> Option<usize> {
+    match (first, second) {
+        (Some(left), Some(right)) => Some(left.min(right)),
+        (Some(value), None) | (None, Some(value)) => Some(value),
+        (None, None) => None,
+    }
 }
 
 #[cfg(test)]
