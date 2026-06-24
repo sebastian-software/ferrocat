@@ -10,6 +10,30 @@ order: 10
 
 The internal microbenchmarks remain the fast day-to-day performance loop. The external comparison suite is for serious cross-runtime checkpoints on a documented reference host, especially when comparing Ferrocat against GNU gettext, Node, and Python ecosystem tools.
 
+## Choosing Comparison Targets
+
+Comparison targets are kept to libraries that are both widely used and actively
+maintained -- the tools real projects actually depend on. Niche or single-author
+experiments are deliberately left out: a fast number against an unmaintained
+parser is not a meaningful baseline.
+
+Because Ferrocat ships into JS/TS frontends through Palamedes, the most relevant
+ICU MessageFormat baselines are the established JavaScript parsers
+(`@formatjs/icu-messageformat-parser`, `@messageformat/parser`), not Rust-native
+ICU crates. The Rust ecosystem has no widely adopted MessageFormat-1 parser, and
+ICU4X targets MessageFormat 2.0 only, so there is no fair same-language ICU peer.
+
+Same-language Rust peers are still used where they exist and are maintained: the
+`polib` crate is the fairest in-process comparison for the PO parse/stringify
+paths (no FFI or subprocess bias). For catalog updates, `babel`'s `Catalog.update`
+and GNU `msgmerge` are the maintained tools with real merge semantics.
+
+ICU compile-to-runtime (`@messageformat/core`, `@formatjs/cli`, Lingui) is a
+separate axis and is intentionally not wired up yet: those tools precompile ICU
+to ASTs/functions, whereas Ferrocat's `compile_catalog_artifact` resolves
+catalogs to runtime message strings and leaves ICU parsing to the client. A
+direct compile-vs-compile benchmark would compare different operations.
+
 ## Scheduled Rust Reports
 
 The `Benchmark Reports` GitHub Actions workflow runs every Monday and can also
@@ -137,6 +161,14 @@ This checks the required executables and adapter packages and prints the detecte
   - advanced/internal benchmark suite
   - mixed and ICU-heavy workloads
   - useful for `ferrocat`'s broader performance direction, but not the official cross-tool gettext baseline
+- `rust-libraries-v1`
+  - in-process Rust-vs-Rust comparison; needs no Node/Python/gettext adapter setup
+  - compares `ferrocat` parse and stringify against the `polib` crate across the `de`/`fr`/`pl` gettext corpora
+  - `polib` only reads/writes PO, so there is no merge comparison on this axis
+- `catalog-update-v1`
+  - catalog update/merge comparison against the real, maintained update tools
+  - compares `ferrocat` merge against GNU `msgmerge` and Python `babel`'s `Catalog.update` on `de`/`fr`
+  - `babel` runs its real `Catalog.update` with `no_fuzzy_matching=True` to stay aligned with `ferrocat`'s exact-identity merge model
 
 ## Run The Official Gettext Suite
 
