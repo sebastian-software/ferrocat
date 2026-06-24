@@ -176,12 +176,13 @@ def run_polib(request):
     if request["operation"] == "parse":
         with open(request["po_input_path"], "r", encoding="utf-8") as handle:
             content = handle.read()
-        summary = None
+        parsed = None
+        # Time only the parse; build the digest summary once outside the loop.
         started = time.perf_counter_ns()
         for _ in range(request["iterations"]):
             parsed = polib.pofile(content)
-            summary = normalize_po_summary(parsed)
         elapsed = time.perf_counter_ns() - started
+        summary = normalize_po_summary(parsed)
         return success_response(
             request,
             semantic_digest=digest(summary),

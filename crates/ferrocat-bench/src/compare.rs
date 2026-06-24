@@ -1089,23 +1089,32 @@ impl PreparedScenario {
             .po_content
             .as_deref()
             .ok_or_else(|| "internal parse requires PO content".to_owned())?;
-        let mut last_summary = None;
-        let start = Instant::now();
-        for _ in 0..iterations {
-            let summary = if borrowed {
-                let parsed = parse_po_borrowed(input)
-                    .map_err(|error| format!("borrowed parse failed: {error}"))?;
-                PoSemanticSummary::from_borrowed_po_file(&parsed)
-            } else {
-                let parsed =
-                    parse_po(input).map_err(|error| format!("owned parse failed: {error}"))?;
-                PoSemanticSummary::from_po_file(&parsed)
-            };
-            last_summary = Some(summary);
-        }
-        let elapsed = start.elapsed();
-        let summary =
-            last_summary.ok_or_else(|| "internal parse produced no summary".to_owned())?;
+        // Time only the parse; build the digest summary once outside the loop so
+        // the measured path is parsing alone, matching the external adapters
+        // (which also reparse for the summary outside the timed loop).
+        let (elapsed, summary) = if borrowed {
+            let mut last = None;
+            let start = Instant::now();
+            for _ in 0..iterations {
+                last = Some(
+                    parse_po_borrowed(input)
+                        .map_err(|error| format!("borrowed parse failed: {error}"))?,
+                );
+            }
+            let elapsed = start.elapsed();
+            let parsed = last.ok_or_else(|| "internal parse produced no result".to_owned())?;
+            (elapsed, PoSemanticSummary::from_borrowed_po_file(&parsed))
+        } else {
+            let mut last = None;
+            let start = Instant::now();
+            for _ in 0..iterations {
+                last =
+                    Some(parse_po(input).map_err(|error| format!("owned parse failed: {error}"))?);
+            }
+            let elapsed = start.elapsed();
+            let parsed = last.ok_or_else(|| "internal parse produced no result".to_owned())?;
+            (elapsed, PoSemanticSummary::from_po_file(&parsed))
+        };
         let digest = digest_summary(&summary)?;
         Ok(ExecutionResult {
             tool_version: INTERNAL_TOOL_VERSION.to_owned(),
@@ -1128,15 +1137,19 @@ impl PreparedScenario {
             .po_content
             .as_deref()
             .ok_or_else(|| "polib-rust parse requires PO content".to_owned())?;
-        let mut last_summary = None;
+        // Time only the parse; build the digest summary once outside the loop
+        // (consistent with run_internal_parse and the external adapters).
+        let mut last_catalog = None;
         let start = Instant::now();
         for _ in 0..iterations {
-            let catalog = polib::po_file::parse_from_reader(input.as_bytes())
-                .map_err(|error| format!("polib parse failed: {error}"))?;
-            last_summary = Some(po_summary_from_polib(&catalog));
+            last_catalog = Some(
+                polib::po_file::parse_from_reader(input.as_bytes())
+                    .map_err(|error| format!("polib parse failed: {error}"))?,
+            );
         }
         let elapsed = start.elapsed();
-        let summary = last_summary.ok_or_else(|| "polib parse produced no summary".to_owned())?;
+        let catalog = last_catalog.ok_or_else(|| "polib parse produced no result".to_owned())?;
+        let summary = po_summary_from_polib(&catalog);
         let digest = digest_summary(&summary)?;
         Ok(ExecutionResult {
             tool_version: POLIB_TOOL_VERSION.to_owned(),
@@ -1232,22 +1245,25 @@ impl PreparedScenario {
             )
         };
 
-        let mut last_summary = None;
+        // Time only parse_catalog; build the digest summary once outside the loop.
+        let mut last_parsed = None;
         let start = Instant::now();
         for _ in 0..iterations {
-            let parsed = parse_catalog(ParseCatalogOptions {
-                content,
-                locale: locale.as_deref(),
-                source_locale: "en",
-                mode,
-                strict: false,
-            })
-            .map_err(|error| format!("parse_catalog failed: {error}"))?;
-            last_summary = Some(CatalogSemanticSummary::from_parsed_catalog(parsed)?);
+            last_parsed = Some(
+                parse_catalog(ParseCatalogOptions {
+                    content,
+                    locale: locale.as_deref(),
+                    source_locale: "en",
+                    mode,
+                    strict: false,
+                })
+                .map_err(|error| format!("parse_catalog failed: {error}"))?,
+            );
         }
         let elapsed = start.elapsed();
-        let summary =
-            last_summary.ok_or_else(|| "internal parse-catalog produced no summary".to_owned())?;
+        let parsed =
+            last_parsed.ok_or_else(|| "internal parse-catalog produced no result".to_owned())?;
+        let summary = CatalogSemanticSummary::from_parsed_catalog(parsed)?;
         let digest = digest_summary(&summary)?;
         Ok(ExecutionResult {
             tool_version: INTERNAL_TOOL_VERSION.to_owned(),
@@ -1435,16 +1451,27 @@ impl PreparedScenario {
             .icu_messages
             .as_ref()
             .ok_or_else(|| "internal parse-icu requires ICU messages".to_owned())?;
-        let mut last_summary = None;
         let total_bytes = messages.iter().map(String::len).sum::<usize>();
+        // Time only the parse; summarize the parsed messages once outside the loop.
+        let mut last_parsed = None;
         let start = Instant::now();
         for _ in 0..iterations {
-            let summary = IcuFixtureSummary::from_messages(messages)?;
-            last_summary = Some(summary);
+            let mut parsed = Vec::with_capacity(messages.len());
+            for message in messages {
+                parsed.push(
+                    parse_icu(message).map_err(|error| {
+                        format!("failed to parse ICU benchmark message: {error}")
+                    })?,
+                );
+            }
+            last_parsed = Some(parsed);
         }
         let elapsed = start.elapsed();
-        let summary =
-            last_summary.ok_or_else(|| "internal parse-icu produced no summary".to_owned())?;
+        let parsed =
+            last_parsed.ok_or_else(|| "internal parse-icu produced no result".to_owned())?;
+        let summary = IcuFixtureSummary {
+            messages: parsed.iter().map(IcuMessageSummary::from_message).collect(),
+        };
         let digest = digest_summary(&summary)?;
         Ok(ExecutionResult {
             tool_version: INTERNAL_TOOL_VERSION.to_owned(),
@@ -2283,18 +2310,6 @@ fn diagnostic_severity_label(severity: ferrocat_po::DiagnosticSeverity) -> &'sta
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 struct IcuFixtureSummary {
     messages: Vec<IcuMessageSummary>,
-}
-
-impl IcuFixtureSummary {
-    fn from_messages(messages: &[String]) -> Result<Self, String> {
-        let mut summary = Vec::with_capacity(messages.len());
-        for message in messages {
-            let parsed = parse_icu(message)
-                .map_err(|error| format!("failed to parse ICU benchmark message: {error}"))?;
-            summary.push(IcuMessageSummary::from_message(&parsed));
-        }
-        Ok(Self { messages: summary })
-    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
