@@ -4,8 +4,11 @@ import hashlib
 import json
 import sys
 import time
+from io import BytesIO
 
+import babel
 import polib
+from babel.messages import pofile as babel_pofile
 
 
 def canonicalize(value):
@@ -242,15 +245,75 @@ def run_polib(request):
     )
 
 
+def run_babel(request):
+    tool_version = f"babel@{getattr(babel, '__version__', 'unknown')}"
+
+    if request["operation"] not in {"merge", "update-catalog"}:
+        raise RuntimeError(
+            f"babel benchmark only supports catalog update, got {request['operation']!r}"
+        )
+
+    with open(request["existing_po_path"], "r", encoding="utf-8") as handle:
+        existing_content = handle.read()
+    with open(request["pot_path"], "r", encoding="utf-8") as handle:
+        template_content = handle.read()
+    existing_bytes = existing_content.encode("utf-8")
+    template_bytes = template_content.encode("utf-8")
+
+    rendered = ""
+    started = time.perf_counter_ns()
+    for _ in range(request["iterations"]):
+        existing_catalog = babel_pofile.read_po(BytesIO(existing_bytes))
+        template_catalog = babel_pofile.read_po(BytesIO(template_bytes))
+        # no_fuzzy_matching keeps update semantics aligned with ferrocat's
+        # exact-identity merge (obsolete-mark, preserve existing translations).
+        existing_catalog.update(template_catalog, no_fuzzy_matching=True)
+        buffer = BytesIO()
+        babel_pofile.write_po(buffer, existing_catalog, omit_header=False)
+        rendered = buffer.getvalue().decode("utf-8")
+    elapsed = time.perf_counter_ns() - started
+
+    # Build the correctness artifact outside the timed loop. babel injects
+    # placeholder default headers (PROJECT VERSION, Generated-By, ...) on write,
+    # so normalize the headers back to the source catalog -- exactly what
+    # merge_polib_catalog does for the polib path. The benchmark validates the
+    # rendered output by reparsing it, so the persisted artifact must carry the
+    # normalized headers too (not babel's raw defaults).
+    result = polib.pofile(rendered)
+    result.metadata = dict(polib.pofile(existing_content).metadata)
+    normalized_output = str(result)
+    summary = normalize_po_summary(result)
+    if request["capture_artifacts"] and request.get("po_output_path"):
+        with open(request["po_output_path"], "w", encoding="utf-8") as handle:
+            handle.write(normalized_output)
+    return success_response(
+        request,
+        semantic_digest=digest(summary),
+        elapsed_ns=elapsed,
+        bytes_processed=len(rendered.encode("utf-8")) * request["iterations"],
+        items_processed=len(summary["items"]) * request["iterations"],
+        tool_version=tool_version,
+        po_output_path=request.get("po_output_path") if request["capture_artifacts"] else None,
+    )
+
+
 def main():
     if "--check" in sys.argv:
-        print(f"polib@{getattr(polib, '__version__', 'unknown')}", end="")
+        polib_version = getattr(polib, "__version__", "unknown")
+        babel_version = getattr(babel, "__version__", "unknown")
+        print(f"polib@{polib_version}; babel@{babel_version}", end="")
         return
 
     request = json.load(sys.stdin)
-    if request["implementation"] != "polib":
-        raise RuntimeError(f"unsupported python benchmark implementation: {request['implementation']}")
-    result = run_polib(request)
+    implementation = request["implementation"]
+    if implementation == "polib":
+        result = run_polib(request)
+    elif implementation == "babel":
+        result = run_babel(request)
+    else:
+        raise RuntimeError(
+            f"unsupported python benchmark implementation: {implementation}"
+        )
     json.dump(result, sys.stdout, ensure_ascii=False)
 
 
