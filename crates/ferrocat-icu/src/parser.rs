@@ -289,7 +289,10 @@ impl<'a> Parser<'a> {
                     return Ok(out);
                 }
             } else {
-                out.push(self.advance_char().expect("byte implies char"));
+                let rest = &self.input_bytes[self.pos..];
+                let stop = memchr::memchr(b'\'', rest).unwrap_or(rest.len()).max(1);
+                out.push_str(&self.input[self.pos..self.pos + stop]);
+                self.pos += stop;
             }
         }
 
@@ -309,7 +312,12 @@ impl<'a> Parser<'a> {
             if byte == b'\'' {
                 out.push_str(&self.parse_apostrophe_literal()?);
             } else {
-                out.push(self.advance_char().expect("byte implies char"));
+                let rest = &self.input_bytes[self.pos..];
+                let stop = memchr::memchr2(b'}', b'\'', rest)
+                    .unwrap_or(rest.len())
+                    .max(1);
+                out.push_str(&self.input[self.pos..self.pos + stop]);
+                self.pos += stop;
             }
         }
         Err(self.error("Unterminated ICU argument"))
