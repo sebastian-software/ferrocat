@@ -1,0 +1,20 @@
+{
+  "name": "rust-libraries-v1",
+  "minimum_sample_millis": 100,
+  "scenarios": [
+    { "id": "po-parse/gettext-ui-de-10000/ferrocat", "comparison_group": "po-parse/gettext-ui-de-10000", "workload": "po-parse", "operation": "parse", "fixture": "gettext-ui-de-10000", "implementation": "ferrocat-parse", "warmup_runs": 1, "measured_runs": 3 },
+    { "id": "po-parse/gettext-ui-de-10000/polib-rust", "comparison_group": "po-parse/gettext-ui-de-10000", "workload": "po-parse", "operation": "parse", "fixture": "gettext-ui-de-10000", "implementation": "polib-rust-parse", "warmup_runs": 1, "measured_runs": 3 },
+
+    { "id": "po-parse/gettext-saas-fr-10000/ferrocat", "comparison_group": "po-parse/gettext-saas-fr-10000", "workload": "po-parse", "operation": "parse", "fixture": "gettext-saas-fr-10000", "implementation": "ferrocat-parse", "warmup_runs": 1, "measured_runs": 3 },
+    { "id": "po-parse/gettext-saas-fr-10000/polib-rust", "comparison_group": "po-parse/gettext-saas-fr-10000", "workload": "po-parse", "operation": "parse", "fixture": "gettext-saas-fr-10000", "implementation": "polib-rust-parse", "warmup_runs": 1, "measured_runs": 3 },
+
+    { "id": "po-parse/gettext-commerce-pl-10000/ferrocat", "comparison_group": "po-parse/gettext-commerce-pl-10000", "workload": "po-parse", "operation": "parse", "fixture": "gettext-commerce-pl-10000", "implementation": "ferrocat-parse", "warmup_runs": 1, "measured_runs": 3 },
+    { "id": "po-parse/gettext-commerce-pl-10000/polib-rust", "comparison_group": "po-parse/gettext-commerce-pl-10000", "workload": "po-parse", "operation": "parse", "fixture": "gettext-commerce-pl-10000", "implementation": "polib-rust-parse", "warmup_runs": 1, "measured_runs": 3 },
+
+    { "id": "po-stringify/gettext-ui-de-10000/ferrocat", "comparison_group": "po-stringify/gettext-ui-de-10000", "workload": "po-stringify", "operation": "stringify", "fixture": "gettext-ui-de-10000", "implementation": "ferrocat-stringify", "warmup_runs": 1, "measured_runs": 3 },
+    { "id": "po-stringify/gettext-ui-de-10000/polib-rust", "comparison_group": "po-stringify/gettext-ui-de-10000", "workload": "po-stringify", "operation": "stringify", "fixture": "gettext-ui-de-10000", "implementation": "polib-rust-stringify", "warmup_runs": 1, "measured_runs": 3 },
+
+    { "id": "po-stringify/gettext-saas-fr-10000/ferrocat", "comparison_group": "po-stringify/gettext-saas-fr-10000", "workload": "po-stringify", "operation": "stringify", "fixture": "gettext-saas-fr-10000", "implementation": "ferrocat-stringify", "warmup_runs": 1, "measured_runs": 3 },
+    { "id": "po-stringify/gettext-saas-fr-10000/polib-rust", "comparison_group": "po-stringify/gettext-saas-fr-10000", "workload": "po-stringify", "operation": "stringify", "fixture": "gettext-saas-fr-10000", "implementation": "polib-rust-stringify", "warmup_runs": 1, "measured_runs": 3 }
+  ]
+}
