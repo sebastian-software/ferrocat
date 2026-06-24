@@ -401,12 +401,14 @@ fn merge_catalogs(
 
     for next in normalized {
         let key = (next.msgid.clone(), next.msgctxt.clone());
-        let previous = existing_index.get(&key).copied().map(|index| {
+        let previous = if let Some(&index) = existing_index.get(&key) {
             matched[index] = true;
-            existing.messages[index].clone()
-        });
+            Some(&existing.messages[index])
+        } else {
+            None
+        };
         let merged = merge_message(
-            previous.as_ref(),
+            previous,
             next,
             is_source_locale,
             context.locale,
@@ -416,7 +418,7 @@ fn merge_catalogs(
         );
         if previous.is_none() {
             stats.added += 1;
-        } else if previous.as_ref() == Some(&merged) {
+        } else if previous == Some(&merged) {
             stats.unchanged += 1;
         } else {
             stats.changed += 1;
