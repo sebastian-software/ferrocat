@@ -207,6 +207,7 @@ struct NdjsonCanonicalReader<R> {
     locale: Option<String>,
     line_number: usize,
     seen: BTreeSet<(String, Option<String>)>,
+    line_buf: String,
 }
 
 impl<R: BufRead> NdjsonCanonicalReader<R> {
@@ -231,6 +232,7 @@ impl<R: BufRead> NdjsonCanonicalReader<R> {
             locale: options.locale.map(str::to_owned).or(frontmatter.locale),
             line_number,
             seen: BTreeSet::new(),
+            line_buf: String::new(),
         })
     }
 }
@@ -240,12 +242,12 @@ impl<R: BufRead> Iterator for NdjsonCanonicalReader<R> {
 
     fn next(&mut self) -> Option<Self::Item> {
         loop {
-            let line = match read_line(&mut self.reader, &mut self.line_number) {
-                Ok(Some(line)) => line,
-                Ok(None) => return None,
+            match read_line_into(&mut self.reader, &mut self.line_number, &mut self.line_buf) {
+                Ok(true) => {}
+                Ok(false) => return None,
                 Err(error) => return Some(Err(error)),
-            };
-            let trimmed = line.trim();
+            }
+            let trimmed = self.line_buf.trim();
             if trimmed.is_empty() {
                 continue;
             }
@@ -260,10 +262,10 @@ impl<R: BufRead> Iterator for NdjsonCanonicalReader<R> {
                 }
             };
             let key = (record.id.clone(), record.ctx.clone());
-            if !self.seen.insert(key.clone()) {
+            if !self.seen.insert(key) {
                 return Some(Err(ApiError::Conflict(format!(
                     "duplicate NDJSON message for id {:?} and context {:?}",
-                    key.0, key.1
+                    record.id, record.ctx
                 ))));
             }
 
@@ -627,17 +629,22 @@ fn read_frontmatter<R: BufRead>(
     ))
 }
 
-fn read_line<R: BufRead>(
+/// Reads one logical line into a reusable buffer, returning `false` at EOF.
+///
+/// Avoids a per-line `String` allocation on the hot streaming path by clearing
+/// and refilling `line` instead of allocating a fresh buffer each call.
+fn read_line_into<R: BufRead>(
     reader: &mut R,
     line_number: &mut usize,
-) -> Result<Option<String>, ApiError> {
-    let mut line = String::new();
-    if reader.read_line(&mut line)? == 0 {
-        return Ok(None);
+    line: &mut String,
+) -> Result<bool, ApiError> {
+    line.clear();
+    if reader.read_line(line)? == 0 {
+        return Ok(false);
     }
     *line_number += 1;
-    if *line_number == 1 {
-        line = line.strip_prefix('\u{feff}').unwrap_or(&line).to_owned();
+    if *line_number == 1 && line.starts_with('\u{feff}') {
+        line.drain(..'\u{feff}'.len_utf8());
     }
     if line.ends_with('\n') {
         line.pop();
@@ -645,7 +652,19 @@ fn read_line<R: BufRead>(
     if line.ends_with('\r') {
         line.pop();
     }
-    Ok(Some(line))
+    Ok(true)
+}
+
+fn read_line<R: BufRead>(
+    reader: &mut R,
+    line_number: &mut usize,
+) -> Result<Option<String>, ApiError> {
+    let mut line = String::new();
+    if read_line_into(reader, line_number, &mut line)? {
+        Ok(Some(line))
+    } else {
+        Ok(None)
+    }
 }
 
 fn normalize_input(input: &str) -> std::borrow::Cow<'_, str> {
