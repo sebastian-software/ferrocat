@@ -23,10 +23,13 @@ ICU MessageFormat baselines are the established JavaScript parsers
 ICU crates. The Rust ecosystem has no widely adopted MessageFormat-1 parser, and
 ICU4X targets MessageFormat 2.0 only, so there is no fair same-language ICU peer.
 
-Same-language Rust peers are still used where they exist and are maintained: the
-`polib` crate is the fairest in-process comparison for the PO parse/stringify
-paths (no FFI or subprocess bias). For catalog updates, `babel`'s `Catalog.update`
-and GNU `msgmerge` are the maintained tools with real merge semantics.
+The same holds for PO itself: there is no widely adopted Rust PO library to
+compare against. The one Rust PO crate (`polib`) has effectively no ecosystem
+adoption (single author, ~14 stars, no reverse dependencies on crates.io), so it
+is left out for the same reason as niche ICU parsers. PO comparisons therefore
+run against the established JS/Python tools (`pofile`, `gettext-parser`, Python
+`polib`). For catalog updates, `babel`'s `Catalog.update` and GNU `msgmerge` are
+the maintained tools with real merge semantics.
 
 ICU compile-to-runtime (`@messageformat/core`, `@formatjs/cli`, Lingui) is a
 separate axis and is intentionally not wired up yet: those tools precompile ICU
@@ -161,10 +164,6 @@ This checks the required executables and adapter packages and prints the detecte
   - advanced/internal benchmark suite
   - mixed and ICU-heavy workloads
   - useful for `ferrocat`'s broader performance direction, but not the official cross-tool gettext baseline
-- `rust-libraries-v1`
-  - in-process Rust-vs-Rust comparison; needs no Node/Python/gettext adapter setup
-  - compares `ferrocat` parse and stringify against the `polib` crate across the `de`/`fr`/`pl` gettext corpora
-  - `polib` only reads/writes PO, so there is no merge comparison on this axis
 - `catalog-update-v1`
   - catalog update/merge comparison against the real, maintained update tools
   - compares `ferrocat` merge against GNU `msgmerge` and Python `babel`'s `Catalog.update` on `de`/`fr`

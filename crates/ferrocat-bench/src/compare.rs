@@ -344,8 +344,6 @@ fn execute_scenario(
         | "messageformat-parser" => {
             prepared.run_node_adapter(workspace, scenario, iterations, capture_artifacts)
         }
-        "polib-rust-parse" => prepared.run_polib_rust_parse(iterations),
-        "polib-rust-stringify" => prepared.run_polib_rust_stringify(iterations, capture_artifacts),
         "polib" | "babel" => {
             prepared.run_python_adapter(workspace, scenario, iterations, capture_artifacts)
         }
@@ -708,19 +706,13 @@ impl BenchmarkProfile {
         if self
             .scenarios
             .iter()
-            .any(|scenario| !is_in_process_implementation(&scenario.implementation))
+            .any(|scenario| !scenario.implementation.starts_with("ferrocat-"))
         {
             ToolRequirement::External
         } else {
             ToolRequirement::RustOnly
         }
     }
-}
-
-/// In-process implementations need no Node/Python/gettext adapter setup. These
-/// are ferrocat's own paths plus the Rust `polib` comparison crate.
-fn is_in_process_implementation(implementation: &str) -> bool {
-    implementation.starts_with("ferrocat-") || implementation.starts_with("polib-rust")
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1129,95 +1121,6 @@ impl PreparedScenario {
                 .map(|value| value as u64),
             messages_processed: None,
             artifact: Some(ExecutionArtifact::PoSummary(summary)),
-        })
-    }
-
-    fn run_polib_rust_parse(&self, iterations: usize) -> Result<ExecutionResult, String> {
-        let input = self
-            .po_content
-            .as_deref()
-            .ok_or_else(|| "polib-rust parse requires PO content".to_owned())?;
-        // Time only the parse; build the digest summary once outside the loop
-        // (consistent with run_internal_parse and the external adapters).
-        let mut last_catalog = None;
-        let start = Instant::now();
-        for _ in 0..iterations {
-            last_catalog = Some(
-                polib::po_file::parse_from_reader(input.as_bytes())
-                    .map_err(|error| format!("polib parse failed: {error}"))?,
-            );
-        }
-        let elapsed = start.elapsed();
-        let catalog = last_catalog.ok_or_else(|| "polib parse produced no result".to_owned())?;
-        let summary = po_summary_from_polib(&catalog);
-        let digest = digest_summary(&summary)?;
-        Ok(ExecutionResult {
-            tool_version: POLIB_TOOL_VERSION.to_owned(),
-            reported_digest: digest,
-            elapsed_ns: elapsed.as_nanos(),
-            baseline_elapsed_ns: None,
-            bytes_processed: (input.len() * iterations) as u64,
-            items_processed: summary
-                .items
-                .len()
-                .checked_mul(iterations)
-                .map(|value| value as u64),
-            messages_processed: None,
-            artifact: Some(ExecutionArtifact::PoSummary(summary)),
-        })
-    }
-
-    fn run_polib_rust_stringify(
-        &self,
-        iterations: usize,
-        capture_artifacts: bool,
-    ) -> Result<ExecutionResult, String> {
-        let input = self
-            .po_content
-            .as_deref()
-            .ok_or_else(|| "polib-rust stringify requires PO content".to_owned())?;
-        // Parse once outside the measured loop so only serialization is timed,
-        // matching how ferrocat-stringify reuses a pre-parsed catalog.
-        let catalog = polib::po_file::parse_from_reader(input.as_bytes())
-            .map_err(|error| format!("polib parse failed: {error}"))?;
-        let mut last_rendered = None;
-        let mut bytes_processed = 0usize;
-        let start = Instant::now();
-        for _ in 0..iterations {
-            let mut buffer = std::io::BufWriter::new(Vec::new());
-            polib::po_file::write(&catalog, &mut buffer)
-                .map_err(|error| format!("polib write failed: {error}"))?;
-            let rendered = String::from_utf8(
-                buffer
-                    .into_inner()
-                    .map_err(|error| format!("polib write buffer flush failed: {error}"))?,
-            )
-            .map_err(|error| format!("polib output was not UTF-8: {error}"))?;
-            bytes_processed += rendered.len();
-            last_rendered = Some(rendered);
-        }
-        let elapsed = start.elapsed();
-        let rendered = last_rendered
-            .ok_or_else(|| "polib stringify produced no rendered content".to_owned())?;
-        let summary = {
-            let parsed = parse_po(&rendered)
-                .map_err(|error| format!("polib stringify validation parse failed: {error}"))?;
-            PoSemanticSummary::from_po_file(&parsed)
-        };
-        let digest = digest_summary(&summary)?;
-        Ok(ExecutionResult {
-            tool_version: POLIB_TOOL_VERSION.to_owned(),
-            reported_digest: digest,
-            elapsed_ns: elapsed.as_nanos(),
-            baseline_elapsed_ns: None,
-            bytes_processed: bytes_processed as u64,
-            items_processed: summary
-                .items
-                .len()
-                .checked_mul(iterations)
-                .map(|value| value as u64),
-            messages_processed: None,
-            artifact: capture_artifacts.then_some(ExecutionArtifact::RenderedPo(rendered)),
         })
     }
 
@@ -2085,62 +1988,6 @@ impl PoSemanticSummary {
         self.items.sort();
         self
     }
-}
-
-const POLIB_TOOL_VERSION: &str = "polib-rust@0.3.0";
-
-/// Builds the shared semantic summary from a Rust `polib` catalog so its digest
-/// matches ferrocat's for the same input. polib models headers as fixed fields
-/// (custom headers are dropped, Plural-Forms is structured), so this maps the
-/// known fields back to header rows; `normalized()` then filters and sorts them
-/// the same way as the ferrocat path.
-fn po_summary_from_polib(catalog: &polib::catalog::Catalog) -> PoSemanticSummary {
-    let meta = &catalog.metadata;
-    let mut headers = Vec::new();
-    let mut push_header = |key: &str, value: String| {
-        if !value.is_empty() {
-            headers.push(PoHeaderSummary {
-                key: key.to_owned(),
-                value,
-            });
-        }
-    };
-    push_header("Project-Id-Version", meta.project_id_version.clone());
-    push_header("POT-Creation-Date", meta.pot_creation_date.clone());
-    push_header("PO-Revision-Date", meta.po_revision_date.clone());
-    push_header("Last-Translator", meta.last_translator.clone());
-    push_header("Language-Team", meta.language_team.clone());
-    push_header("MIME-Version", meta.mime_version.clone());
-    push_header("Content-Type", meta.content_type.clone());
-    push_header(
-        "Content-Transfer-Encoding",
-        meta.content_transfer_encoding.clone(),
-    );
-    push_header("Language", meta.language.clone());
-    push_header("Plural-Forms", meta.plural_rules.dump());
-
-    let items = catalog
-        .messages()
-        .map(|message| {
-            let (msgid_plural, msgstr) = if message.is_plural() {
-                (
-                    message.msgid_plural().ok().map(str::to_owned),
-                    message.msgstr_plural().ok().cloned().unwrap_or_default(),
-                )
-            } else {
-                (None, vec![message.msgstr().unwrap_or_default().to_owned()])
-            };
-            PoItemSummary {
-                msgctxt: message.msgctxt().map(str::to_owned),
-                msgid: message.msgid().to_owned(),
-                msgid_plural,
-                msgstr,
-                obsolete: false,
-            }
-        })
-        .collect::<Vec<_>>();
-
-    PoSemanticSummary { headers, items }.normalized()
 }
 
 fn should_keep_benchmark_header(key: &str, value: &str) -> bool {
