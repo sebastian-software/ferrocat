@@ -497,55 +497,56 @@ fn merge_message(
                 String::new()
             },
         },
-        (NormalizedKind::Plural { source, variable }, previous) => match previous {
-            Some(previous)
-                if matches!(previous.translation, CanonicalTranslation::Plural { .. })
-                    && !(is_source_locale && overwrite_source_translations) =>
-            {
-                match &previous.translation {
+        // Reuse an existing plural translation when the source plural is
+        // unchanged and we're not overwriting source-locale text. Binding the
+        // inner `Plural` here means a non-plural previous simply falls through
+        // to the rebuild arm below.
+        (
+            NormalizedKind::Plural { source, variable },
+            Some(CanonicalMessage {
+                translation:
                     CanonicalTranslation::Plural {
                         translation_by_category,
                         variable: previous_variable,
                         ..
-                    } => CanonicalTranslation::Plural {
-                        source: source.clone(),
-                        translation_by_category: plural_profile
-                            .materialize_translation(translation_by_category),
-                        variable: variable
-                            .as_deref()
-                            .map_or_else(|| previous_variable.clone(), str::to_owned),
                     },
-                    CanonicalTranslation::Singular { .. } => unreachable!(),
-                }
-            }
-            _ => {
-                let variable = variable
-                    .clone()
-                    .or_else(|| previous.and_then(extract_plural_variable))
-                    .or_else(|| derive_plural_variable(&next.placeholders))
-                    .unwrap_or_else(|| {
-                        diagnostics.push(
-                            Diagnostic::new(
-                                DiagnosticSeverity::Warning,
-                                diagnostic_codes::plural::ASSUMED_VARIABLE,
-                                "Unable to determine plural placeholder name, assuming \"count\".",
-                            )
-                            .with_identity(&next.msgid, next.msgctxt.as_deref()),
-                        );
-                        "count".to_owned()
-                    });
-
-                CanonicalTranslation::Plural {
-                    source: source.clone(),
-                    translation_by_category: if is_source_locale {
-                        plural_profile.source_locale_translation(source)
-                    } else {
-                        plural_profile.empty_translation()
-                    },
-                    variable,
-                }
-            }
+                ..
+            }),
+        ) if !(is_source_locale && overwrite_source_translations) => CanonicalTranslation::Plural {
+            source: source.clone(),
+            translation_by_category: plural_profile
+                .materialize_translation(translation_by_category),
+            variable: variable
+                .as_deref()
+                .map_or_else(|| previous_variable.clone(), str::to_owned),
         },
+        (NormalizedKind::Plural { source, variable }, previous) => {
+            let variable = variable
+                .clone()
+                .or_else(|| previous.and_then(extract_plural_variable))
+                .or_else(|| derive_plural_variable(&next.placeholders))
+                .unwrap_or_else(|| {
+                    diagnostics.push(
+                        Diagnostic::new(
+                            DiagnosticSeverity::Warning,
+                            diagnostic_codes::plural::ASSUMED_VARIABLE,
+                            "Unable to determine plural placeholder name, assuming \"count\".",
+                        )
+                        .with_identity(&next.msgid, next.msgctxt.as_deref()),
+                    );
+                    "count".to_owned()
+                });
+
+            CanonicalTranslation::Plural {
+                source: source.clone(),
+                translation_by_category: if is_source_locale {
+                    plural_profile.source_locale_translation(source)
+                } else {
+                    plural_profile.empty_translation()
+                },
+                variable,
+            }
+        }
     };
 
     let (machine_translation, translator_comments, flags, obsolete) = previous.map_or_else(
