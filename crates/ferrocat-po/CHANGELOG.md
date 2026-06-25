@@ -1,5 +1,22 @@
 # Changelog
 
+## [1.3.1](https://github.com/sebastian-software/ferrocat/compare/ferrocat-po-v1.3.0...ferrocat-po-v1.3.1) (2026-06-25)
+
+
+### Performance Improvements
+
+* **api:** borrow matched message instead of cloning during merge ([7f4e13b](https://github.com/sebastian-software/ferrocat/commit/7f4e13ba785a0b22638d89a9ca4bf92691f06425))
+* **api:** build plural profile once per catalog merge ([7b04e16](https://github.com/sebastian-software/ferrocat/commit/7b04e16e6e617ca63bcae2b30e1a1fc9064f8bee))
+* **api:** reuse line buffer in NDJSON reader ([81c0c9b](https://github.com/sebastian-software/ferrocat/commit/81c0c9b518d5c4993c0299977af9c399b99ac44c))
+* parser/merge optimizations and cross-runtime benchmark comparisons ([3c635e5](https://github.com/sebastian-software/ferrocat/commit/3c635e55eb3e29f957e99556acaf0ad14d00b819))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * ferrocat-icu bumped from 1.3.0 to 1.3.1
+
 ## [1.3.0](https://github.com/sebastian-software/ferrocat/compare/ferrocat-po-v1.2.1...ferrocat-po-v1.3.0) (2026-06-23)
 
 

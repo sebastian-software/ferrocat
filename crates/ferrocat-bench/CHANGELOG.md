@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.3.1](https://github.com/sebastian-software/ferrocat/compare/ferrocat-bench-v1.3.0...ferrocat-bench-v1.3.1) (2026-06-25)
+
+
+### Bug Fixes
+
+* **bench:** normalize regression check by iterations per sample ([f530e1b](https://github.com/sebastian-software/ferrocat/commit/f530e1b777cba655c815dd7bcf9801a358db7db6))
+
+
+### Performance Improvements
+
+* parser/merge optimizations and cross-runtime benchmark comparisons ([3c635e5](https://github.com/sebastian-software/ferrocat/commit/3c635e55eb3e29f957e99556acaf0ad14d00b819))
+
 ## [1.3.0](https://github.com/sebastian-software/ferrocat/compare/ferrocat-bench-v1.2.1...ferrocat-bench-v1.3.0) (2026-06-23)
 
 
