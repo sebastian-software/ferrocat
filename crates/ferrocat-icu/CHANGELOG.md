@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.3.1](https://github.com/sebastian-software/ferrocat/compare/ferrocat-icu-v1.3.0...ferrocat-icu-v1.3.1) (2026-06-25)
+
+
+### Performance Improvements
+
+* **icu:** bulk-copy apostrophe and style literals with memchr ([46aabb9](https://github.com/sebastian-software/ferrocat/commit/46aabb9070d640ac2b73fc87b64f7e39b4b23fba))
+* **icu:** jump to syntax bytes with memchr in parse_nodes ([c6554a1](https://github.com/sebastian-software/ferrocat/commit/c6554a13512507b108b2c44c543f256f19f08a4e))
+* parser/merge optimizations and cross-runtime benchmark comparisons ([3c635e5](https://github.com/sebastian-software/ferrocat/commit/3c635e55eb3e29f957e99556acaf0ad14d00b819))
+
 ## [1.3.0](https://github.com/sebastian-software/ferrocat/compare/ferrocat-icu-v1.2.1...ferrocat-icu-v1.3.0) (2026-06-23)
 
 
