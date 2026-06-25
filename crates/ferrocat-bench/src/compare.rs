@@ -498,16 +498,16 @@ impl BenchmarkRegressionReport {
 
         for scenario in &self.failures {
             out.push_str(&format!(
-                "FAIL {}: +{:.2}% median elapsed ({} -> {})\n",
+                "FAIL {}: +{:.2}% per-iteration time ({} -> {})\n",
                 scenario.id,
                 scenario.regression_percent,
-                format_duration_ns(scenario.baseline_median_elapsed_ns),
-                format_duration_ns(scenario.current_median_elapsed_ns)
+                format_per_iteration_ns(scenario.baseline_per_iteration_ns),
+                format_per_iteration_ns(scenario.current_per_iteration_ns)
             ));
         }
         for scenario in &self.skipped_noisy {
             out.push_str(&format!(
-                "SKIP noisy {}: {:+.2}% median elapsed (baseline noisy={} current noisy={})\n",
+                "SKIP noisy {}: {:+.2}% per-iteration time (baseline noisy={} current noisy={})\n",
                 scenario.id,
                 scenario.regression_percent,
                 scenario.baseline_noisy,
@@ -538,8 +538,8 @@ impl BenchmarkRegressionReport {
 #[derive(Debug)]
 struct BenchmarkRegressionScenario {
     id: String,
-    baseline_median_elapsed_ns: u128,
-    current_median_elapsed_ns: u128,
+    baseline_per_iteration_ns: f64,
+    current_per_iteration_ns: f64,
     regression_percent: f64,
     baseline_noisy: bool,
     current_noisy: bool,
@@ -637,30 +637,44 @@ fn regression_scenario(
     baseline: &ScenarioReport,
     current: &ScenarioReport,
 ) -> Result<BenchmarkRegressionScenario, String> {
-    let baseline_elapsed = baseline.statistics.median_elapsed_ns;
-    let current_elapsed = current.statistics.median_elapsed_ns;
-    if baseline_elapsed == 0 {
-        return Err(format!(
-            "scenario {} has zero baseline median elapsed time",
-            baseline.id
-        ));
-    }
+    // Compare per-iteration time, not raw sample time. The harness calibrates
+    // iterations_per_sample independently per run, so a faster build can pick
+    // more iterations per sample and end up with a *larger* median_elapsed_ns
+    // even though each operation got quicker. Normalizing by iterations keeps
+    // the check measuring the work, not the calibration.
+    let baseline_per_iteration = per_iteration_nanos(baseline)?;
+    let current_per_iteration = per_iteration_nanos(current)?;
 
-    let regression_percent =
-        ((f64_from_u128(current_elapsed) / f64_from_u128(baseline_elapsed)) - 1.0) * 100.0;
+    let regression_percent = ((current_per_iteration / baseline_per_iteration) - 1.0) * 100.0;
 
     Ok(BenchmarkRegressionScenario {
         id: current.id.clone(),
-        baseline_median_elapsed_ns: baseline_elapsed,
-        current_median_elapsed_ns: current_elapsed,
+        baseline_per_iteration_ns: baseline_per_iteration,
+        current_per_iteration_ns: current_per_iteration,
         regression_percent,
         baseline_noisy: baseline.statistics.noisy,
         current_noisy: current.statistics.noisy,
     })
 }
 
-fn format_duration_ns(value: u128) -> String {
-    format!("{:.3} ms", nanos_to_millis(value))
+fn per_iteration_nanos(report: &ScenarioReport) -> Result<f64, String> {
+    if report.iterations_per_sample == 0 {
+        return Err(format!(
+            "scenario {} has zero iterations_per_sample",
+            report.id
+        ));
+    }
+    if report.statistics.median_elapsed_ns == 0 {
+        return Err(format!(
+            "scenario {} has zero median elapsed time",
+            report.id
+        ));
+    }
+    Ok(f64_from_u128(report.statistics.median_elapsed_ns) / report.iterations_per_sample as f64)
+}
+
+fn format_per_iteration_ns(value: f64) -> String {
+    format!("{:.4} ms", value / 1_000_000.0)
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -4163,5 +4177,79 @@ mod tests {
             median_adjusted_mib_per_sec: None,
             median_adjusted_units_per_sec: None,
         }
+    }
+
+    fn regression_scenario_report_with_iterations(
+        id: &str,
+        median_elapsed_ns: u128,
+        iterations_per_sample: usize,
+    ) -> ScenarioReport {
+        ScenarioReport {
+            iterations_per_sample,
+            ..regression_scenario_report(id, median_elapsed_ns, false)
+        }
+    }
+
+    #[test]
+    fn regression_check_normalizes_by_iterations_per_sample() {
+        // Calibration guard (PR #155): same work (matching digest), but the
+        // harness picked 29 iterations/sample for the baseline and 57 for the
+        // current run. Each operation got faster, so the raw median_elapsed_ns
+        // is larger while throughput improved. The check must read an
+        // improvement, not a regression.
+        let baseline = regression_report([regression_scenario_report_with_iterations(
+            "icu-parse/icu-nested-1000/ferrocat",
+            110_429_000,
+            29,
+        )]);
+        let current = regression_report([regression_scenario_report_with_iterations(
+            "icu-parse/icu-nested-1000/ferrocat",
+            142_051_000,
+            57,
+        )]);
+
+        let report =
+            compare_regression_reports(&baseline, &current, 20.0).expect("regression report");
+
+        assert!(
+            !report.has_failures(),
+            "calibration-only change must not fail: {}",
+            report.render()
+        );
+        // per iteration: 3.808 ms -> 2.492 ms, about a 35% improvement
+        assert_eq!(report.passed.len(), 1);
+        assert!(
+            report.passed[0].regression_percent < -30.0,
+            "expected improvement near -35%, got {:.2}%",
+            report.passed[0].regression_percent
+        );
+    }
+
+    #[test]
+    fn regression_check_flags_per_iteration_slowdown_across_calibrations() {
+        // The flip side: a genuine per-operation slowdown must still trip the
+        // gate even when calibration hides it in the raw sample time. Baseline
+        // 2 ms/iter (10 iters), current 3 ms/iter (5 iters) -> +50% per
+        // iteration, although the raw sample time shrank from 20 ms to 15 ms and
+        // the old raw comparison would have waved it through.
+        let baseline = regression_report([regression_scenario_report_with_iterations(
+            "icu-parse/icu-nested-1000/ferrocat",
+            20_000_000,
+            10,
+        )]);
+        let current = regression_report([regression_scenario_report_with_iterations(
+            "icu-parse/icu-nested-1000/ferrocat",
+            15_000_000,
+            5,
+        )]);
+
+        let report =
+            compare_regression_reports(&baseline, &current, 20.0).expect("regression report");
+
+        assert!(
+            report.has_failures(),
+            "per-iteration slowdown must fail: {}",
+            report.render()
+        );
     }
 }
