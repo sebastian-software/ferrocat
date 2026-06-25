@@ -434,13 +434,14 @@ function runPofile(request) {
 
   if (request.operation === 'parse') {
     const input = fs.readFileSync(request.po_input_path, 'utf8');
-    const parsed = PO.parse(input);
-    let summary = normalizePoSummary(parsed);
+    // Time only the parse; build the digest summary once outside the loop.
+    let parsed = PO.parse(input);
     const start = process.hrtime.bigint();
     for (let i = 0; i < request.iterations; i += 1) {
-      summary = normalizePoSummary(PO.parse(input));
+      parsed = PO.parse(input);
     }
     const elapsed = process.hrtime.bigint() - start;
+    const summary = normalizePoSummary(parsed);
     return successResponse(request, {
       semantic_digest: digest(summary),
       elapsed_ns: Number(elapsed),
@@ -504,12 +505,14 @@ function runPofileTs(request) {
 
   if (request.operation === 'parse') {
     const input = fs.readFileSync(request.po_input_path, 'utf8');
-    let summary = normalizePoSummary(pofileTs.parsePo(input));
+    // Time only the parse; build the digest summary once outside the loop.
+    let parsed = pofileTs.parsePo(input);
     const start = process.hrtime.bigint();
     for (let i = 0; i < request.iterations; i += 1) {
-      summary = normalizePoSummary(pofileTs.parsePo(input));
+      parsed = pofileTs.parsePo(input);
     }
     const elapsed = process.hrtime.bigint() - start;
+    const summary = normalizePoSummary(parsed);
     return successResponse(request, {
       semantic_digest: digest(summary),
       elapsed_ns: Number(elapsed),
@@ -576,12 +579,14 @@ function runGettextParser(request) {
   const toolVersion = `gettext-parser@${packageVersion('gettext-parser')}`;
 
   if (request.operation === 'parse') {
-    let summary = normalizeGettextParserSummary(gettextParser.po.parse(input));
+    // Time only the parse; build the digest summary once outside the loop.
+    let parsed = gettextParser.po.parse(input);
     const start = process.hrtime.bigint();
     for (let i = 0; i < request.iterations; i += 1) {
-      summary = normalizeGettextParserSummary(gettextParser.po.parse(input));
+      parsed = gettextParser.po.parse(input);
     }
     const elapsed = process.hrtime.bigint() - start;
+    const summary = normalizeGettextParserSummary(parsed);
     return successResponse(request, {
       semantic_digest: digest(summary),
       elapsed_ns: Number(elapsed),
@@ -616,14 +621,14 @@ function runGettextParser(request) {
 function runFormatjs(request) {
   const messages = JSON.parse(fs.readFileSync(request.icu_messages_path, 'utf8'));
   const toolVersion = `@formatjs/icu-messageformat-parser@${packageVersion('@formatjs/icu-messageformat-parser')}`;
-  let summary = null;
+  // Time only the parse; summarize the ASTs once outside the loop.
+  let parsedAsts = null;
   const start = process.hrtime.bigint();
   for (let i = 0; i < request.iterations; i += 1) {
-    summary = {
-      messages: messages.map((message) => summarizeFormatjsAst(formatjsParser.parse(message, { captureLocation: false })))
-    };
+    parsedAsts = messages.map((message) => formatjsParser.parse(message, { captureLocation: false }));
   }
   const elapsed = process.hrtime.bigint() - start;
+  const summary = { messages: parsedAsts.map(summarizeFormatjsAst) };
   const bytes = messages.reduce((total, message) => total + Buffer.byteLength(message, 'utf8'), 0);
   return successResponse(request, {
     semantic_digest: digest(summary),
@@ -638,14 +643,14 @@ function runFormatjs(request) {
 function runMessageformat(request) {
   const messages = JSON.parse(fs.readFileSync(request.icu_messages_path, 'utf8'));
   const toolVersion = `@messageformat/parser@${packageVersion('@messageformat/parser')}`;
-  let summary = null;
+  // Time only the parse; summarize the ASTs once outside the loop.
+  let parsedAsts = null;
   const start = process.hrtime.bigint();
   for (let i = 0; i < request.iterations; i += 1) {
-    summary = {
-      messages: messages.map((message) => summarizeMessageformatAst(messageformatParser.parse(message)))
-    };
+    parsedAsts = messages.map((message) => messageformatParser.parse(message));
   }
   const elapsed = process.hrtime.bigint() - start;
+  const summary = { messages: parsedAsts.map(summarizeMessageformatAst) };
   const bytes = messages.reduce((total, message) => total + Buffer.byteLength(message, 'utf8'), 0);
   return successResponse(request, {
     semantic_digest: digest(summary),

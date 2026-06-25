@@ -153,6 +153,7 @@ name = "ferrocat-icu"
 version = "1.3.0"
 dependencies = [
  "ferrocat-conformance",
+ "memchr",
  "proptest",
  "serde",
  "serde_json",

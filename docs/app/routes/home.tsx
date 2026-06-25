@@ -49,7 +49,7 @@ const family: FamilyTool[] = [
   {
     name: "ferrocat",
     role: "Translation catalogs",
-    body: "PO, NDJSON, and ICU MessageFormat with merge, review, audit, and runtime compilation.",
+    body: "PO, NDJSON, and ICU MessageFormat with merge, review, and audit. Several times faster than Node and Python catalog tooling.",
     icon: <Languages size={19} />,
     href: GITHUB,
     current: true,
@@ -216,20 +216,22 @@ const proof = [
 type Bar = { name: string; lang: string; rate: number; self?: boolean }
 
 const parseCompare: Bar[] = [
-  { name: "Ferrocat", lang: "Rust, zero-copy", rate: 298, self: true },
-  { name: "pofile-ts", lang: "Node", rate: 96 },
-  { name: "polib", lang: "Python", rate: 17 },
-  { name: "gettext-parser", lang: "Node", rate: 16 },
+  { name: "Ferrocat", lang: "Rust, zero-copy", rate: 455, self: true },
+  { name: "pofile-ts", lang: "Node", rate: 145 },
+  { name: "gettext/gettext", lang: "PHP", rate: 49 },
+  { name: "gettext-parser", lang: "Node", rate: 20 },
+  { name: "polib", lang: "Python", rate: 20 },
 ]
-const PARSE_MAX = 298
+const PARSE_MAX = 455
 
 const updateCompare: Bar[] = [
-  { name: "Ferrocat", lang: "Rust", rate: 201, self: true },
-  { name: "pofile-ts", lang: "Node", rate: 42 },
+  { name: "Ferrocat", lang: "Rust", rate: 192, self: true },
+  { name: "pofile-ts", lang: "Node", rate: 40 },
+  { name: "gettext/gettext", lang: "PHP", rate: 16 },
   { name: "polib", lang: "Python", rate: 7 },
   { name: "msgmerge", lang: "GNU gettext", rate: 4 },
 ]
-const UPDATE_MAX = 201
+const UPDATE_MAX = 192
 
 // ── Other open source from the same studio ──
 
@@ -262,10 +264,15 @@ export default function HomePage() {
           Make broken translations a build error, not a support ticket.
         </h1>
         <p className="ferro-lead">
-          Ferrocat is a Rust-native catalog engine that treats localized copy as
-          product data: parse it, merge updates by exact identity, review what
-          changed, audit every locale, and compile runtime artifacts for
-          production. Catalog problems stay in CI, where they belong.
+          Ferrocat is a Rust-native catalog engine that parses and merges
+          translation catalogs several times faster than the Node tooling most
+          JS and TS teams run today, then treats that copy as product data you
+          can review, audit, and compile for production. Catalog problems stay
+          in CI, where they belong.
+        </p>
+        <p className="ferro-hero-craft">
+          Hand-tuned SIMD and zero-copy scanning under the hood. The kind of
+          parser you don&rsquo;t write in an afternoon.
         </p>
         <div className="ferro-hero-cta">
           <pre className="ferro-install">
@@ -360,9 +367,9 @@ export default function HomePage() {
           <h2>Rust throughput, in a Node-shaped world.</h2>
           <p className="ferro-sublead">
             Most i18n tooling for JavaScript and TypeScript runs on Node, where
-            catalogs are parsed and rewritten in interpreted code. Ferrocat is
-            compiled Rust. Same 10k-message catalog, same input files, measured
-            on one machine:
+            catalogs are parsed and rewritten in interpreted code. The PHP and
+            Python gettext stacks work the same way. Ferrocat is compiled Rust.
+            Same 10k-message catalog, same input files, measured on one machine:
           </p>
         </div>
         <div className="ferro-bar-charts">
@@ -411,12 +418,21 @@ export default function HomePage() {
             ))}
           </figure>
         </div>
+        <p className="ferro-perf-craft">
+          None of this comes free with picking Rust. The hot path is written by
+          hand: memchr scanning, NEON SIMD on Apple Silicon, borrowed parsing
+          that never copies the source, and a merge that moves data instead of
+          cloning it. Months of low-level work you inherit the moment you add the
+          crate.
+        </p>
         <p className="ferro-perf-foot">
           Updating is the real release-time job: parse the existing catalog,
-          parse the freshly extracted strings, merge, and write. Serialization
-          reaches about 1.1 GiB/s on the same corpus. Median of 10 runs on an
-          Apple M1 Ultra, every tool reading the same files (pofile-ts 4.0.3,
-          gettext-parser 9.0.2, polib 1.2.0, GNU gettext 1.0).{" "}
+          parse the freshly extracted strings, merge, and write. The parse chart
+          uses borrowed, zero-copy parsing; reading into a fully owned model
+          still reaches 362 MiB/s. Serialization runs at about 1.16 GiB/s on the
+          same corpus. Median of 10 runs on an Apple M1 Ultra, every tool reading
+          the same files (pofile-ts 4.0.3, gettext-parser 9.0.2, polib 1.2.0,
+          gettext/gettext 5.7.3, GNU gettext 1.0).{" "}
           <Link to="/performance/benchmarking">Methodology</Link> and{" "}
           <a href="https://github.com/sebastian-software/ferrocat/tree/main/benchmark/results">
             full report

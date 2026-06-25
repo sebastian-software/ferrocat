@@ -990,6 +990,53 @@ fn update_catalog_gettext_export_emits_plural_slots() {
 }
 
 #[test]
+fn update_catalog_preserves_existing_plural_translations() {
+    // Reuse path in merge_message: when the existing catalog already has a
+    // translated plural and the source plural is unchanged, the merge keeps the
+    // existing translation and re-materializes it for the locale's plural
+    // categories instead of blanking it.
+    let existing = concat!(
+        "msgid \"\"\n",
+        "msgstr \"\"\n",
+        "\"Plural-Forms: nplurals=2; plural=(n != 1);\\n\"\n",
+        "\n",
+        "msgid \"book\"\n",
+        "msgid_plural \"books\"\n",
+        "msgstr[0] \"Buch\"\n",
+        "msgstr[1] \"Bücher\"\n",
+    );
+    let result = update_catalog(UpdateCatalogOptions {
+        source_locale: "en",
+        locale: Some("de"),
+        mode: CatalogMode::GettextPo,
+        existing: Some(existing),
+        input: structured_input(vec![ExtractedMessage::Plural(ExtractedPluralMessage {
+            msgid: "book".to_owned(),
+            source: PluralSource {
+                one: Some("book".to_owned()),
+                other: "books".to_owned(),
+            },
+            placeholders: BTreeMap::from([("count".to_owned(), vec!["count".to_owned()])]),
+            ..ExtractedPluralMessage::default()
+        })]),
+        ..UpdateCatalogOptions::new("en", CatalogUpdateInput::default())
+    })
+    .expect("update");
+
+    let parsed = parse_po(&result.content).expect("parse output");
+    assert_eq!(parsed.items[0].msgid, "book");
+    assert_eq!(parsed.items[0].msgid_plural.as_deref(), Some("books"));
+    // The existing translations survive the merge instead of being reset.
+    assert_eq!(parsed.items[0].msgstr[0], "Buch");
+    assert_eq!(parsed.items[0].msgstr[1], "Bücher");
+    assert!(
+        !result.content.contains("#~"),
+        "entry must not be obsoleted"
+    );
+    assert_eq!(result.stats.added, 0);
+}
+
+#[test]
 fn update_catalog_gettext_export_uses_safe_plural_profile_for_french() {
     let result = update_catalog(UpdateCatalogOptions {
         source_locale: "en",

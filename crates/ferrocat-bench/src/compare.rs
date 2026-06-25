@@ -344,7 +344,12 @@ fn execute_scenario(
         | "messageformat-parser" => {
             prepared.run_node_adapter(workspace, scenario, iterations, capture_artifacts)
         }
-        "polib" => prepared.run_python_adapter(workspace, scenario, iterations, capture_artifacts),
+        "polib" | "babel" => {
+            prepared.run_python_adapter(workspace, scenario, iterations, capture_artifacts)
+        }
+        "php-gettext" => {
+            prepared.run_php_adapter(workspace, scenario, iterations, capture_artifacts)
+        }
         "msgcat" => prepared.run_msgcat(iterations, capture_artifacts),
         "msgmerge" => prepared.run_msgmerge(iterations, capture_artifacts),
         other => Err(format!("unsupported benchmark implementation: {other}")),
@@ -493,16 +498,16 @@ impl BenchmarkRegressionReport {
 
         for scenario in &self.failures {
             out.push_str(&format!(
-                "FAIL {}: +{:.2}% median elapsed ({} -> {})\n",
+                "FAIL {}: +{:.2}% per-iteration time ({} -> {})\n",
                 scenario.id,
                 scenario.regression_percent,
-                format_duration_ns(scenario.baseline_median_elapsed_ns),
-                format_duration_ns(scenario.current_median_elapsed_ns)
+                format_per_iteration_ns(scenario.baseline_per_iteration_ns),
+                format_per_iteration_ns(scenario.current_per_iteration_ns)
             ));
         }
         for scenario in &self.skipped_noisy {
             out.push_str(&format!(
-                "SKIP noisy {}: {:+.2}% median elapsed (baseline noisy={} current noisy={})\n",
+                "SKIP noisy {}: {:+.2}% per-iteration time (baseline noisy={} current noisy={})\n",
                 scenario.id,
                 scenario.regression_percent,
                 scenario.baseline_noisy,
@@ -533,8 +538,8 @@ impl BenchmarkRegressionReport {
 #[derive(Debug)]
 struct BenchmarkRegressionScenario {
     id: String,
-    baseline_median_elapsed_ns: u128,
-    current_median_elapsed_ns: u128,
+    baseline_per_iteration_ns: f64,
+    current_per_iteration_ns: f64,
     regression_percent: f64,
     baseline_noisy: bool,
     current_noisy: bool,
@@ -632,30 +637,44 @@ fn regression_scenario(
     baseline: &ScenarioReport,
     current: &ScenarioReport,
 ) -> Result<BenchmarkRegressionScenario, String> {
-    let baseline_elapsed = baseline.statistics.median_elapsed_ns;
-    let current_elapsed = current.statistics.median_elapsed_ns;
-    if baseline_elapsed == 0 {
-        return Err(format!(
-            "scenario {} has zero baseline median elapsed time",
-            baseline.id
-        ));
-    }
+    // Compare per-iteration time, not raw sample time. The harness calibrates
+    // iterations_per_sample independently per run, so a faster build can pick
+    // more iterations per sample and end up with a *larger* median_elapsed_ns
+    // even though each operation got quicker. Normalizing by iterations keeps
+    // the check measuring the work, not the calibration.
+    let baseline_per_iteration = per_iteration_nanos(baseline)?;
+    let current_per_iteration = per_iteration_nanos(current)?;
 
-    let regression_percent =
-        ((f64_from_u128(current_elapsed) / f64_from_u128(baseline_elapsed)) - 1.0) * 100.0;
+    let regression_percent = ((current_per_iteration / baseline_per_iteration) - 1.0) * 100.0;
 
     Ok(BenchmarkRegressionScenario {
         id: current.id.clone(),
-        baseline_median_elapsed_ns: baseline_elapsed,
-        current_median_elapsed_ns: current_elapsed,
+        baseline_per_iteration_ns: baseline_per_iteration,
+        current_per_iteration_ns: current_per_iteration,
         regression_percent,
         baseline_noisy: baseline.statistics.noisy,
         current_noisy: current.statistics.noisy,
     })
 }
 
-fn format_duration_ns(value: u128) -> String {
-    format!("{:.3} ms", nanos_to_millis(value))
+fn per_iteration_nanos(report: &ScenarioReport) -> Result<f64, String> {
+    if report.iterations_per_sample == 0 {
+        return Err(format!(
+            "scenario {} has zero iterations_per_sample",
+            report.id
+        ));
+    }
+    if report.statistics.median_elapsed_ns == 0 {
+        return Err(format!(
+            "scenario {} has zero median elapsed time",
+            report.id
+        ));
+    }
+    Ok(f64_from_u128(report.statistics.median_elapsed_ns) / report.iterations_per_sample as f64)
+}
+
+fn format_per_iteration_ns(value: f64) -> String {
+    format!("{:.4} ms", value / 1_000_000.0)
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -1079,23 +1098,32 @@ impl PreparedScenario {
             .po_content
             .as_deref()
             .ok_or_else(|| "internal parse requires PO content".to_owned())?;
-        let mut last_summary = None;
-        let start = Instant::now();
-        for _ in 0..iterations {
-            let summary = if borrowed {
-                let parsed = parse_po_borrowed(input)
-                    .map_err(|error| format!("borrowed parse failed: {error}"))?;
-                PoSemanticSummary::from_borrowed_po_file(&parsed)
-            } else {
-                let parsed =
-                    parse_po(input).map_err(|error| format!("owned parse failed: {error}"))?;
-                PoSemanticSummary::from_po_file(&parsed)
-            };
-            last_summary = Some(summary);
-        }
-        let elapsed = start.elapsed();
-        let summary =
-            last_summary.ok_or_else(|| "internal parse produced no summary".to_owned())?;
+        // Time only the parse; build the digest summary once outside the loop so
+        // the measured path is parsing alone, matching the external adapters
+        // (which also reparse for the summary outside the timed loop).
+        let (elapsed, summary) = if borrowed {
+            let mut last = None;
+            let start = Instant::now();
+            for _ in 0..iterations {
+                last = Some(
+                    parse_po_borrowed(input)
+                        .map_err(|error| format!("borrowed parse failed: {error}"))?,
+                );
+            }
+            let elapsed = start.elapsed();
+            let parsed = last.ok_or_else(|| "internal parse produced no result".to_owned())?;
+            (elapsed, PoSemanticSummary::from_borrowed_po_file(&parsed))
+        } else {
+            let mut last = None;
+            let start = Instant::now();
+            for _ in 0..iterations {
+                last =
+                    Some(parse_po(input).map_err(|error| format!("owned parse failed: {error}"))?);
+            }
+            let elapsed = start.elapsed();
+            let parsed = last.ok_or_else(|| "internal parse produced no result".to_owned())?;
+            (elapsed, PoSemanticSummary::from_po_file(&parsed))
+        };
         let digest = digest_summary(&summary)?;
         Ok(ExecutionResult {
             tool_version: INTERNAL_TOOL_VERSION.to_owned(),
@@ -1137,22 +1165,25 @@ impl PreparedScenario {
             )
         };
 
-        let mut last_summary = None;
+        // Time only parse_catalog; build the digest summary once outside the loop.
+        let mut last_parsed = None;
         let start = Instant::now();
         for _ in 0..iterations {
-            let parsed = parse_catalog(ParseCatalogOptions {
-                content,
-                locale: locale.as_deref(),
-                source_locale: "en",
-                mode,
-                strict: false,
-            })
-            .map_err(|error| format!("parse_catalog failed: {error}"))?;
-            last_summary = Some(CatalogSemanticSummary::from_parsed_catalog(parsed)?);
+            last_parsed = Some(
+                parse_catalog(ParseCatalogOptions {
+                    content,
+                    locale: locale.as_deref(),
+                    source_locale: "en",
+                    mode,
+                    strict: false,
+                })
+                .map_err(|error| format!("parse_catalog failed: {error}"))?,
+            );
         }
         let elapsed = start.elapsed();
-        let summary =
-            last_summary.ok_or_else(|| "internal parse-catalog produced no summary".to_owned())?;
+        let parsed =
+            last_parsed.ok_or_else(|| "internal parse-catalog produced no result".to_owned())?;
+        let summary = CatalogSemanticSummary::from_parsed_catalog(parsed)?;
         let digest = digest_summary(&summary)?;
         Ok(ExecutionResult {
             tool_version: INTERNAL_TOOL_VERSION.to_owned(),
@@ -1340,16 +1371,27 @@ impl PreparedScenario {
             .icu_messages
             .as_ref()
             .ok_or_else(|| "internal parse-icu requires ICU messages".to_owned())?;
-        let mut last_summary = None;
         let total_bytes = messages.iter().map(String::len).sum::<usize>();
+        // Time only the parse; summarize the parsed messages once outside the loop.
+        let mut last_parsed = None;
         let start = Instant::now();
         for _ in 0..iterations {
-            let summary = IcuFixtureSummary::from_messages(messages)?;
-            last_summary = Some(summary);
+            let mut parsed = Vec::with_capacity(messages.len());
+            for message in messages {
+                parsed.push(
+                    parse_icu(message).map_err(|error| {
+                        format!("failed to parse ICU benchmark message: {error}")
+                    })?,
+                );
+            }
+            last_parsed = Some(parsed);
         }
         let elapsed = start.elapsed();
-        let summary =
-            last_summary.ok_or_else(|| "internal parse-icu produced no summary".to_owned())?;
+        let parsed =
+            last_parsed.ok_or_else(|| "internal parse-icu produced no result".to_owned())?;
+        let summary = IcuFixtureSummary {
+            messages: parsed.iter().map(IcuMessageSummary::from_message).collect(),
+        };
         let digest = digest_summary(&summary)?;
         Ok(ExecutionResult {
             tool_version: INTERNAL_TOOL_VERSION.to_owned(),
@@ -1395,6 +1437,19 @@ impl PreparedScenario {
         let python = preferred_python_program(workspace);
         let args = vec![script.into_os_string()];
         run_external_adapter(python.as_os_str(), &args, workspace, &request)
+    }
+
+    fn run_php_adapter(
+        &self,
+        workspace: &Path,
+        scenario: &BenchmarkScenario,
+        iterations: usize,
+        capture_artifacts: bool,
+    ) -> Result<ExecutionResult, String> {
+        let request = self.adapter_request(scenario, iterations, capture_artifacts);
+        let script = workspace.join("benchmark").join("php").join("adapter.php");
+        let args = vec![script.into_os_string()];
+        run_external_adapter("php", &args, workspace, &request)
     }
 
     fn run_msgcat(
@@ -2132,18 +2187,6 @@ fn diagnostic_severity_label(severity: ferrocat_po::DiagnosticSeverity) -> &'sta
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 struct IcuFixtureSummary {
     messages: Vec<IcuMessageSummary>,
-}
-
-impl IcuFixtureSummary {
-    fn from_messages(messages: &[String]) -> Result<Self, String> {
-        let mut summary = Vec::with_capacity(messages.len());
-        for message in messages {
-            let parsed = parse_icu(message)
-                .map_err(|error| format!("failed to parse ICU benchmark message: {error}"))?;
-            summary.push(IcuMessageSummary::from_message(&parsed));
-        }
-        Ok(Self { messages: summary })
-    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -4134,5 +4177,79 @@ mod tests {
             median_adjusted_mib_per_sec: None,
             median_adjusted_units_per_sec: None,
         }
+    }
+
+    fn regression_scenario_report_with_iterations(
+        id: &str,
+        median_elapsed_ns: u128,
+        iterations_per_sample: usize,
+    ) -> ScenarioReport {
+        ScenarioReport {
+            iterations_per_sample,
+            ..regression_scenario_report(id, median_elapsed_ns, false)
+        }
+    }
+
+    #[test]
+    fn regression_check_normalizes_by_iterations_per_sample() {
+        // Calibration guard (PR #155): same work (matching digest), but the
+        // harness picked 29 iterations/sample for the baseline and 57 for the
+        // current run. Each operation got faster, so the raw median_elapsed_ns
+        // is larger while throughput improved. The check must read an
+        // improvement, not a regression.
+        let baseline = regression_report([regression_scenario_report_with_iterations(
+            "icu-parse/icu-nested-1000/ferrocat",
+            110_429_000,
+            29,
+        )]);
+        let current = regression_report([regression_scenario_report_with_iterations(
+            "icu-parse/icu-nested-1000/ferrocat",
+            142_051_000,
+            57,
+        )]);
+
+        let report =
+            compare_regression_reports(&baseline, &current, 20.0).expect("regression report");
+
+        assert!(
+            !report.has_failures(),
+            "calibration-only change must not fail: {}",
+            report.render()
+        );
+        // per iteration: 3.808 ms -> 2.492 ms, about a 35% improvement
+        assert_eq!(report.passed.len(), 1);
+        assert!(
+            report.passed[0].regression_percent < -30.0,
+            "expected improvement near -35%, got {:.2}%",
+            report.passed[0].regression_percent
+        );
+    }
+
+    #[test]
+    fn regression_check_flags_per_iteration_slowdown_across_calibrations() {
+        // The flip side: a genuine per-operation slowdown must still trip the
+        // gate even when calibration hides it in the raw sample time. Baseline
+        // 2 ms/iter (10 iters), current 3 ms/iter (5 iters) -> +50% per
+        // iteration, although the raw sample time shrank from 20 ms to 15 ms and
+        // the old raw comparison would have waved it through.
+        let baseline = regression_report([regression_scenario_report_with_iterations(
+            "icu-parse/icu-nested-1000/ferrocat",
+            20_000_000,
+            10,
+        )]);
+        let current = regression_report([regression_scenario_report_with_iterations(
+            "icu-parse/icu-nested-1000/ferrocat",
+            15_000_000,
+            5,
+        )]);
+
+        let report =
+            compare_regression_reports(&baseline, &current, 20.0).expect("regression report");
+
+        assert!(
+            report.has_failures(),
+            "per-iteration slowdown must fail: {}",
+            report.render()
+        );
     }
 }
