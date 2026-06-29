@@ -553,7 +553,7 @@
   margin: 0;
   padding: 0;
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(5, 1fr);
   gap: 1.6rem;
   counter-reset: none;
 }
@@ -1169,7 +1169,7 @@
 
 /* ── Responsive ── */
 
-@media (max-width: 960px) {
+@media (max-width: 1024px) {
   .ferro-flow-steps {
     grid-template-columns: repeat(2, 1fr);
   }
