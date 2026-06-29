@@ -101,6 +101,11 @@ fn run() -> Result<(), String> {
             let fixture = load_fixture(&fixture_name)?;
             run_alloc_stats(&fixture)
         }
+        "string-stats" => {
+            let fixture_name = args.next().unwrap_or_else(|| "realistic".to_owned());
+            let fixture = load_fixture(&fixture_name)?;
+            run_string_stats(&fixture)
+        }
         "parse-catalog-po" => {
             let fixture_name = args
                 .next()
@@ -351,6 +356,22 @@ fn run_alloc_stats(fixture: &Fixture) -> Result<(), String> {
     std::hint::black_box(&borrowed);
     drop(borrowed);
 
+    ALLOCS.store(0, Ordering::SeqCst);
+    BYTES.store(0, Ordering::SeqCst);
+    let catalog = parse_catalog(ParseCatalogOptions {
+        content,
+        locale: inferred_fixture_locale(fixture.name()),
+        source_locale: "en",
+        mode: CatalogMode::IcuPo,
+        strict: false,
+    })
+    .map_err(|error| error.to_string())?;
+    let catalog_allocs = ALLOCS.load(Ordering::SeqCst);
+    let catalog_bytes = BYTES.load(Ordering::SeqCst);
+    let catalog_items = catalog.messages.len();
+    std::hint::black_box(&catalog);
+    drop(catalog);
+
     println!("fixture: {} ({} bytes)", fixture.name(), content.len());
     measure(
         "parse_po (owned)   ",
@@ -364,12 +385,105 @@ fn run_alloc_stats(fixture: &Fixture) -> Result<(), String> {
         borrowed_allocs,
         borrowed_bytes,
     );
+    measure(
+        "parse_catalog        ",
+        catalog_items,
+        catalog_allocs,
+        catalog_bytes,
+    );
     Ok(())
 }
 
 #[cfg(not(feature = "count-alloc"))]
 fn run_alloc_stats(_fixture: &Fixture) -> Result<(), String> {
     Err("alloc-stats requires building with --features count-alloc".to_owned())
+}
+
+/// Reports the string-length and collection-size distribution of an owned parse
+/// to gauge how much an inline string (`CompactString`, 24-byte inline) or an
+/// inline vector (`SmallVec`) representation would eliminate heap allocations.
+fn run_string_stats(fixture: &Fixture) -> Result<(), String> {
+    let file = parse_po(fixture.content()).map_err(|error| error.to_string())?;
+
+    let mut lengths: Vec<usize> = Vec::new();
+    let mut record = |value: &str| lengths.push(value.len());
+    for header in &file.headers {
+        record(&header.key);
+        record(&header.value);
+    }
+    for comment in file.comments.iter().chain(&file.extracted_comments) {
+        record(comment);
+    }
+
+    // Collection-size histograms (index 3 == "3 or more") to size SmallVec.
+    let mut reference_hist = [0usize; 4];
+    let mut comment_hist = [0usize; 4];
+    for item in &file.items {
+        record(&item.msgid);
+        if let Some(context) = &item.msgctxt {
+            record(context);
+        }
+        if let Some(plural) = &item.msgid_plural {
+            record(plural);
+        }
+        for value in item.msgstr.iter() {
+            record(value);
+        }
+        for reference in &item.references {
+            record(reference);
+        }
+        for comment in item.comments.iter().chain(&item.extracted_comments) {
+            record(comment);
+        }
+        for flag in &item.flags {
+            record(flag);
+        }
+        reference_hist[item.references.len().min(3)] += 1;
+        comment_hist[(item.comments.len() + item.extracted_comments.len()).min(3)] += 1;
+    }
+
+    let total = lengths.len().max(1);
+    let share = |count: usize| 100.0 * count as f64 / total as f64;
+    let inline = lengths.iter().filter(|&&len| len <= 24).count();
+    let mid = lengths
+        .iter()
+        .filter(|&&len| (25..=48).contains(&len))
+        .count();
+    let long = lengths.iter().filter(|&&len| len > 48).count();
+
+    println!("fixture: {} ({} items)", fixture.name(), file.items.len());
+    println!("strings: {total}");
+    println!(
+        "  <=24 bytes (CompactString inline): {inline} ({:.1}%)",
+        share(inline)
+    );
+    println!(
+        "  25..48 bytes:                       {mid} ({:.1}%)",
+        share(mid)
+    );
+    println!(
+        "  >48 bytes:                          {long} ({:.1}%)",
+        share(long)
+    );
+    let items = file.items.len().max(1);
+    let item_share = |count: usize| 100.0 * count as f64 / items as f64;
+    println!(
+        "references/item: 0={} 1={} 2={} 3+={} (1-or-fewer: {:.1}%)",
+        reference_hist[0],
+        reference_hist[1],
+        reference_hist[2],
+        reference_hist[3],
+        item_share(reference_hist[0] + reference_hist[1]),
+    );
+    println!(
+        "comments/item:   0={} 1={} 2={} 3+={} (1-or-fewer: {:.1}%)",
+        comment_hist[0],
+        comment_hist[1],
+        comment_hist[2],
+        comment_hist[3],
+        item_share(comment_hist[0] + comment_hist[1]),
+    );
+    Ok(())
 }
 
 fn bench_parse(fixture: &Fixture, config: BenchConfig) -> Result<(), String> {
