@@ -3,7 +3,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use crate::diagnostic_codes;
-use crate::{Header, MsgStr, PoFile, PoItem, SerializeOptions, stringify_po};
+use crate::{Header, MsgStr, PoFile, PoItem, PoVec, SerializeOptions, stringify_po};
 
 use super::catalog::{CanonicalMessage, CanonicalTranslation, Catalog};
 use super::mt::{
@@ -128,15 +128,16 @@ fn base_po_item(
 ) -> PoItem {
     let mut item = PoItem::new(nplurals);
     item.msgctxt.clone_from(&message.msgctxt);
-    item.comments.clone_from(&message.translator_comments);
-    item.flags.clone_from(&message.flags);
+    item.comments = message.translator_comments.iter().cloned().collect();
+    item.flags = message.flags.iter().cloned().collect();
     item.obsolete = message.obsolete;
-    item.extracted_comments.clone_from(&message.comments);
+    let mut extracted_comments = message.comments.clone();
     append_placeholder_comments(
-        &mut item.extracted_comments,
+        &mut extracted_comments,
         &message.placeholders,
         &options.render.print_placeholders_in_comments,
     );
+    item.extracted_comments = extracted_comments.into();
     if let Some(metadata) = valid_machine_translation_metadata(message) {
         item.metadata.push((
             PO_MACHINE_TRANSLATION_KEY.to_owned(),
@@ -159,7 +160,7 @@ fn base_po_item(
             })
             .collect()
     } else {
-        Vec::new()
+        PoVec::new()
     };
     item
 }
@@ -298,7 +299,7 @@ mod tests {
         let options = UpdateCatalogOptions::new("en", CatalogUpdateInput::default());
 
         let item = base_po_item(&message, &options, 1);
-        assert_eq!(item.references, vec!["src/lib.rs"]);
+        assert_eq!(item.references.as_slice(), vec!["src/lib.rs"].as_slice());
 
         let options = UpdateCatalogOptions {
             render: super::super::RenderOptions {

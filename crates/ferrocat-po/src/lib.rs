@@ -138,6 +138,14 @@ use core::{fmt, ops::Index};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
+pub use smallvec::SmallVec;
+
+/// Inline-capable vector for the small per-item collections (references, flags,
+/// comments, metadata) that hold a single element in the overwhelmingly common
+/// case, avoiding a heap allocation for the backing buffer. Re-exported via
+/// [`SmallVec`] so callers need not depend on `smallvec` directly.
+pub type PoVec<T> = SmallVec<[T; 1]>;
+
 /// An owned PO document.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
@@ -174,19 +182,19 @@ pub struct PoItem {
     /// Optional gettext message context.
     pub msgctxt: Option<String>,
     /// Source references such as `src/app.rs:10`.
-    pub references: Vec<String>,
+    pub references: PoVec<String>,
     /// Optional plural source identifier.
     pub msgid_plural: Option<String>,
     /// Translation payload for the message.
     pub msgstr: MsgStr,
     /// Translator comments attached to the item.
-    pub comments: Vec<String>,
+    pub comments: PoVec<String>,
     /// Extracted comments attached to the item.
-    pub extracted_comments: Vec<String>,
+    pub extracted_comments: PoVec<String>,
     /// Flags such as `fuzzy`.
-    pub flags: Vec<String>,
+    pub flags: PoVec<String>,
     /// Raw metadata lines that do not fit the dedicated fields.
-    pub metadata: Vec<(String, String)>,
+    pub metadata: PoVec<(String, String)>,
     /// Whether the item is marked obsolete.
     pub obsolete: bool,
     /// Number of plural slots expected when the item is serialized.
@@ -578,7 +586,7 @@ mod tests {
             items: vec![PoItem {
                 msgid: "Hello".to_owned(),
                 msgstr: MsgStr::from("Hallo".to_owned()),
-                references: vec!["src/app.rs:10".to_owned()],
+                references: vec!["src/app.rs:10".to_owned()].into(),
                 nplurals: 1,
                 ..PoItem::default()
             }],

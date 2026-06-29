@@ -1053,7 +1053,10 @@ mod tests {
             .find(|item| item.msgid == "hello")
             .expect("merged hello item");
         assert_eq!(hello.msgstr[0], "world");
-        assert_eq!(hello.references, vec!["src/new.rs:10".to_owned()]);
+        assert_eq!(
+            hello.references.as_slice(),
+            vec!["src/new.rs:10".to_owned()].as_slice()
+        );
     }
 
     #[test]
@@ -1072,8 +1075,8 @@ mod tests {
         assert_eq!(reparsed.items[0].msgid, "fresh");
         assert_eq!(reparsed.items[0].msgstr[0], "");
         assert_eq!(
-            reparsed.items[0].extracted_comments,
-            vec!["from extractor".to_owned()]
+            reparsed.items[0].extracted_comments.as_slice(),
+            vec!["from extractor".to_owned()].as_slice()
         );
     }
 

@@ -656,7 +656,7 @@ msgstr "Datei"
             items: vec![PoItem {
                 msgid: "Save".to_owned(),
                 msgstr: MsgStr::from("Speichern".to_owned()),
-                flags: vec!["fuzzy".to_owned()],
+                flags: vec!["fuzzy".to_owned()].into(),
                 ..PoItem::new(2)
             }],
         };

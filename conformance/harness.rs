@@ -426,25 +426,25 @@ fn compare_po_item(actual: &PoItem, expected: &PoItemExpected) -> Result<(), Str
             expected.msgstr, actual_msgstr
         ));
     }
-    if actual.comments != expected.comments {
+    if actual.comments.as_slice() != expected.comments.as_slice() {
         return Err(format!(
             "comments mismatch: expected {:?}, got {:?}",
             expected.comments, actual.comments
         ));
     }
-    if actual.extracted_comments != expected.extracted_comments {
+    if actual.extracted_comments.as_slice() != expected.extracted_comments.as_slice() {
         return Err(format!(
             "extracted comments mismatch: expected {:?}, got {:?}",
             expected.extracted_comments, actual.extracted_comments
         ));
     }
-    if actual.references != expected.references {
+    if actual.references.as_slice() != expected.references.as_slice() {
         return Err(format!(
             "references mismatch: expected {:?}, got {:?}",
             expected.references, actual.references
         ));
     }
-    if actual.flags != expected.flags {
+    if actual.flags.as_slice() != expected.flags.as_slice() {
         return Err(format!(
             "flags mismatch: expected {:?}, got {:?}",
             expected.flags, actual.flags
