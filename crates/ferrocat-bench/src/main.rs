@@ -122,6 +122,14 @@ fn run() -> Result<(), String> {
             let fixture = load_fixture(&fixture_name)?;
             bench_parse_catalog_ndjson(&fixture, config)
         }
+        "parse-catalog-fcl" | "parse-fcl" => {
+            let fixture_name = args
+                .next()
+                .unwrap_or_else(|| "catalog-modern-de-1000".to_owned());
+            let config = parse_bench_config(args, &fixture_name)?;
+            let fixture = load_fixture(&fixture_name)?;
+            bench_parse_catalog_fcl(&fixture, config)
+        }
         "parse-icu" => {
             let fixture_name = args.next().unwrap_or_else(|| "realistic".to_owned());
             let config = parse_bench_config(args, &fixture_name)?;
@@ -596,6 +604,40 @@ fn bench_parse_catalog_ndjson(fixture: &Fixture, config: BenchConfig) -> Result<
     })?;
     report(
         "parse-catalog-ndjson",
+        fixture,
+        content.len(),
+        parsed_items.max(items_per_iteration),
+        config,
+        &samples,
+    );
+    Ok(())
+}
+
+fn bench_parse_catalog_fcl(fixture: &Fixture, config: BenchConfig) -> Result<(), String> {
+    let (content, locale, items_per_iteration) = fixture_fcl_content(fixture)?;
+    let mut parsed_items = 0usize;
+    let samples = run_bench(config, || {
+        let start = Instant::now();
+        for _ in 0..config.iterations {
+            let parsed = parse_catalog(ParseCatalogOptions {
+                content: &content,
+                locale,
+                source_locale: "en",
+                mode: CatalogMode::IcuFcl,
+                strict: false,
+            })
+            .map_err(|error| error.to_string())?;
+            parsed_items = parsed.messages.len();
+            std::hint::black_box(parsed);
+        }
+        Ok(BenchSample::new(
+            start.elapsed(),
+            config.iterations,
+            content.len(),
+        ))
+    })?;
+    report(
+        "parse-catalog-fcl",
         fixture,
         content.len(),
         parsed_items.max(items_per_iteration),
@@ -1241,6 +1283,102 @@ fn fixture_ndjson_content(
         inferred_fixture_locale(fixture.name()),
         parsed.messages.len(),
     ))
+}
+
+fn fixture_fcl_content(fixture: &Fixture) -> Result<(String, Option<&'static str>, usize), String> {
+    let parsed = fixture_parsed_catalog(fixture)?;
+    let rendered = render_fcl_catalog(&parsed);
+    Ok((
+        rendered,
+        inferred_fixture_locale(fixture.name()),
+        parsed.messages.len(),
+    ))
+}
+
+/// Renders a parsed catalog as FCL text, mirroring the per-message fields the
+/// NDJSON bench render uses so the formats are compared on identical content.
+fn render_fcl_catalog(parsed: &ParsedCatalog) -> String {
+    let mut out = String::from("%FCL1\tsource=en");
+    if let Some(locale) = &parsed.locale {
+        out.push_str("\tlocale=");
+        fcl_escape_into(&mut out, locale);
+    }
+    out.push('\n');
+
+    // FCL is canonically sorted by (id, ctxt); the reader enforces it. Build one
+    // line per message keyed by (id, ctxt), then sort before emitting.
+    let mut entries: Vec<(String, Option<String>, String)> = parsed
+        .messages
+        .iter()
+        .map(|message| {
+            let id = render_ndjson_id(message);
+            let mut line = String::new();
+            fcl_escape_into(&mut line, &id);
+            line.push('\t');
+            fcl_escape_into(&mut line, message.msgctxt.as_deref().unwrap_or(""));
+            line.push('\t');
+            fcl_escape_into(&mut line, &render_ndjson_translation(message));
+
+            let mut refs = message
+                .origin
+                .iter()
+                .map(|origin| match origin.line {
+                    Some(number) => format!("{}:{number}", origin.file),
+                    None => origin.file.clone(),
+                })
+                .collect::<Vec<_>>();
+            refs.sort_unstable();
+            for reference in &refs {
+                line.push_str("\tr=");
+                fcl_escape_into(&mut line, reference);
+            }
+            for comment in &message.comments {
+                line.push_str("\tc=");
+                fcl_escape_into(&mut line, comment);
+            }
+            if let Some(extra) = &message.extra {
+                for comment in &extra.translator_comments {
+                    line.push_str("\ttc=");
+                    fcl_escape_into(&mut line, comment);
+                }
+                let mut flags = extra.flags.iter().map(String::as_str).collect::<Vec<_>>();
+                flags.sort_unstable();
+                for flag in &flags {
+                    line.push_str("\tf=");
+                    fcl_escape_into(&mut line, flag);
+                }
+            }
+            if message.obsolete {
+                line.push_str("\to");
+            }
+            line.push('\n');
+            (id, message.msgctxt.clone(), line)
+        })
+        .collect();
+    entries.sort_by(|a, b| (&a.0, &a.1).cmp(&(&b.0, &b.1)));
+    for (_, _, line) in &entries {
+        out.push_str(line);
+    }
+
+    out
+}
+
+fn fcl_escape_into(out: &mut String, value: &str) {
+    if !value
+        .bytes()
+        .any(|byte| matches!(byte, b'\\' | b'\t' | b'\n'))
+    {
+        out.push_str(value);
+        return;
+    }
+    for ch in value.chars() {
+        match ch {
+            '\\' => out.push_str("\\\\"),
+            '\t' => out.push_str("\\t"),
+            '\n' => out.push_str("\\n"),
+            other => out.push(other),
+        }
+    }
 }
 
 fn merge_fixture_existing_ndjson(fixture: &MergeFixture) -> Result<String, String> {
