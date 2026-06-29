@@ -352,7 +352,12 @@ fn run_alloc_stats(fixture: &Fixture) -> Result<(), String> {
     drop(borrowed);
 
     println!("fixture: {} ({} bytes)", fixture.name(), content.len());
-    measure("parse_po (owned)   ", owned_items, owned_allocs, owned_bytes);
+    measure(
+        "parse_po (owned)   ",
+        owned_items,
+        owned_allocs,
+        owned_bytes,
+    );
     measure(
         "parse_po_borrowed    ",
         borrowed_items,
