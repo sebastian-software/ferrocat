@@ -599,7 +599,7 @@ fn apply_storage_defaults_for_combine(
             );
             Ok(())
         }
-        CatalogStorageFormat::Ndjson => {
+        CatalogStorageFormat::Ndjson | CatalogStorageFormat::Fcl => {
             catalog.headers.clear();
             Ok(())
         }

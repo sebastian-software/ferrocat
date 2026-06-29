@@ -276,38 +276,43 @@ impl<R: BufRead> Iterator for NdjsonCanonicalReader<R> {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-struct NdjsonRecord {
-    id: String,
-    str: String,
+// The on-record shape is shared with the FCL line codec (see `fcl.rs`): FCL is a
+// different *encoding* of this same record, so both formats reuse
+// `canonical_message_from_record`/`ndjson_record_from_canonical` and stay
+// equivalent by construction.
+// TODO: extract a neutral `record` module to drop the `Ndjson*` naming.
+pub(super) struct NdjsonRecord {
+    pub(super) id: String,
+    pub(super) str: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    ctx: Option<String>,
+    pub(super) ctx: Option<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    comments: Vec<String>,
+    pub(super) comments: Vec<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    origin: Vec<NdjsonOrigin>,
+    pub(super) origin: Vec<NdjsonOrigin>,
     #[serde(default, skip_serializing_if = "is_false")]
-    obsolete: bool,
+    pub(super) obsolete: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    extra: Option<NdjsonExtra>,
+    pub(super) extra: Option<NdjsonExtra>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    mt: Option<MachineTranslationMetadata>,
+    pub(super) mt: Option<MachineTranslationMetadata>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-struct NdjsonOrigin {
-    file: String,
+pub(super) struct NdjsonOrigin {
+    pub(super) file: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    line: Option<u32>,
+    pub(super) line: Option<u32>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(deny_unknown_fields)]
-struct NdjsonExtra {
+pub(super) struct NdjsonExtra {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    translator_comments: Vec<String>,
+    pub(super) translator_comments: Vec<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    flags: Vec<String>,
+    pub(super) flags: Vec<String>,
 }
 
 pub(super) fn parse_catalog_to_internal_ndjson(
@@ -364,7 +369,9 @@ pub(super) fn stringify_catalog_ndjson(
     String::from_utf8(rendered).expect("NDJSON renderer writes UTF-8")
 }
 
-fn canonical_message_from_record(record: NdjsonRecord) -> Result<CanonicalMessage, ApiError> {
+pub(super) fn canonical_message_from_record(
+    record: NdjsonRecord,
+) -> Result<CanonicalMessage, ApiError> {
     let (comments, placeholders) = split_placeholder_comments(record.comments);
     let extra = record.extra.unwrap_or_default();
     if let Some(metadata) = &record.mt {
@@ -391,7 +398,7 @@ fn canonical_message_from_record(record: NdjsonRecord) -> Result<CanonicalMessag
     })
 }
 
-fn ndjson_record_from_canonical(
+pub(super) fn ndjson_record_from_canonical(
     message: &CanonicalMessage,
     placeholder_comment_mode: &PlaceholderCommentMode,
 ) -> NdjsonRecord {

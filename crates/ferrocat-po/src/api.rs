@@ -6,6 +6,7 @@ mod compile;
 mod compile_types;
 mod coverage;
 mod export;
+mod fcl;
 mod file_io;
 mod helpers;
 mod icu_syntax;
