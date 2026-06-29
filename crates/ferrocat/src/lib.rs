@@ -115,9 +115,9 @@ pub mod catalog {
         NdjsonCatalogReader, NdjsonCatalogReaderOptions, NdjsonCatalogWriter,
         NdjsonCatalogWriterOptions, NormalizedParsedCatalog, ObsoleteStrategy, OrderBy,
         ParseCatalogOptions, ParsedCatalog, PlaceholderCommentMode, PluralEncoding, PluralSource,
-        RenderOptions, SourceExtractedMessage, TranslationShape, UpdateCatalogFileOptions,
-        UpdateCatalogOptions, audit_catalogs, catalog_coverage, catalog_review,
-        combine_catalog_files, combine_catalogs, compile_catalog_artifact,
+        PoVec, RenderOptions, SmallVec, SourceExtractedMessage, TranslationShape,
+        UpdateCatalogFileOptions, UpdateCatalogOptions, audit_catalogs, catalog_coverage,
+        catalog_review, combine_catalog_files, combine_catalogs, compile_catalog_artifact,
         compile_catalog_artifact_report, compile_catalog_artifact_selected,
         compile_catalog_artifact_selected_with_icu_options,
         compile_catalog_artifact_with_icu_options, compiled_key, machine_translation_hash,
@@ -153,9 +153,9 @@ pub mod po {
     pub use ferrocat_po::MergeExtractedMessage as MergeMessageInput;
     pub use ferrocat_po::{
         BorrowedHeader, BorrowedMsgStr, BorrowedPoFile, BorrowedPoItem, Header, MsgStr, MsgStrIter,
-        ParseError, PoFile, PoItem, SerializeOptions, escape_string, extract_quoted,
-        extract_quoted_cow, merge_catalog, parse_po, parse_po_borrowed, stringify_po,
-        unescape_string,
+        ParseError, PoFile, PoItem, PoVec, SerializeOptions, SmallVec, escape_string,
+        extract_quoted, extract_quoted_cow, merge_catalog, parse_po, parse_po_borrowed,
+        stringify_po, unescape_string,
     };
 }
 
@@ -227,7 +227,7 @@ pub use ferrocat_po::{
 };
 pub use ferrocat_po::{
     BorrowedHeader, BorrowedMsgStr, BorrowedPoFile, BorrowedPoItem, Header, MsgStr, MsgStrIter,
-    ParseError, PoFile, PoItem, SerializeOptions, escape_string, extract_quoted,
+    ParseError, PoFile, PoItem, PoVec, SerializeOptions, SmallVec, escape_string, extract_quoted,
     extract_quoted_cow, merge_catalog, parse_po, parse_po_borrowed, stringify_po, unescape_string,
 };
 pub use icu::has_select_ordinal;
