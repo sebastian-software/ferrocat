@@ -682,14 +682,15 @@ fn apply_storage_defaults(
             );
             Ok(())
         }
-        CatalogStorageFormat::Ndjson => {
+        CatalogStorageFormat::Ndjson | CatalogStorageFormat::Fcl => {
             if options
                 .render
                 .custom_header_attributes
                 .is_some_and(|headers| !headers.is_empty())
             {
                 return Err(ApiError::Unsupported(
-                    "custom_header_attributes are not supported for NDJSON catalogs".to_owned(),
+                    "custom_header_attributes are not supported for NDJSON or FCL catalogs"
+                        .to_owned(),
                 ));
             }
             catalog.headers.clear();
@@ -721,6 +722,13 @@ pub(super) fn parse_catalog_to_internal(
             strict,
         ),
         CatalogStorageFormat::Ndjson => parse_catalog_to_internal_ndjson(
+            content,
+            locale_override,
+            source_locale,
+            semantics,
+            strict,
+        ),
+        CatalogStorageFormat::Fcl => super::fcl::parse_catalog_to_internal_fcl(
             content,
             locale_override,
             source_locale,

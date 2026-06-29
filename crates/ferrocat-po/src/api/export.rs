@@ -34,6 +34,12 @@ pub(super) fn export_catalog_content(
             options.source_locale,
             &options.render.print_placeholders_in_comments,
         )),
+        super::CatalogStorageFormat::Fcl => Ok(super::fcl::stringify_catalog_fcl(
+            catalog,
+            locale,
+            options.source_locale,
+            &options.render.print_placeholders_in_comments,
+        )),
     }
 }
 

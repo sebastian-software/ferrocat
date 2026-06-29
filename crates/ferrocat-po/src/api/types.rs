@@ -468,6 +468,8 @@ pub enum CatalogFileFormat {
     Po,
     /// Ferrocat NDJSON catalog files.
     Ndjson,
+    /// Ferrocat Catalog Lines (`.fcl`) files.
+    Fcl,
 }
 
 impl CatalogFileFormat {
@@ -493,9 +495,12 @@ impl CatalogFileFormat {
         if name.ends_with(".ndjson") || name.ends_with(".fcat.ndjson") || name.ends_with(".json") {
             return Ok(Self::Ndjson);
         }
+        if name.ends_with(".fcl") {
+            return Ok(Self::Fcl);
+        }
 
         Err(ApiError::Unsupported(format!(
-            "could not infer catalog file format from `{}`; expected .po, .ndjson, .fcat.ndjson, or .json",
+            "could not infer catalog file format from `{}`; expected .po, .ndjson, .fcat.ndjson, .fcl, or .json",
             path.display()
         )))
     }
@@ -504,6 +509,7 @@ impl CatalogFileFormat {
         match self {
             Self::Po => CatalogMode::IcuPo,
             Self::Ndjson => CatalogMode::IcuNdjson,
+            Self::Fcl => CatalogMode::IcuFcl,
         }
     }
 }
@@ -773,6 +779,9 @@ pub enum CatalogStorageFormat {
     Po,
     /// Read and write Ferrocat's NDJSON catalog format with a small frontmatter header.
     Ndjson,
+    /// Read and write Ferrocat Catalog Lines (`.fcl`): a line-oriented,
+    /// git-merge-optimized, machine-owned catalog format.
+    Fcl,
 }
 
 /// High-level semantics used by the catalog API.
@@ -815,6 +824,8 @@ pub enum CatalogMode {
     IcuPo,
     /// NDJSON storage with ICU-native message semantics.
     IcuNdjson,
+    /// FCL (Ferrocat Catalog Lines) storage with ICU-native message semantics.
+    IcuFcl,
     /// Gettext PO storage with classic gettext plural semantics.
     GettextPo,
 }
@@ -826,6 +837,7 @@ impl CatalogMode {
         match self {
             Self::IcuPo | Self::GettextPo => CatalogStorageFormat::Po,
             Self::IcuNdjson => CatalogStorageFormat::Ndjson,
+            Self::IcuFcl => CatalogStorageFormat::Fcl,
         }
     }
 
@@ -833,7 +845,7 @@ impl CatalogMode {
     #[must_use]
     pub const fn semantics(self) -> CatalogSemantics {
         match self {
-            Self::IcuPo | Self::IcuNdjson => CatalogSemantics::IcuNative,
+            Self::IcuPo | Self::IcuNdjson | Self::IcuFcl => CatalogSemantics::IcuNative,
             Self::GettextPo => CatalogSemantics::GettextCompat,
         }
     }
@@ -842,7 +854,7 @@ impl CatalogMode {
     #[must_use]
     pub const fn plural_encoding(self) -> PluralEncoding {
         match self {
-            Self::IcuPo | Self::IcuNdjson => PluralEncoding::Icu,
+            Self::IcuPo | Self::IcuNdjson | Self::IcuFcl => PluralEncoding::Icu,
             Self::GettextPo => PluralEncoding::Gettext,
         }
     }
