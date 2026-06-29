@@ -206,7 +206,7 @@ For GNU gettext CLI scenarios, the report also records an `empty-cli-run` baseli
 - `baseline_elapsed_ns` and adjusted sample fields for `msgcat` / `msgmerge`
 - adjusted median statistics alongside the raw end-to-end statistics
 
-The raw timing remains the primary comparison number. The adjusted timing is a secondary estimate for understanding how much of the CLI measurement is fixed overhead and how much is actual fixture work.
+The raw timing remains the primary comparison number. The adjusted timing is a secondary estimate for understanding how much of the CLI measurement is fixed overhead and how much is actual fixture work. On the 10k-message corpora that fixed overhead is about 2% of the measured time, so the GNU CLI gap reflects real merge and serialization work rather than process startup or file I/O. This is why the published `msgmerge` number is not treated as a launch-cost artifact.
 
 For the workflow ecosystem suite (the catalog-update comparison):
 

@@ -439,7 +439,11 @@ export default function HomePage() {
           by identity, and write it back. Once allocation and serialization
           dominate, the JIT&rsquo;s edge fades and the zero-copy,
           move-not-clone hot path pulls further ahead&mdash;which is why the
-          update lead is wider than the parse lead. The parse chart uses
+          update lead is wider than the parse lead. The GNU msgmerge bar is not
+          a launch-cost artifact either: the benchmark records an empty-run
+          baseline, and its fixed process and I/O overhead is about 2% of the
+          measured time on this corpus, so the gap is real work. The parse chart
+          uses
           borrowed, zero-copy parsing; reading into a fully owned model still
           reaches 362 MiB/s. Serialization runs at about 1.16 GiB/s on the same
           corpus. Median of 10 runs on an Apple M1 Ultra, every tool reading
