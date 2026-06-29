@@ -48,11 +48,21 @@ pub fn escape_string_into_with_first_escape(
 ///
 /// Returns [`ParseError`] when the escape sequence is malformed.
 pub fn unescape_string(input: &str) -> Result<String, ParseError> {
-    let bytes = input.as_bytes();
-    if !has_byte(b'\\', bytes) {
+    if !has_byte(b'\\', input.as_bytes()) {
         return Ok(input.to_owned());
     }
 
+    unescape_string_known(input)
+}
+
+/// Unescapes a PO string literal payload that is already known to contain at
+/// least one backslash, skipping the redundant lookup scan.
+///
+/// # Errors
+///
+/// Returns [`ParseError`] when the escape sequence is malformed.
+pub(crate) fn unescape_string_known(input: &str) -> Result<String, ParseError> {
+    let bytes = input.as_bytes();
     let mut out = Vec::with_capacity(input.len());
     let mut index = 0;
 
@@ -138,12 +148,11 @@ pub fn extract_quoted_bytes_cow(line: &[u8]) -> Result<Cow<'_, str>, ParseError>
     };
 
     let raw = &line[start..end];
-    validate_quoted_content(raw)?;
-    if !has_byte(b'\\', raw) {
+    if !validate_quoted_content(raw)? {
         return Ok(Cow::Borrowed(bytes_to_str(raw)));
     }
 
-    Ok(Cow::Owned(unescape_string(bytes_to_str(raw))?))
+    Ok(Cow::Owned(unescape_string_known(bytes_to_str(raw))?))
 }
 
 /// Extracts and unescapes the first quoted PO string from `line`.
@@ -211,12 +220,25 @@ pub fn split_reference_comment(input: &str) -> Vec<Cow<'_, str>> {
     vec![Cow::Borrowed(trimmed)]
 }
 
-pub fn validate_quoted_content(raw: &[u8]) -> Result<(), ParseError> {
+/// Validates the content between PO quotes and reports whether it contains any
+/// backslash, so callers can skip a redundant escape-lookup scan.
+///
+/// Returns `Ok(true)` when an unescape pass is required, `Ok(false)` when the
+/// content can be borrowed verbatim.
+///
+/// # Errors
+///
+/// Returns [`ParseError`] when an unescaped quote is present.
+pub fn validate_quoted_content(raw: &[u8]) -> Result<bool, ParseError> {
     let mut trailing_backslashes = 0usize;
+    let mut saw_backslash = false;
 
     for &byte in raw {
         match byte {
-            b'\\' => trailing_backslashes += 1,
+            b'\\' => {
+                trailing_backslashes += 1;
+                saw_backslash = true;
+            }
             b'"' if has_even_trailing_backslashes(trailing_backslashes) => {
                 return Err(ParseError::new("unescaped quote in string literal"));
             }
@@ -224,7 +246,7 @@ pub fn validate_quoted_content(raw: &[u8]) -> Result<(), ParseError> {
         }
     }
 
-    Ok(())
+    Ok(saw_backslash)
 }
 
 fn has_even_trailing_backslashes(count: usize) -> bool {

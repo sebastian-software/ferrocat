@@ -6,7 +6,7 @@ use crate::scan::{
     has_byte, parse_plural_index, split_once_byte, trim_ascii, unrecognized_po_line,
 };
 use crate::serialize::{write_keyword, write_prefixed_line};
-use crate::text::{escape_string_into, unescape_string, validate_quoted_content};
+use crate::text::{escape_string_into, unescape_string_known, validate_quoted_content};
 use crate::utf8::input_slice_as_str;
 use crate::{BorrowedMsgStr, ParseError, ParsePosition, SerializeOptions};
 
@@ -535,12 +535,11 @@ fn extract_merge_quoted_cow(line_bytes: &[u8]) -> Result<Cow<'_, str>, ParseErro
         return Ok(Cow::Borrowed(""));
     };
 
-    validate_quoted_content(raw)?;
-    if !has_byte(b'\\', raw) {
+    if !validate_quoted_content(raw)? {
         return Ok(Cow::Borrowed(bytes_to_str(raw)));
     }
 
-    Ok(Cow::Owned(unescape_string(bytes_to_str(raw))?))
+    Ok(Cow::Owned(unescape_string_known(bytes_to_str(raw))?))
 }
 
 #[inline]
