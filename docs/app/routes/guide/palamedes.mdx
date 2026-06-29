@@ -31,7 +31,7 @@ Ferrocat CLI, or their own host-specific binding layer.
 | Authoring | Macros, message collection, framework-facing developer experience | Stable message identity inputs and catalog semantics |
 | Extraction | JavaScript/TypeScript transforms and host-aware source scanning | Adapter-ready catalog update inputs, placeholder hints, and semantic metadata validation |
 | Host bindings | `palamedes-node`, JS/TS package surfaces, and host packaging | Pure Rust crates and host-neutral data contracts |
-| Catalog storage | Uses catalogs as part of the app workflow | PO, ICU-native PO, and NDJSON catalog modes |
+| Catalog storage | Uses catalogs as part of the app workflow | PO, ICU-native PO, and FCL catalog modes |
 | Catalog maintenance | CLI workflows and project conventions | Parse, serialize, merge, combine, update, audit, and validate |
 | Runtime delivery | Framework adapters, bundler integration, client/server loading | Host-neutral compiled catalog artifacts and fallback semantics |
 | Future scaling | Chunk-aware sidecars and app-specific delivery policy | Stable compiled IDs and locale-resolved payload generation |
@@ -60,5 +60,5 @@ That split also makes the ecosystem easier to evaluate. If you need a full app-f
 - [Palamedes repository](https://github.com/sebastian-software/palamedes) for the JS/TS framework, packages, examples, and quickstarts
 - [Ferrocat API Overview](/reference/api-overview) for catalog APIs and runtime compilation
 - [Gettext Task Landscape](/reference/gettext-task-landscape) for the catalog QA and audit direction
-- [Catalog Modes](/guide/catalog-modes) for PO, ICU-native PO, and NDJSON storage choices
+- [Catalog Modes](/guide/catalog-modes) for PO, ICU-native PO, and FCL storage choices
 - [Bundler-Aware Message Sidecars](/notes/2026-03-17-bundler-aware-message-sidecars) for the future delivery model where Palamedes uses Ferrocat artifacts at chunk boundaries

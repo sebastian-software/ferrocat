@@ -24,7 +24,7 @@ Audit options:
   --source <path>             Source catalog path.
   --target <locale=path>      Target catalog path. Repeat for multiple locales.
   --locale <locale>           Target locale filter. Repeat to request multiple target locales.
-  --storage <po|ndjson>       Catalog storage format. Defaults to po.
+  --storage <po|fcl>          Catalog storage format. Defaults to po.
   --format <text|json>        Output format. Defaults to text.
   -h, --help                  Show this help text.
 ";
@@ -244,16 +244,16 @@ impl OutputFormat {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum CliStorageFormat {
     Po,
-    Ndjson,
+    Fcl,
 }
 
 impl CliStorageFormat {
     fn parse(value: &str) -> Result<Self, CliError> {
         match value {
             "po" => Ok(Self::Po),
-            "ndjson" => Ok(Self::Ndjson),
+            "fcl" => Ok(Self::Fcl),
             other => Err(CliError::usage(format!(
-                "unsupported storage format `{other}`; expected `po` or `ndjson`"
+                "unsupported storage format `{other}`; expected `po` or `fcl`"
             ))),
         }
     }
@@ -261,7 +261,7 @@ impl CliStorageFormat {
     const fn catalog_mode(self) -> CatalogMode {
         match self {
             Self::Po => CatalogMode::IcuPo,
-            Self::Ndjson => CatalogMode::IcuNdjson,
+            Self::Fcl => CatalogMode::IcuFcl,
         }
     }
 }
@@ -486,7 +486,7 @@ mod tests {
             "--format".to_owned(),
             "json".to_owned(),
             "--storage".to_owned(),
-            "ndjson".to_owned(),
+            "fcl".to_owned(),
         ])
         .expect("audit config should parse");
 
@@ -501,7 +501,7 @@ mod tests {
         );
         assert_eq!(config.locale_filters, vec!["de"]);
         assert_eq!(config.format, OutputFormat::Json);
-        assert_eq!(config.storage_format, CliStorageFormat::Ndjson);
+        assert_eq!(config.storage_format, CliStorageFormat::Fcl);
     }
 
     #[test]
@@ -698,12 +698,12 @@ mod tests {
     }
 
     #[test]
-    fn audit_command_reads_ndjson_catalogs() {
+    fn audit_command_reads_fcl_catalogs() {
         let tempdir = tempfile_dir();
-        let source_path = tempdir.path().join("en.ndjson");
-        let target_path = tempdir.path().join("de.ndjson");
-        fs::write(&source_path, ndjson_catalog("en", "Checkout")).expect("write source fixture");
-        fs::write(&target_path, ndjson_catalog("de", "Zur Kasse")).expect("write target fixture");
+        let source_path = tempdir.path().join("en.fcl");
+        let target_path = tempdir.path().join("de.fcl");
+        fs::write(&source_path, fcl_catalog("en", "Checkout")).expect("write source fixture");
+        fs::write(&target_path, fcl_catalog("de", "Zur Kasse")).expect("write target fixture");
 
         let mut stdout = Vec::new();
         let exit_code = run_with_writer(
@@ -716,13 +716,13 @@ mod tests {
                 "--target".to_owned(),
                 format!("de={}", target_path.display()),
                 "--storage".to_owned(),
-                "ndjson".to_owned(),
+                "fcl".to_owned(),
                 "--format".to_owned(),
                 "json".to_owned(),
             ],
             &mut stdout,
         )
-        .expect("NDJSON audit should run");
+        .expect("FCL audit should run");
 
         assert_eq!(exit_code, std::process::ExitCode::SUCCESS);
         let json: serde_json::Value =
@@ -731,16 +731,13 @@ mod tests {
     }
 
     #[test]
-    fn audit_command_reports_ndjson_parse_errors() {
+    fn audit_command_reports_fcl_parse_errors() {
         let tempdir = tempfile_dir();
-        let source_path = tempdir.path().join("en.ndjson");
-        let target_path = tempdir.path().join("de.ndjson");
-        fs::write(
-            &source_path,
-            "---\nformat: ferrocat.ndjson.v1\nlocale: en\nsource_locale: en\n---\n{\"id\":\"broken\"",
-        )
-        .expect("write malformed source fixture");
-        fs::write(&target_path, ndjson_catalog("de", "Zur Kasse")).expect("write target fixture");
+        let source_path = tempdir.path().join("en.fcl");
+        let target_path = tempdir.path().join("de.fcl");
+        fs::write(&source_path, "not a valid fcl catalog\n")
+            .expect("write malformed source fixture");
+        fs::write(&target_path, fcl_catalog("de", "Zur Kasse")).expect("write target fixture");
 
         let mut stdout = Vec::new();
         let error = run_with_writer(
@@ -753,11 +750,11 @@ mod tests {
                 "--target".to_owned(),
                 format!("de={}", target_path.display()),
                 "--storage".to_owned(),
-                "ndjson".to_owned(),
+                "fcl".to_owned(),
             ],
             &mut stdout,
         )
-        .expect_err("malformed NDJSON should fail");
+        .expect_err("malformed FCL should fail");
 
         assert!(error.to_string().contains("failed to parse"));
     }
@@ -766,9 +763,7 @@ mod tests {
         tempfile::tempdir().expect("tempdir should be created")
     }
 
-    fn ndjson_catalog(locale: &str, translation: &str) -> String {
-        format!(
-            "---\nformat: ferrocat.ndjson.v1\nlocale: {locale}\nsource_locale: en\n---\n{{\"id\":\"Checkout\",\"str\":\"{translation}\"}}\n"
-        )
+    fn fcl_catalog(locale: &str, translation: &str) -> String {
+        format!("%FCL1\tsource=en\tlocale={locale}\nCheckout\t\t{translation}\n")
     }
 }

@@ -1,4 +1,4 @@
-//! Catalog export helpers for PO and NDJSON rendering.
+//! Catalog export helpers for PO and FCL rendering.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -10,7 +10,6 @@ use super::mt::{
     MachineTranslationMetadata, PO_MACHINE_TRANSLATION_KEY, format_po_machine_translation_metadata,
     machine_translation_hash, validate_machine_translation_metadata,
 };
-use super::ndjson::stringify_catalog_ndjson;
 use super::plural::{PluralProfile, synthesize_icu_plural};
 use super::{
     ApiError, CatalogSemantics, Diagnostic, DiagnosticSeverity, EffectiveTranslationRef,
@@ -28,12 +27,6 @@ pub(super) fn export_catalog_content(
             let file = export_catalog_to_po(catalog, options, locale, diagnostics)?;
             Ok(stringify_po(&file, &SerializeOptions::default()))
         }
-        super::CatalogStorageFormat::Ndjson => Ok(stringify_catalog_ndjson(
-            catalog,
-            locale,
-            options.source_locale,
-            &options.render.print_placeholders_in_comments,
-        )),
         super::CatalogStorageFormat::Fcl => Ok(super::fcl::stringify_catalog_fcl(
             catalog,
             locale,

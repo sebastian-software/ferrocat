@@ -1,7 +1,0 @@
----
-format: ferrocat.ndjson.v1
-locale: de
-source_locale: en
----
-{"id":"Hello {name}","str":"Hallo {name}","origin":[{"file":"app.rs","line":10}]}
-{"id":"cart.item_count","str":"{count, plural, one {# Element} other {# Elemente}}","ctx":"checkout","comments":["ICU plural seed"],"origin":[{"file":"cart.rs","line":12}],"extra":{"translator_comments":["Keep placeholder intact"],"flags":["fuzzy"]}}

@@ -26,7 +26,7 @@ Available targets:
 - `parse_po`
 - `parse_po_borrowed`
 - `parse_catalog_po`
-- `parse_catalog_ndjson`
+- `parse_catalog_fcl`
 - `parse_icu`
 - `merge_catalog`
 - `update_catalog`

@@ -56,16 +56,16 @@ pub(super) fn normalized_catalog(
     .expect("normalized view")
 }
 
-pub(super) fn normalized_ndjson_catalog(
+pub(super) fn normalized_fcl_catalog(
     content: &str,
     locale: Option<&str>,
 ) -> super::NormalizedParsedCatalog {
     parse_catalog(ParseCatalogOptions {
         locale,
-        mode: CatalogMode::IcuNdjson,
+        mode: CatalogMode::IcuFcl,
         ..ParseCatalogOptions::new(content, "en")
     })
-    .expect("parse ndjson catalog")
+    .expect("parse fcl catalog")
     .into_normalized_view()
-    .expect("normalized ndjson view")
+    .expect("normalized fcl view")
 }

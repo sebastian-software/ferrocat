@@ -35,8 +35,8 @@ doc = false
 bench = false
 
 [[bin]]
-name = "parse_catalog_ndjson"
-path = "fuzz_targets/parse_catalog_ndjson.rs"
+name = "parse_catalog_fcl"
+path = "fuzz_targets/parse_catalog_fcl.rs"
 test = false
 doc = false
 bench = false

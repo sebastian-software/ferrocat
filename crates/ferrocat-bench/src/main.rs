@@ -50,16 +50,14 @@ use conformance_harness::{evaluate_all_cases, summarize_evaluations};
 use ferrocat_conformance::{ConformanceCase, Expectation, ExpectedArtifact, load_all_manifests};
 use ferrocat_icu::{extract_variables, parse_icu, validate_icu};
 use ferrocat_po::{
-    CatalogCombineInput, CatalogMessage, CatalogMessageExtra, CatalogMode, CombineCatalogOptions,
-    Header, MsgStr, ParseCatalogOptions, ParsedCatalog, PoFile, PoItem, SerializeOptions,
-    TranslationShape, UpdateCatalogFileOptions, UpdateCatalogOptions, combine_catalogs,
-    merge_catalog, parse_catalog, parse_po, parse_po_borrowed, stringify_po, update_catalog,
-    update_catalog_file,
+    CatalogCombineInput, CatalogMessage, CatalogMode, CombineCatalogOptions, Header, MsgStr,
+    ParseCatalogOptions, ParsedCatalog, PoFile, PoItem, SerializeOptions, TranslationShape,
+    UpdateCatalogFileOptions, UpdateCatalogOptions, combine_catalogs, merge_catalog, parse_catalog,
+    parse_po, parse_po_borrowed, stringify_po, update_catalog, update_catalog_file,
 };
 use fixtures::{
     Fixture, IcuFixture, MergeFixture, fixture_by_name, icu_fixture_by_name, merge_fixture_by_name,
 };
-use serde::Serialize;
 
 fn main() -> ExitCode {
     match run() {
@@ -114,14 +112,6 @@ fn run() -> Result<(), String> {
             let fixture = load_fixture(&fixture_name)?;
             bench_parse_catalog_po(&fixture, config)
         }
-        "parse-catalog-ndjson" | "parse-ndjson" => {
-            let fixture_name = args
-                .next()
-                .unwrap_or_else(|| "catalog-modern-de-1000".to_owned());
-            let config = parse_bench_config(args, &fixture_name)?;
-            let fixture = load_fixture(&fixture_name)?;
-            bench_parse_catalog_ndjson(&fixture, config)
-        }
         "parse-catalog-fcl" | "parse-fcl" => {
             let fixture_name = args
                 .next()
@@ -162,14 +152,6 @@ fn run() -> Result<(), String> {
             let fixture = load_fixture(&fixture_name)?;
             bench_stringify_catalog_po(&fixture, config)
         }
-        "stringify-catalog-ndjson" | "stringify-ndjson" => {
-            let fixture_name = args
-                .next()
-                .unwrap_or_else(|| "catalog-modern-de-1000".to_owned());
-            let config = parse_bench_config(args, &fixture_name)?;
-            let fixture = load_fixture(&fixture_name)?;
-            bench_stringify_catalog_ndjson(&fixture, config)
-        }
         "merge" => {
             let fixture_name = args.next().unwrap_or_else(|| "realistic".to_owned());
             let config = parse_bench_config(args, &fixture_name)?;
@@ -187,14 +169,6 @@ fn run() -> Result<(), String> {
             let config = parse_bench_config(args, &fixture_name)?;
             let fixture = load_merge_fixture(&fixture_name)?;
             bench_update_catalog_file(&fixture, config)
-        }
-        "update-catalog-file-ndjson" => {
-            let fixture_name = args
-                .next()
-                .unwrap_or_else(|| "catalog-modern-de-1000".to_owned());
-            let config = parse_bench_config(args, &fixture_name)?;
-            let fixture = load_merge_fixture(&fixture_name)?;
-            bench_update_catalog_file_ndjson(&fixture, config)
         }
         "combine-catalogs" => {
             let fixture_name = args
@@ -215,7 +189,7 @@ fn run() -> Result<(), String> {
             Ok(())
         }
         other => Err(format!(
-            "unknown command: {other} (use verify-benchmark-env, compare, regression-check, parse, parse-borrowed, parse-catalog-po, parse-catalog-ndjson, parse-icu, validate-icu, extract-icu-variables, stringify, stringify-catalog-po, stringify-catalog-ndjson, merge, update-catalog, update-catalog-file, update-catalog-file-ndjson, combine-catalogs, describe, or conformance-report)"
+            "unknown command: {other} (use verify-benchmark-env, compare, regression-check, parse, parse-borrowed, parse-catalog-po, parse-catalog-fcl, parse-icu, validate-icu, extract-icu-variables, stringify, stringify-catalog-po, merge, update-catalog, update-catalog-file, combine-catalogs, describe, or conformance-report)"
         )),
     }
 }
@@ -578,41 +552,6 @@ fn bench_parse_catalog_po(fixture: &Fixture, config: BenchConfig) -> Result<(), 
     );
     Ok(())
 }
-
-fn bench_parse_catalog_ndjson(fixture: &Fixture, config: BenchConfig) -> Result<(), String> {
-    let (content, locale, items_per_iteration) = fixture_ndjson_content(fixture)?;
-    let mut parsed_items = 0usize;
-    let samples = run_bench(config, || {
-        let start = Instant::now();
-        for _ in 0..config.iterations {
-            let parsed = parse_catalog(ParseCatalogOptions {
-                content: &content,
-                locale,
-                source_locale: "en",
-                mode: CatalogMode::IcuNdjson,
-                strict: false,
-            })
-            .map_err(|error| error.to_string())?;
-            parsed_items = parsed.messages.len();
-            std::hint::black_box(parsed);
-        }
-        Ok(BenchSample::new(
-            start.elapsed(),
-            config.iterations,
-            content.len(),
-        ))
-    })?;
-    report(
-        "parse-catalog-ndjson",
-        fixture,
-        content.len(),
-        parsed_items.max(items_per_iteration),
-        config,
-        &samples,
-    );
-    Ok(())
-}
-
 fn bench_parse_catalog_fcl(fixture: &Fixture, config: BenchConfig) -> Result<(), String> {
     let (content, locale, items_per_iteration) = fixture_fcl_content(fixture)?;
     let mut parsed_items = 0usize;
@@ -768,36 +707,6 @@ fn bench_stringify_catalog_po(fixture: &Fixture, config: BenchConfig) -> Result<
     );
     Ok(())
 }
-
-fn bench_stringify_catalog_ndjson(fixture: &Fixture, config: BenchConfig) -> Result<(), String> {
-    let parsed = fixture_parsed_catalog(fixture)?;
-    let mut bytes_per_iteration = 0usize;
-    let samples = run_bench(config, || {
-        let start = Instant::now();
-        let mut bytes = 0usize;
-        for _ in 0..config.iterations {
-            let rendered = render_ndjson_catalog(&parsed);
-            bytes += rendered.len();
-            std::hint::black_box(rendered);
-        }
-        bytes_per_iteration = bytes / config.iterations;
-        Ok(BenchSample::new(
-            start.elapsed(),
-            config.iterations,
-            bytes_per_iteration,
-        ))
-    })?;
-    report(
-        "stringify-catalog-ndjson",
-        fixture,
-        bytes_per_iteration,
-        parsed.messages.len(),
-        config,
-        &samples,
-    );
-    Ok(())
-}
-
 fn bench_merge(fixture: &MergeFixture, config: BenchConfig) -> Result<(), String> {
     let mut bytes_per_iteration = 0usize;
     let samples = run_bench(config, || {
@@ -896,57 +805,6 @@ fn bench_update_catalog_file(fixture: &MergeFixture, config: BenchConfig) -> Res
     );
     Ok(())
 }
-
-fn bench_update_catalog_file_ndjson(
-    fixture: &MergeFixture,
-    config: BenchConfig,
-) -> Result<(), String> {
-    let mut bytes_per_iteration = 0usize;
-    let temp_root = std::env::temp_dir().join(format!(
-        "ferrocat-bench-update-catalog-file-ndjson-{}",
-        std::process::id()
-    ));
-    fs::create_dir_all(&temp_root).map_err(|error| error.to_string())?;
-    let path = temp_root.join("messages.fcat.ndjson");
-    let existing_ndjson = merge_fixture_existing_ndjson(fixture)?;
-
-    let samples = run_bench(config, || {
-        let start = Instant::now();
-        let mut bytes = 0usize;
-        for _ in 0..config.iterations {
-            fs::write(&path, &existing_ndjson).map_err(|error| error.to_string())?;
-            let rendered = update_catalog_file(UpdateCatalogFileOptions {
-                target_path: &path,
-                options: UpdateCatalogOptions {
-                    locale: Some("de"),
-                    mode: CatalogMode::IcuNdjson,
-                    ..UpdateCatalogOptions::new("en", fixture.api_extracted_messages().to_vec())
-                },
-            })
-            .map_err(|error| error.to_string())?;
-            bytes += rendered.content.len();
-            std::hint::black_box(rendered);
-        }
-        bytes_per_iteration = bytes / config.iterations;
-        Ok(BenchSample::new(
-            start.elapsed(),
-            config.iterations,
-            bytes_per_iteration,
-        ))
-    })?;
-    let _ = fs::remove_file(&path);
-    let _ = fs::remove_dir(&temp_root);
-
-    report_merge(
-        "update-catalog-file-ndjson",
-        fixture,
-        bytes_per_iteration,
-        config,
-        &samples,
-    );
-    Ok(())
-}
-
 fn bench_combine_catalogs(fixture: &MergeFixture, config: BenchConfig) -> Result<(), String> {
     let mut bytes_per_iteration = 0usize;
     let inputs = [
@@ -1241,50 +1099,6 @@ fn report(
         summary.min_iter_per_sec, summary.max_iter_per_sec
     );
 }
-
-#[derive(Debug, Serialize)]
-struct BenchNdjsonRecord<'a> {
-    id: String,
-    str: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    ctx: Option<&'a str>,
-    #[serde(skip_serializing_if = "Vec::is_empty")]
-    comments: Vec<&'a str>,
-    #[serde(skip_serializing_if = "Vec::is_empty")]
-    origin: Vec<BenchNdjsonOrigin<'a>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    extra: Option<BenchNdjsonExtra<'a>>,
-    #[serde(skip_serializing_if = "is_false")]
-    obsolete: bool,
-}
-
-#[derive(Debug, Serialize)]
-struct BenchNdjsonOrigin<'a> {
-    file: &'a str,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    line: Option<u32>,
-}
-
-#[derive(Debug, Serialize)]
-struct BenchNdjsonExtra<'a> {
-    #[serde(skip_serializing_if = "Vec::is_empty")]
-    translator_comments: Vec<&'a str>,
-    #[serde(skip_serializing_if = "Vec::is_empty")]
-    flags: Vec<&'a str>,
-}
-
-fn fixture_ndjson_content(
-    fixture: &Fixture,
-) -> Result<(String, Option<&'static str>, usize), String> {
-    let parsed = fixture_parsed_catalog(fixture)?;
-    let rendered = render_ndjson_catalog(&parsed);
-    Ok((
-        rendered,
-        inferred_fixture_locale(fixture.name()),
-        parsed.messages.len(),
-    ))
-}
-
 fn fixture_fcl_content(fixture: &Fixture) -> Result<(String, Option<&'static str>, usize), String> {
     let parsed = fixture_parsed_catalog(fixture)?;
     let rendered = render_fcl_catalog(&parsed);
@@ -1295,9 +1109,9 @@ fn fixture_fcl_content(fixture: &Fixture) -> Result<(String, Option<&'static str
     ))
 }
 
-/// Renders a parsed catalog as FCL text, mirroring the per-message fields the
-/// NDJSON bench render uses so the formats are compared on identical content.
-fn render_fcl_catalog(parsed: &ParsedCatalog) -> String {
+/// Renders a parsed catalog as FCL text, reusing the canonical per-message field
+/// renderers so PO and FCL are compared on identical content.
+pub(crate) fn render_fcl_catalog(parsed: &ParsedCatalog) -> String {
     let mut out = String::from("%FCL1\tsource=en");
     if let Some(locale) = &parsed.locale {
         out.push_str("\tlocale=");
@@ -1311,13 +1125,13 @@ fn render_fcl_catalog(parsed: &ParsedCatalog) -> String {
         .messages
         .iter()
         .map(|message| {
-            let id = render_ndjson_id(message);
+            let id = render_canonical_id(message);
             let mut line = String::new();
             fcl_escape_into(&mut line, &id);
             line.push('\t');
             fcl_escape_into(&mut line, message.msgctxt.as_deref().unwrap_or(""));
             line.push('\t');
-            fcl_escape_into(&mut line, &render_ndjson_translation(message));
+            fcl_escape_into(&mut line, &render_canonical_translation(message));
 
             let mut refs = message
                 .origin
@@ -1380,20 +1194,6 @@ fn fcl_escape_into(out: &mut String, value: &str) {
         }
     }
 }
-
-fn merge_fixture_existing_ndjson(fixture: &MergeFixture) -> Result<String, String> {
-    let locale = inferred_fixture_locale(fixture.name());
-    let parsed = parse_catalog(ParseCatalogOptions {
-        content: fixture.existing_po(),
-        locale,
-        source_locale: "en",
-        mode: CatalogMode::IcuPo,
-        strict: false,
-    })
-    .map_err(|error| error.to_string())?;
-    Ok(render_ndjson_catalog(&parsed))
-}
-
 fn fixture_parsed_catalog(fixture: &Fixture) -> Result<ParsedCatalog, String> {
     parse_catalog(ParseCatalogOptions {
         content: fixture.content(),
@@ -1430,9 +1230,9 @@ fn render_po_catalog(parsed: &ParsedCatalog) -> String {
 
     for message in &parsed.messages {
         let mut item = PoItem::new(1);
-        item.msgid = render_ndjson_id(message);
+        item.msgid = render_canonical_id(message);
         item.msgctxt = message.msgctxt.clone();
-        item.msgstr = MsgStr::from(render_ndjson_translation(message));
+        item.msgstr = MsgStr::from(render_canonical_translation(message));
         item.extracted_comments = message.comments.clone().into();
         item.references = message
             .origin
@@ -1454,43 +1254,7 @@ fn render_po_catalog(parsed: &ParsedCatalog) -> String {
 
     stringify_po(&file, &SerializeOptions::default())
 }
-
-fn render_ndjson_catalog(parsed: &ParsedCatalog) -> String {
-    let mut rendered = String::from("---\nformat: ferrocat.ndjson.v1\n");
-    if let Some(locale) = &parsed.locale {
-        rendered.push_str("locale: ");
-        rendered.push_str(locale);
-        rendered.push('\n');
-    }
-    rendered.push_str("source_locale: en\n---\n");
-
-    for message in &parsed.messages {
-        let record = BenchNdjsonRecord {
-            id: render_ndjson_id(message),
-            str: render_ndjson_translation(message),
-            ctx: message.msgctxt.as_deref(),
-            comments: message.comments.iter().map(String::as_str).collect(),
-            origin: message
-                .origin
-                .iter()
-                .map(|origin| BenchNdjsonOrigin {
-                    file: &origin.file,
-                    line: origin.line,
-                })
-                .collect(),
-            extra: render_ndjson_extra(message.extra.as_ref()),
-            obsolete: message.obsolete,
-        };
-        rendered.push_str(
-            &serde_json::to_string(&record).expect("benchmark ndjson record must serialize"),
-        );
-        rendered.push('\n');
-    }
-
-    rendered
-}
-
-fn render_ndjson_id(message: &CatalogMessage) -> String {
+fn render_canonical_id(message: &CatalogMessage) -> String {
     match &message.translation {
         TranslationShape::Singular { .. } => message.msgid.clone(),
         TranslationShape::Plural {
@@ -1499,7 +1263,7 @@ fn render_ndjson_id(message: &CatalogMessage) -> String {
     }
 }
 
-fn render_ndjson_translation(message: &CatalogMessage) -> String {
+fn render_canonical_translation(message: &CatalogMessage) -> String {
     match &message.translation {
         TranslationShape::Singular { value } => value.clone(),
         TranslationShape::Plural {
@@ -1509,23 +1273,6 @@ fn render_ndjson_translation(message: &CatalogMessage) -> String {
         } => synthesize_icu_plural_map(variable, translation),
     }
 }
-
-fn render_ndjson_extra(extra: Option<&CatalogMessageExtra>) -> Option<BenchNdjsonExtra<'_>> {
-    let extra = extra?;
-    if extra.translator_comments.is_empty() && extra.flags.is_empty() {
-        None
-    } else {
-        Some(BenchNdjsonExtra {
-            translator_comments: extra
-                .translator_comments
-                .iter()
-                .map(String::as_str)
-                .collect(),
-            flags: extra.flags.iter().map(String::as_str).collect(),
-        })
-    }
-}
-
 fn synthesize_icu_plural_map(
     variable: &str,
     forms: &std::collections::BTreeMap<String, String>,
@@ -1553,10 +1300,6 @@ fn synthesize_icu_plural(variable: &str, one: Option<&str>, other: &str) -> Stri
     rendered.push_str(other);
     rendered.push_str("}}");
     rendered
-}
-
-const fn is_false(value: &bool) -> bool {
-    !*value
 }
 
 fn inferred_fixture_locale(name: &str) -> Option<&'static str> {
@@ -1636,31 +1379,9 @@ const fn f64_from_usize(value: usize) -> f64 {
 
 #[cfg(test)]
 mod tests {
-    use ferrocat_po::{CatalogMode, ParseCatalogOptions, parse_catalog};
+    use ferrocat_po::{CatalogMessage, CatalogMode, ParseCatalogOptions, parse_catalog};
 
-    use super::{
-        fixture_by_name, fixture_ndjson_content, fixture_parsed_catalog, render_po_catalog,
-    };
-
-    #[test]
-    fn catalog_modern_po_and_ndjson_parse_to_same_messages() {
-        let fixture = fixture_by_name("catalog-modern-de-1000").expect("fixture exists");
-        let po_parsed = fixture_parsed_catalog(&fixture).expect("parse PO catalog");
-        let (ndjson, locale, _) = fixture_ndjson_content(&fixture).expect("render NDJSON");
-        let ndjson_parsed = parse_catalog(ParseCatalogOptions {
-            content: &ndjson,
-            locale,
-            source_locale: "en",
-            mode: CatalogMode::IcuNdjson,
-            strict: false,
-        })
-        .expect("parse NDJSON catalog");
-
-        assert_eq!(po_parsed.locale, ndjson_parsed.locale);
-        assert_eq!(po_parsed.diagnostics, ndjson_parsed.diagnostics);
-        assert_eq!(po_parsed.messages, ndjson_parsed.messages);
-    }
-
+    use super::{fixture_by_name, fixture_parsed_catalog, render_fcl_catalog, render_po_catalog};
     #[test]
     fn benchmark_po_catalog_renderer_roundtrips_modern_fixture() {
         let fixture = fixture_by_name("catalog-modern-de-1000").expect("fixture exists");
@@ -1677,5 +1398,30 @@ mod tests {
 
         assert_eq!(parsed.locale, reparsed.locale);
         assert_eq!(parsed.messages, reparsed.messages);
+    }
+
+    #[test]
+    fn benchmark_fcl_catalog_renderer_matches_po_messages() {
+        let fixture = fixture_by_name("catalog-modern-de-1000").expect("fixture exists");
+        let po_parsed = fixture_parsed_catalog(&fixture).expect("parse PO catalog");
+        let rendered = render_fcl_catalog(&po_parsed);
+        let fcl_parsed = parse_catalog(ParseCatalogOptions {
+            content: &rendered,
+            locale: Some("de"),
+            source_locale: "en",
+            mode: CatalogMode::IcuFcl,
+            strict: false,
+        })
+        .expect("parse rendered FCL");
+
+        assert_eq!(po_parsed.locale, fcl_parsed.locale);
+        // FCL is canonically sorted by (id, ctxt) on render, so sort both sides by
+        // the same key before comparing the message sets.
+        let key = |message: &CatalogMessage| (message.msgid.clone(), message.msgctxt.clone());
+        let mut po_messages = po_parsed.messages;
+        let mut fcl_messages = fcl_parsed.messages;
+        po_messages.sort_by_key(key);
+        fcl_messages.sort_by_key(key);
+        assert_eq!(po_messages, fcl_messages);
     }
 }

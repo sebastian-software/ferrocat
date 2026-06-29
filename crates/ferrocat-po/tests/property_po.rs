@@ -37,11 +37,15 @@ fn render_po(entries: &[(String, String)]) -> String {
     out
 }
 
-fn render_ndjson(entries: &[(String, String)]) -> String {
-    let mut out =
-        String::from("---\nformat: ferrocat.ndjson.v1\nlocale: de\nsource_locale: en\n---\n");
+fn render_fcl(entries: &[(String, String)]) -> String {
+    // The entries come from a `BTreeMap`, so they are already sorted and unique
+    // by id as FCL requires, and the generated charset contains no `\t`, `\n`, or
+    // `\\`, so no escaping is needed.
+    let mut out = String::from("%FCL1\tsource=en\tlocale=de\n");
     for (msgid, msgstr) in entries {
-        out.push_str(&serde_json::json!({ "id": msgid, "str": msgstr }).to_string());
+        out.push_str(msgid);
+        out.push_str("\t\t");
+        out.push_str(msgstr);
         out.push('\n');
     }
     out
@@ -75,7 +79,7 @@ proptest! {
     }
 
     #[test]
-    fn catalog_api_accepts_equivalent_generated_po_and_ndjson(entries in entries_strategy()) {
+    fn catalog_api_accepts_equivalent_generated_po_and_fcl(entries in entries_strategy()) {
         let po = parse_catalog(ParseCatalogOptions {
             content: &render_po(&entries),
             locale: Some("de"),
@@ -83,13 +87,13 @@ proptest! {
             ..ParseCatalogOptions::new("", "en")
         })
         .expect("generated PO catalog should parse");
-        let ndjson = parse_catalog(ParseCatalogOptions {
-            content: &render_ndjson(&entries),
-            mode: CatalogMode::IcuNdjson,
+        let fcl = parse_catalog(ParseCatalogOptions {
+            content: &render_fcl(&entries),
+            mode: CatalogMode::IcuFcl,
             ..ParseCatalogOptions::new("", "en")
         })
-        .expect("generated NDJSON catalog should parse");
+        .expect("generated FCL catalog should parse");
 
-        prop_assert_eq!(po.messages.len(), ndjson.messages.len());
+        prop_assert_eq!(po.messages.len(), fcl.messages.len());
     }
 }

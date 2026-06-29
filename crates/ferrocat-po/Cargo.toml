@@ -30,7 +30,6 @@ catalog = [
 ]
 compile = ["catalog"]
 mt = ["catalog"]
-ndjson = ["catalog"]
 plurals = ["catalog"]
 serde = ["dep:serde", "smallvec/serde"]
 

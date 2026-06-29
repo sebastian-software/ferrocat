@@ -12,10 +12,10 @@ use std::time::Instant;
 
 use ferrocat_icu::{IcuMessage, IcuNode, IcuOption, IcuPluralKind, parse_icu};
 use ferrocat_po::{
-    BorrowedMsgStr, BorrowedPoFile, CatalogMessage, CatalogMessageExtra, CatalogMode,
-    CatalogOrigin, ExtractedMessage, MergeExtractedMessage, MsgStr, ParseCatalogOptions,
-    ParsedCatalog, PoFile, SerializeOptions, TranslationShape, UpdateCatalogOptions, merge_catalog,
-    parse_catalog, parse_po, parse_po_borrowed, stringify_po, update_catalog,
+    BorrowedMsgStr, BorrowedPoFile, CatalogMessage, CatalogMode, CatalogOrigin, ExtractedMessage,
+    MergeExtractedMessage, MsgStr, ParseCatalogOptions, ParsedCatalog, PoFile, SerializeOptions,
+    TranslationShape, UpdateCatalogOptions, merge_catalog, parse_catalog, parse_po,
+    parse_po_borrowed, stringify_po, update_catalog,
 };
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -329,8 +329,8 @@ fn execute_scenario(
     match scenario.implementation.as_str() {
         "ferrocat-parse" => prepared.run_internal_parse(iterations, false),
         "ferrocat-parse-borrowed" => prepared.run_internal_parse(iterations, true),
-        "ferrocat-parse-catalog-po" => prepared.run_internal_parse_catalog(iterations, false),
-        "ferrocat-parse-catalog-ndjson" => prepared.run_internal_parse_catalog(iterations, true),
+        "ferrocat-parse-catalog-po" => prepared.run_internal_parse_catalog(iterations),
+        "ferrocat-parse-catalog-fcl" => prepared.run_internal_parse_catalog_fcl(iterations),
         "ferrocat-stringify" => prepared.run_internal_stringify(iterations, capture_artifacts),
         "ferrocat-merge" => prepared.run_internal_merge(iterations, capture_artifacts),
         "ferrocat-update-catalog" => {
@@ -765,7 +765,7 @@ struct PreparedScenario {
     existing_po_path: Option<PathBuf>,
     pot_path: Option<PathBuf>,
     po_content: Option<String>,
-    catalog_ndjson_content: Option<String>,
+    catalog_fcl_content: Option<String>,
     po_file: Option<PoFile>,
     merge_fixture: Option<OwnedMergeFixture>,
     icu_messages: Option<Vec<String>>,
@@ -830,7 +830,7 @@ impl PreparedScenario {
                     existing_po_path: None,
                     pot_path: None,
                     po_content: Some(fixture.content().to_owned()),
-                    catalog_ndjson_content: None,
+                    catalog_fcl_content: None,
                     po_file: Some(po_file),
                     merge_fixture: None,
                     icu_messages: None,
@@ -846,6 +846,8 @@ impl PreparedScenario {
                     )
                 })?;
                 let po_content = fixture.content().to_owned();
+                // Render an equivalent FCL catalog so the storage-format comparison
+                // can parse the same logical catalog as both PO and FCL.
                 let parsed = parse_catalog(ParseCatalogOptions {
                     content: &po_content,
                     locale: fixture_locale(&first.fixture).as_deref(),
@@ -854,14 +856,7 @@ impl PreparedScenario {
                     strict: false,
                 })
                 .map_err(|error| format!("failed to parse catalog fixture: {error}"))?;
-                let ndjson_content = render_ndjson_catalog(&parsed);
-                let ndjson_input_path = tempdir.path().join("catalog-input.fcat.ndjson");
-                fs::write(&ndjson_input_path, &ndjson_content).map_err(|error| {
-                    format!(
-                        "failed to write catalog NDJSON fixture input {}: {error}",
-                        ndjson_input_path.display()
-                    )
-                })?;
+                let fcl_content = crate::render_fcl_catalog(&parsed);
                 Ok(Self {
                     operation: first.operation.clone(),
                     fixture: first.fixture.clone(),
@@ -871,7 +866,7 @@ impl PreparedScenario {
                     existing_po_path: None,
                     pot_path: None,
                     po_content: Some(po_content),
-                    catalog_ndjson_content: Some(ndjson_content),
+                    catalog_fcl_content: Some(fcl_content),
                     po_file: None,
                     merge_fixture: None,
                     icu_messages: None,
@@ -912,7 +907,7 @@ impl PreparedScenario {
                     existing_po_path: Some(existing_po_path),
                     pot_path,
                     po_content: None,
-                    catalog_ndjson_content: None,
+                    catalog_fcl_content: None,
                     po_file: None,
                     merge_fixture: Some(OwnedMergeFixture::from_fixture(&fixture)),
                     icu_messages: None,
@@ -939,7 +934,7 @@ impl PreparedScenario {
                     existing_po_path: None,
                     pot_path: None,
                     po_content: None,
-                    catalog_ndjson_content: None,
+                    catalog_fcl_content: None,
                     po_file: None,
                     merge_fixture: None,
                     icu_messages: Some(messages),
@@ -979,7 +974,7 @@ impl PreparedScenario {
                         existing_po_path: None,
                         pot_path: None,
                         po_content: Some(content),
-                        catalog_ndjson_content: None,
+                        catalog_fcl_content: None,
                         po_file: None,
                         merge_fixture: None,
                         icu_messages: None,
@@ -1022,7 +1017,7 @@ impl PreparedScenario {
                         existing_po_path: Some(existing_po_path),
                         pot_path: Some(pot_path),
                         po_content: None,
-                        catalog_ndjson_content: None,
+                        catalog_fcl_content: None,
                         po_file: None,
                         merge_fixture: None,
                         icu_messages: None,
@@ -1141,29 +1136,30 @@ impl PreparedScenario {
         })
     }
 
-    fn run_internal_parse_catalog(
+    fn run_internal_parse_catalog(&self, iterations: usize) -> Result<ExecutionResult, String> {
+        let content = self
+            .po_content
+            .as_deref()
+            .ok_or_else(|| "internal parse-catalog-po requires PO content".to_owned())?;
+        self.run_internal_parse_catalog_with(iterations, content, CatalogMode::IcuPo)
+    }
+
+    fn run_internal_parse_catalog_fcl(&self, iterations: usize) -> Result<ExecutionResult, String> {
+        let content = self
+            .catalog_fcl_content
+            .as_deref()
+            .ok_or_else(|| "internal parse-catalog-fcl requires FCL content".to_owned())?;
+        self.run_internal_parse_catalog_with(iterations, content, CatalogMode::IcuFcl)
+    }
+
+    fn run_internal_parse_catalog_with(
         &self,
         iterations: usize,
-        ndjson: bool,
+        content: &str,
+        mode: CatalogMode,
     ) -> Result<ExecutionResult, String> {
         let locale = fixture_locale(&self.fixture);
-        let (content, mode, bytes_per_iteration) = if ndjson {
-            (
-                self.catalog_ndjson_content.as_deref().ok_or_else(|| {
-                    "internal parse-catalog-ndjson requires NDJSON content".to_owned()
-                })?,
-                CatalogMode::IcuNdjson,
-                self.catalog_ndjson_content.as_ref().map_or(0, String::len),
-            )
-        } else {
-            (
-                self.po_content
-                    .as_deref()
-                    .ok_or_else(|| "internal parse-catalog-po requires PO content".to_owned())?,
-                CatalogMode::IcuPo,
-                self.po_content.as_ref().map_or(0, String::len),
-            )
-        };
+        let bytes_per_iteration = content.len();
 
         // Time only parse_catalog; build the digest summary once outside the loop.
         let mut last_parsed = None;
@@ -1810,139 +1806,6 @@ fn fixture_catalog_mode(name: &str) -> CatalogMode {
         CatalogMode::IcuPo
     }
 }
-
-#[derive(Debug, Serialize)]
-struct CompareNdjsonRecord<'a> {
-    id: String,
-    str: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    ctx: Option<&'a str>,
-    #[serde(skip_serializing_if = "Vec::is_empty")]
-    comments: Vec<&'a str>,
-    #[serde(skip_serializing_if = "Vec::is_empty")]
-    origin: Vec<CompareNdjsonOrigin<'a>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    extra: Option<CompareNdjsonExtra<'a>>,
-    #[serde(skip_serializing_if = "is_false")]
-    obsolete: bool,
-}
-
-#[derive(Debug, Serialize)]
-struct CompareNdjsonOrigin<'a> {
-    file: &'a str,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    line: Option<u32>,
-}
-
-#[derive(Debug, Serialize)]
-struct CompareNdjsonExtra<'a> {
-    #[serde(skip_serializing_if = "Vec::is_empty")]
-    translator_comments: Vec<&'a str>,
-    #[serde(skip_serializing_if = "Vec::is_empty")]
-    flags: Vec<&'a str>,
-}
-
-fn render_ndjson_catalog(parsed: &ParsedCatalog) -> String {
-    let mut rendered = String::from("---\nformat: ferrocat.ndjson.v1\n");
-    if let Some(locale) = &parsed.locale {
-        rendered.push_str("locale: ");
-        rendered.push_str(locale);
-        rendered.push('\n');
-    }
-    rendered.push_str("source_locale: en\n---\n");
-
-    for message in &parsed.messages {
-        let record = CompareNdjsonRecord {
-            id: render_ndjson_id(message),
-            str: render_ndjson_translation(message),
-            ctx: message.msgctxt.as_deref(),
-            comments: message.comments.iter().map(String::as_str).collect(),
-            origin: message
-                .origin
-                .iter()
-                .map(|origin| CompareNdjsonOrigin {
-                    file: &origin.file,
-                    line: origin.line,
-                })
-                .collect(),
-            extra: render_ndjson_extra(message.extra.as_ref()),
-            obsolete: message.obsolete,
-        };
-        rendered.push_str(
-            &serde_json::to_string(&record).expect("compare ndjson record must serialize"),
-        );
-        rendered.push('\n');
-    }
-
-    rendered
-}
-
-fn render_ndjson_id(message: &CatalogMessage) -> String {
-    match &message.translation {
-        TranslationShape::Singular { .. } => message.msgid.clone(),
-        TranslationShape::Plural {
-            source, variable, ..
-        } => synthesize_icu_plural(variable, source.one.as_deref(), &source.other),
-    }
-}
-
-fn render_ndjson_translation(message: &CatalogMessage) -> String {
-    match &message.translation {
-        TranslationShape::Singular { value } => value.clone(),
-        TranslationShape::Plural {
-            translation,
-            variable,
-            ..
-        } => synthesize_icu_plural_map(variable, translation),
-    }
-}
-
-fn render_ndjson_extra(extra: Option<&CatalogMessageExtra>) -> Option<CompareNdjsonExtra<'_>> {
-    let extra = extra?;
-    if extra.translator_comments.is_empty() && extra.flags.is_empty() {
-        None
-    } else {
-        Some(CompareNdjsonExtra {
-            translator_comments: extra
-                .translator_comments
-                .iter()
-                .map(String::as_str)
-                .collect(),
-            flags: extra.flags.iter().map(String::as_str).collect(),
-        })
-    }
-}
-
-fn synthesize_icu_plural_map(variable: &str, forms: &BTreeMap<String, String>) -> String {
-    let mut rendered = format!("{{{variable}, plural,");
-    for (category, value) in forms {
-        rendered.push(' ');
-        rendered.push_str(category);
-        rendered.push_str(" {");
-        rendered.push_str(value);
-        rendered.push('}');
-    }
-    rendered.push('}');
-    rendered
-}
-
-fn synthesize_icu_plural(variable: &str, one: Option<&str>, other: &str) -> String {
-    let mut rendered = format!("{{{variable}, plural,");
-    if let Some(one) = one {
-        rendered.push_str(" one {");
-        rendered.push_str(one);
-        rendered.push('}');
-    }
-    rendered.push_str(" other {");
-    rendered.push_str(other);
-    rendered.push_str("}}");
-    rendered
-}
-
-const fn is_false(value: &bool) -> bool {
-    !*value
-}
-
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 struct PoSemanticSummary {
     headers: Vec<PoHeaderSummary>,

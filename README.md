@@ -9,7 +9,7 @@
 
 The practical problem is simple: translations change constantly, and most projects need more than "load a JSON file at runtime." Teams need source identity, translator context, reviewable diffs, coverage numbers, release checks, fallback behavior, and a runtime shape that does not hide catalog problems until production. Ferrocat is built for that middle layer.
 
-You do not need to know PO files, ICU MessageFormat, or NDJSON to get started. What matters is that the catalog stays inspectable, testable, benchmarked, and portable across host-language adapters, instead of disappearing into format-specific tooling.
+You do not need to know PO files, ICU MessageFormat, or FCL to get started. What matters is that the catalog stays inspectable, testable, benchmarked, and portable across host-language adapters, instead of disappearing into format-specific tooling.
 
 Ferrocat is also part of the [Palamedes](https://github.com/sebastian-software/palamedes) ecosystem. Palamedes is the OSS i18n framework for JavaScript and TypeScript apps; Ferrocat supplies the shared catalog engine underneath it: exact updates, storage choices, release QA, runtime artifact compilation, and clear boundaries between catalog data and application integration. JavaScript and TypeScript access is a Palamedes concern, including the `palamedes-node` N-API bridge in that repository; this repository stays the pure-Rust catalog engine.
 
@@ -23,7 +23,7 @@ Ferrocat is also part of the [Palamedes](https://github.com/sebastian-software/p
 - **AI translation metadata ready.** Track machine-generated translations with model, modification time, confidence, and a change-detection hash, then drop stale metadata automatically when a human edits the text.
 - **Runtime artifacts you can explain.** Compile catalogs into host-neutral payloads with stable keys, fallback behavior, missing reports, optional ICU diagnostics, and provenance rows that show where each runtime string came from.
 - **Pseudo-locale QA.** Generate ICU-aware pseudolocalized messages and runtime artifacts without damaging placeholders, plural selectors, rich-text tags, or formatter syntax.
-- **Reviewable storage.** Use PO when translator tooling matters, or NDJSON when large teams and automation need one message per line for cleaner diffs.
+- **Reviewable storage.** Use PO when translator tooling matters, or FCL when large teams and automation need one entry per line for cleaner diffs and clean git merges.
 - **Room for host frameworks.** Palamedes can own JS/TS extraction, bindings, and framework integration while Ferrocat owns the catalog behavior that should stay consistent underneath.
 - **Measured behavior.** Parser, serializer, merge, combine, audit, and runtime paths are covered by fixtures, 60 upstream-derived conformance cases (454 assertions), coverage gates, and PR-visible benchmark regression checks.
 
@@ -33,7 +33,7 @@ Ferrocat is a new catalog layer, but it is not invented in a vacuum. It keeps th
 
 - **PO catalogs** for translator-friendly source, translation, context, comment, reference, flag, plural, and obsolete-entry handling.
 - **ICU MessageFormat v1** for richer messages with arguments, formatting, plurals, selects, and rich-text tags.
-- **NDJSON catalogs** for line-oriented storage that works well with Git review, automation, and external systems.
+- **FCL catalogs** (Ferrocat Catalog Lines) for line-oriented storage that works well with Git review, automation, and external systems. FCL replaced NDJSON as the machine-owned, git-merge-optimized storage format.
 - **Machine-translation metadata** for AI-assisted localization workflows that need to know which model produced a translation and whether that metadata still matches the current text.
 - **Structured diagnostics** instead of ad hoc text output, so CI, editors, and host frameworks can consume the same report.
 
@@ -45,7 +45,7 @@ Ferrocat is not trying to replace every part of an i18n stack. If you already kn
 |---|---|---|
 | GNU gettext-style tooling | Mature PO conventions, translator metadata, broad ecosystem familiarity | Rust-native APIs, explicit conflict policy, structured diagnostics, ICU-native workflows, and app-ready runtime artifacts |
 | Framework-specific i18n packages | Great authoring ergonomics and runtime adapters inside one host ecosystem | Shared catalog semantics that can be reused by Palamedes or other adapters instead of reimplemented per framework |
-| Custom JSON catalogs | Easy loading and deployment | Stronger update semantics, reviewable NDJSON storage, source/translation QA, and a path back to translator-friendly PO workflows |
+| Custom JSON catalogs | Easy loading and deployment | Stronger update semantics, reviewable FCL storage, source/translation QA, and a path back to translator-friendly PO workflows |
 | ICU-only message handling | Powerful plural, select, formatter, and rich-text syntax | Structural analysis and compatibility checks that catch missing arguments, formatter drift, tag mismatch, and branch changes before shipping |
 
 Ferrocat does not currently ship first-party WebAssembly, N-API, Python, Go, or
@@ -83,7 +83,7 @@ Ferrocat focuses on the work that happens around real translation catalogs:
 - Analyze ICU message structure and compare source/translation compatibility.
 - Validate runtime-specific ICU formatter support and literal-apostrophe syntax policy.
 - Normalize semantic message metadata around `msgid + msgctxt`.
-- Preserve AI translation metadata in PO and NDJSON catalogs, including stale-metadata cleanup when translations are edited.
+- Preserve AI translation metadata in PO and FCL catalogs, including stale-metadata cleanup when translations are edited.
 - Audit catalog sets before release with structured diagnostics.
 - Summarize per-locale catalog coverage for dashboards and CI thresholds.
 - Compare catalog states for translator review handoffs.
@@ -101,9 +101,9 @@ At the high-level catalog layer, `ferrocat` supports three explicit combinations
 |---|---|---|---|
 | Classic Gettext catalog mode | Gettext PO | Gettext-compatible plurals | stay close to traditional gettext catalogs and `msgid_plural` / `msgstr[n]` workflows |
 | ICU-native Gettext PO mode | Gettext PO | ICU MessageFormat | keep Gettext PO files and tooling, but author richer ICU plural/select/formatting messages |
-| ICU-native NDJSON catalog mode | NDJSON catalog storage | ICU MessageFormat | move to one-message-per-line JSON records that are easier to diff, merge, stream, batch, and hand to external systems |
+| ICU-native FCL catalog mode | FCL catalog storage | ICU MessageFormat | move to one-entry-per-line, tab-separated records that are easier to diff, merge, batch, and hand to external systems |
 
-There is intentionally no `NDJSON + Gettext-compatible plurals` mode. Gettext-compatible plural behavior stays a PO concern, while NDJSON is the native high-level storage format for ICU-native catalogs. Its line-delimited shape is especially useful when large teams edit catalogs through normal Git review flows: unrelated messages stay on separate lines, conflicts are narrower, and the format does not depend on a custom merge handler being available.
+There is intentionally no FCL + gettext-plural mode; gettext plural behavior stays a PO concern, while FCL is the ICU-native machine storage format for ICU-native catalogs. FCL (Ferrocat Catalog Lines) replaced NDJSON for the machine-owned, git-merge-optimized storage role. Its line-oriented shape is especially useful when large teams edit catalogs through normal Git review flows: unrelated entries stay on separate lines, conflicts are narrower, unchanged entries stay byte-identical across merge inputs for clean git 3-way merges, and the format does not depend on a custom merge handler being available.
 
 The canonical documentation now lives on the docs site:
 
@@ -164,7 +164,7 @@ msgstr "world"
 }
 ```
 
-For the common "merge fresh extracted messages into an existing catalog" workflow, `merge_catalog` is the lean Gettext-style entry point. For N-way catalog overlays and `msgcat`-style set operations, use `combine_catalogs`; when the catalogs already live on disk, `combine_catalog_files` adds format inference and atomic output replacement around the same semantics. For release checks across a source catalog and target catalogs, use `audit_catalogs`. For dashboards or translator handoffs, use `catalog_coverage` and `catalog_review`. For application delivery, compile requested-locale artifacts with fallback and ICU diagnostics; use `compile_catalog_artifact_report` when host tooling also needs per-message resolution provenance without changing the runtime artifact shape. For large NDJSON pipelines, `ferrocat::catalog::NdjsonCatalogReader` and `NdjsonCatalogWriter` expose one-record-at-a-time streaming without requiring a direct `ferrocat-po` dependency. For richer high-level flows across PO and NDJSON storage, the docs site's [API overview](https://sebastian-software.github.io/ferrocat/reference/api-overview) is the best next stop.
+For the common "merge fresh extracted messages into an existing catalog" workflow, `merge_catalog` is the lean Gettext-style entry point. For N-way catalog overlays and `msgcat`-style set operations, use `combine_catalogs`; when the catalogs already live on disk, `combine_catalog_files` adds format inference and atomic output replacement around the same semantics. For release checks across a source catalog and target catalogs, use `audit_catalogs`. For dashboards or translator handoffs, use `catalog_coverage` and `catalog_review`. For application delivery, compile requested-locale artifacts with fallback and ICU diagnostics; use `compile_catalog_artifact_report` when host tooling also needs per-message resolution provenance without changing the runtime artifact shape. For richer high-level flows across PO and FCL storage, the docs site's [API overview](https://sebastian-software.github.io/ferrocat/reference/api-overview) is the best next stop.
 
 Beyond the basics, Ferrocat exposes byte-oriented and allocation-light borrowed parsers for hot paths, ICU analysis and source/translation compatibility checks (`analyze_icu`, `compare_icu_messages`, `validate_icu_formatter_support`), ICU-aware pseudolocalization, semantic metadata normalization around `msgid + msgctxt`, and AI-translation metadata that high-level writers clear automatically once a human edits the text. ICU scope is MessageFormat v1; MessageFormat 2 is tracked as a future standard but is not a near-term target. The [API overview](https://sebastian-software.github.io/ferrocat/reference/api-overview) documents each entry point in depth.
 
