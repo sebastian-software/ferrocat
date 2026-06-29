@@ -771,7 +771,7 @@ at a time to any `Write`.
 use std::io::Cursor;
 
 use ferrocat::catalog::{
-    CatalogMessage, NdjsonCatalogReader, NdjsonCatalogWriter, NdjsonCatalogWriterOptions,
+    CatalogMessage, NdjsonCatalogReader, NdjsonCatalogWriter, NdjsonCatalogWriterOptions, PoVec,
     TranslationShape,
 };
 
@@ -800,7 +800,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             value: "Zur Kasse".to_owned(),
         },
         comments: Vec::new(),
-        origin: Vec::new(),
+        origin: PoVec::new(),
         obsolete: false,
         machine_translation: None,
         extra: None,
@@ -811,6 +811,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 ```
+
+> **Field type note.** `CatalogMessage::origin` — and the per-item collections
+> on the lower-level `PoItem`/`BorrowedPoItem` (`references`, `comments`,
+> `extracted_comments`, `flags`, `metadata`) — are `PoVec<T>`, a re-exported
+> `SmallVec` that stores the common single-element case inline. Reading is
+> unchanged (it dereferences to a slice and iterates like a `Vec`); to construct
+> one, use `PoVec::new()`, `Default::default()`, or `vec![…].into()`. `PoVec`
+> and `SmallVec` are re-exported through `ferrocat::catalog`, `ferrocat::po`, and
+> the crate root, so you never need to depend on `smallvec` directly.
 
 ### Machine-translation metadata
 
