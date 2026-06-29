@@ -2398,3 +2398,44 @@ fn unique_catalog_temp_dir(name: &str) -> std::path::PathBuf {
     fs::create_dir_all(&dir).expect("create temp dir");
     dir
 }
+
+#[test]
+fn update_catalog_roundtrips_fcl_via_public_api() {
+    // Exercises the FCL parse + stringify dispatch arms and the IcuFcl mode
+    // mappings through the public catalog API.
+    let existing = "%FCL1\tsource=en\tlocale=de\nHello\t\tHallo\tr=src/a.tsx:3\n";
+    let result = update_catalog(UpdateCatalogOptions {
+        source_locale: "en",
+        locale: Some("de"),
+        existing: Some(existing),
+        mode: CatalogMode::IcuFcl,
+        input: structured_input(vec![ExtractedMessage::Singular(ExtractedSingularMessage {
+            msgid: "Hello".to_owned(),
+            ..ExtractedSingularMessage::default()
+        })]),
+        ..UpdateCatalogOptions::new("en", CatalogUpdateInput::default())
+    })
+    .expect("update");
+
+    assert!(result.content.starts_with("%FCL1\tsource=en"));
+    assert!(result.content.contains("Hello\t\tHallo"));
+
+    let parsed = parse_catalog(ParseCatalogOptions {
+        content: &result.content,
+        locale: Some("de"),
+        source_locale: "en",
+        mode: CatalogMode::IcuFcl,
+        strict: false,
+    })
+    .expect("parse");
+    assert_eq!(parsed.messages.len(), 1);
+    assert_eq!(parsed.messages[0].msgid, "Hello");
+}
+
+#[test]
+fn infers_fcl_file_format_from_extension() {
+    let format = crate::CatalogFileFormat::infer_from_path(std::path::Path::new("messages.de.fcl"))
+        .expect("infer .fcl");
+    assert!(matches!(format, crate::CatalogFileFormat::Fcl));
+    assert_eq!(format.default_mode(), CatalogMode::IcuFcl);
+}
