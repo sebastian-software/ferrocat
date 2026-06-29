@@ -57,7 +57,7 @@ at that layer.
 
 ## Performance
 
-Most i18n catalog tooling for JavaScript and TypeScript runs on Node, where catalogs are parsed and rewritten in interpreted code. Ferrocat is compiled Rust with byte-oriented scanning and zero-copy parsing. On the same 10k-message gettext catalog, every tool reading the same files (Apple M1 Ultra, median of 10 runs):
+V8 is not a slow target. Node's JIT is one of the fastest dynamic runtimes ever shipped, which is why most JavaScript and TypeScript i18n tooling feels fine until you measure it against compiled Rust. Ferrocat is that compiled Rust: byte-oriented scanning, zero-copy parsing, and a merge that moves data instead of cloning it. On the same 10k-message gettext catalog, every tool reading the same files (Apple M1 Ultra, median of 10 runs):
 
 | Workload | Ferrocat | pofile-ts (Node) | gettext/gettext (PHP) | polib (Python) | GNU msgmerge |
 |---|---:|---:|---:|---:|---:|
@@ -65,6 +65,8 @@ Most i18n catalog tooling for JavaScript and TypeScript runs on Node, where cata
 | Update with new strings | **192 MiB/s** | 40 | 16 | 7 | 4 |
 
 None of this comes free with picking Rust. The hot path is written by hand: memchr scanning, NEON SIMD on Apple Silicon, borrowed parsing that never copies the source, and a merge that moves data instead of cloning it. Months of low-level work you inherit the moment you add the crate.
+
+Read the parse row carefully: it is the *smallest* lead in the table, and that is the honest part. Parsing is mostly raw scanning, and a warm JIT is genuinely good at raw scanning, so beating the quickest Node parser by roughly 3x is the hard-won number, not the flattering one. The release-time job is harder. Updating a catalog means parsing the existing file, parsing the freshly extracted strings, merging by exact identity, and serializing the result. Once allocation and output dominate, the JIT's edge fades and the zero-copy, move-not-clone hot path pulls away, so the same engine that is ~3x ahead on parse runs roughly 5x ahead on update and ~48x ahead of GNU `msgmerge`. The PHP and Python stacks have no JIT that helps here, which is why they trail by close to an order of magnitude even on parse.
 
 The parse row uses borrowed, zero-copy parsing; reading into a fully owned model still reaches 362 MiB/s. Serialization runs at about 1.16 GiB/s on the same corpus. The catalog-update comparison is strictly file-to-file (parse existing, parse freshly extracted strings, merge, serialize), so the numbers stay apples-to-apples. See the [benchmark methodology](https://sebastian-software.github.io/ferrocat/performance/benchmarking) and the checked-in reports under [`benchmark/results/`](benchmark/results) for the full matrix and host details.
 
