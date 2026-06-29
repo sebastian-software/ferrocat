@@ -49,7 +49,7 @@ const family: FamilyTool[] = [
   {
     name: "ferrocat",
     role: "Translation catalogs",
-    body: "PO, NDJSON, and ICU MessageFormat with merge, review, and audit. Parses several times faster than Node catalog tooling, and merges faster still.",
+    body: "PO, FCL, and ICU MessageFormat with merge, review, and audit. Parses several times faster than Node catalog tooling, and merges faster still.",
     icon: <Languages size={19} />,
     href: GITHUB,
     current: true,
@@ -141,7 +141,7 @@ const benefits = [
 const steps = [
   {
     label: "Parse",
-    body: "Read PO or NDJSON into one catalog model. Borrowed parsing keeps the hot path tight on large files.",
+    body: "Read PO or FCL into one catalog model. Borrowed parsing keeps the hot path tight on large files.",
   },
   {
     label: "Update",
@@ -177,10 +177,10 @@ const catalogModes = [
     body: "Keep translator-facing PO files while authoring placeholders, formatting, plurals, selects, and structural diagnostics.",
   },
   {
-    title: "Reviewable NDJSON",
-    storage: "NDJSON",
+    title: "Reviewable FCL",
+    storage: "FCL",
     semantics: "ICU MessageFormat",
-    body: "One message per line: easier to review, merge, stream, batch, and hand to external systems.",
+    body: "One entry per line: easier to review, merge, batch, and hand to external systems.",
   },
 ]
 

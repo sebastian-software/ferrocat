@@ -1,7 +1,0 @@
----
-format: ferrocat.ndjson.v1
-locale: de
-source_locale: en
----
-{"id":"missing translation"}
-{"id":"bad-json","str":

@@ -30,9 +30,9 @@ At the catalog layer, `ferrocat` supports three explicit modes:
 
 - classic Gettext catalog mode: Gettext PO + gettext-compatible plurals
 - ICU-native Gettext PO mode: Gettext PO + ICU MessageFormat
-- ICU-native NDJSON catalog mode: NDJSON catalog storage + ICU MessageFormat
+- ICU-native FCL catalog mode: FCL (Ferrocat Catalog Lines) storage + ICU MessageFormat
 
-`NDJSON + gettext-compatible plurals` is intentionally unsupported.
+`FCL + gettext-compatible plurals` is intentionally unsupported.
 
 Repository, docs, and contribution guidelines:
 

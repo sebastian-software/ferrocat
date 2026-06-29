@@ -35,7 +35,7 @@ fn compile_catalog_preserves_singular_translation_and_source_key() {
 }
 
 #[test]
-fn compile_catalog_artifact_matches_between_po_and_ndjson_storage() {
+fn compile_catalog_artifact_matches_between_po_and_fcl_storage() {
     let po_requested = normalized_catalog(
         concat!(
             "msgid \"About us\"\n",
@@ -46,27 +46,19 @@ fn compile_catalog_artifact_matches_between_po_and_ndjson_storage() {
         Some("de"),
         PluralEncoding::Icu,
     );
-    let ndjson_requested = normalized_ndjson_catalog(
+    let fcl_requested = normalized_fcl_catalog(
         concat!(
-            "---\n",
-            "format: ferrocat.ndjson.v1\n",
-            "locale: de\n",
-            "source_locale: en\n",
-            "---\n",
-            "{\"id\":\"About us\",\"str\":\"Ueber uns\"}\n",
-            "{\"id\":\"{count, plural, one {# file} other {# files}}\",\"str\":\"{count, plural, one {# Datei} other {# Dateien}}\"}\n",
+            "%FCL1\tsource=en\tlocale=de\n",
+            "About us\t\tUeber uns\n",
+            "{count, plural, one {# file} other {# files}}\t\t{count, plural, one {# Datei} other {# Dateien}}\n",
         ),
         Some("de"),
     );
-    let source = normalized_ndjson_catalog(
+    let source = normalized_fcl_catalog(
         concat!(
-            "---\n",
-            "format: ferrocat.ndjson.v1\n",
-            "locale: en\n",
-            "source_locale: en\n",
-            "---\n",
-            "{\"id\":\"About us\",\"str\":\"About us\"}\n",
-            "{\"id\":\"{count, plural, one {# file} other {# files}}\",\"str\":\"{count, plural, one {# file} other {# files}}\"}\n",
+            "%FCL1\tsource=en\tlocale=en\n",
+            "About us\t\tAbout us\n",
+            "{count, plural, one {# file} other {# files}}\t\t{count, plural, one {# file} other {# files}}\n",
         ),
         Some("en"),
     );
@@ -76,15 +68,15 @@ fn compile_catalog_artifact_matches_between_po_and_ndjson_storage() {
         &CompileCatalogArtifactOptions::new("de", "en"),
     )
     .expect("compile po artifact");
-    let ndjson_artifact = compile_catalog_artifact(
-        &[&ndjson_requested, &source],
+    let fcl_artifact = compile_catalog_artifact(
+        &[&fcl_requested, &source],
         &CompileCatalogArtifactOptions::new("de", "en"),
     )
-    .expect("compile ndjson artifact");
+    .expect("compile fcl artifact");
 
-    assert_eq!(po_artifact.messages, ndjson_artifact.messages);
-    assert_eq!(po_artifact.missing, ndjson_artifact.missing);
-    assert_eq!(po_artifact.diagnostics, ndjson_artifact.diagnostics);
+    assert_eq!(po_artifact.messages, fcl_artifact.messages);
+    assert_eq!(po_artifact.missing, fcl_artifact.missing);
+    assert_eq!(po_artifact.diagnostics, fcl_artifact.diagnostics);
 }
 
 #[test]

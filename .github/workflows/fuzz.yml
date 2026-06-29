@@ -31,8 +31,8 @@ jobs:
             seed_dir: seed-corpus/po
           - target: parse_catalog_po
             seed_dir: seed-corpus/po
-          - target: parse_catalog_ndjson
-            seed_dir: seed-corpus/ndjson
+          - target: parse_catalog_fcl
+            seed_dir: seed-corpus/fcl
           - target: parse_icu
             seed_dir: seed-corpus/icu
           - target: merge_catalog

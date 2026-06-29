@@ -5,9 +5,9 @@ and **fast parsing**. One entry per line, deterministically sorted. It is *not*
 meant for hand editing; the only non-API writer it must tolerate is git's
 3-way line merge.
 
-FCL is **ICU-native only** (like the NDJSON catalog format). Plurals live inside
-the ICU message string (`{count, plural, …}`), not as separate slots. Gettext
-plural-compat catalogs are not representable; use PO for those.
+FCL is **ICU-native only**. Plurals live inside the ICU message string
+(`{count, plural, …}`), not as separate slots. Gettext plural-compat catalogs
+are not representable; use PO for those.
 
 ## Why a line format (and why it beats PO)
 
@@ -91,6 +91,6 @@ design.
 - **FCL** — canonical, git-merged, fast machine artifact. Treat as generated
   (`.gitattributes linguist-generated`); do not hand-edit.
 - **PO** — gettext interop / human-readable export.
-- **NDJSON** — superseded by FCL for the machine/merge role (FCL is faster,
-  more compact, and merges as well while needing no JSON tooling). Slated for
-  removal once FCL is established.
+
+FCL replaces the earlier NDJSON catalog format in the machine/merge role: it is
+faster to parse, more compact, merges just as cleanly, and needs no JSON tooling.

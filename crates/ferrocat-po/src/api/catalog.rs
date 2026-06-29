@@ -19,7 +19,6 @@ use super::helpers::{
 use super::mt::{
     MachineTranslationMetadata, PO_MACHINE_TRANSLATION_KEY, parse_po_machine_translation_metadata,
 };
-use super::ndjson::parse_catalog_to_internal_ndjson;
 use super::plural::{PluralProfile, derive_plural_variable, expected_gettext_nplurals_for_locale};
 use super::{
     ApiError, CatalogMessage, CatalogMessageExtra, CatalogOrigin, CatalogSemantics, CatalogStats,
@@ -682,15 +681,14 @@ fn apply_storage_defaults(
             );
             Ok(())
         }
-        CatalogStorageFormat::Ndjson | CatalogStorageFormat::Fcl => {
+        CatalogStorageFormat::Fcl => {
             if options
                 .render
                 .custom_header_attributes
                 .is_some_and(|headers| !headers.is_empty())
             {
                 return Err(ApiError::Unsupported(
-                    "custom_header_attributes are not supported for NDJSON or FCL catalogs"
-                        .to_owned(),
+                    "custom_header_attributes are not supported for FCL catalogs".to_owned(),
                 ));
             }
             catalog.headers.clear();
@@ -719,13 +717,6 @@ pub(super) fn parse_catalog_to_internal(
             locale_override,
             semantics,
             plural_encoding,
-            strict,
-        ),
-        CatalogStorageFormat::Ndjson => parse_catalog_to_internal_ndjson(
-            content,
-            locale_override,
-            source_locale,
-            semantics,
             strict,
         ),
         CatalogStorageFormat::Fcl => super::fcl::parse_catalog_to_internal_fcl(

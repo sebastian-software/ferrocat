@@ -10,7 +10,7 @@
     { "id": "po-update/catalog-icu-heavy/ferrocat", "comparison_group": "po-update/catalog-icu-heavy", "workload": "po-merge-update", "operation": "update-catalog", "fixture": "catalog-icu-heavy", "implementation": "ferrocat-update-catalog", "warmup_runs": 1, "measured_runs": 3 },
 
     { "id": "catalog-storage-parse/catalog-modern-de-10000/po", "comparison_group": "catalog-storage-parse/catalog-modern-de-10000", "workload": "catalog-storage-parse", "operation": "parse-catalog", "fixture": "catalog-modern-de-10000", "implementation": "ferrocat-parse-catalog-po", "warmup_runs": 1, "measured_runs": 3 },
-    { "id": "catalog-storage-parse/catalog-modern-de-10000/ndjson", "comparison_group": "catalog-storage-parse/catalog-modern-de-10000", "workload": "catalog-storage-parse", "operation": "parse-catalog", "fixture": "catalog-modern-de-10000", "implementation": "ferrocat-parse-catalog-ndjson", "warmup_runs": 1, "measured_runs": 3 },
+    { "id": "catalog-storage-parse/catalog-modern-de-10000/fcl", "comparison_group": "catalog-storage-parse/catalog-modern-de-10000", "workload": "catalog-storage-parse", "operation": "parse-catalog", "fixture": "catalog-modern-de-10000", "implementation": "ferrocat-parse-catalog-fcl", "warmup_runs": 1, "measured_runs": 3 },
 
     { "id": "icu-parse/icu-nested-1000/ferrocat", "comparison_group": "icu-parse/icu-nested-1000", "workload": "icu-parse", "operation": "parse-icu", "fixture": "icu-nested-1000", "implementation": "ferrocat-parse-icu", "warmup_runs": 1, "measured_runs": 3 }
   ]

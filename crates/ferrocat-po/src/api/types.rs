@@ -457,17 +457,13 @@ pub struct CatalogCombineResult {
 /// File format used by disk-based catalog combine operations.
 ///
 /// This enum is non-exhaustive because Ferrocat can add additional catalog
-/// file formats over time. The NDJSON variant also accepts `.json` as a path
-/// inference alias for existing host integrations that expose Ferrocat NDJSON
-/// catalogs behind a generic JSON extension.
+/// file formats over time.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 #[non_exhaustive]
 pub enum CatalogFileFormat {
     /// Classic gettext PO catalog files.
     #[default]
     Po,
-    /// Ferrocat NDJSON catalog files.
-    Ndjson,
     /// Ferrocat Catalog Lines (`.fcl`) files.
     Fcl,
 }
@@ -475,8 +471,7 @@ pub enum CatalogFileFormat {
 impl CatalogFileFormat {
     /// Infers a catalog file format from a path extension.
     ///
-    /// Supported path suffixes are `.po`, `.ndjson`, `.fcat.ndjson`, and the
-    /// compatibility alias `.json`.
+    /// Supported path suffixes are `.po` and `.fcl`.
     ///
     /// # Errors
     ///
@@ -492,15 +487,12 @@ impl CatalogFileFormat {
         if name.ends_with(".po") {
             return Ok(Self::Po);
         }
-        if name.ends_with(".ndjson") || name.ends_with(".fcat.ndjson") || name.ends_with(".json") {
-            return Ok(Self::Ndjson);
-        }
         if name.ends_with(".fcl") {
             return Ok(Self::Fcl);
         }
 
         Err(ApiError::Unsupported(format!(
-            "could not infer catalog file format from `{}`; expected .po, .ndjson, .fcat.ndjson, .fcl, or .json",
+            "could not infer catalog file format from `{}`; expected .po or .fcl",
             path.display()
         )))
     }
@@ -508,7 +500,6 @@ impl CatalogFileFormat {
     pub(super) const fn default_mode(self) -> CatalogMode {
         match self {
             Self::Po => CatalogMode::IcuPo,
-            Self::Ndjson => CatalogMode::IcuNdjson,
             Self::Fcl => CatalogMode::IcuFcl,
         }
     }
@@ -525,7 +516,7 @@ pub struct CombineCatalogFilesOptions<'a> {
     /// input and output paths and requires all inferred formats to match.
     pub format: Option<CatalogFileFormat>,
     /// Optional high-level catalog mode. When `None`, Ferrocat chooses
-    /// `CatalogMode::IcuPo` for PO files and `CatalogMode::IcuNdjson` for NDJSON files.
+    /// `CatalogMode::IcuPo` for PO files and `CatalogMode::IcuFcl` for FCL files.
     pub mode: Option<CatalogMode>,
     /// Locale of the combined catalog. When `None`, Ferrocat uses the first input locale if present.
     pub locale: Option<&'a str>,
@@ -777,8 +768,6 @@ pub enum CatalogStorageFormat {
     /// Read and write classic gettext PO catalogs.
     #[default]
     Po,
-    /// Read and write Ferrocat's NDJSON catalog format with a small frontmatter header.
-    Ndjson,
     /// Read and write Ferrocat Catalog Lines (`.fcl`): a line-oriented,
     /// git-merge-optimized, machine-owned catalog format.
     Fcl,
@@ -822,13 +811,9 @@ pub enum CatalogMode {
     /// Gettext PO storage with ICU-native message semantics.
     #[default]
     IcuPo,
-    /// NDJSON storage with ICU-native message semantics.
-    IcuNdjson,
     /// Gettext PO storage with classic gettext plural semantics.
     GettextPo,
     /// FCL (Ferrocat Catalog Lines) storage with ICU-native message semantics.
-    ///
-    /// Kept last so existing variant discriminants stay stable for `as` casts.
     IcuFcl,
 }
 
@@ -838,7 +823,6 @@ impl CatalogMode {
     pub const fn storage_format(self) -> CatalogStorageFormat {
         match self {
             Self::IcuPo | Self::GettextPo => CatalogStorageFormat::Po,
-            Self::IcuNdjson => CatalogStorageFormat::Ndjson,
             Self::IcuFcl => CatalogStorageFormat::Fcl,
         }
     }
@@ -847,7 +831,7 @@ impl CatalogMode {
     #[must_use]
     pub const fn semantics(self) -> CatalogSemantics {
         match self {
-            Self::IcuPo | Self::IcuNdjson | Self::IcuFcl => CatalogSemantics::IcuNative,
+            Self::IcuPo | Self::IcuFcl => CatalogSemantics::IcuNative,
             Self::GettextPo => CatalogSemantics::GettextCompat,
         }
     }
@@ -856,7 +840,7 @@ impl CatalogMode {
     #[must_use]
     pub const fn plural_encoding(self) -> PluralEncoding {
         match self {
-            Self::IcuPo | Self::IcuNdjson | Self::IcuFcl => PluralEncoding::Icu,
+            Self::IcuPo | Self::IcuFcl => PluralEncoding::Icu,
             Self::GettextPo => PluralEncoding::Gettext,
         }
     }
@@ -872,8 +856,8 @@ impl CatalogMode {
             (CatalogStorageFormat::Po, CatalogSemantics::IcuNative, PluralEncoding::Icu) => {
                 Some(Self::IcuPo)
             }
-            (CatalogStorageFormat::Ndjson, CatalogSemantics::IcuNative, PluralEncoding::Icu) => {
-                Some(Self::IcuNdjson)
+            (CatalogStorageFormat::Fcl, CatalogSemantics::IcuNative, PluralEncoding::Icu) => {
+                Some(Self::IcuFcl)
             }
             (
                 CatalogStorageFormat::Po,
@@ -1459,13 +1443,8 @@ mod tests {
             CatalogFileFormat::Po
         );
         assert_eq!(
-            CatalogFileFormat::infer_from_path(Path::new("locale/de.fcat.ndjson"))
-                .expect("fcat ndjson"),
-            CatalogFileFormat::Ndjson
-        );
-        assert_eq!(
-            CatalogFileFormat::infer_from_path(Path::new("locale/de.json")).expect("json alias"),
-            CatalogFileFormat::Ndjson
+            CatalogFileFormat::infer_from_path(Path::new("locale/de.fcl")).expect("fcl"),
+            CatalogFileFormat::Fcl
         );
         assert!(matches!(
             CatalogFileFormat::infer_from_path(Path::new("locale/de.txt")),
@@ -1485,11 +1464,11 @@ mod tests {
 
         assert_eq!(
             CatalogMode::from_parts(
-                CatalogStorageFormat::Ndjson,
+                CatalogStorageFormat::Fcl,
                 CatalogSemantics::IcuNative,
                 PluralEncoding::Icu
             ),
-            Some(CatalogMode::IcuNdjson)
+            Some(CatalogMode::IcuFcl)
         );
         assert_eq!(
             CatalogMode::from_parts(
@@ -1501,7 +1480,7 @@ mod tests {
         );
         assert_eq!(
             CatalogMode::from_parts(
-                CatalogStorageFormat::Ndjson,
+                CatalogStorageFormat::Fcl,
                 CatalogSemantics::GettextCompat,
                 PluralEncoding::Gettext
             ),

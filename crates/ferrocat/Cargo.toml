@@ -21,7 +21,6 @@ full = ["catalog", "serde"]
 catalog = ["ferrocat-po/catalog", "ferrocat-icu/serde"]
 compile = ["catalog", "ferrocat-po/compile"]
 mt = ["catalog", "ferrocat-po/mt"]
-ndjson = ["catalog", "ferrocat-po/ndjson"]
 plurals = ["catalog", "ferrocat-po/plurals"]
 serde = ["ferrocat-po/serde", "ferrocat-icu/serde"]
 

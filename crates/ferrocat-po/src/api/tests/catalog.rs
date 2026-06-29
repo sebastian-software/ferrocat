@@ -146,78 +146,6 @@ fn parse_catalog_rejects_machine_translation_confidence_above_100() {
         ApiError::InvalidArguments(message) if message.contains("confidence")
     ));
 }
-
-#[test]
-fn update_catalog_roundtrips_valid_ndjson_machine_translation_metadata() {
-    let hash = machine_translation_hash(EffectiveTranslationRef::Singular("Hallo"));
-    let existing = format!(
-        "---\n\
-         format: ferrocat.ndjson.v1\n\
-         locale: de\n\
-         source_locale: en\n\
-         ---\n\
-         {{\"id\":\"Hello\",\"str\":\"Hallo\",\"mt\":{{\"model\":\"openai/gpt-5.5-high\",\"modified\":\"2026-05-12T10:30:00Z\",\"confidence\":95,\"hash\":\"{hash}\"}}}}\n"
-    );
-
-    let result = update_catalog(UpdateCatalogOptions {
-        source_locale: "en",
-        locale: Some("de"),
-        existing: Some(&existing),
-        mode: CatalogMode::IcuNdjson,
-        input: structured_input(vec![ExtractedMessage::Singular(ExtractedSingularMessage {
-            msgid: "Hello".to_owned(),
-            ..ExtractedSingularMessage::default()
-        })]),
-        ..UpdateCatalogOptions::new("en", CatalogUpdateInput::default())
-    })
-    .expect("update");
-
-    assert!(result.content.contains("format: ferrocat.ndjson.v1"));
-    assert!(result.content.contains("\"mt\""));
-    let parsed = normalized_ndjson_catalog(&result.content, Some("de"));
-    assert!(
-        parsed
-            .get_by_parts("Hello", None)
-            .and_then(|message| message.machine_translation.as_ref())
-            .is_some()
-    );
-}
-
-#[test]
-fn update_catalog_drops_stale_ndjson_machine_translation_metadata() {
-    let existing = concat!(
-        "---\n",
-        "format: ferrocat.ndjson.v1\n",
-        "locale: de\n",
-        "source_locale: en\n",
-        "---\n",
-        "{\"id\":\"Hello\",\"str\":\"Hallo\",\"mt\":{\"model\":\"openai/gpt-5.5-high\",\"confidence\":95,\"hash\":\"stale\"}}\n",
-    );
-
-    let result = update_catalog(UpdateCatalogOptions {
-        source_locale: "en",
-        locale: Some("de"),
-        existing: Some(existing),
-        mode: CatalogMode::IcuNdjson,
-        input: structured_input(vec![ExtractedMessage::Singular(ExtractedSingularMessage {
-            msgid: "Hello".to_owned(),
-            ..ExtractedSingularMessage::default()
-        })]),
-        ..UpdateCatalogOptions::new("en", CatalogUpdateInput::default())
-    })
-    .expect("update");
-
-    assert!(result.content.contains("format: ferrocat.ndjson.v1"));
-    assert!(!result.content.contains("\"mt\""));
-    let parsed = normalized_ndjson_catalog(existing, Some("de"));
-    assert!(
-        parsed
-            .get_by_parts("Hello", None)
-            .and_then(|message| message.machine_translation.as_ref())
-            .is_some()
-    );
-}
-
 #[test]
 fn overwrite_source_translations_refreshes_source_locale() {
     let existing = "msgid \"Hello\"\nmsgstr \"Old\"\n";
@@ -719,86 +647,6 @@ fn parse_catalog_strict_keeps_malformed_icu_plural_as_singular_in_native_mode() 
         TranslationShape::Singular { .. }
     ));
 }
-
-#[test]
-fn parse_catalog_ndjson_matches_po_semantics() {
-    let po = parse_catalog(ParseCatalogOptions {
-        content: concat!(
-            "msgctxt \"button\"\n",
-            "msgid \"Save\"\n",
-            "msgstr \"Speichern\"\n\n",
-            "#. placeholder {0}: count\n",
-            "msgid \"{count, plural, one {# file} other {# files}}\"\n",
-            "msgstr \"{count, plural, one {# Datei} other {# Dateien}}\"\n",
-        ),
-        locale: Some("de"),
-        source_locale: "en",
-        mode: CatalogMode::IcuPo,
-        strict: false,
-    })
-    .expect("parse po");
-    let ndjson = parse_catalog(ParseCatalogOptions {
-        content: concat!(
-            "---\n",
-            "format: ferrocat.ndjson.v1\n",
-            "locale: de\n",
-            "source_locale: en\n",
-            "---\n",
-            "{\"id\":\"Save\",\"ctx\":\"button\",\"str\":\"Speichern\"}\n",
-            "{\"id\":\"{count, plural, one {# file} other {# files}}\",\"str\":\"{count, plural, one {# Datei} other {# Dateien}}\",\"comments\":[\"placeholder {0}: count\"]}\n",
-        ),
-        locale: Some("de"),
-        source_locale: "en",
-        mode: CatalogMode::IcuNdjson,
-        strict: false,
-    })
-    .expect("parse ndjson");
-
-    assert_eq!(po, ndjson);
-}
-
-#[test]
-fn parse_catalog_ndjson_rejects_unknown_record_fields() {
-    let error = parse_catalog(ParseCatalogOptions {
-        content: concat!(
-            "---\n",
-            "format: ferrocat.ndjson.v1\n",
-            "locale: de\n",
-            "source_locale: en\n",
-            "---\n",
-            "{\"id\":\"About us\",\"str\":\"Ueber uns\",\"oops\":true}\n",
-        ),
-        mode: CatalogMode::IcuNdjson,
-        ..ParseCatalogOptions::new("", "en")
-    })
-    .expect_err("unknown ndjson fields should fail");
-
-    assert!(
-        matches!(error, ApiError::InvalidArguments(message) if message.contains("invalid NDJSON record"))
-    );
-}
-
-#[test]
-fn parse_catalog_ndjson_rejects_source_locale_mismatch() {
-    let error = parse_catalog(ParseCatalogOptions {
-        content: concat!(
-            "---\n",
-            "format: ferrocat.ndjson.v1\n",
-            "locale: de\n",
-            "source_locale: fr\n",
-            "---\n",
-            "{\"id\":\"About us\",\"str\":\"Ueber uns\"}\n",
-        ),
-        mode: CatalogMode::IcuNdjson,
-        ..ParseCatalogOptions::new("", "en")
-    })
-    .expect_err("source locale mismatch should fail");
-
-    assert!(
-        matches!(error, ApiError::InvalidArguments(message) if message.contains("source_locale"))
-    );
-}
-
 #[test]
 fn update_catalog_file_writes_only_when_changed() {
     let temp_dir = std::env::temp_dir().join("ferrocat-po-update-file-test");
@@ -864,106 +712,6 @@ fn update_catalog_file_read_error_includes_path_context() {
 
     let _ = fs::remove_dir_all(&temp_dir);
 }
-
-#[test]
-fn update_catalog_ndjson_renders_frontmatter_and_roundtrips() {
-    let result = update_catalog(UpdateCatalogOptions {
-        source_locale: "en",
-        locale: Some("de"),
-        mode: CatalogMode::IcuNdjson,
-        input: structured_input(vec![
-            ExtractedMessage::Singular(ExtractedSingularMessage {
-                msgid: "About us".to_owned(),
-                msgctxt: Some("nav".to_owned()),
-                comments: vec!["Main navigation".to_owned()],
-                origin: vec![CatalogOrigin {
-                    file: "src/nav.rs".to_owned(),
-                    line: Some(4),
-                }],
-                ..ExtractedSingularMessage::default()
-            }),
-            ExtractedMessage::Plural(ExtractedPluralMessage {
-                msgid: "{count, plural, one {# file} other {# files}}".to_owned(),
-                source: PluralSource {
-                    one: Some("# file".to_owned()),
-                    other: "# files".to_owned(),
-                },
-                placeholders: BTreeMap::from([("0".to_owned(), vec!["count".to_owned()])]),
-                ..ExtractedPluralMessage::default()
-            }),
-        ]),
-        ..UpdateCatalogOptions::new("en", CatalogUpdateInput::default())
-    })
-    .expect("update ndjson");
-
-    assert!(
-        result
-            .content
-            .starts_with("---\nformat: ferrocat.ndjson.v1\n")
-    );
-    assert!(result.content.contains("\"ctx\":\"nav\""));
-
-    let reparsed = parse_catalog(ParseCatalogOptions {
-        content: &result.content,
-        locale: Some("de"),
-        source_locale: "en",
-        mode: CatalogMode::IcuNdjson,
-        strict: false,
-    })
-    .expect("reparse ndjson");
-
-    assert_eq!(reparsed.locale.as_deref(), Some("de"));
-    assert_eq!(reparsed.messages.len(), 2);
-    assert!(matches!(
-        reparsed.messages[1].translation,
-        TranslationShape::Singular { .. }
-    ));
-}
-
-#[test]
-fn update_catalog_file_ndjson_writes_only_when_changed() {
-    let temp_dir = std::env::temp_dir().join("ferrocat-po-update-ndjson-file-test");
-    let _ = fs::remove_dir_all(&temp_dir);
-    fs::create_dir_all(&temp_dir).expect("create temp dir");
-    let path = temp_dir.join("messages.fcat.ndjson");
-
-    let first = update_catalog_file(UpdateCatalogFileOptions {
-        target_path: &path,
-        options: UpdateCatalogOptions {
-            locale: Some("en"),
-            mode: CatalogMode::IcuNdjson,
-            input: structured_input(vec![ExtractedMessage::Singular(ExtractedSingularMessage {
-                msgid: "Hello".to_owned(),
-                ..ExtractedSingularMessage::default()
-            })]),
-            ..UpdateCatalogOptions::new("en", CatalogUpdateInput::default())
-        },
-    })
-    .expect("first ndjson write");
-    assert!(first.created);
-
-    let second = update_catalog_file(UpdateCatalogFileOptions {
-        target_path: &path,
-        options: UpdateCatalogOptions {
-            locale: Some("en"),
-            mode: CatalogMode::IcuNdjson,
-            input: structured_input(vec![ExtractedMessage::Singular(ExtractedSingularMessage {
-                msgid: "Hello".to_owned(),
-                ..ExtractedSingularMessage::default()
-            })]),
-            ..UpdateCatalogOptions::new("en", CatalogUpdateInput::default())
-        },
-    })
-    .expect("second ndjson write");
-    assert!(!second.created);
-    assert!(!second.updated);
-
-    let written = fs::read_to_string(&path).expect("read ndjson output");
-    assert!(written.contains("\"id\":\"Hello\""));
-
-    let _ = fs::remove_dir_all(&temp_dir);
-}
-
 #[test]
 fn update_catalog_gettext_export_emits_plural_slots() {
     let result = update_catalog(UpdateCatalogOptions {
@@ -1459,30 +1207,6 @@ fn update_catalog_origin_sort_and_placeholder_options_are_applied() {
     .expect("update without placeholder comments");
     assert!(!without_placeholders.content.contains("placeholder"));
 }
-
-#[test]
-fn update_catalog_ndjson_rejects_custom_header_attributes() {
-    let headers = BTreeMap::from([("X-Product".to_owned(), "Ferrocat".to_owned())]);
-
-    let error = update_catalog(UpdateCatalogOptions {
-        source_locale: "en",
-        locale: Some("en"),
-        mode: CatalogMode::IcuNdjson,
-        render: RenderOptions {
-            custom_header_attributes: Some(&headers),
-            ..RenderOptions::default()
-        },
-        input: structured_input(vec![ExtractedMessage::Singular(ExtractedSingularMessage {
-            msgid: "Hello".to_owned(),
-            ..ExtractedSingularMessage::default()
-        })]),
-        ..UpdateCatalogOptions::new("en", CatalogUpdateInput::default())
-    })
-    .expect_err("custom ndjson headers should fail");
-
-    assert!(matches!(error, ApiError::Unsupported(message) if message.contains("NDJSON")));
-}
-
 #[test]
 fn update_catalog_file_rejects_empty_target_path() {
     let error = update_catalog_file(UpdateCatalogFileOptions {
@@ -2095,67 +1819,6 @@ fn combine_catalog_files_treats_contexts_as_distinct_and_skips_obsolete_entries(
 
     let _ = fs::remove_dir_all(temp_dir);
 }
-
-#[test]
-fn combine_catalog_files_infers_json_paths_as_ndjson() {
-    let temp_dir = unique_catalog_temp_dir("combine-files-ndjson");
-    let ours = temp_dir.join("ours.json");
-    let theirs = temp_dir.join("theirs.json");
-    let output = temp_dir.join("merged.json");
-    fs::write(
-        &ours,
-        concat!(
-            "---\n",
-            "format: ferrocat.ndjson.v1\n",
-            "source_locale: en\n",
-            "locale: de\n",
-            "---\n",
-            "{\"id\":\"Hello\",\"str\":\"Hallo\"}\n",
-        ),
-    )
-    .expect("write ours");
-    fs::write(
-        &theirs,
-        concat!(
-            "---\n",
-            "format: ferrocat.ndjson.v1\n",
-            "source_locale: en\n",
-            "locale: de\n",
-            "---\n",
-            "{\"id\":\"Hello\",\"str\":\"Servus\"}\n",
-            "{\"id\":\"New\",\"str\":\"Neu\",\"ctx\":\"nav\"}\n",
-        ),
-    )
-    .expect("write theirs");
-    let input_paths = vec![ours, theirs];
-
-    let result = combine_catalog_files(CombineCatalogFilesOptions {
-        input_paths: &input_paths,
-        output_path: &output,
-        locale: Some("de"),
-        ..CombineCatalogFilesOptions::new(&[], &output, "en")
-    })
-    .expect("combine ndjson files");
-
-    assert_eq!(result.format, CatalogFileFormat::Ndjson);
-    let parsed = normalized_ndjson_catalog(
-        &fs::read_to_string(output).expect("read output"),
-        Some("de"),
-    );
-    assert_eq!(
-        parsed.get_by_parts("Hello", None).and_then(|message| {
-            match message.effective_translation() {
-                EffectiveTranslationRef::Singular(value) => Some(value),
-                EffectiveTranslationRef::Plural(_) => None,
-            }
-        }),
-        Some("Hallo")
-    );
-    assert!(parsed.contains_parts("New", Some("nav")));
-
-    let _ = fs::remove_dir_all(temp_dir);
-}
-
 #[test]
 fn combine_catalog_files_leaves_output_unchanged_when_format_is_unsupported() {
     let temp_dir = unique_catalog_temp_dir("combine-files-unsupported");
@@ -2237,19 +1900,9 @@ fn combine_catalog_files_rejects_empty_input_paths() {
 #[test]
 fn combine_catalog_files_rejects_mode_that_does_not_match_file_format() {
     let temp_dir = unique_catalog_temp_dir("combine-files-mode-mismatch");
-    let input = temp_dir.join("ours.json");
-    let output = temp_dir.join("merged.json");
-    fs::write(
-        &input,
-        concat!(
-            "---\n",
-            "format: ferrocat.ndjson.v1\n",
-            "source_locale: en\n",
-            "---\n",
-            "{\"id\":\"Hello\",\"str\":\"Hallo\"}\n",
-        ),
-    )
-    .expect("write input");
+    let input = temp_dir.join("ours.fcl");
+    let output = temp_dir.join("merged.fcl");
+    fs::write(&input, "%FCL1\tsource=en\nHello\t\tHallo\n").expect("write input");
     fs::write(&output, "unchanged").expect("write output");
     let input_paths = vec![input];
 
@@ -2303,20 +1956,10 @@ fn combine_catalog_files_leaves_output_unchanged_when_input_read_fails() {
 fn combine_catalog_files_leaves_output_unchanged_when_formats_are_mixed() {
     let temp_dir = unique_catalog_temp_dir("combine-files-mixed");
     let ours = temp_dir.join("ours.po");
-    let theirs = temp_dir.join("theirs.ndjson");
+    let theirs = temp_dir.join("theirs.fcl");
     let output = temp_dir.join("merged.po");
     fs::write(&ours, "msgid \"Hello\"\nmsgstr \"Hallo\"\n").expect("write ours");
-    fs::write(
-        &theirs,
-        concat!(
-            "---\n",
-            "format: ferrocat.ndjson.v1\n",
-            "source_locale: en\n",
-            "---\n",
-            "{\"id\":\"New\",\"str\":\"Neu\"}\n",
-        ),
-    )
-    .expect("write theirs");
+    fs::write(&theirs, "%FCL1\tsource=en\nNew\t\tNeu\n").expect("write theirs");
     fs::write(&output, "unchanged").expect("write output");
     let input_paths = vec![ours, theirs];
 

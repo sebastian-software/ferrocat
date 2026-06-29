@@ -2,19 +2,23 @@
 //!
 //! A line-oriented, machine-owned catalog encoding optimized for git merge and
 //! fast parsing: one entry per line, deterministically sorted by `(id, ctxt)`,
-//! minimal escaping (`\n \t \\`). FCL is a different *encoding* of the same
-//! record the NDJSON path uses, so it reuses
-//! [`canonical_message_from_record`]/[`ndjson_record_from_canonical`] and stays
-//! equivalent to NDJSON by construction.
+//! minimal escaping (`\n \t \\`). The codec parses and serializes
+//! [`CanonicalMessage`] directly, reusing the shared plural/placeholder/MT
+//! helpers so it stays equivalent to the catalog's canonical representation.
 
 use std::borrow::Cow;
 use std::cmp::Ordering;
 use std::collections::BTreeMap;
 
 use super::catalog::{CanonicalMessage, CanonicalTranslation, Catalog, split_placeholder_comments};
-use super::mt::{MachineTranslationMetadata, validate_machine_translation_metadata};
-use super::ndjson::{NdjsonRecord, ndjson_record_from_canonical};
-use super::{ApiError, CatalogOrigin, CatalogSemantics, PlaceholderCommentMode};
+use super::export::{append_placeholder_comments, plural_source_branches};
+use super::mt::{
+    MachineTranslationMetadata, machine_translation_hash, validate_machine_translation_metadata,
+};
+use super::plural::synthesize_icu_plural;
+use super::{
+    ApiError, CatalogOrigin, CatalogSemantics, EffectiveTranslationRef, PlaceholderCommentMode,
+};
 use crate::PoVec;
 
 const FCL_MAGIC: &str = "%FCL1";
@@ -78,16 +82,47 @@ fn write_tag(out: &mut String, key: &str, value: &str) {
     escape_into(out, value);
 }
 
-fn write_entry(out: &mut String, record: &NdjsonRecord) {
-    escape_into(out, &record.id);
+/// The FCL `id` column for a message: the source msgid for singular messages,
+/// or the ICU plural string synthesized from the source forms for plurals
+/// (matching how the catalog round-trips ICU-native plurals).
+fn fcl_id(message: &CanonicalMessage) -> Cow<'_, str> {
+    match &message.translation {
+        CanonicalTranslation::Singular { .. } => Cow::Borrowed(message.msgid.as_str()),
+        CanonicalTranslation::Plural {
+            source, variable, ..
+        } => Cow::Owned(synthesize_icu_plural(
+            variable,
+            &plural_source_branches(source),
+        )),
+    }
+}
+
+/// The FCL `target` column: the translation value, or the synthesized ICU plural.
+fn fcl_target(message: &CanonicalMessage) -> Cow<'_, str> {
+    match &message.translation {
+        CanonicalTranslation::Singular { value } => Cow::Borrowed(value.as_str()),
+        CanonicalTranslation::Plural {
+            translation_by_category,
+            variable,
+            ..
+        } => Cow::Owned(synthesize_icu_plural(variable, translation_by_category)),
+    }
+}
+
+fn write_entry(
+    out: &mut String,
+    message: &CanonicalMessage,
+    placeholder_mode: &PlaceholderCommentMode,
+) {
+    escape_into(out, &fcl_id(message));
     out.push('\t');
-    escape_into(out, record.ctx.as_deref().unwrap_or(""));
+    escape_into(out, message.msgctxt.as_deref().unwrap_or(""));
     out.push('\t');
-    escape_into(out, &record.str);
+    escape_into(out, &fcl_target(message));
 
     // Canonical tag order: r (sorted), c, tc, f (sorted), o, mt.*
-    let mut refs = record
-        .origin
+    let mut refs = message
+        .origins
         .iter()
         .map(|origin| match origin.line {
             Some(line) => format!("{}:{line}", origin.file),
@@ -98,34 +133,52 @@ fn write_entry(out: &mut String, record: &NdjsonRecord) {
     for reference in &refs {
         write_tag(out, "r", reference);
     }
-    for comment in &record.comments {
+
+    // Extracted comments plus the placeholder comments folded back in, matching
+    // the catalog's comment round-trip.
+    let mut comments = message.comments.clone();
+    append_placeholder_comments(&mut comments, &message.placeholders, placeholder_mode);
+    for comment in &comments {
         write_tag(out, "c", comment);
     }
-    if let Some(extra) = &record.extra {
-        for comment in &extra.translator_comments {
-            write_tag(out, "tc", comment);
-        }
-        let mut flags = extra.flags.clone();
-        flags.sort_unstable();
-        for flag in &flags {
-            write_tag(out, "f", flag);
-        }
+
+    for comment in &message.translator_comments {
+        write_tag(out, "tc", comment);
     }
-    if record.obsolete {
+    let mut flags = message.flags.clone();
+    flags.sort_unstable();
+    for flag in &flags {
+        write_tag(out, "f", flag);
+    }
+    if message.obsolete {
         out.push_str("\to");
     }
-    if let Some(mt) = &record.mt {
-        write_tag(out, "mt.model", &mt.model);
-        if let Some(confidence) = mt.confidence {
-            out.push_str("\tmt.conf=");
-            out.push_str(&confidence.to_string());
+
+    // The MT block is only emitted when its hash still matches the translation
+    // (stale machine translations are dropped).
+    if let Some(mt) = message.machine_translation.as_ref() {
+        let translation_ref = match &message.translation {
+            CanonicalTranslation::Singular { value } => EffectiveTranslationRef::Singular(value),
+            CanonicalTranslation::Plural {
+                translation_by_category,
+                ..
+            } => EffectiveTranslationRef::Plural(translation_by_category),
+        };
+        if validate_machine_translation_metadata(mt).is_ok()
+            && mt.hash == machine_translation_hash(translation_ref)
+        {
+            write_tag(out, "mt.model", &mt.model);
+            if let Some(confidence) = mt.confidence {
+                out.push_str("\tmt.conf=");
+                out.push_str(&confidence.to_string());
+            }
+            write_tag(out, "mt.hash", &mt.hash);
         }
-        write_tag(out, "mt.hash", &mt.hash);
     }
     out.push('\n');
 }
 
-/// Renders an internal [`Catalog`] as FCL text.
+/// Renders an internal [`Catalog`] as FCL text, sorted canonically by (id, ctxt).
 pub(super) fn stringify_catalog_fcl(
     catalog: &Catalog,
     locale: Option<&str>,
@@ -140,14 +193,10 @@ pub(super) fn stringify_catalog_fcl(
     }
     out.push('\n');
 
-    let mut records = catalog
-        .messages
-        .iter()
-        .map(|message| ndjson_record_from_canonical(message, placeholder_comment_mode))
-        .collect::<Vec<_>>();
-    records.sort_by(|a, b| (&a.id, &a.ctx).cmp(&(&b.id, &b.ctx)));
-    for record in &records {
-        write_entry(&mut out, record);
+    let mut messages: Vec<&CanonicalMessage> = catalog.messages.iter().collect();
+    messages.sort_by_cached_key(|message| (fcl_id(message).into_owned(), message.msgctxt.clone()));
+    for message in messages {
+        write_entry(&mut out, message, placeholder_comment_mode);
     }
     out
 }
@@ -192,10 +241,8 @@ fn parse_header(line: &str, source_locale: &str) -> Result<Option<String>, ApiEr
     Ok(locale)
 }
 
-/// Parses one FCL entry line directly into a [`CanonicalMessage`], skipping the
-/// `NdjsonRecord` intermediate (and its origins re-collect) used on the
-/// serialize side. The field-to-canonical mapping mirrors
-/// `ndjson::canonical_message_from_record` so the two formats stay equivalent.
+/// Parses one FCL entry line directly into a [`CanonicalMessage`], building the
+/// owned fields in a single pass without an intermediate record.
 fn parse_entry(line: &str) -> Result<CanonicalMessage, ApiError> {
     let mut fields = line.split('\t');
     let msgid = unescape(field(&mut fields, "id")?)?.into_owned();
@@ -482,38 +529,6 @@ mod tests {
             )
             .is_err()
         );
-    }
-
-    #[test]
-    fn fcl_and_ndjson_parse_to_identical_catalogs() {
-        // FCL's direct-build path hand-replicates the record-to-canonical mapping
-        // that NDJSON reuses. This differential test guards against the two
-        // diverging: equivalent FCL and NDJSON input must yield the same catalog.
-        let fcl = format!(
-            "{FCL_MAGIC}\tsource=en\tlocale=de\n\
-             greeting\t\tHallo {{name}}\tr=src/a.tsx:12\tc=Shown in header\n\
-             menu.save\tbar\tSpeichern\tf=fuzzy\to\n"
-        );
-        let ndjson = concat!(
-            "---\nformat: ferrocat.ndjson.v1\nlocale: de\nsource_locale: en\n---\n",
-            "{\"id\":\"greeting\",\"str\":\"Hallo {name}\",\"comments\":[\"Shown in header\"],",
-            "\"origin\":[{\"file\":\"src/a.tsx\",\"line\":12}]}\n",
-            "{\"id\":\"menu.save\",\"str\":\"Speichern\",\"ctx\":\"bar\",\"obsolete\":true,",
-            "\"extra\":{\"flags\":[\"fuzzy\"]}}\n",
-        );
-
-        let from_fcl =
-            parse_catalog_to_internal_fcl(&fcl, None, "en", CatalogSemantics::IcuNative, false)
-                .expect("parse FCL");
-        let from_ndjson = super::super::ndjson::parse_catalog_to_internal_ndjson(
-            ndjson,
-            None,
-            "en",
-            CatalogSemantics::IcuNative,
-            false,
-        )
-        .expect("parse NDJSON");
-        assert_eq!(from_fcl, from_ndjson);
     }
 
     fn parse_err(text: &str) -> bool {
