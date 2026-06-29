@@ -8,14 +8,14 @@
 //! equivalent to NDJSON by construction.
 
 use std::borrow::Cow;
-use std::collections::{BTreeMap, BTreeSet};
+use std::cmp::Ordering;
+use std::collections::BTreeMap;
 
-use super::catalog::Catalog;
-use super::mt::MachineTranslationMetadata;
-use super::ndjson::{
-    NdjsonOrigin, NdjsonRecord, canonical_message_from_record, ndjson_record_from_canonical,
-};
-use super::{ApiError, CatalogSemantics, PlaceholderCommentMode};
+use super::catalog::{CanonicalMessage, CanonicalTranslation, Catalog, split_placeholder_comments};
+use super::mt::{MachineTranslationMetadata, validate_machine_translation_metadata};
+use super::ndjson::{NdjsonRecord, ndjson_record_from_canonical};
+use super::{ApiError, CatalogOrigin, CatalogSemantics, PlaceholderCommentMode};
+use crate::PoVec;
 
 const FCL_MAGIC: &str = "%FCL1";
 
@@ -192,55 +192,47 @@ fn parse_header(line: &str, source_locale: &str) -> Result<Option<String>, ApiEr
     Ok(locale)
 }
 
-fn parse_entry(line: &str) -> Result<NdjsonRecord, ApiError> {
+/// Parses one FCL entry line directly into a [`CanonicalMessage`], skipping the
+/// `NdjsonRecord` intermediate (and its origins re-collect) used on the
+/// serialize side. The field-to-canonical mapping mirrors
+/// `ndjson::canonical_message_from_record` so the two formats stay equivalent.
+fn parse_entry(line: &str) -> Result<CanonicalMessage, ApiError> {
     let mut fields = line.split('\t');
-    let id = unescape(field(&mut fields, "id")?)?.into_owned();
+    let msgid = unescape(field(&mut fields, "id")?)?.into_owned();
     let ctx_raw = unescape(field(&mut fields, "ctxt")?)?.into_owned();
-    let target = unescape(field(&mut fields, "target")?)?.into_owned();
+    let value = unescape(field(&mut fields, "target")?)?.into_owned();
 
-    let mut record = NdjsonRecord {
-        id,
-        str: target,
-        ctx: (!ctx_raw.is_empty()).then_some(ctx_raw),
-        comments: Vec::new(),
-        origin: Vec::new(),
-        obsolete: false,
-        extra: None,
-        mt: None,
-    };
+    let msgctxt = (!ctx_raw.is_empty()).then_some(ctx_raw);
+    let mut origins: PoVec<CatalogOrigin> = PoVec::new();
+    let mut raw_comments: Vec<String> = Vec::new();
+    let mut translator_comments: Vec<String> = Vec::new();
+    let mut flags: Vec<String> = Vec::new();
+    let mut obsolete = false;
     let mut mt_model = None;
     let mut mt_conf = None;
     let mut mt_hash = None;
 
     for tag in fields {
         if tag == "o" {
-            record.obsolete = true;
+            obsolete = true;
             continue;
         }
-        let (key, value) = tag
+        let (key, raw_value) = tag
             .split_once('=')
             .ok_or_else(|| ApiError::InvalidArguments(format!("invalid FCL tag {tag:?}")))?;
-        let value = unescape(value)?.into_owned();
+        let owned = unescape(raw_value)?.into_owned();
         match key {
-            "r" => record.origin.push(parse_origin(value)),
-            "c" => record.comments.push(value),
-            "tc" => record
-                .extra
-                .get_or_insert_with(Default::default)
-                .translator_comments
-                .push(value),
-            "f" => record
-                .extra
-                .get_or_insert_with(Default::default)
-                .flags
-                .push(value),
-            "mt.model" => mt_model = Some(value),
+            "r" => origins.push(parse_origin(owned)),
+            "c" => raw_comments.push(owned),
+            "tc" => translator_comments.push(owned),
+            "f" => flags.push(owned),
+            "mt.model" => mt_model = Some(owned),
             "mt.conf" => {
-                mt_conf = Some(value.parse::<u8>().map_err(|_| {
-                    ApiError::InvalidArguments(format!("invalid FCL mt.conf value {value:?}"))
+                mt_conf = Some(owned.parse::<u8>().map_err(|_| {
+                    ApiError::InvalidArguments(format!("invalid FCL mt.conf value {owned:?}"))
                 })?);
             }
-            "mt.hash" => mt_hash = Some(value),
+            "mt.hash" => mt_hash = Some(owned),
             other => {
                 return Err(ApiError::InvalidArguments(format!(
                     "unknown FCL tag key {other:?}"
@@ -249,8 +241,8 @@ fn parse_entry(line: &str) -> Result<NdjsonRecord, ApiError> {
         }
     }
 
-    if mt_model.is_some() || mt_hash.is_some() || mt_conf.is_some() {
-        record.mt = Some(MachineTranslationMetadata {
+    let machine_translation = if mt_model.is_some() || mt_hash.is_some() || mt_conf.is_some() {
+        let metadata = MachineTranslationMetadata {
             model: mt_model.ok_or_else(|| {
                 ApiError::InvalidArguments(
                     "FCL `mt.model` is required when `mt.*` present".to_owned(),
@@ -263,10 +255,27 @@ fn parse_entry(line: &str) -> Result<NdjsonRecord, ApiError> {
                     "FCL `mt.hash` is required when `mt.*` present".to_owned(),
                 )
             })?,
-        });
-    }
+        };
+        validate_machine_translation_metadata(&metadata)?;
+        Some(metadata)
+    } else {
+        None
+    };
 
-    Ok(record)
+    let (comments, placeholders) = split_placeholder_comments(raw_comments);
+
+    Ok(CanonicalMessage {
+        msgid,
+        msgctxt,
+        translation: CanonicalTranslation::Singular { value },
+        comments,
+        origins,
+        placeholders,
+        obsolete,
+        machine_translation,
+        translator_comments,
+        flags,
+    })
 }
 
 fn field<'a>(fields: &mut impl Iterator<Item = &'a str>, name: &str) -> Result<&'a str, ApiError> {
@@ -275,20 +284,24 @@ fn field<'a>(fields: &mut impl Iterator<Item = &'a str>, name: &str) -> Result<&
         .ok_or_else(|| ApiError::InvalidArguments(format!("FCL entry is missing the {name} field")))
 }
 
-fn parse_origin(value: String) -> NdjsonOrigin {
-    match value.rsplit_once(':') {
-        Some((file, line))
-            if !line.is_empty() && line.bytes().all(|byte| byte.is_ascii_digit()) =>
-        {
-            NdjsonOrigin {
-                file: file.to_owned(),
-                line: line.parse().ok(),
-            }
-        }
-        _ => NdjsonOrigin {
+/// Splits a `file:line` reference into a [`CatalogOrigin`], reusing the owned
+/// `value` buffer for the file part instead of allocating a fresh string.
+fn parse_origin(mut value: String) -> CatalogOrigin {
+    if let Some((file, line)) = value.rsplit_once(':')
+        && !line.is_empty()
+        && line.bytes().all(|byte| byte.is_ascii_digit())
+    {
+        let parsed = line.parse::<u32>().ok();
+        let file_len = file.len();
+        value.truncate(file_len);
+        return CatalogOrigin {
             file: value,
-            line: None,
-        },
+            line: parsed,
+        };
+    }
+    CatalogOrigin {
+        file: value,
+        line: None,
     }
 }
 
@@ -314,8 +327,7 @@ pub(super) fn parse_catalog_to_internal_fcl(
     let frontmatter_locale = parse_header(header, source_locale)?;
     let locale = locale_override.map(str::to_owned).or(frontmatter_locale);
 
-    let mut messages = Vec::new();
-    let mut seen = BTreeSet::<(String, Option<String>)>::new();
+    let mut messages: Vec<CanonicalMessage> = Vec::new();
     for (index, line) in lines {
         if line.is_empty() {
             continue;
@@ -326,16 +338,33 @@ pub(super) fn parse_catalog_to_internal_fcl(
                 index + 1
             )));
         }
-        let record = parse_entry(line).map_err(|error| {
+        let message = parse_entry(line).map_err(|error| {
             ApiError::InvalidArguments(format!("invalid FCL entry on line {}: {error}", index + 1))
         })?;
-        if !seen.insert((record.id.clone(), record.ctx.clone())) {
-            return Err(ApiError::Conflict(format!(
-                "duplicate FCL entry for id {:?} and context {:?}",
-                record.id, record.ctx
-            )));
+        // FCL entries are canonically sorted by (id, ctxt), so duplicates are
+        // adjacent: comparing against the previous entry detects both
+        // duplicates and out-of-order corruption without cloning keys or
+        // maintaining a set.
+        if let Some(previous) = messages.last() {
+            match (message.msgid.as_str(), message.msgctxt.as_deref())
+                .cmp(&(previous.msgid.as_str(), previous.msgctxt.as_deref()))
+            {
+                Ordering::Greater => {}
+                Ordering::Equal => {
+                    return Err(ApiError::Conflict(format!(
+                        "duplicate FCL entry for id {:?} and context {:?}",
+                        message.msgid, message.msgctxt
+                    )));
+                }
+                Ordering::Less => {
+                    return Err(ApiError::InvalidArguments(format!(
+                        "FCL entries must be sorted by (id, ctxt); line {} is out of order",
+                        index + 1
+                    )));
+                }
+            }
         }
-        messages.push(canonical_message_from_record(record)?);
+        messages.push(message);
     }
 
     Ok(Catalog {
@@ -414,8 +443,9 @@ mod tests {
     }
 
     #[test]
-    fn entries_are_sorted_by_id_then_ctxt() {
-        let text = format!("{FCL_MAGIC}\tsource=en\nbeta\t\tB\nalpha\t\tA\nalpha\tmenu\tA2\n");
+    fn accepts_canonically_sorted_entries() {
+        // Already-sorted by (id, ctxt): empty context sorts before "menu".
+        let text = format!("{FCL_MAGIC}\tsource=en\nalpha\t\tA\nalpha\tmenu\tA2\nbeta\t\tB\n");
         let sorted = roundtrip(&text);
         let ids: Vec<&str> = sorted
             .lines()
@@ -423,5 +453,66 @@ mod tests {
             .map(|line| line.split('\t').next().unwrap_or_default())
             .collect();
         assert_eq!(ids, ["alpha", "alpha", "beta"]);
+    }
+
+    #[test]
+    fn rejects_out_of_order_and_duplicate_entries() {
+        // FCL is a canonical, machine-owned format: the reader enforces the
+        // sorted-and-unique invariant rather than silently re-sorting.
+        let out_of_order = format!("{FCL_MAGIC}\tsource=en\nbeta\t\tB\nalpha\t\tA\n");
+        assert!(
+            parse_catalog_to_internal_fcl(
+                &out_of_order,
+                None,
+                "en",
+                CatalogSemantics::IcuNative,
+                false
+            )
+            .is_err()
+        );
+
+        let duplicate = format!("{FCL_MAGIC}\tsource=en\nalpha\t\tA\nalpha\t\tB\n");
+        assert!(
+            parse_catalog_to_internal_fcl(
+                &duplicate,
+                None,
+                "en",
+                CatalogSemantics::IcuNative,
+                false
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn fcl_and_ndjson_parse_to_identical_catalogs() {
+        // FCL's direct-build path hand-replicates the record-to-canonical mapping
+        // that NDJSON reuses. This differential test guards against the two
+        // diverging: equivalent FCL and NDJSON input must yield the same catalog.
+        let fcl = format!(
+            "{FCL_MAGIC}\tsource=en\tlocale=de\n\
+             greeting\t\tHallo {{name}}\tr=src/a.tsx:12\tc=Shown in header\n\
+             menu.save\tbar\tSpeichern\tf=fuzzy\to\n"
+        );
+        let ndjson = concat!(
+            "---\nformat: ferrocat.ndjson.v1\nlocale: de\nsource_locale: en\n---\n",
+            "{\"id\":\"greeting\",\"str\":\"Hallo {name}\",\"comments\":[\"Shown in header\"],",
+            "\"origin\":[{\"file\":\"src/a.tsx\",\"line\":12}]}\n",
+            "{\"id\":\"menu.save\",\"str\":\"Speichern\",\"ctx\":\"bar\",\"obsolete\":true,",
+            "\"extra\":{\"flags\":[\"fuzzy\"]}}\n",
+        );
+
+        let from_fcl =
+            parse_catalog_to_internal_fcl(&fcl, None, "en", CatalogSemantics::IcuNative, false)
+                .expect("parse FCL");
+        let from_ndjson = super::super::ndjson::parse_catalog_to_internal_ndjson(
+            ndjson,
+            None,
+            "en",
+            CatalogSemantics::IcuNative,
+            false,
+        )
+        .expect("parse NDJSON");
+        assert_eq!(from_fcl, from_ndjson);
     }
 }
