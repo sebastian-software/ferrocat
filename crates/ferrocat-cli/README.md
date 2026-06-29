@@ -13,6 +13,10 @@ ferrocat audit \
   --format text
 ```
 
+`ferrocat-cli` releases include a prebuilt `x86_64-unknown-linux-musl` archive
+named `ferrocat-<version>-x86_64-unknown-linux-musl.tar.gz`. The release
+workflow smoke-tests the packaged `ferrocat` binary before uploading it.
+
 Exit codes:
 
 - `0`: audit completed with no error diagnostics

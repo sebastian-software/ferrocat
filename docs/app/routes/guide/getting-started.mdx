@@ -55,12 +55,20 @@ msgstr "world"
 - Open [API Overview](/reference/api-overview) when you need to choose between low-level PO parsing, high-level catalog workflows, and ICU helpers.
 - Open [Gettext Task Landscape](/reference/gettext-task-landscape) when you already know established Gettext-style jobs and want to map them to Ferrocat APIs.
 
+`ferrocat-cli` GitHub releases also include a prebuilt
+`x86_64-unknown-linux-musl` archive named
+`ferrocat-<version>-x86_64-unknown-linux-musl.tar.gz`. Use that artifact when a
+hosted or containerized Linux environment needs a musl-friendly `ferrocat`
+binary without compiling from crates.io.
+
 ## Compatibility policy
 
 - **MSRV:** Rust `1.93.0`
 - **MSRV policy:** align with OXC when practical, while avoiding churn from tracking only the newest stable toolchain
 - **MSRV bumps:** raising the MSRV is treated as a minor-version change and
   called out in the changelog; patch releases should not raise the MSRV.
+- **Prebuilt CLI target:** `x86_64-unknown-linux-musl` is validated in CI and
+  published as a smoke-tested GitHub Release archive for `ferrocat-cli`.
 - **Semver:** the public API follows semantic versioning; breaking changes ship in a new major version
 - **Docs surface:** README examples, rustdoc, and the site should stay aligned
 

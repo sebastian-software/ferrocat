@@ -147,6 +147,40 @@ jobs:
       - name: Test workspace with MSRV
         run: cargo +1.93.0 test --workspace --all-features --locked
 
+  musl:
+    name: Linux musl target
+    runs-on: ubuntu-24.04
+    env:
+      MUSL_TARGET: x86_64-unknown-linux-musl
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Install musl linker
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y musl-tools
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ env.MUSL_TARGET }}
+
+      - name: Cache Rust build artifacts
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: musl-${{ env.MUSL_TARGET }}
+
+      - name: Build workspace for musl
+        run: cargo build --workspace --all-targets --all-features --locked --target "$MUSL_TARGET"
+
+      - name: Run workspace tests for musl
+        run: cargo test --workspace --all-features --locked --target "$MUSL_TARGET"
+
+      - name: Smoke test musl CLI
+        run: "./target/${MUSL_TARGET}/debug/ferrocat --help"
+
   test:
     name: ${{ matrix.os }}
     runs-on: ${{ matrix.os }}

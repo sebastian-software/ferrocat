@@ -131,6 +131,13 @@ cargo install ferrocat-cli
 ferrocat audit --source-locale en --source locales/en.po --target de=locales/de.po
 ```
 
+The `ferrocat-cli` GitHub release also publishes a prebuilt Linux musl archive
+for `x86_64-unknown-linux-musl`. The archive is named
+`ferrocat-<version>-x86_64-unknown-linux-musl.tar.gz` and contains the
+`ferrocat` binary plus license and README metadata. CI builds and tests the
+workspace for that target and smoke-tests the CLI before uploading the release
+asset.
+
 ## Quick Start
 
 ```rust
@@ -163,6 +170,8 @@ Beyond the basics, Ferrocat exposes byte-oriented and allocation-light borrowed 
 - **MSRV policy:** align with OXC when practical, while avoiding churn from tracking only the newest stable toolchain
 - **MSRV bumps:** raising the MSRV is treated as a minor-version change and
   called out in the changelog; patch releases do not raise the MSRV.
+- **Prebuilt CLI target:** `x86_64-unknown-linux-musl` is validated in CI and
+  published as a smoke-tested GitHub Release archive for `ferrocat-cli`.
 - **Semver:** the public API follows semantic versioning; breaking changes ship in a new major version and are documented in the changelog
 - **Error surface:** PO parse errors are intentionally compact today and do not yet expose source positions; adding structured positions would be a semver-relevant API change.
 - **Documentation surface:** README examples, rustdoc examples, and the docs site aim to stay aligned

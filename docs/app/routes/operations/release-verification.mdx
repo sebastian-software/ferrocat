@@ -20,6 +20,9 @@ This checklist verifies a real Rust-only `ferrocat` release after the publish wo
 - Confirm the workspace-only crates in the repo are also version-aligned with the published crates.
 - Confirm internal `ferrocat*` path dependencies in the crate manifests were updated to matching versions where applicable.
 - Confirm the GitHub release tag matches the published version created by Release Please.
+- For `ferrocat-cli` releases, confirm the
+  `ferrocat-<version>-x86_64-unknown-linux-musl.tar.gz` asset and matching
+  `.sha256` file were uploaded to the GitHub release.
 
 ## 3. Confirm package viability
 
@@ -39,6 +42,8 @@ release gate.
 
 - In a clean scratch project, run `cargo add ferrocat`.
 - Build a tiny smoke example that calls `parse_po` and `parse_icu` through the umbrella crate.
+- Download the `x86_64-unknown-linux-musl` CLI release archive when validating
+  the binary channel, verify its `.sha256` file, and run `ferrocat --help`.
 - Confirm docs.rs builds for `ferrocat` and that the README example still matches the published surface.
 - Confirm the crate READMEs published for `ferrocat`, `ferrocat-po`, and `ferrocat-icu` still describe the current public surface accurately.
 - Confirm the site API overview covers any new public APIs or semver-relevant behavior added in the release.
