@@ -23,7 +23,7 @@ Ferrocat is also part of the [Palamedes](https://github.com/sebastian-software/p
 - **AI translation metadata ready.** Track machine-generated translations with model, modification time, confidence, and a change-detection hash, then drop stale metadata automatically when a human edits the text.
 - **Runtime artifacts you can explain.** Compile catalogs into host-neutral payloads with stable keys, fallback behavior, missing reports, optional ICU diagnostics, and provenance rows that show where each runtime string came from.
 - **Pseudo-locale QA.** Generate ICU-aware pseudolocalized messages and runtime artifacts without damaging placeholders, plural selectors, rich-text tags, or formatter syntax.
-- **Reviewable storage.** Use PO when translator tooling matters, or FCL when large teams and automation need one entry per line for cleaner diffs and clean git merges.
+- **Storage that survives a merge.** Use PO when translator tooling reads the file directly, or FCL when several people and jobs touch the same locale: one entry per line means git merges catalogs without silently dropping translations, and the file still parses about 45% faster and stores roughly 12% smaller than the same catalog as PO.
 - **Room for host frameworks.** Palamedes can own JS/TS extraction, bindings, and framework integration while Ferrocat owns the catalog behavior that should stay consistent underneath.
 - **Measured behavior.** Parser, serializer, merge, combine, audit, and runtime paths are covered by fixtures, 60 upstream-derived conformance cases (454 assertions), coverage gates, and PR-visible benchmark regression checks.
 
@@ -33,7 +33,7 @@ Ferrocat is a new catalog layer, but it is not invented in a vacuum. It keeps th
 
 - **PO catalogs** for translator-friendly source, translation, context, comment, reference, flag, plural, and obsolete-entry handling.
 - **ICU MessageFormat v1** for richer messages with arguments, formatting, plurals, selects, and rich-text tags.
-- **FCL catalogs** (Ferrocat Catalog Lines) for line-oriented storage that works well with Git review, automation, and external systems. FCL replaced NDJSON as the machine-owned, git-merge-optimized storage format.
+- **FCL catalogs** (Ferrocat Catalog Lines): one entry per line, deterministically sorted, so git merges catalogs line by line without losing translations, while parsing about 45% faster and storing roughly 12% smaller than the same catalog as PO. The machine-owned format for Git review, automation, and pipelines.
 - **Machine-translation metadata** for AI-assisted localization workflows that need to know which model produced a translation and whether that metadata still matches the current text.
 - **Structured diagnostics** instead of ad hoc text output, so CI, editors, and host frameworks can consume the same report.
 

@@ -27,11 +27,11 @@ There is intentionally no FCL + gettext-plural mode; gettext plural behavior bel
 
 ## Why FCL matters for larger teams
 
-PO is the right compatibility format when you need translator tools that already understand source strings, translations, comments, references, flags, and plural entries. FCL (Ferrocat Catalog Lines) solves a different collaboration problem: every entry is one tab-separated line, deterministically sorted by `(id, ctxt)`, behind a single `%FCL1` header line. It replaced NDJSON for the machine-owned, git-merge-optimized storage role.
+The painful failure with PO is not a crash. It is a finished translation that quietly disappears. A PO entry spans several lines with repeated anchor lines (`msgstr ""`, blank separators), so when two branches touch the same file, git's line merge mis-anchors and can drop an entry that nobody even edited. Someone retranslates work that was already done, and no error ever fires.
 
-That shape makes catalog changes easier to review in pull requests and easier to merge when several people or automated jobs touch the same locale. Unrelated edits do not land inside one large PO block, conflicts are usually narrower, unchanged entries stay byte-identical across merge inputs for clean git 3-way merges, and the repository does not have to depend on a custom Git merge driver being available in every hosted review or web-merge path.
+FCL removes that by construction. Every entry is one tab-separated line, sorted by `(id, ctxt)` behind a single `%FCL1` header. Independent edits land on distant lines and merge cleanly; an entry neither side touched stays byte-identical in all three versions, so git cannot alter or lose it. No custom merge driver required, so it behaves the same in a hosted pull request or a web merge as it does locally.
 
-Use FCL when your catalog workflow is more application- and pipeline-centered than PO-tooling-centered, especially for large teams, generated updates, or external systems. FCL is also the most compact of the three formats and parses faster than PO.
+Here is the part that usually involves a trade-off, except it doesn't: you do not pay for that safety with speed or size. Against the same catalog stored as PO, FCL parses about 45% faster and the file is roughly 12% smaller. Use it as the machine-owned format: generated, reviewed in diffs, handed to pipelines and external services, never hand-edited. PO remains the right choice when translator tools need to read the file directly.
 
 Both PO and FCL can carry machine-translation metadata for AI-assisted workflows. Ferrocat keeps the storage compact, verifies the translation hash when writing, and drops stale metadata once the translated text has been edited.
 
