@@ -170,6 +170,12 @@ fn run() -> Result<(), String> {
             let fixture = load_merge_fixture(&fixture_name)?;
             bench_update_catalog_file(&fixture, config)
         }
+        "update-catalog-fcl" => {
+            let fixture_name = args.next().unwrap_or_else(|| "realistic".to_owned());
+            let config = parse_bench_config(args, &fixture_name)?;
+            let fixture = load_merge_fixture(&fixture_name)?;
+            bench_update_catalog_fcl(&fixture, config)
+        }
         "combine-catalogs" => {
             let fixture_name = args
                 .next()
@@ -189,7 +195,7 @@ fn run() -> Result<(), String> {
             Ok(())
         }
         other => Err(format!(
-            "unknown command: {other} (use verify-benchmark-env, compare, regression-check, parse, parse-borrowed, parse-catalog-po, parse-catalog-fcl, parse-icu, validate-icu, extract-icu-variables, stringify, stringify-catalog-po, merge, update-catalog, update-catalog-file, combine-catalogs, describe, or conformance-report)"
+            "unknown command: {other} (use verify-benchmark-env, compare, regression-check, parse, parse-borrowed, parse-catalog-po, parse-catalog-fcl, parse-icu, validate-icu, extract-icu-variables, stringify, stringify-catalog-po, merge, update-catalog, update-catalog-file, update-catalog-fcl, combine-catalogs, describe, or conformance-report)"
         )),
     }
 }
@@ -354,6 +360,35 @@ fn run_alloc_stats(fixture: &Fixture) -> Result<(), String> {
     std::hint::black_box(&catalog);
     drop(catalog);
 
+    // Render the same catalog as FCL once outside the measured window, then
+    // measure the FCL parse so its allocation profile is comparable to PO.
+    let fcl_content = {
+        let parsed = parse_catalog(ParseCatalogOptions {
+            content,
+            locale: inferred_fixture_locale(fixture.name()),
+            source_locale: "en",
+            mode: CatalogMode::IcuPo,
+            strict: false,
+        })
+        .map_err(|error| error.to_string())?;
+        render_fcl_catalog(&parsed)
+    };
+    ALLOCS.store(0, Ordering::SeqCst);
+    BYTES.store(0, Ordering::SeqCst);
+    let fcl_catalog = parse_catalog(ParseCatalogOptions {
+        content: &fcl_content,
+        locale: inferred_fixture_locale(fixture.name()),
+        source_locale: "en",
+        mode: CatalogMode::IcuFcl,
+        strict: false,
+    })
+    .map_err(|error| error.to_string())?;
+    let fcl_allocs = ALLOCS.load(Ordering::SeqCst);
+    let fcl_bytes = BYTES.load(Ordering::SeqCst);
+    let fcl_items = fcl_catalog.messages.len();
+    std::hint::black_box(&fcl_catalog);
+    drop(fcl_catalog);
+
     println!("fixture: {} ({} bytes)", fixture.name(), content.len());
     measure(
         "parse_po (owned)   ",
@@ -373,6 +408,7 @@ fn run_alloc_stats(fixture: &Fixture) -> Result<(), String> {
         catalog_allocs,
         catalog_bytes,
     );
+    measure("parse_catalog (fcl)  ", fcl_items, fcl_allocs, fcl_bytes);
     Ok(())
 }
 
@@ -707,6 +743,52 @@ fn bench_stringify_catalog_po(fixture: &Fixture, config: BenchConfig) -> Result<
     );
     Ok(())
 }
+fn bench_update_catalog_fcl(fixture: &MergeFixture, config: BenchConfig) -> Result<(), String> {
+    // Convert the fixture's existing PO catalog to FCL once so the timed loop runs
+    // the FCL write path (parse + merge + `stringify_catalog_fcl`) — the only
+    // public way to exercise the library's FCL serializer.
+    let parsed = parse_catalog(ParseCatalogOptions {
+        content: fixture.existing_po(),
+        locale: Some("de"),
+        source_locale: "en",
+        mode: CatalogMode::IcuPo,
+        strict: false,
+    })
+    .map_err(|error| error.to_string())?;
+    let existing_fcl = render_fcl_catalog(&parsed);
+
+    let mut bytes_per_iteration = 0usize;
+    let samples = run_bench(config, || {
+        let start = Instant::now();
+        let mut bytes = 0usize;
+        for _ in 0..config.iterations {
+            let rendered = update_catalog(UpdateCatalogOptions {
+                locale: Some("de"),
+                mode: CatalogMode::IcuFcl,
+                existing: Some(&existing_fcl),
+                ..UpdateCatalogOptions::new("en", fixture.api_extracted_messages().to_vec())
+            })
+            .map_err(|error| error.to_string())?;
+            bytes += rendered.content.len();
+            std::hint::black_box(rendered);
+        }
+        bytes_per_iteration = bytes / config.iterations;
+        Ok(BenchSample::new(
+            start.elapsed(),
+            config.iterations,
+            bytes_per_iteration,
+        ))
+    })?;
+    report_merge(
+        "update-catalog-fcl",
+        fixture,
+        bytes_per_iteration,
+        config,
+        &samples,
+    );
+    Ok(())
+}
+
 fn bench_merge(fixture: &MergeFixture, config: BenchConfig) -> Result<(), String> {
     let mut bytes_per_iteration = 0usize;
     let samples = run_bench(config, || {
