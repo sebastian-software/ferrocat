@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 use std::fmt;
 use std::path::{Path, PathBuf};
 
-use crate::ParseError;
+use crate::{ParseError, PoVec};
 
 use super::mt::MachineTranslationMetadata;
 use super::plural::PluralProfile;
@@ -179,7 +179,7 @@ pub struct CatalogMessage {
     /// Extracted comments preserved from the source catalog.
     pub comments: Vec<String>,
     /// Source origins preserved from PO references.
-    pub origin: Vec<CatalogOrigin>,
+    pub origin: PoVec<CatalogOrigin>,
     /// Whether the message is marked obsolete.
     pub obsolete: bool,
     /// Optional machine-translation metadata for the current translation.
@@ -1238,7 +1238,7 @@ mod tests {
                 value: String::new(),
             },
             comments: vec!["Shown in toolbar".to_owned()],
-            origin: Vec::new(),
+            origin: crate::PoVec::new(),
             obsolete: false,
             machine_translation: None,
             extra: Some(CatalogMessageExtra {
@@ -1275,7 +1275,7 @@ mod tests {
                 variable: "count".to_owned(),
             },
             comments: Vec::new(),
-            origin: Vec::new(),
+            origin: crate::PoVec::new(),
             obsolete: false,
             machine_translation: None,
             extra: None,
@@ -1309,7 +1309,7 @@ mod tests {
                         value: String::new(),
                     },
                     comments: Vec::new(),
-                    origin: Vec::new(),
+                    origin: crate::PoVec::new(),
                     obsolete: false,
                     machine_translation: None,
                     extra: None,
@@ -1321,7 +1321,7 @@ mod tests {
                         value: "Howdy".to_owned(),
                     },
                     comments: Vec::new(),
-                    origin: Vec::new(),
+                    origin: crate::PoVec::new(),
                     obsolete: false,
                     machine_translation: None,
                     extra: None,
@@ -1573,7 +1573,7 @@ mod tests {
                 value: "Hallo".to_owned(),
             },
             comments: vec!["Shown in toolbar".to_owned()],
-            origin: Vec::new(),
+            origin: crate::PoVec::new(),
             obsolete: false,
             machine_translation: None,
             extra: None,

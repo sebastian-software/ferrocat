@@ -27,7 +27,7 @@ use super::{
     ExtractedMessage, ObsoleteStrategy, OrderBy, ParseCatalogOptions, ParsedCatalog,
     PluralEncoding, PluralSource, TranslationShape, UpdateCatalogFileOptions, UpdateCatalogOptions,
 };
-use crate::{MsgStr, PoFile, PoItem, parse_po};
+use crate::{MsgStr, PoFile, PoItem, PoVec, parse_po};
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub(super) struct Catalog {
@@ -45,7 +45,7 @@ pub(super) struct CanonicalMessage {
     pub(super) msgctxt: Option<String>,
     pub(super) translation: CanonicalTranslation,
     pub(super) comments: Vec<String>,
-    pub(super) origins: Vec<CatalogOrigin>,
+    pub(super) origins: PoVec<CatalogOrigin>,
     pub(super) placeholders: BTreeMap<String, Vec<String>>,
     pub(super) obsolete: bool,
     pub(super) machine_translation: Option<MachineTranslationMetadata>,
@@ -71,7 +71,7 @@ struct NormalizedMessage {
     msgctxt: Option<String>,
     kind: NormalizedKind,
     comments: Vec<String>,
-    origins: Vec<CatalogOrigin>,
+    origins: PoVec<CatalogOrigin>,
     placeholders: BTreeMap<String, Vec<String>>,
 }
 
