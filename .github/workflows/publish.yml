@@ -25,6 +25,9 @@ jobs:
       pull-requests: write
     outputs:
       releases_created: ${{ steps.release.outputs.releases_created }}
+      ferrocat_cli_release_created: ${{ steps.release.outputs['crates/ferrocat-cli--release_created'] }}
+      ferrocat_cli_tag_name: ${{ steps.release.outputs['crates/ferrocat-cli--tag_name'] }}
+      ferrocat_cli_version: ${{ steps.release.outputs['crates/ferrocat-cli--version'] }}
 
     steps:
       - name: Check out repository
@@ -39,6 +42,66 @@ jobs:
           config-file: .release-please-config.json
           manifest-file: .release-please-manifest.json
           token: ${{ secrets.RELEASE_PLEASE_TOKEN || secrets.GITHUB_TOKEN }}
+
+  publish-cli-musl:
+    needs: release-please
+    if: ${{ needs.release-please.outputs.ferrocat_cli_release_created == 'true' }}
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    env:
+      MUSL_TARGET: x86_64-unknown-linux-musl
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Install musl linker
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y musl-tools
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ env.MUSL_TARGET }}
+
+      - name: Cache Rust build artifacts
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: publish-cli-musl-${{ env.MUSL_TARGET }}
+
+      - name: Build ferrocat CLI for musl
+        run: cargo build --release -p ferrocat-cli --locked --target "$MUSL_TARGET"
+
+      - name: Smoke test musl CLI
+        run: "./target/${MUSL_TARGET}/release/ferrocat --help"
+
+      - name: Package musl CLI artifact
+        shell: bash
+        run: |
+          version="${{ needs.release-please.outputs.ferrocat_cli_version }}"
+          artifact_name="ferrocat-${version}-${MUSL_TARGET}"
+          artifact_dir="target/dist/${artifact_name}"
+
+          mkdir -p "$artifact_dir"
+          cp "target/${MUSL_TARGET}/release/ferrocat" "$artifact_dir/ferrocat"
+          cp LICENSE "$artifact_dir/LICENSE"
+          cp README.md "$artifact_dir/README.md"
+          cp crates/ferrocat-cli/README.md "$artifact_dir/CLI-README.md"
+
+          tar -C target/dist -czf "target/dist/${artifact_name}.tar.gz" "$artifact_name"
+          sha256sum "target/dist/${artifact_name}.tar.gz" > "target/dist/${artifact_name}.tar.gz.sha256"
+
+      - name: Upload musl CLI artifact to GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: >-
+          gh release upload
+          "${{ needs.release-please.outputs.ferrocat_cli_tag_name }}"
+          "target/dist/ferrocat-${{ needs.release-please.outputs.ferrocat_cli_version }}-${{ env.MUSL_TARGET }}.tar.gz"
+          "target/dist/ferrocat-${{ needs.release-please.outputs.ferrocat_cli_version }}-${{ env.MUSL_TARGET }}.tar.gz.sha256"
+          --clobber
 
   publish-rust:
     needs: release-please
