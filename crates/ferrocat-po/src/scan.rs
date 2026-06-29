@@ -23,6 +23,13 @@ mod backend {
         find_escapable_byte_impl(haystack)
     }
 
+    #[inline]
+    pub fn find_fcl_escapable_byte(haystack: &[u8]) -> Option<usize> {
+        // FCL escapes only `\`, `\t`, and `\n`; `memchr3` is SIMD-accelerated
+        // (NEON on aarch64) so this stays fast without any hand-written intrinsics.
+        memchr3(b'\\', b'\t', b'\n', haystack)
+    }
+
     #[cfg(target_arch = "aarch64")]
     #[inline]
     fn find_escapable_byte_impl(haystack: &[u8]) -> Option<usize> {
@@ -277,6 +284,11 @@ pub fn find_quote_or_backslash(haystack: &[u8]) -> Option<usize> {
 #[inline]
 pub fn find_escapable_byte(haystack: &[u8]) -> Option<usize> {
     backend::find_escapable_byte(haystack)
+}
+
+#[inline]
+pub fn find_fcl_escapable_byte(haystack: &[u8]) -> Option<usize> {
+    backend::find_fcl_escapable_byte(haystack)
 }
 
 #[inline]

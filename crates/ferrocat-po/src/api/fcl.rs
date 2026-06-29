@@ -20,45 +20,60 @@ use super::{
     ApiError, CatalogOrigin, CatalogSemantics, EffectiveTranslationRef, PlaceholderCommentMode,
 };
 use crate::PoVec;
+use crate::scan::{find_byte, find_fcl_escapable_byte, split_once_byte};
+use crate::utf8::input_slice_as_str;
 
 const FCL_MAGIC: &str = "%FCL1";
 
 // --- escaping -------------------------------------------------------------
 
 fn escape_into(out: &mut String, value: &str) {
-    if !value
-        .bytes()
-        .any(|byte| matches!(byte, b'\\' | b'\t' | b'\n'))
-    {
+    let bytes = value.as_bytes();
+    let Some(first) = find_fcl_escapable_byte(bytes) else {
         out.push_str(value);
         return;
-    }
-    for ch in value.chars() {
-        match ch {
-            '\\' => out.push_str("\\\\"),
-            '\t' => out.push_str("\\t"),
-            '\n' => out.push_str("\\n"),
-            other => out.push(other),
+    };
+
+    // Escapable bytes (`\`, `\t`, `\n`) are ASCII, so every index is a UTF-8
+    // boundary and the unescaped runs between them can be pushed as whole slices.
+    let mut start = 0;
+    let mut at = first;
+    loop {
+        out.push_str(&value[start..at]);
+        out.push_str(match bytes[at] {
+            b'\\' => "\\\\",
+            b'\t' => "\\t",
+            _ => "\\n",
+        });
+        start = at + 1;
+        match find_fcl_escapable_byte(&bytes[start..]) {
+            Some(relative) => at = start + relative,
+            None => {
+                out.push_str(&value[start..]);
+                return;
+            }
         }
     }
 }
 
 fn unescape(value: &str) -> Result<Cow<'_, str>, ApiError> {
-    if !value.contains('\\') {
+    let bytes = value.as_bytes();
+    let Some(first) = find_byte(b'\\', bytes) else {
         return Ok(Cow::Borrowed(value));
-    }
+    };
+
     let mut out = String::with_capacity(value.len());
-    let mut chars = value.chars();
-    while let Some(ch) = chars.next() {
-        if ch != '\\' {
-            out.push(ch);
-            continue;
-        }
-        match chars.next() {
-            Some('\\') => out.push('\\'),
-            Some('t') => out.push('\t'),
-            Some('n') => out.push('\n'),
-            Some(other) => {
+    let mut start = 0;
+    let mut at = first;
+    loop {
+        // `\` is ASCII, so `value[start..at]` is always a valid UTF-8 slice.
+        out.push_str(&value[start..at]);
+        match bytes.get(at + 1) {
+            Some(b'\\') => out.push('\\'),
+            Some(b't') => out.push('\t'),
+            Some(b'n') => out.push('\n'),
+            Some(_) => {
+                let other = value[at + 1..].chars().next().unwrap_or('\u{fffd}');
                 return Err(ApiError::InvalidArguments(format!(
                     "invalid FCL escape `\\{other}`"
                 )));
@@ -69,8 +84,15 @@ fn unescape(value: &str) -> Result<Cow<'_, str>, ApiError> {
                 ));
             }
         }
+        start = at + 2;
+        match find_byte(b'\\', &bytes[start..]) {
+            Some(relative) => at = start + relative,
+            None => {
+                out.push_str(&value[start..]);
+                return Ok(Cow::Owned(out));
+            }
+        }
     }
-    Ok(Cow::Owned(out))
 }
 
 // --- serialize ------------------------------------------------------------
@@ -210,8 +232,8 @@ fn is_conflict_marker(line: &str) -> bool {
 }
 
 fn parse_header(line: &str, source_locale: &str) -> Result<Option<String>, ApiError> {
-    let mut fields = line.split('\t');
-    if fields.next() != Some(FCL_MAGIC) {
+    let mut fields = SplitTab::new(line.as_bytes());
+    if fields.next() != Some(FCL_MAGIC.as_bytes()) {
         return Err(ApiError::InvalidArguments(
             "FCL catalog must start with the `%FCL1` header".to_owned(),
         ));
@@ -219,16 +241,20 @@ fn parse_header(line: &str, source_locale: &str) -> Result<Option<String>, ApiEr
     let mut locale = None;
     let mut declared_source: Option<String> = None;
     for tag in fields {
-        let (key, value) = tag
-            .split_once('=')
-            .ok_or_else(|| ApiError::InvalidArguments(format!("invalid FCL header tag {tag:?}")))?;
-        let value = unescape(value)?.into_owned();
+        let (key, value) = split_once_byte(tag, b'=').ok_or_else(|| {
+            ApiError::InvalidArguments(format!(
+                "invalid FCL header tag {:?}",
+                input_slice_as_str(tag)
+            ))
+        })?;
+        let value = unescape(input_slice_as_str(value))?.into_owned();
         match key {
-            "source" => declared_source = Some(value),
-            "locale" => locale = Some(value),
+            b"source" => declared_source = Some(value),
+            b"locale" => locale = Some(value),
             other => {
                 return Err(ApiError::InvalidArguments(format!(
-                    "unknown FCL header key {other:?}"
+                    "unknown FCL header key {:?}",
+                    input_slice_as_str(other)
                 )));
             }
         }
@@ -246,7 +272,7 @@ fn parse_header(line: &str, source_locale: &str) -> Result<Option<String>, ApiEr
 /// Parses one FCL entry line directly into a [`CanonicalMessage`], building the
 /// owned fields in a single pass without an intermediate record.
 fn parse_entry(line: &str) -> Result<CanonicalMessage, ApiError> {
-    let mut fields = line.split('\t');
+    let mut fields = SplitTab::new(line.as_bytes());
     let msgid = unescape(field(&mut fields, "id")?)?.into_owned();
     let ctx_raw = unescape(field(&mut fields, "ctxt")?)?.into_owned();
     let value = unescape(field(&mut fields, "target")?)?.into_owned();
@@ -262,31 +288,32 @@ fn parse_entry(line: &str) -> Result<CanonicalMessage, ApiError> {
     let mut mt_hash = None;
 
     for tag in fields {
-        if tag == "o" {
+        if tag == b"o" {
             obsolete = true;
             continue;
         }
-        let (key, raw_value) = tag
-            .split_once('=')
-            .ok_or_else(|| ApiError::InvalidArguments(format!("invalid FCL tag {tag:?}")))?;
+        let (key, raw_value) = split_once_byte(tag, b'=').ok_or_else(|| {
+            ApiError::InvalidArguments(format!("invalid FCL tag {:?}", input_slice_as_str(tag)))
+        })?;
         // Keep the unescaped value borrowed; only allocate (`into_owned`) for tags
         // whose value is stored. `mt.conf` is parsed in place and never allocates.
-        let value = unescape(raw_value)?;
+        let value = unescape(input_slice_as_str(raw_value))?;
         match key {
-            "r" => origins.push(parse_origin(value.into_owned())),
-            "c" => raw_comments.push(value.into_owned()),
-            "tc" => translator_comments.push(value.into_owned()),
-            "f" => flags.push(value.into_owned()),
-            "mt.model" => mt_model = Some(value.into_owned()),
-            "mt.conf" => {
+            b"r" => origins.push(parse_origin(value.into_owned())),
+            b"c" => raw_comments.push(value.into_owned()),
+            b"tc" => translator_comments.push(value.into_owned()),
+            b"f" => flags.push(value.into_owned()),
+            b"mt.model" => mt_model = Some(value.into_owned()),
+            b"mt.conf" => {
                 mt_conf = Some(value.parse::<u8>().map_err(|_| {
                     ApiError::InvalidArguments(format!("invalid FCL mt.conf value {value:?}"))
                 })?);
             }
-            "mt.hash" => mt_hash = Some(value.into_owned()),
+            b"mt.hash" => mt_hash = Some(value.into_owned()),
             other => {
                 return Err(ApiError::InvalidArguments(format!(
-                    "unknown FCL tag key {other:?}"
+                    "unknown FCL tag key {:?}",
+                    input_slice_as_str(other)
                 )));
             }
         }
@@ -329,10 +356,43 @@ fn parse_entry(line: &str) -> Result<CanonicalMessage, ApiError> {
     })
 }
 
-fn field<'a>(fields: &mut impl Iterator<Item = &'a str>, name: &str) -> Result<&'a str, ApiError> {
+fn field<'a>(fields: &mut impl Iterator<Item = &'a [u8]>, name: &str) -> Result<&'a str, ApiError> {
     fields
         .next()
+        .map(input_slice_as_str)
         .ok_or_else(|| ApiError::InvalidArguments(format!("FCL entry is missing the {name} field")))
+}
+
+/// Splits a line into tab-delimited fields over bytes (memchr-backed), matching
+/// `str::split('\t')` semantics including a trailing empty field.
+struct SplitTab<'a> {
+    rest: Option<&'a [u8]>,
+}
+
+impl<'a> SplitTab<'a> {
+    #[inline]
+    fn new(bytes: &'a [u8]) -> Self {
+        Self { rest: Some(bytes) }
+    }
+}
+
+impl<'a> Iterator for SplitTab<'a> {
+    type Item = &'a [u8];
+
+    #[inline]
+    fn next(&mut self) -> Option<&'a [u8]> {
+        let rest = self.rest?;
+        match find_byte(b'\t', rest) {
+            Some(index) => {
+                self.rest = Some(&rest[index + 1..]);
+                Some(&rest[..index])
+            }
+            None => {
+                self.rest = None;
+                Some(rest)
+            }
+        }
+    }
 }
 
 /// Splits a `file:line` reference into a [`CatalogOrigin`], reusing the owned
