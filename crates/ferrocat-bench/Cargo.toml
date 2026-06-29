@@ -13,6 +13,11 @@ description = "Workspace-only benchmark harness for ferrocat parser, serializer,
 name = "ferrocat-bench"
 path = "src/main.rs"
 
+[features]
+# Swaps in a counting global allocator and enables the `alloc-stats` command.
+# Off by default so timing benchmarks run against the unmodified system allocator.
+count-alloc = []
+
 [dependencies]
 ferrocat-conformance = { path = "../ferrocat-conformance" }
 ferrocat-icu = { path = "../ferrocat-icu" }

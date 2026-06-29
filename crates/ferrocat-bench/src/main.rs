@@ -3,6 +3,44 @@ mod compare;
 mod conformance_harness;
 mod fixtures;
 
+/// Counting global allocator used only under the `count-alloc` feature so the
+/// `alloc-stats` command can report allocation counts without perturbing the
+/// timing benchmarks, which run against the unmodified system allocator.
+#[cfg(feature = "count-alloc")]
+mod counting_alloc {
+    use std::alloc::{GlobalAlloc, Layout, System};
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    pub static ALLOCS: AtomicUsize = AtomicUsize::new(0);
+    pub static BYTES: AtomicUsize = AtomicUsize::new(0);
+
+    pub struct Counting;
+
+    // SAFETY: every method forwards to the system allocator with the same
+    // arguments; the atomics only observe sizes and never alter allocation.
+    unsafe impl GlobalAlloc for Counting {
+        unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
+            ALLOCS.fetch_add(1, Ordering::Relaxed);
+            BYTES.fetch_add(layout.size(), Ordering::Relaxed);
+            unsafe { System.alloc(layout) }
+        }
+
+        unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
+            unsafe { System.dealloc(ptr, layout) }
+        }
+
+        unsafe fn realloc(&self, ptr: *mut u8, layout: Layout, new_size: usize) -> *mut u8 {
+            ALLOCS.fetch_add(1, Ordering::Relaxed);
+            BYTES.fetch_add(new_size.saturating_sub(layout.size()), Ordering::Relaxed);
+            unsafe { System.realloc(ptr, layout, new_size) }
+        }
+    }
+}
+
+#[cfg(feature = "count-alloc")]
+#[global_allocator]
+static GLOBAL_ALLOC: counting_alloc::Counting = counting_alloc::Counting;
+
 use std::env;
 use std::fs;
 use std::process::ExitCode;
@@ -57,6 +95,11 @@ fn run() -> Result<(), String> {
             let config = parse_bench_config(args, &fixture_name)?;
             let fixture = load_fixture(&fixture_name)?;
             bench_parse_borrowed(&fixture, config)
+        }
+        "alloc-stats" => {
+            let fixture_name = args.next().unwrap_or_else(|| "realistic".to_owned());
+            let fixture = load_fixture(&fixture_name)?;
+            run_alloc_stats(&fixture)
         }
         "parse-catalog-po" => {
             let fixture_name = args
@@ -271,6 +314,57 @@ fn default_iterations(fixture_name: &str) -> usize {
         name if name.starts_with("icu-") => 200,
         _ => 5_000,
     }
+}
+
+#[cfg(feature = "count-alloc")]
+fn run_alloc_stats(fixture: &Fixture) -> Result<(), String> {
+    use std::sync::atomic::Ordering;
+
+    use counting_alloc::{ALLOCS, BYTES};
+
+    let content = fixture.content();
+
+    let measure = |label: &str, items: usize, allocs: usize, bytes: usize| {
+        let per_item = |value: usize| value as f64 / items.max(1) as f64;
+        println!(
+            "{label}: items={items} allocs={allocs} ({:.1}/item) bytes={bytes} ({:.0}/item)",
+            per_item(allocs),
+            per_item(bytes),
+        );
+    };
+
+    ALLOCS.store(0, Ordering::SeqCst);
+    BYTES.store(0, Ordering::SeqCst);
+    let owned = parse_po(content).map_err(|error| error.to_string())?;
+    let owned_allocs = ALLOCS.load(Ordering::SeqCst);
+    let owned_bytes = BYTES.load(Ordering::SeqCst);
+    let owned_items = owned.items.len();
+    std::hint::black_box(&owned);
+    drop(owned);
+
+    ALLOCS.store(0, Ordering::SeqCst);
+    BYTES.store(0, Ordering::SeqCst);
+    let borrowed = parse_po_borrowed(content).map_err(|error| error.to_string())?;
+    let borrowed_allocs = ALLOCS.load(Ordering::SeqCst);
+    let borrowed_bytes = BYTES.load(Ordering::SeqCst);
+    let borrowed_items = borrowed.items.len();
+    std::hint::black_box(&borrowed);
+    drop(borrowed);
+
+    println!("fixture: {} ({} bytes)", fixture.name(), content.len());
+    measure("parse_po (owned)   ", owned_items, owned_allocs, owned_bytes);
+    measure(
+        "parse_po_borrowed    ",
+        borrowed_items,
+        borrowed_allocs,
+        borrowed_bytes,
+    );
+    Ok(())
+}
+
+#[cfg(not(feature = "count-alloc"))]
+fn run_alloc_stats(_fixture: &Fixture) -> Result<(), String> {
+    Err("alloc-stats requires building with --features count-alloc".to_owned())
 }
 
 fn bench_parse(fixture: &Fixture, config: BenchConfig) -> Result<(), String> {
