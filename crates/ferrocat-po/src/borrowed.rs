@@ -7,7 +7,7 @@ use crate::scan::{
 };
 use crate::text::{extract_quoted_bytes_cow, for_each_reference_token};
 use crate::utf8::input_slice_as_str;
-use crate::{Header, MsgStr, ParseError, ParsePosition, PoFile, PoItem};
+use crate::{Header, MsgStr, ParseError, ParsePosition, PoFile, PoItem, PoVec};
 
 /// Borrowed PO document that reuses slices from the original input whenever
 /// possible.
@@ -76,19 +76,19 @@ pub struct BorrowedPoItem<'a> {
     /// Optional gettext message context.
     pub msgctxt: Option<Cow<'a, str>>,
     /// Source references such as `src/app.rs:10`.
-    pub references: Vec<Cow<'a, str>>,
+    pub references: PoVec<Cow<'a, str>>,
     /// Optional plural source identifier.
     pub msgid_plural: Option<Cow<'a, str>>,
     /// Translation payload for the message.
     pub msgstr: BorrowedMsgStr<'a>,
     /// Translator comments attached to the item.
-    pub comments: Vec<Cow<'a, str>>,
+    pub comments: PoVec<Cow<'a, str>>,
     /// Extracted comments attached to the item.
-    pub extracted_comments: Vec<Cow<'a, str>>,
+    pub extracted_comments: PoVec<Cow<'a, str>>,
     /// Flags such as `fuzzy`.
-    pub flags: Vec<Cow<'a, str>>,
+    pub flags: PoVec<Cow<'a, str>>,
     /// Raw metadata lines that do not fit the dedicated fields.
-    pub metadata: Vec<(Cow<'a, str>, Cow<'a, str>)>,
+    pub metadata: PoVec<(Cow<'a, str>, Cow<'a, str>)>,
     /// Whether the item is marked obsolete.
     pub obsolete: bool,
     /// Number of plural slots expected when the item is serialized.
@@ -502,8 +502,8 @@ fn finish_item<'a>(
     }
 
     if is_header_state(state) && file.headers.is_empty() && file.items.is_empty() {
-        file.comments = std::mem::take(&mut state.item.comments);
-        file.extracted_comments = std::mem::take(&mut state.item.extracted_comments);
+        file.comments = std::mem::take(&mut state.item.comments).into_vec();
+        file.extracted_comments = std::mem::take(&mut state.item.extracted_comments).into_vec();
         file.headers = std::mem::take(&mut state.header_entries);
         *current_nplurals = parse_nplurals(&file.headers).unwrap_or(2);
         state.reset(*current_nplurals);
@@ -903,16 +903,16 @@ msgstr "world"
             BorrowedMsgStr::Plural(vec![Cow::Borrowed("Datei"), Cow::Borrowed("Dateien"),])
         );
         assert_eq!(
-            item.references,
-            vec![Cow::Borrowed("src/app.rs:1"), Cow::Borrowed("src/lib.rs:2")]
+            item.references.as_slice(),
+            vec![Cow::Borrowed("src/app.rs:1"), Cow::Borrowed("src/lib.rs:2")].as_slice()
         );
         assert_eq!(
-            item.flags,
-            vec![Cow::Borrowed("fuzzy"), Cow::Borrowed("c-format")]
+            item.flags.as_slice(),
+            vec![Cow::Borrowed("fuzzy"), Cow::Borrowed("c-format")].as_slice()
         );
         assert_eq!(
-            item.metadata,
-            vec![(Cow::Borrowed("domain"), Cow::Borrowed("admin"))]
+            item.metadata.as_slice(),
+            vec![(Cow::Borrowed("domain"), Cow::Borrowed("admin"))].as_slice()
         );
 
         assert!(file.items[1].obsolete);
