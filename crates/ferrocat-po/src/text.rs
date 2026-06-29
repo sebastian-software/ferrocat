@@ -164,19 +164,27 @@ pub fn extract_quoted(line: &str) -> Result<String, ParseError> {
     Ok(extract_quoted_bytes_cow(line.as_bytes())?.into_owned())
 }
 
-pub fn split_reference_comment(input: &str) -> Vec<Cow<'_, str>> {
+/// Visits each reference token in a `#:` comment line, borrowing from `input`
+/// where possible and allocating nothing in the common single-reference case.
+///
+/// The parsers push tokens straight into their item buffers through this entry
+/// point, avoiding the throwaway `Vec` that collecting first would require for
+/// every reference line.
+pub fn for_each_reference_token<'a>(input: &'a str, mut visit: impl FnMut(Cow<'a, str>)) {
     let trimmed = input.trim();
     if trimmed.is_empty() {
-        return vec![Cow::Borrowed("")];
+        visit(Cow::Borrowed(""));
+        return;
     }
 
     // Fast path for the overwhelmingly common single-reference line (e.g.
     // `src/app.rs:42`). A run of graphic ASCII bytes cannot contain a
     // whitespace split point or a multi-byte directional isolate, so it is one
-    // token by definition. Returning it directly skips the char-by-char scan
-    // and the throwaway `parts` buffer the slow path would otherwise allocate.
+    // token by definition. Emitting it directly skips the char-by-char scan and
+    // the `parts` buffer the slow path needs to validate multi-token splits.
     if trimmed.bytes().all(|byte| byte.is_ascii_graphic()) {
-        return vec![Cow::Borrowed(trimmed)];
+        visit(Cow::Borrowed(trimmed));
+        return;
     }
 
     let mut parts = Vec::new();
@@ -219,14 +227,18 @@ pub fn split_reference_comment(input: &str) -> Vec<Cow<'_, str>> {
     }
 
     if parts.len() == 1 {
-        return vec![normalize_reference_token(trimmed)];
+        visit(normalize_reference_token(trimmed));
+        return;
     }
 
     if parts.iter().all(|part| part.contains(':')) {
-        return parts;
+        for part in parts {
+            visit(part);
+        }
+        return;
     }
 
-    vec![Cow::Borrowed(trimmed)]
+    visit(Cow::Borrowed(trimmed));
 }
 
 /// Validates the content between PO quotes and reports whether it contains any
@@ -344,9 +356,15 @@ mod tests {
 
     use super::{
         escape_string, escape_string_into, escape_string_into_with_first_escape, extract_quoted,
-        extract_quoted_bytes_cow, extract_quoted_cow, split_reference_comment, unescape_string,
+        extract_quoted_bytes_cow, extract_quoted_cow, for_each_reference_token, unescape_string,
         validate_quoted_content,
     };
+
+    fn split_reference_comment(input: &str) -> Vec<Cow<'_, str>> {
+        let mut parts = Vec::new();
+        for_each_reference_token(input, |token| parts.push(token));
+        parts
+    }
 
     #[test]
     fn escapes_special_characters() {
