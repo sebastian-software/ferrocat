@@ -824,10 +824,12 @@ pub enum CatalogMode {
     IcuPo,
     /// NDJSON storage with ICU-native message semantics.
     IcuNdjson,
-    /// FCL (Ferrocat Catalog Lines) storage with ICU-native message semantics.
-    IcuFcl,
     /// Gettext PO storage with classic gettext plural semantics.
     GettextPo,
+    /// FCL (Ferrocat Catalog Lines) storage with ICU-native message semantics.
+    ///
+    /// Kept last so existing variant discriminants stay stable for `as` casts.
+    IcuFcl,
 }
 
 impl CatalogMode {
