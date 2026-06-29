@@ -472,6 +472,27 @@ mod tests {
     }
 
     #[test]
+    fn borrows_non_ascii_single_reference_token() {
+        // Non-ASCII bytes skip the graphic-ASCII fast path and exercise the
+        // slow path's single-token branch, which still borrows when there are
+        // no directional isolates to strip.
+        assert_eq!(
+            split_reference_comment("café.py:1"),
+            vec![Cow::Borrowed("café.py:1")]
+        );
+    }
+
+    #[test]
+    fn strips_leading_isolate_from_single_reference_token() {
+        // A token that opens with a closing isolate reaches the slow path with
+        // no active segment, covering the isolate handling before any content.
+        assert_eq!(
+            split_reference_comment("\u{2069}app.py:1"),
+            vec![Cow::<str>::Owned("app.py:1".to_owned())]
+        );
+    }
+
+    #[test]
     fn preserves_standard_input_reference_lines() {
         assert_eq!(
             split_reference_comment("standard input:12 standard input:17"),
