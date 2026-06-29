@@ -241,7 +241,8 @@ mod tests {
             origins: vec![CatalogOrigin {
                 file: "src/lib.rs".to_owned(),
                 line: None,
-            }],
+            }]
+            .into(),
             placeholders: BTreeMap::new(),
             obsolete: false,
             machine_translation: None,

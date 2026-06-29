@@ -620,7 +620,7 @@ mod tests {
                     value: "Hallo".to_owned(),
                 },
                 comments: Vec::new(),
-                origin: Vec::new(),
+                origin: crate::PoVec::new(),
                 obsolete: false,
                 machine_translation: Some(MachineTranslationMetadata {
                     model: String::new(),

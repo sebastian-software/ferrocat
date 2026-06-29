@@ -713,7 +713,8 @@ mod tests {
                     origins: vec![CatalogOrigin {
                         file: "src/nav.rs".to_owned(),
                         line: Some(4),
-                    }],
+                    }]
+                    .into(),
                     placeholders: BTreeMap::new(),
                     obsolete: false,
                     machine_translation: None,
@@ -735,7 +736,7 @@ mod tests {
                         variable: "count".to_owned(),
                     },
                     comments: Vec::new(),
-                    origins: Vec::new(),
+                    origins: crate::PoVec::new(),
                     placeholders: BTreeMap::new(),
                     obsolete: true,
                     machine_translation: None,
@@ -898,7 +899,8 @@ mod tests {
                 origin: vec![CatalogOrigin {
                     file: "src/checkout.rs".to_owned(),
                     line: Some(12),
-                }],
+                }]
+                .into(),
                 obsolete: false,
                 machine_translation: None,
                 extra: Some(CatalogMessageExtra {
@@ -976,7 +978,7 @@ mod tests {
                     variable: "count".to_owned(),
                 },
                 comments: Vec::new(),
-                origin: Vec::new(),
+                origin: crate::PoVec::new(),
                 obsolete: false,
                 machine_translation: Some(MachineTranslationMetadata {
                     model: "test/model".to_owned(),

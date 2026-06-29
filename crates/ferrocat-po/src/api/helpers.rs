@@ -8,6 +8,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use super::CatalogOrigin;
+use crate::PoVec;
 
 /// Deduplicates strings while preserving first-seen order.
 pub(super) fn dedupe_strings(values: Vec<String>) -> Vec<String> {
@@ -53,8 +54,10 @@ pub(super) fn push_unique_string(target: &[String], value: &str) -> bool {
 }
 
 /// Deduplicates origins while preserving first-seen order.
-pub(super) fn dedupe_origins(values: Vec<CatalogOrigin>) -> Vec<CatalogOrigin> {
-    let mut out = Vec::new();
+pub(super) fn dedupe_origins(
+    values: impl IntoIterator<Item = CatalogOrigin>,
+) -> PoVec<CatalogOrigin> {
+    let mut out = PoVec::new();
     for value in values {
         if !push_unique_origin(&out, &value) {
             out.push(value);
@@ -64,7 +67,10 @@ pub(super) fn dedupe_origins(values: Vec<CatalogOrigin>) -> Vec<CatalogOrigin> {
 }
 
 /// Merges origins into `target` without reordering existing entries.
-pub(super) fn merge_unique_origins(target: &mut Vec<CatalogOrigin>, incoming: Vec<CatalogOrigin>) {
+pub(super) fn merge_unique_origins(
+    target: &mut PoVec<CatalogOrigin>,
+    incoming: PoVec<CatalogOrigin>,
+) {
     if target.len() + incoming.len() < 8 {
         for value in incoming {
             if !push_unique_origin(target, &value) {
@@ -120,6 +126,7 @@ mod tests {
         dedupe_origins, dedupe_placeholders, dedupe_strings, merge_placeholders,
         merge_unique_origins, merge_unique_strings, push_unique_origin, push_unique_string,
     };
+    use crate::PoVec;
     use crate::api::CatalogOrigin;
 
     #[test]
@@ -182,14 +189,14 @@ mod tests {
         };
 
         assert_eq!(
-            dedupe_origins(vec![origin_a.clone(), origin_b.clone(), origin_a.clone()]),
-            vec![origin_a.clone(), origin_b.clone()]
+            dedupe_origins(vec![origin_a.clone(), origin_b.clone(), origin_a.clone()]).as_slice(),
+            vec![origin_a.clone(), origin_b.clone()].as_slice()
         );
 
-        let mut merged = vec![origin_a.clone()];
+        let mut merged = PoVec::from(vec![origin_a.clone()]);
         merge_unique_origins(
             &mut merged,
-            vec![origin_a.clone(), origin_b.clone(), origin_b.clone()],
+            vec![origin_a.clone(), origin_b.clone(), origin_b.clone()].into(),
         );
         assert_eq!(merged.len(), 2);
         assert_eq!(merged[0], origin_a);
@@ -211,7 +218,7 @@ mod tests {
                 file: format!("src/{index}.rs"),
                 line: Some(index),
             })
-            .collect::<Vec<_>>();
+            .collect::<PoVec<_>>();
 
         merge_unique_origins(
             &mut merged,
@@ -228,7 +235,8 @@ mod tests {
                     file: "src/7.rs".to_owned(),
                     line: None,
                 },
-            ],
+            ]
+            .into(),
         );
 
         assert_eq!(merged.len(), 8);
