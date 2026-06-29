@@ -170,6 +170,15 @@ pub fn split_reference_comment(input: &str) -> Vec<Cow<'_, str>> {
         return vec![Cow::Borrowed("")];
     }
 
+    // Fast path for the overwhelmingly common single-reference line (e.g.
+    // `src/app.rs:42`). A run of graphic ASCII bytes cannot contain a
+    // whitespace split point or a multi-byte directional isolate, so it is one
+    // token by definition. Returning it directly skips the char-by-char scan
+    // and the throwaway `parts` buffer the slow path would otherwise allocate.
+    if trimmed.bytes().all(|byte| byte.is_ascii_graphic()) {
+        return vec![Cow::Borrowed(trimmed)];
+    }
+
     let mut parts = Vec::new();
     let mut start = None;
     let mut isolate_depth = 0usize;
@@ -433,6 +442,14 @@ mod tests {
         assert_eq!(
             split_reference_comment("src/app.js:1 src/lib.js:2"),
             vec![Cow::Borrowed("src/app.js:1"), Cow::Borrowed("src/lib.js:2")]
+        );
+    }
+
+    #[test]
+    fn borrows_single_reference_token_via_fast_path() {
+        assert_eq!(
+            split_reference_comment("src/app.js:1"),
+            vec![Cow::Borrowed("src/app.js:1")]
         );
     }
 
