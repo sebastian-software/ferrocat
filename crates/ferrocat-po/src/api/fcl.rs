@@ -185,7 +185,9 @@ pub(super) fn stringify_catalog_fcl(
     source_locale: &str,
     placeholder_comment_mode: &PlaceholderCommentMode,
 ) -> String {
-    let mut out = String::new();
+    // Reserve a rough output budget up front so growth does not repeatedly
+    // reallocate; the estimate only needs to be in the right ballpark.
+    let mut out = String::with_capacity(catalog.messages.len() * 128 + 64);
     out.push_str(FCL_MAGIC);
     write_tag(&mut out, "source", source_locale);
     if let Some(locale) = locale {
@@ -267,19 +269,21 @@ fn parse_entry(line: &str) -> Result<CanonicalMessage, ApiError> {
         let (key, raw_value) = tag
             .split_once('=')
             .ok_or_else(|| ApiError::InvalidArguments(format!("invalid FCL tag {tag:?}")))?;
-        let owned = unescape(raw_value)?.into_owned();
+        // Keep the unescaped value borrowed; only allocate (`into_owned`) for tags
+        // whose value is stored. `mt.conf` is parsed in place and never allocates.
+        let value = unescape(raw_value)?;
         match key {
-            "r" => origins.push(parse_origin(owned)),
-            "c" => raw_comments.push(owned),
-            "tc" => translator_comments.push(owned),
-            "f" => flags.push(owned),
-            "mt.model" => mt_model = Some(owned),
+            "r" => origins.push(parse_origin(value.into_owned())),
+            "c" => raw_comments.push(value.into_owned()),
+            "tc" => translator_comments.push(value.into_owned()),
+            "f" => flags.push(value.into_owned()),
+            "mt.model" => mt_model = Some(value.into_owned()),
             "mt.conf" => {
-                mt_conf = Some(owned.parse::<u8>().map_err(|_| {
-                    ApiError::InvalidArguments(format!("invalid FCL mt.conf value {owned:?}"))
+                mt_conf = Some(value.parse::<u8>().map_err(|_| {
+                    ApiError::InvalidArguments(format!("invalid FCL mt.conf value {value:?}"))
                 })?);
             }
-            "mt.hash" => mt_hash = Some(owned),
+            "mt.hash" => mt_hash = Some(value.into_owned()),
             other => {
                 return Err(ApiError::InvalidArguments(format!(
                     "unknown FCL tag key {other:?}"
@@ -374,7 +378,10 @@ pub(super) fn parse_catalog_to_internal_fcl(
     let frontmatter_locale = parse_header(header, source_locale)?;
     let locale = locale_override.map(str::to_owned).or(frontmatter_locale);
 
-    let mut messages: Vec<CanonicalMessage> = Vec::new();
+    // The entry count is at most the newline count; over-reserving by the header
+    // and any blank lines only saves reallocations.
+    let estimated_entries = memchr::memchr_iter(b'\n', content.as_bytes()).count();
+    let mut messages: Vec<CanonicalMessage> = Vec::with_capacity(estimated_entries);
     for (index, line) in lines {
         if line.is_empty() {
             continue;
