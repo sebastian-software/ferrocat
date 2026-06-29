@@ -5,7 +5,7 @@ use crate::scan::{
     CommentKind, Keyword, LineKind, LineScanner, classify_line, find_quoted_bounds, has_byte,
     parse_plural_index, split_once_byte, trim_ascii, unrecognized_po_line,
 };
-use crate::text::{extract_quoted_bytes_cow, split_reference_comment};
+use crate::text::{extract_quoted_bytes_cow, for_each_reference_token};
 use crate::utf8::input_slice_as_str;
 use crate::{Header, MsgStr, ParseError, ParsePosition, PoFile, PoItem};
 
@@ -352,10 +352,9 @@ fn parse_comment_line<'a>(
     match kind {
         CommentKind::Reference => {
             let reference_line = trimmed_str(&line_bytes[2..]);
-            state
-                .item
-                .references
-                .extend(split_reference_comment(reference_line));
+            for_each_reference_token(reference_line, |token| {
+                state.item.references.push(token);
+            });
         }
         CommentKind::Flags => {
             for flag in trimmed_str(&line_bytes[2..]).split(',') {
