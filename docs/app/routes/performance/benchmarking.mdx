@@ -38,6 +38,26 @@ to ASTs/functions, whereas Ferrocat's `compile_catalog_artifact` resolves
 catalogs to runtime message strings and leaves ICU parsing to the client. A
 direct compile-vs-compile benchmark would compare different operations.
 
+## Comparison Targets At A Glance
+
+Every external tool the suite measures against, with the pinned version captured
+in report metadata. `pofile-ts` is our own performance-focused fork of `pofile`,
+so the fastest JavaScript PO parser in the suite is one we maintain ourselves --
+the comparison deliberately uses the harder JS target rather than the slower
+original.
+
+| Tool | Runtime | Role in the suite | Pinned version |
+|---|---|---|---|
+| [pofile-ts](https://github.com/sebastian-software/pofile-ts) (our fork) | Node | PO parse, serialize, merge | 4.0.3 |
+| [pofile](https://github.com/rubenv/pofile) | Node | PO parse, serialize, merge | 1.1.4 |
+| [gettext-parser](https://github.com/smhg/gettext-parser) | Node | PO parse, serialize | 9.0.2 |
+| [polib](https://github.com/izimobil/polib) | Python | PO parse, serialize, merge | 1.2.0 |
+| [Babel](https://github.com/python-babel/babel) | Python | catalog update | 2.18.0 |
+| [gettext/gettext](https://github.com/php-gettext/Gettext) | PHP | PO parse, serialize | 5.7 |
+| [GNU gettext](https://www.gnu.org/software/gettext/) (`msgmerge`, `msgcat`) | C | merge, concat | system |
+| [@formatjs/icu-messageformat-parser](https://github.com/formatjs/formatjs) | Node | ICU parse | 3.5.11 |
+| [@messageformat/parser](https://github.com/messageformat/messageformat) | Node | ICU parse | 5.1.1 |
+
 ## Scheduled Rust Reports
 
 The `Benchmark Reports` GitHub Actions workflow runs every Monday and can also
