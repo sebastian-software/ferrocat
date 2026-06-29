@@ -1,5 +1,22 @@
 # Changelog
 
+## [1.3.2](https://github.com/sebastian-software/ferrocat/compare/ferrocat-po-v1.3.1...ferrocat-po-v1.3.2) (2026-06-29)
+
+
+### Performance Improvements
+
+* **po:** add single-token fast path to split_reference_comment ([76455f1](https://github.com/sebastian-software/ferrocat/commit/76455f1aa7ec1f97206ed025fdfee572362deabb))
+* **po:** cut redundant allocations in catalog import ([b9596d1](https://github.com/sebastian-software/ferrocat/commit/b9596d1d8a67e39ce0d41c8b08a4520aa771f6f0))
+* **po:** drop throwaway Vec when parsing reference comments ([b6750ec](https://github.com/sebastian-software/ferrocat/commit/b6750ecbc44d4ad1bf871e43094ddc4991c08394))
+* **po:** fold backslash lookup into quoted-content validation ([2a1ce74](https://github.com/sebastian-software/ferrocat/commit/2a1ce745b4042ba481753be5b0599d78aec4fd8f))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * ferrocat-icu bumped from 1.3.1 to 1.3.2
+
 ## [1.3.1](https://github.com/sebastian-software/ferrocat/compare/ferrocat-po-v1.3.0...ferrocat-po-v1.3.1) (2026-06-25)
 
 
