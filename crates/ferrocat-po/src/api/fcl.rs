@@ -515,4 +515,89 @@ mod tests {
         .expect("parse NDJSON");
         assert_eq!(from_fcl, from_ndjson);
     }
+
+    fn parse_err(text: &str) -> bool {
+        parse_catalog_to_internal_fcl(text, None, "en", CatalogSemantics::IcuNative, false).is_err()
+    }
+
+    #[test]
+    fn roundtrips_comments_flags_obsolete_and_escapes() {
+        // Covers the c=/tc=/o serialize branches and the \t \n \\ escape paths
+        // in both directions on a single entry.
+        let text = format!(
+            "{FCL_MAGIC}\tsource=en\n\
+             a.tab\\there\t\tWert\\nZeile\\\\back\tc=extracted\ttc=translator\to\n"
+        );
+        assert_eq!(roundtrip(&text), text);
+    }
+
+    #[test]
+    fn roundtrips_reference_without_line_number() {
+        // Covers the line-less origin path on both parse and serialize.
+        let text = format!("{FCL_MAGIC}\tsource=en\nid\t\tv\tr=README\n");
+        assert_eq!(roundtrip(&text), text);
+    }
+
+    #[test]
+    fn rejects_invalid_and_dangling_escapes() {
+        assert!(parse_err(&format!(
+            "{FCL_MAGIC}\tsource=en\nid\t\tbad\\xescape\n"
+        )));
+        assert!(parse_err(&format!(
+            "{FCL_MAGIC}\tsource=en\nid\t\ttrailing\\\n"
+        )));
+    }
+
+    #[test]
+    fn rejects_malformed_headers() {
+        assert!(parse_err("nope\nid\t\tv\n")); // missing %FCL1 magic
+        assert!(parse_err(&format!("{FCL_MAGIC}\tbogus=x\nid\t\tv\n"))); // unknown header key
+        assert!(parse_err(&format!("{FCL_MAGIC}\tnoeq\nid\t\tv\n"))); // header tag without '='
+        assert!(parse_err(&format!("{FCL_MAGIC}\tsource=de\nid\t\tv\n"))); // source mismatch vs "en"
+        assert!(parse_err("")); // no header at all
+    }
+
+    #[test]
+    fn rejects_malformed_entries() {
+        assert!(parse_err(&format!("{FCL_MAGIC}\tsource=en\njustid\n"))); // missing ctxt/target
+        assert!(parse_err(&format!(
+            "{FCL_MAGIC}\tsource=en\nid\t\tv\tmt.conf=nope\n"
+        ))); // bad conf
+        assert!(parse_err(&format!(
+            "{FCL_MAGIC}\tsource=en\nid\t\tv\tmt.model=m\n"
+        ))); // mt without hash
+        assert!(parse_err(&format!(
+            "{FCL_MAGIC}\tsource=en\nid\t\tv\tmt.hash=h\n"
+        ))); // mt without model
+    }
+
+    #[test]
+    fn rejects_gettext_compat_semantics() {
+        let text = format!("{FCL_MAGIC}\tsource=en\nid\t\tv\n");
+        assert!(
+            parse_catalog_to_internal_fcl(
+                &text,
+                None,
+                "en",
+                CatalogSemantics::GettextCompat,
+                false
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn locale_override_wins_and_blank_lines_are_skipped() {
+        let text = format!("{FCL_MAGIC}\tsource=en\tlocale=de\n\nalpha\t\tA\n\nbeta\t\tB\n");
+        let catalog = parse_catalog_to_internal_fcl(
+            &text,
+            Some("fr"),
+            "en",
+            CatalogSemantics::IcuNative,
+            false,
+        )
+        .expect("parse");
+        assert_eq!(catalog.locale.as_deref(), Some("fr"));
+        assert_eq!(catalog.messages.len(), 2);
+    }
 }
