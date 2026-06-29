@@ -1295,7 +1295,7 @@ fn render_po_catalog(parsed: &ParsedCatalog) -> String {
         item.msgid = render_ndjson_id(message);
         item.msgctxt = message.msgctxt.clone();
         item.msgstr = MsgStr::from(render_ndjson_translation(message));
-        item.extracted_comments = message.comments.clone();
+        item.extracted_comments = message.comments.clone().into();
         item.references = message
             .origin
             .iter()
@@ -1308,8 +1308,8 @@ fn render_po_catalog(parsed: &ParsedCatalog) -> String {
             .collect();
         item.obsolete = message.obsolete;
         if let Some(extra) = &message.extra {
-            item.comments = extra.translator_comments.clone();
-            item.flags = extra.flags.clone();
+            item.comments = extra.translator_comments.clone().into();
+            item.flags = extra.flags.clone().into();
         }
         file.items.push(item);
     }

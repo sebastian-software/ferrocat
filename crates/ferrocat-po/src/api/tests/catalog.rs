@@ -1358,17 +1358,18 @@ fn update_catalog_merges_duplicate_source_first_metadata() {
     let parsed = parse_po(&result.content).expect("parse output");
     assert_eq!(parsed.items.len(), 1);
     assert_eq!(
-        parsed.items[0].extracted_comments,
+        parsed.items[0].extracted_comments.as_slice(),
         vec![
             "First comment".to_owned(),
             "Second comment".to_owned(),
             "placeholder {0}: customer".to_owned(),
             "placeholder {0}: account".to_owned(),
         ]
+        .as_slice()
     );
     assert_eq!(
-        parsed.items[0].references,
-        vec!["src/a.rs:1".to_owned(), "src/b.rs:2".to_owned()]
+        parsed.items[0].references.as_slice(),
+        vec!["src/a.rs:1".to_owned(), "src/b.rs:2".to_owned()].as_slice()
     );
 }
 
@@ -1432,10 +1433,13 @@ fn update_catalog_origin_sort_and_placeholder_options_are_applied() {
     let parsed = parse_po(&result.content).expect("parse output");
     assert_eq!(parsed.items[0].msgid, "First");
     assert_eq!(parsed.items[1].msgid, "Second");
-    assert_eq!(parsed.items[1].references, vec!["src/z.rs"]);
     assert_eq!(
-        parsed.items[1].extracted_comments,
-        vec!["placeholder {0}: first".to_owned()]
+        parsed.items[1].references.as_slice(),
+        vec!["src/z.rs"].as_slice()
+    );
+    assert_eq!(
+        parsed.items[1].extracted_comments.as_slice(),
+        vec!["placeholder {0}: first".to_owned()].as_slice()
     );
 
     let without_placeholders = update_catalog(UpdateCatalogOptions {
@@ -1587,7 +1591,10 @@ fn combine_catalogs_use_first_preserves_existing_translations_and_adds_missing()
     assert_eq!(parsed.items[0].msgstr[0], "Hallo");
     assert_eq!(parsed.items[1].msgid, "New");
     assert_eq!(parsed.items[1].msgstr[0], "");
-    assert_eq!(parsed.items[1].references, vec!["src/new.rs:7"]);
+    assert_eq!(
+        parsed.items[1].references.as_slice(),
+        vec!["src/new.rs:7"].as_slice()
+    );
     assert_eq!(result.stats.inputs, 2);
     assert_eq!(result.stats.definitions, 3);
     assert_eq!(result.stats.selected, 2);

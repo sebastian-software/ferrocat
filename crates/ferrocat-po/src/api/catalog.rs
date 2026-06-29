@@ -798,7 +798,7 @@ fn import_message_from_po(
     _strict: bool,
     _diagnostics: &mut Vec<Diagnostic>,
 ) -> Result<CanonicalMessage, ApiError> {
-    let (comments, placeholders) = split_placeholder_comments(item.extracted_comments);
+    let (comments, placeholders) = split_placeholder_comments(item.extracted_comments.into_vec());
     let origins = item
         .references
         .into_iter()
@@ -851,8 +851,8 @@ fn import_message_from_po(
         placeholders,
         obsolete: item.obsolete,
         machine_translation: import_machine_translation_metadata(&item.metadata)?,
-        translator_comments: item.comments,
-        flags: item.flags,
+        translator_comments: item.comments.into_vec(),
+        flags: item.flags.into_vec(),
     })
 }
 

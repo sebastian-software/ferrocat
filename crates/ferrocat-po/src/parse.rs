@@ -400,8 +400,8 @@ fn finish_item(state: &mut ParserState, file: &mut PoFile, current_nplurals: &mu
     }
 
     if is_header_state(state) && file.headers.is_empty() && file.items.is_empty() {
-        file.comments = core::mem::take(&mut state.item.comments);
-        file.extracted_comments = core::mem::take(&mut state.item.extracted_comments);
+        file.comments = core::mem::take(&mut state.item.comments).into_vec();
+        file.extracted_comments = core::mem::take(&mut state.item.extracted_comments).into_vec();
         parse_headers(state.header_msgstr(), &mut file.headers);
         *current_nplurals = parse_nplurals(&file.headers).unwrap_or(2);
         state.reset(*current_nplurals);
@@ -641,10 +641,13 @@ msgstr ""
         assert!(po.items[2].obsolete);
         assert!(po.items[3].obsolete);
         assert_eq!(
-            po.items[3].comments,
-            vec!["commented obsolete item".to_owned()]
+            po.items[3].comments.as_slice(),
+            vec!["commented obsolete item".to_owned()].as_slice()
         );
-        assert_eq!(po.items[3].flags, vec!["fuzzy".to_owned()]);
+        assert_eq!(
+            po.items[3].flags.as_slice(),
+            vec!["fuzzy".to_owned()].as_slice()
+        );
     }
 
     #[test]
