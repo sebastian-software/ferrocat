@@ -27,7 +27,7 @@ use super::{
     ExtractedMessage, ObsoleteStrategy, OrderBy, ParseCatalogOptions, ParsedCatalog,
     PluralEncoding, PluralSource, TranslationShape, UpdateCatalogFileOptions, UpdateCatalogOptions,
 };
-use crate::{MsgStr, PoItem, parse_po};
+use crate::{MsgStr, PoFile, PoItem, parse_po};
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub(super) struct Catalog {
@@ -737,11 +737,15 @@ fn parse_catalog_to_internal_po(
     _plural_encoding: PluralEncoding,
     strict: bool,
 ) -> Result<Catalog, ApiError> {
-    let file = parse_po(content)?;
-    let headers = file
-        .headers
-        .iter()
-        .map(|header| (header.key.clone(), header.value.clone()))
+    let PoFile {
+        headers: po_headers,
+        items: po_items,
+        comments: po_comments,
+        extracted_comments: po_extracted_comments,
+    } = parse_po(content)?;
+    let headers = po_headers
+        .into_iter()
+        .map(|header| (header.key, header.value))
         .collect::<BTreeMap<_, _>>();
     let locale = locale_override
         .map(str::to_owned)
@@ -755,9 +759,9 @@ fn parse_catalog_to_internal_po(
         semantics,
         &mut diagnostics,
     );
-    let mut messages = Vec::with_capacity(file.items.len());
+    let mut messages = Vec::with_capacity(po_items.len());
 
-    for item in file.items {
+    for item in po_items {
         let mut conversion_diagnostics = Vec::new();
         let message = import_message_from_po(
             item,
@@ -774,8 +778,8 @@ fn parse_catalog_to_internal_po(
     Ok(Catalog {
         locale,
         headers,
-        file_comments: file.comments,
-        file_extracted_comments: file.extracted_comments,
+        file_comments: po_comments,
+        file_extracted_comments: po_extracted_comments,
         messages,
         diagnostics,
     })
@@ -797,8 +801,8 @@ fn import_message_from_po(
     let (comments, placeholders) = split_placeholder_comments(item.extracted_comments);
     let origins = item
         .references
-        .iter()
-        .map(|reference| parse_origin(reference))
+        .into_iter()
+        .map(parse_origin_owned)
         .collect();
 
     let translation = if let Some(msgid_plural) = &item.msgid_plural {
@@ -834,7 +838,7 @@ fn import_message_from_po(
             ));
         }
         CanonicalTranslation::Singular {
-            value: item.msgstr.first_str().unwrap_or_default().to_owned(),
+            value: take_first_msgstr(item.msgstr),
         }
     };
 
@@ -898,16 +902,34 @@ fn parse_placeholder_comment(comment: &str) -> Option<(String, String)> {
 }
 
 /// Parses a gettext reference while tolerating plain paths and `path:line`.
-fn parse_origin(reference: &str) -> CatalogOrigin {
-    match reference.rsplit_once(':') {
-        Some((file, line)) if line.chars().all(|ch| ch.is_ascii_digit()) => CatalogOrigin {
-            file: file.to_owned(),
-            line: line.parse::<u32>().ok(),
-        },
-        _ => CatalogOrigin {
-            file: reference.to_owned(),
-            line: None,
-        },
+/// Splits a `file:line` reference into a [`CatalogOrigin`], reusing the owned
+/// reference buffer for the file part instead of allocating a fresh string.
+fn parse_origin_owned(mut reference: String) -> CatalogOrigin {
+    if let Some((file, line)) = reference.rsplit_once(':')
+        && line.chars().all(|ch| ch.is_ascii_digit())
+    {
+        let parsed_line = line.parse::<u32>().ok();
+        let file_len = file.len();
+        reference.truncate(file_len);
+        return CatalogOrigin {
+            file: reference,
+            line: parsed_line,
+        };
+    }
+
+    CatalogOrigin {
+        file: reference,
+        line: None,
+    }
+}
+
+/// Moves the first available translation string out of a [`MsgStr`], matching
+/// the `first_str().unwrap_or_default()` semantics without copying.
+fn take_first_msgstr(msgstr: MsgStr) -> String {
+    match msgstr {
+        MsgStr::Singular(value) => value,
+        MsgStr::Plural(values) => values.into_iter().next().unwrap_or_default(),
+        MsgStr::None => String::new(),
     }
 }
 
@@ -1005,5 +1027,39 @@ pub(super) fn public_message_from_canonical(message: CanonicalMessage) -> Catalo
             translator_comments: message.translator_comments,
             flags: message.flags,
         }),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{parse_origin_owned, take_first_msgstr};
+    use crate::MsgStr;
+
+    #[test]
+    fn parse_origin_owned_handles_file_line_and_bare_references() {
+        let with_line = parse_origin_owned("src/app.rs:42".to_owned());
+        assert_eq!(with_line.file, "src/app.rs");
+        assert_eq!(with_line.line, Some(42));
+
+        // No colon and a non-numeric line suffix both fall back to a line-less
+        // origin that reuses the original buffer verbatim.
+        let bare = parse_origin_owned("README".to_owned());
+        assert_eq!(bare.file, "README");
+        assert_eq!(bare.line, None);
+
+        let non_numeric = parse_origin_owned("a:b:rev".to_owned());
+        assert_eq!(non_numeric.file, "a:b:rev");
+        assert_eq!(non_numeric.line, None);
+    }
+
+    #[test]
+    fn take_first_msgstr_moves_first_available_value() {
+        assert_eq!(take_first_msgstr(MsgStr::Singular("one".to_owned())), "one");
+        assert_eq!(
+            take_first_msgstr(MsgStr::Plural(vec!["a".to_owned(), "b".to_owned()])),
+            "a"
+        );
+        assert_eq!(take_first_msgstr(MsgStr::Plural(Vec::new())), "");
+        assert_eq!(take_first_msgstr(MsgStr::None), "");
     }
 }
