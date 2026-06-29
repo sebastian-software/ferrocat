@@ -442,8 +442,11 @@ export default function HomePage() {
           update lead is wider than the parse lead. The GNU msgmerge bar is not
           a launch-cost artifact either: the benchmark records an empty-run
           baseline, and its fixed process and I/O overhead is about 2% of the
-          measured time on this corpus, so the gap is real work. The parse chart
-          uses
+          measured time on this corpus, so the gap is real work. The Node
+          baseline, pofile-ts, is our own performance fork of the popular
+          pofile&mdash;so the fastest JS parser here is one we built, and Rust
+          still leads it ~3x; the unforked original sits about 220x back. The
+          parse chart uses
           borrowed, zero-copy parsing; reading into a fully owned model still
           reaches 362 MiB/s. Serialization runs at about 1.16 GiB/s on the same
           corpus. Median of 10 runs on an Apple M1 Ultra, every tool reading
