@@ -49,7 +49,7 @@ const family: FamilyTool[] = [
   {
     name: "ferrocat",
     role: "Translation catalogs",
-    body: "PO, NDJSON, and ICU MessageFormat with merge, review, and audit. Several times faster than Node and Python catalog tooling.",
+    body: "PO, NDJSON, and ICU MessageFormat with merge, review, and audit. Parses several times faster than Node catalog tooling, and merges faster still.",
     icon: <Languages size={19} />,
     href: GITHUB,
     current: true,
@@ -364,12 +364,18 @@ export default function HomePage() {
       {/* ── Performance ── */}
       <section className="ferro-perf ferro-reveal">
         <div className="ferro-section-heading">
-          <h2>Rust throughput, in a Node-shaped world.</h2>
+          <h2>
+            Several times faster than Node. An order of magnitude past PHP and
+            Python.
+          </h2>
           <p className="ferro-sublead">
-            Most i18n tooling for JavaScript and TypeScript runs on Node, where
-            catalogs are parsed and rewritten in interpreted code. The PHP and
-            Python gettext stacks work the same way. Ferrocat is compiled Rust.
-            Same 10k-message catalog, same input files, measured on one machine:
+            V8 is not a slow target. Node&rsquo;s JIT is one of the fastest
+            dynamic runtimes ever shipped, which is exactly why most JS and TS
+            i18n tooling feels fine until you put it next to compiled Rust. On
+            the same 10k-message catalog, reading the same files, Ferrocat still
+            parses several times faster than the quickest Node parser&mdash;and
+            the PHP and Python stacks, with no JIT that helps here, fall much
+            further back.
           </p>
         </div>
         <div className="ferro-bar-charts">
@@ -426,11 +432,17 @@ export default function HomePage() {
           crate.
         </p>
         <p className="ferro-perf-foot">
-          Updating is the real release-time job: parse the existing catalog,
-          parse the freshly extracted strings, merge, and write. The parse chart
-          uses borrowed, zero-copy parsing; reading into a fully owned model
-          still reaches 362 MiB/s. Serialization runs at about 1.16 GiB/s on the
-          same corpus. Median of 10 runs on an Apple M1 Ultra, every tool reading
+          Parsing is mostly raw scanning, and a warm JIT is genuinely good at
+          raw scanning, so the parse gap is the narrowest one on this page. The
+          honest part is admitting that. Updating is the real release-time job:
+          parse the existing catalog, parse the freshly extracted strings, merge
+          by identity, and write it back. Once allocation and serialization
+          dominate, the JIT&rsquo;s edge fades and the zero-copy,
+          move-not-clone hot path pulls further ahead&mdash;which is why the
+          update lead is wider than the parse lead. The parse chart uses
+          borrowed, zero-copy parsing; reading into a fully owned model still
+          reaches 362 MiB/s. Serialization runs at about 1.16 GiB/s on the same
+          corpus. Median of 10 runs on an Apple M1 Ultra, every tool reading
           the same files (pofile-ts 4.0.3, gettext-parser 9.0.2, polib 1.2.0,
           gettext/gettext 5.7.3, GNU gettext 1.0).{" "}
           <Link to="/performance/benchmarking">Methodology</Link> and{" "}
