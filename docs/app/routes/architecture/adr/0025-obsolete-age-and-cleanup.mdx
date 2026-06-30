@@ -1,0 +1,105 @@
+---
+title: "ADR 0025: Obsolete Age and Age-Based Cleanup"
+description: "Accepted architecture decision record: obsolete becomes a presence-plus-payload field carrying an optional write-once since date, with a caller-provided clock and an age-based drop strategy, so hosts can garbage-collect long-unused entries without making Ferrocat time-dependent."
+order: 250
+---
+
+# ADR 0025: Obsolete Age and Age-Based Cleanup
+
+- Status: Accepted (2.0.0)
+- Date: 2026-06-30
+- Refines: [ADR 0023](/architecture/adr/0023-drop-gettext-flags-merge-comments)
+
+## Context
+
+[ADR 0023](/architecture/adr/0023-drop-gettext-flags-merge-comments) kept the
+obsolete marker because temporarily un-mounting a feature should not discard
+finished translations. The open problem is the other end: obsolete entries
+otherwise accumulate forever. Teams want a grace period — keep a removed entry
+for a while so it can be revived, then garbage-collect it once it has been unused
+long enough (30, 90 days, …).
+
+A naive "store a modified timestamp" was rejected for machine metadata in
+[ADR 0022](/architecture/adr/0022-machine-managed-value-integrity-and-ai-provenance)
+because it re-stamped on every regeneration and poisoned merges. Two observations
+make age tracking acceptable here where it was not there:
+
+- **Write-once, not per-run.** An obsolescence date is set once, when the entry
+  transitions to obsolete, and stays stable until the entry is removed. It does
+  not churn on every regeneration the way a `modified` timestamp did.
+- **git cannot supply it.** `update_catalog` re-sorts and regenerates the file,
+  which resets `git blame`, so calendar age cannot be reliably recovered from
+  history. Calendar semantics require the date in-band.
+
+The remaining risk is determinism: Ferrocat is a pure function (same input → same
+bytes), and calling a clock would break that.
+
+## Decision
+
+### 1. Age rides on `obsolete`, not a parallel field
+
+`obsolete` changes from a `bool` to presence-plus-payload, mirroring `machine`:
+
+```rust
+pub obsolete: Option<ObsoleteInfo>,
+
+pub struct ObsoleteInfo {
+    pub since: Option<String>, // ISO-8601 date, write-once
+}
+```
+
+- `None` → active
+- `Some(ObsoleteInfo { since: None })` → obsolete, undated (bare marker / legacy)
+- `Some(ObsoleteInfo { since: Some("2026-06-30") })` → obsolete since that date
+
+A single field means the invalid "dated but not obsolete" state is unrepresentable.
+
+### 2. The clock is injected, never read
+
+Ferrocat never calls a clock. `UpdateCatalogOptions::now` (an optional ISO date)
+is supplied by the host. When an entry first transitions active → obsolete and
+`now` is set, Ferrocat stamps `since = now`; an entry that is already obsolete
+keeps its existing date (write-once). With `now` unset, behavior is unchanged and
+fully deterministic.
+
+### 3. Cleanup is a cutoff comparison, not date math
+
+A new `ObsoleteStrategy::DropObsoleteBefore(cutoff)` marks newly-missing entries
+obsolete (like `Mark`) and additionally drops any obsolete entry whose `since`
+predates `cutoff`. ISO-8601 dates compare lexicographically, so this is a plain
+string comparison — no date library, no arithmetic. The host computes the cutoff
+(e.g. "today − 90 days") and passes it in; undated obsolete entries are kept
+(their age is unknown).
+
+### Encoding
+
+- FCL: the `o` tag carries the date — `o` (undated) or `o=2026-06-30`.
+- PO: the `#~` prefix is structural, not a value-bearing tag, so the date rides
+  alongside as a `#@ obsolete-since: 2026-06-30` metadata comment. The model is
+  still unified; only the PO wire form is split. (FCL stays more compact.)
+
+## Consequences
+
+Positive:
+
+- obsolete entries gain a grace period and an automatic, opt-in GC path, without
+  Ferrocat ever becoming time-dependent
+- age rides on the existing `obsolete`/`o` concept; no new top-level field, no
+  invalid states, consistent with the `machine` shape
+- the design is dependency-free (ISO strings, lexical compare) and the host owns
+  all wall-clock logic, so `update_catalog` stays a pure function of its inputs
+
+Negative:
+
+- this is a breaking change: `CatalogMessage::obsolete` becomes
+  `Option<ObsoleteInfo>` and `ObsoleteStrategy` gains a non-`Copy` variant; it
+  lands in the 2.0.0 line
+- Ferrocat only populates `since` when a host passes `now`; until producers
+  (Palamedes) do, obsolete entries stay undated and the cleanup strategy has
+  nothing to act on
+- re-adds an in-band date, accepted here because it is write-once and git cannot
+  supply calendar age for a regenerated artifact
+
+This refines [ADR 0023](/architecture/adr/0023-drop-gettext-flags-merge-comments)
+and respects the [Ferrocat/Palamedes boundary](/architecture/adr/0014-ferrocat-palamedes-boundary):
+Ferrocat owns the neutral slot and a clock-free comparison, the host owns time.

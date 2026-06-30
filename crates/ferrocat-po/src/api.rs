@@ -66,9 +66,10 @@ pub use self::types::{
     CatalogStorageFormat, CatalogUpdateInput, CatalogUpdateResult, CombineCatalogFilesOptions,
     CombineCatalogOptions, Diagnostic, DiagnosticSeverity, EffectiveTranslation,
     EffectiveTranslationRef, ExtractedMessage, ExtractedPluralMessage, ExtractedSingularMessage,
-    IcuSyntaxPolicy, NormalizedParsedCatalog, ObsoleteStrategy, OrderBy, ParseCatalogOptions,
-    ParsedCatalog, PlaceholderCommentMode, PluralEncoding, PluralSource, RenderOptions,
-    SourceExtractedMessage, TranslationShape, UpdateCatalogFileOptions, UpdateCatalogOptions,
+    IcuSyntaxPolicy, NormalizedParsedCatalog, ObsoleteInfo, ObsoleteStrategy, OrderBy,
+    ParseCatalogOptions, ParsedCatalog, PlaceholderCommentMode, PluralEncoding, PluralSource,
+    RenderOptions, SourceExtractedMessage, TranslationShape, UpdateCatalogFileOptions,
+    UpdateCatalogOptions,
 };
 fn validate_source_locale(source_locale: &str) -> Result<(), ApiError> {
     if source_locale.trim().is_empty() {

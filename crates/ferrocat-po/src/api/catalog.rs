@@ -23,8 +23,8 @@ use super::plural::{PluralProfile, derive_plural_variable, expected_gettext_nplu
 use super::{
     ApiError, CatalogMessage, CatalogOrigin, CatalogSemantics, CatalogStats, CatalogStorageFormat,
     CatalogUpdateInput, CatalogUpdateResult, Diagnostic, DiagnosticSeverity, ExtractedMessage,
-    ObsoleteStrategy, OrderBy, ParseCatalogOptions, ParsedCatalog, PluralEncoding, PluralSource,
-    TranslationShape, UpdateCatalogFileOptions, UpdateCatalogOptions,
+    ObsoleteInfo, ObsoleteStrategy, OrderBy, ParseCatalogOptions, ParsedCatalog, PluralEncoding,
+    PluralSource, TranslationShape, UpdateCatalogFileOptions, UpdateCatalogOptions,
 };
 use crate::{MsgStr, PoFile, PoItem, PoVec, parse_po};
 
@@ -46,9 +46,12 @@ pub(super) struct CanonicalMessage {
     pub(super) comments: Vec<String>,
     pub(super) origins: PoVec<CatalogOrigin>,
     pub(super) placeholders: BTreeMap<String, Vec<String>>,
-    pub(super) obsolete: bool,
+    pub(super) obsolete: Option<ObsoleteInfo>,
     pub(super) machine: Option<MachineMetadata>,
 }
+
+/// PO metadata key carrying the obsolete-since date (see [`ObsoleteInfo`]).
+pub(super) const PO_OBSOLETE_SINCE_KEY: &str = "obsolete-since";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) enum CanonicalTranslation {
@@ -88,13 +91,14 @@ struct ParsedPluralFormsHeader {
     plural: Option<String>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 struct MergeCatalogContext<'a> {
     locale: Option<&'a str>,
     source_locale: &'a str,
     semantics: CatalogSemantics,
     overwrite_source_translations: bool,
     obsolete_strategy: ObsoleteStrategy,
+    now: Option<&'a str>,
 }
 
 /// Merges extracted messages into an existing catalog and returns updated catalog content.
@@ -165,10 +169,11 @@ pub fn update_catalog(options: UpdateCatalogOptions<'_>) -> Result<CatalogUpdate
         source_locale: options.source_locale,
         semantics: options.mode.semantics(),
         overwrite_source_translations: options.overwrite_source_translations,
-        obsolete_strategy: options.obsolete_strategy,
+        obsolete_strategy: options.obsolete_strategy.clone(),
+        now: options.now,
     };
     let (mut merged, stats) =
-        merge_catalogs(existing, &normalized, merge_context, &mut diagnostics);
+        merge_catalogs(existing, &normalized, &merge_context, &mut diagnostics);
     merged.locale.clone_from(&locale);
     apply_storage_defaults(&mut merged, &options, locale.as_deref(), &mut diagnostics)?;
     sort_messages(&mut merged.messages, options.render.order_by);
@@ -380,7 +385,7 @@ fn push_normalized_message(
 fn merge_catalogs(
     existing: Catalog,
     normalized: &[NormalizedMessage],
-    context: MergeCatalogContext<'_>,
+    context: &MergeCatalogContext<'_>,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> (Catalog, CatalogStats) {
     let is_source_locale = context
@@ -434,21 +439,31 @@ fn merge_catalogs(
         if matched[index] {
             continue;
         }
-        match context.obsolete_strategy {
+        match &context.obsolete_strategy {
             ObsoleteStrategy::Delete => {
                 stats.obsolete_removed += 1;
             }
             ObsoleteStrategy::Mark => {
                 let mut message = message;
-                if !message.obsolete {
-                    message.obsolete = true;
-                    stats.obsolete_marked += 1;
-                }
+                mark_obsolete(&mut message, context.now, &mut stats);
                 messages.push(message);
             }
             ObsoleteStrategy::Keep => {
                 let mut message = message;
-                message.obsolete = false;
+                message.obsolete = None;
+                messages.push(message);
+            }
+            ObsoleteStrategy::DropObsoleteBefore(cutoff) => {
+                let mut message = message;
+                mark_obsolete(&mut message, context.now, &mut stats);
+                // Age-based GC: drop dated entries older than the cutoff; keep
+                // undated ones since their age is unknown.
+                if let Some(ObsoleteInfo { since: Some(since) }) = &message.obsolete
+                    && since.as_str() < cutoff.as_str()
+                {
+                    stats.obsolete_removed += 1;
+                    continue;
+                }
                 messages.push(message);
             }
         }
@@ -466,6 +481,17 @@ fn merge_catalogs(
         },
         stats,
     )
+}
+
+/// Marks a newly-missing message obsolete, stamping the host-provided `now` as
+/// the write-once `since` date. Already-obsolete messages keep their date.
+fn mark_obsolete(message: &mut CanonicalMessage, now: Option<&str>, stats: &mut CatalogStats) {
+    if message.obsolete.is_none() {
+        message.obsolete = Some(ObsoleteInfo {
+            since: now.map(str::to_owned),
+        });
+        stats.obsolete_marked += 1;
+    }
 }
 
 /// Resolves the final canonical message for one gettext identity.
@@ -547,7 +573,7 @@ fn merge_message(
     };
 
     let (machine, obsolete) =
-        previous.map_or_else(|| (None, false), |message| (message.machine.clone(), false));
+        previous.map_or_else(|| (None, None), |message| (message.machine.clone(), None));
 
     CanonicalMessage {
         msgid: next.msgid.clone(),
@@ -837,9 +863,22 @@ fn import_message_from_po(
         comments,
         origins,
         placeholders,
-        obsolete: item.obsolete,
+        obsolete: import_obsolete(item.obsolete, &item.metadata),
         machine: import_machine_metadata(&item.metadata)?,
     })
+}
+
+/// Builds the obsolete state from the low-level obsolete flag, reading the
+/// optional `#@ obsolete-since:` date from the entry's metadata.
+fn import_obsolete(obsolete: bool, metadata: &[(String, String)]) -> Option<ObsoleteInfo> {
+    if !obsolete {
+        return None;
+    }
+    let since = metadata
+        .iter()
+        .find(|(key, _)| key == PO_OBSOLETE_SINCE_KEY)
+        .map(|(_, value)| value.clone());
+    Some(ObsoleteInfo { since })
 }
 
 fn import_machine_metadata(

@@ -550,7 +550,7 @@ fn collect_compiled_catalog_artifact_source_keys(
     let mut source_keys = BTreeSet::new();
     for catalog in locales.values() {
         for (source_key, message) in catalog.iter() {
-            if !message.obsolete {
+            if message.obsolete.is_none() {
                 source_keys.insert(source_key.clone());
             }
         }
@@ -565,7 +565,7 @@ fn compiled_catalog_artifact_catalogs_contain_key(
     locales.values().any(|catalog| {
         catalog
             .get(source_key)
-            .is_some_and(|message| !message.obsolete)
+            .is_some_and(|message| message.obsolete.is_none())
     })
 }
 
@@ -852,7 +852,7 @@ fn resolve_compiled_catalog_artifact_message(
         let Some(message) = catalog.get(source_key) else {
             continue;
         };
-        if message.obsolete || !message_has_runtime_translation(message) {
+        if message.obsolete.is_some() || !message_has_runtime_translation(message) {
             continue;
         }
         return rendered_compiled_catalog_artifact_message(
@@ -875,7 +875,7 @@ fn resolve_compiled_catalog_artifact_message(
 
     let catalog = catalogs.get(options.source_locale)?;
     let message = catalog.get(source_key)?;
-    if message.obsolete {
+    if message.obsolete.is_some() {
         return None;
     }
 
@@ -982,7 +982,7 @@ mod unit_tests {
             },
             comments: Vec::new(),
             origin: crate::PoVec::new(),
-            obsolete: false,
+            obsolete: None,
             machine: None,
         }
     }
@@ -1004,7 +1004,7 @@ mod unit_tests {
             },
             comments: Vec::new(),
             origin: crate::PoVec::new(),
-            obsolete: false,
+            obsolete: None,
             machine: None,
         }
     }
@@ -1127,7 +1127,7 @@ mod unit_tests {
     #[test]
     fn compile_artifact_helper_views_cover_lookup_and_runtime_rendering() {
         let mut obsolete = singular_message("Old", "Alt");
-        obsolete.obsolete = true;
+        obsolete.obsolete = Some(crate::ObsoleteInfo { since: None });
         let de = normalized_catalog(
             Some("de"),
             CatalogSemantics::IcuNative,

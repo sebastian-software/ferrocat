@@ -210,6 +210,8 @@ In practice this is the fast path workflow API: it stays close to classic Gettex
 
 Ferrocat assumes exact catalog identity here: `msgid` plus optional `msgctxt`. That works for classic ID-style catalogs and for projects that use real product copy as `msgid`. Matching messages keep translations, new messages are added, and removed messages follow the obsolete strategy. Fuzzy matching is intentionally outside the default workflow.
 
+The obsolete strategy is `Mark`, `Delete`, `Keep`, or `DropObsoleteBefore(cutoff)` for age-based cleanup: entries newly marked obsolete are stamped with `UpdateCatalogOptions::now` (a host-provided ISO date — Ferrocat never reads a clock), and `DropObsoleteBefore` removes obsolete entries whose `since` predates the cutoff. ISO dates compare lexicographically, so the host computes the cutoff and Ferrocat stays deterministic (see [ADR 0025](/architecture/adr/0025-obsolete-age-and-cleanup)).
+
 ```rust
 use std::borrow::Cow;
 

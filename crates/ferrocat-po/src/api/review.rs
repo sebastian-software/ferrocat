@@ -358,13 +358,13 @@ fn translation_change_report(
         }
         let Some(previous_message) = previous_target
             .get(source_key)
-            .filter(|message| !message.obsolete)
+            .filter(|message| message.obsolete.is_none())
         else {
             continue;
         };
         let current_message = current_target
             .get(source_key)
-            .filter(|message| !message.obsolete)
+            .filter(|message| message.obsolete.is_none())
             .expect("translated classification must have an active current message");
         let previous = previous_message.effective_translation();
         let current = current_message.effective_translation();
@@ -393,7 +393,7 @@ fn machine_translation_review(
     let mut report = CatalogMachineTranslationReview::default();
 
     for (source_key, message) in current_target.iter() {
-        if message.obsolete {
+        if message.obsolete.is_some() {
             continue;
         }
         let status = machine_translation_status(message);
@@ -621,7 +621,7 @@ mod tests {
                 },
                 comments: Vec::new(),
                 origin: crate::PoVec::new(),
-                obsolete: false,
+                obsolete: None,
                 machine: Some(MachineMetadata {
                     lock: machine_translation_hash(EffectiveTranslationRef::Singular("Hallo")),
                     ai: Some(AiProvenance {

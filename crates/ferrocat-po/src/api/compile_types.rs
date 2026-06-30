@@ -374,7 +374,7 @@ impl CompiledCatalogIdIndex {
 
         for catalog in catalogs {
             for (source_key, message) in catalog.iter() {
-                if message.obsolete {
+                if message.obsolete.is_some() {
                     continue;
                 }
                 let compiled_id = key_generator(key_strategy, source_key);
@@ -469,7 +469,7 @@ impl CompiledCatalogIdIndex {
                 let Some(message) = catalog.get(&source_key) else {
                     continue;
                 };
-                if message.obsolete {
+                if message.obsolete.is_some() {
                     continue;
                 }
                 let next_kind = compiled_catalog_translation_kind_for_message(

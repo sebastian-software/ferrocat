@@ -92,6 +92,57 @@ fn parse_catalog_reads_origin_scope_and_merges_comments() {
 }
 
 #[test]
+fn obsolete_stamps_since_from_clock_and_age_cleanup_drops_old_entries() {
+    // "Old" disappears from source and is marked obsolete, stamped with the
+    // host-provided clock.
+    let stamped = update_catalog(UpdateCatalogOptions {
+        source_locale: "en",
+        locale: Some("de"),
+        existing: Some("msgid \"Old\"\nmsgstr \"Alt\"\n"),
+        input: structured_input(vec![]),
+        now: Some("2026-06-30"),
+        ..UpdateCatalogOptions::new("en", CatalogUpdateInput::default())
+    })
+    .expect("mark obsolete");
+    assert!(stamped.content.contains("obsolete-since: 2026-06-30"));
+
+    // The since date round-trips through parsing.
+    let parsed = parse_catalog(ParseCatalogOptions {
+        content: &stamped.content,
+        source_locale: "en",
+        locale: Some("de"),
+        ..ParseCatalogOptions::new("", "en")
+    })
+    .expect("parse stamped");
+    let info = parsed.messages[0].obsolete.as_ref().expect("obsolete");
+    assert_eq!(info.since.as_deref(), Some("2026-06-30"));
+
+    // A cutoff after the since date drops the aged entry.
+    let dropped = update_catalog(UpdateCatalogOptions {
+        source_locale: "en",
+        locale: Some("de"),
+        existing: Some(&stamped.content),
+        input: structured_input(vec![]),
+        obsolete_strategy: ObsoleteStrategy::DropObsoleteBefore("2026-09-01".to_owned()),
+        ..UpdateCatalogOptions::new("en", CatalogUpdateInput::default())
+    })
+    .expect("drop old");
+    assert!(!dropped.content.contains("Old"));
+
+    // A cutoff before the since date keeps it.
+    let kept = update_catalog(UpdateCatalogOptions {
+        source_locale: "en",
+        locale: Some("de"),
+        existing: Some(&stamped.content),
+        input: structured_input(vec![]),
+        obsolete_strategy: ObsoleteStrategy::DropObsoleteBefore("2026-01-01".to_owned()),
+        ..UpdateCatalogOptions::new("en", CatalogUpdateInput::default())
+    })
+    .expect("keep recent");
+    assert!(kept.content.contains("Old"));
+}
+
+#[test]
 fn update_catalog_keeps_valid_po_machine_metadata() {
     let hash = machine_translation_hash(EffectiveTranslationRef::Singular("Hallo"));
     let existing = format!(
@@ -1591,6 +1642,29 @@ fn combine_catalogs_skips_obsolete_by_default_and_can_include_them() {
     let included = parse_po(&included.content).expect("parse included");
     assert_eq!(included.items.len(), 2);
     assert!(included.items.iter().any(|item| item.obsolete));
+}
+
+#[test]
+fn combine_catalogs_merges_obsolete_keeping_earliest_since() {
+    // The same obsolete entry in two inputs merges into one, keeping the earliest
+    // `since` date.
+    let a = "#~ #@ obsolete-since: 2026-06-01\n#~ msgid \"old\"\n#~ msgstr \"alt\"\n";
+    let b = "#~ #@ obsolete-since: 2026-03-01\n#~ msgid \"old\"\n#~ msgstr \"alt\"\n";
+    let inputs = [CatalogCombineInput::new(a), CatalogCombineInput::new(b)];
+
+    let result = combine_catalogs(CombineCatalogOptions {
+        inputs: &inputs,
+        source_locale: "en",
+        locale: Some("de"),
+        include_obsolete: true,
+        ..CombineCatalogOptions::new(&[], "en")
+    })
+    .expect("combine obsolete");
+    let parsed = parse_po(&result.content).expect("parse");
+    assert_eq!(parsed.items.len(), 1);
+    assert!(parsed.items[0].obsolete);
+    assert!(result.content.contains("obsolete-since: 2026-03-01"));
+    assert!(!result.content.contains("2026-06-01"));
 }
 
 #[test]

@@ -178,11 +178,24 @@ pub struct CatalogMessage {
     pub comments: Vec<String>,
     /// Source origins preserved from PO references.
     pub origin: PoVec<CatalogOrigin>,
-    /// Whether the message is marked obsolete.
-    pub obsolete: bool,
+    /// Obsolete state: `None` when active, `Some` when the message is obsolete
+    /// (with an optional write-once `since` date, see [`ObsoleteInfo`]).
+    pub obsolete: Option<ObsoleteInfo>,
     /// Optional metadata when the current value is machine-managed (see
     /// [`MachineMetadata`]).
     pub machine: Option<MachineMetadata>,
+}
+
+/// Obsolete-entry payload. Presence on [`CatalogMessage::obsolete`] marks the
+/// entry obsolete; `since` records when it became obsolete so hosts can
+/// age-cleanup with [`ObsoleteStrategy::DropObsoleteBefore`].
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Default)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
+pub struct ObsoleteInfo {
+    /// Write-once ISO-8601 date the entry became obsolete, set from the host's
+    /// injected clock. `None` when the obsolescence date is unknown.
+    pub since: Option<String>,
 }
 
 impl CatalogMessage {
@@ -864,7 +877,7 @@ impl CatalogMode {
 }
 
 /// Strategy used for messages that disappear from the extracted input.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub enum ObsoleteStrategy {
     /// Mark missing messages obsolete and keep them in the file.
     #[default]
@@ -873,6 +886,13 @@ pub enum ObsoleteStrategy {
     Delete,
     /// Keep missing messages as active entries.
     Keep,
+    /// Mark missing messages obsolete (like [`ObsoleteStrategy::Mark`]) and
+    /// additionally drop any obsolete entry whose `since` date predates the given
+    /// ISO-8601 cutoff. Undated obsolete entries are kept. The host computes the
+    /// cutoff (e.g. today minus 90 days); ISO dates compare lexicographically, so
+    /// no date arithmetic happens inside Ferrocat. See
+    /// [ADR 0025](https://ferrocat.dev/architecture/adr/0025-obsolete-age-and-cleanup).
+    DropObsoleteBefore(String),
 }
 
 /// Sort order used when writing output catalogs.
@@ -952,6 +972,11 @@ pub struct UpdateCatalogOptions<'a> {
     pub obsolete_strategy: ObsoleteStrategy,
     /// Whether source-locale translations should be refreshed from the extracted source strings.
     pub overwrite_source_translations: bool,
+    /// Optional host-provided clock as an ISO-8601 date. When set, entries newly
+    /// transitioning to obsolete are stamped with this `since` date (write-once).
+    /// Ferrocat never reads a clock itself, so updates stay deterministic given
+    /// their inputs. See [ADR 0025](https://ferrocat.dev/architecture/adr/0025-obsolete-age-and-cleanup).
+    pub now: Option<&'a str>,
     /// Shared serialization options for the rendered catalog.
     pub render: RenderOptions<'a>,
 }
@@ -971,6 +996,7 @@ impl<'a> UpdateCatalogOptions<'a> {
             mode: CatalogMode::default(),
             obsolete_strategy: ObsoleteStrategy::Mark,
             overwrite_source_translations: false,
+            now: None,
             render: RenderOptions::default(),
         }
     }
@@ -1230,7 +1256,7 @@ mod tests {
             },
             comments: vec!["Shown in toolbar".to_owned()],
             origin: crate::PoVec::new(),
-            obsolete: false,
+            obsolete: None,
             machine: None,
         };
 
@@ -1263,7 +1289,7 @@ mod tests {
             },
             comments: Vec::new(),
             origin: crate::PoVec::new(),
-            obsolete: false,
+            obsolete: None,
             machine: None,
         };
 
@@ -1296,7 +1322,7 @@ mod tests {
                     },
                     comments: Vec::new(),
                     origin: crate::PoVec::new(),
-                    obsolete: false,
+                    obsolete: None,
                     machine: None,
                 },
                 CatalogMessage {
@@ -1307,7 +1333,7 @@ mod tests {
                     },
                     comments: Vec::new(),
                     origin: crate::PoVec::new(),
-                    obsolete: false,
+                    obsolete: None,
                     machine: None,
                 },
             ],
@@ -1550,7 +1576,7 @@ mod tests {
             },
             comments: vec!["Shown in toolbar".to_owned()],
             origin: crate::PoVec::new(),
-            obsolete: false,
+            obsolete: None,
             machine: None,
         };
         let message_json =

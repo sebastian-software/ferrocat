@@ -1977,7 +1977,7 @@ impl CatalogMessageSummary {
                 .iter()
                 .map(CatalogOriginSummary::from_origin)
                 .collect(),
-            obsolete: message.obsolete,
+            obsolete: message.obsolete.is_some(),
         }
     }
 }

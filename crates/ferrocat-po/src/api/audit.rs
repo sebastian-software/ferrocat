@@ -376,7 +376,7 @@ fn audit_catalog_entries(
 ) {
     for (key, message) in catalog.iter() {
         let message_ref = CatalogAuditMessageRef::new(locale, key);
-        if options.checks.obsolete_entries && message.obsolete {
+        if options.checks.obsolete_entries && message.obsolete.is_some() {
             report.diagnostics.push(CatalogAuditDiagnostic::new(
                 DiagnosticSeverity::Info,
                 diagnostic_codes::catalog::OBSOLETE_ENTRY,
@@ -385,7 +385,7 @@ fn audit_catalog_entries(
                 None,
             ));
         }
-        if options.checks.icu_syntax && !message.obsolete {
+        if options.checks.icu_syntax && message.obsolete.is_none() {
             audit_icu_syntax_for_message(
                 message,
                 validate_source_identity,
@@ -495,7 +495,9 @@ fn audit_icu_compatibility(
     report: &mut CatalogAuditReport,
 ) {
     for key in source_keys {
-        let Some(target_message) = target_catalog.get(key).filter(|message| !message.obsolete)
+        let Some(target_message) = target_catalog
+            .get(key)
+            .filter(|message| message.obsolete.is_none())
         else {
             continue;
         };

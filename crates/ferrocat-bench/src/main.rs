@@ -1230,7 +1230,7 @@ pub(crate) fn render_fcl_catalog(parsed: &ParsedCatalog) -> String {
                 line.push_str("\tc=");
                 fcl_escape_into(&mut line, comment);
             }
-            if message.obsolete {
+            if message.obsolete.is_some() {
                 line.push_str("\to");
             }
             line.push('\n');
@@ -1307,7 +1307,7 @@ fn render_po_catalog(parsed: &ParsedCatalog) -> String {
             .iter()
             .map(|origin| origin.file.clone())
             .collect();
-        item.obsolete = message.obsolete;
+        item.obsolete = message.obsolete.is_some();
         file.items.push(item);
     }
 
