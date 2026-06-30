@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 
 use crate::{ParseError, PoVec};
 
-use super::mt::MachineTranslationMetadata;
+use super::mt::MachineMetadata;
 use super::plural::PluralProfile;
 
 #[cfg(feature = "serde")]
@@ -168,7 +168,9 @@ pub struct CatalogMessageExtra {
 }
 
 /// Public message representation returned by [`super::parse_catalog`].
-#[derive(Debug, Clone, PartialEq, Eq)]
+///
+/// Not `Eq`: AI confidence is a float ([`MachineMetadata`]).
+#[derive(Debug, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 pub struct CatalogMessage {
@@ -184,8 +186,9 @@ pub struct CatalogMessage {
     pub origin: PoVec<CatalogOrigin>,
     /// Whether the message is marked obsolete.
     pub obsolete: bool,
-    /// Optional machine-translation metadata for the current translation.
-    pub machine_translation: Option<MachineTranslationMetadata>,
+    /// Optional metadata when the current value is machine-managed (see
+    /// [`MachineMetadata`]).
+    pub machine: Option<MachineMetadata>,
     /// Optional additional translator-facing PO metadata.
     pub extra: Option<CatalogMessageExtra>,
 }
@@ -573,7 +576,7 @@ pub struct CatalogFileCombineResult {
 }
 
 /// Parsed catalog plus diagnostics and normalized headers.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct ParsedCatalog {
     /// Declared or overridden catalog locale.
     pub locale: Option<String>,
@@ -600,7 +603,7 @@ impl ParsedCatalog {
 }
 
 /// Parsed catalog with fast key-based lookup helpers.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct NormalizedParsedCatalog {
     pub(super) catalog: ParsedCatalog,
     pub(super) key_index: BTreeMap<CatalogMessageKey, usize>,
@@ -1236,7 +1239,7 @@ mod tests {
             comments: vec!["Shown in toolbar".to_owned()],
             origin: crate::PoVec::new(),
             obsolete: false,
-            machine_translation: None,
+            machine: None,
             extra: Some(CatalogMessageExtra {
                 translator_comments: vec!["Imperative".to_owned()],
                 flags: vec!["fuzzy".to_owned()],
@@ -1273,7 +1276,7 @@ mod tests {
             comments: Vec::new(),
             origin: crate::PoVec::new(),
             obsolete: false,
-            machine_translation: None,
+            machine: None,
             extra: None,
         };
 
@@ -1307,7 +1310,7 @@ mod tests {
                     comments: Vec::new(),
                     origin: crate::PoVec::new(),
                     obsolete: false,
-                    machine_translation: None,
+                    machine: None,
                     extra: None,
                 },
                 CatalogMessage {
@@ -1319,7 +1322,7 @@ mod tests {
                     comments: Vec::new(),
                     origin: crate::PoVec::new(),
                     obsolete: false,
-                    machine_translation: None,
+                    machine: None,
                     extra: None,
                 },
             ],
@@ -1563,7 +1566,7 @@ mod tests {
             comments: vec!["Shown in toolbar".to_owned()],
             origin: crate::PoVec::new(),
             obsolete: false,
-            machine_translation: None,
+            machine: None,
             extra: None,
         };
         let message_json =

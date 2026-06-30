@@ -70,7 +70,7 @@
 /// High-level catalog maintenance, audit, and runtime artifact APIs.
 pub mod catalog {
     pub use ferrocat_po::{
-        ApiError, CatalogAuditChecks, CatalogAuditDiagnostic, CatalogAuditMessageRef,
+        AiProvenance, ApiError, CatalogAuditChecks, CatalogAuditDiagnostic, CatalogAuditMessageRef,
         CatalogAuditOptions, CatalogAuditReport, CatalogAuditSummary, CatalogCombineInput,
         CatalogCombineResult, CatalogCombineSelection, CatalogCombineStats,
         CatalogConflictStrategy, CatalogCoverageMessage, CatalogCoverageOptions,
@@ -92,11 +92,11 @@ pub mod catalog {
         CompiledMessage, CompiledTranslation, DescribeCompiledIdsReport, Diagnostic,
         DiagnosticSeverity, EffectiveTranslation, EffectiveTranslationRef, ExtractedMessage,
         ExtractedPluralMessage, ExtractedSingularMessage, IcuFormatterSupportPolicy,
-        IcuPseudolocalizationOptions, IcuSyntaxPolicy, MachineTranslationMetadata,
-        NormalizedParsedCatalog, ObsoleteStrategy, OrderBy, ParseCatalogOptions, ParsedCatalog,
-        PlaceholderCommentMode, PluralEncoding, PluralSource, PoVec, RenderOptions, SmallVec,
-        SourceExtractedMessage, TranslationShape, UpdateCatalogFileOptions, UpdateCatalogOptions,
-        audit_catalogs, catalog_coverage, catalog_review, combine_catalog_files, combine_catalogs,
+        IcuPseudolocalizationOptions, IcuSyntaxPolicy, MachineMetadata, NormalizedParsedCatalog,
+        ObsoleteStrategy, OrderBy, ParseCatalogOptions, ParsedCatalog, PlaceholderCommentMode,
+        PluralEncoding, PluralSource, PoVec, RenderOptions, SmallVec, SourceExtractedMessage,
+        TranslationShape, UpdateCatalogFileOptions, UpdateCatalogOptions, audit_catalogs,
+        catalog_coverage, catalog_review, combine_catalog_files, combine_catalogs,
         compile_catalog_artifact, compile_catalog_artifact_report,
         compile_catalog_artifact_selected, compile_catalog_artifact_selected_with_icu_options,
         compile_catalog_artifact_with_icu_options, compiled_key, machine_translation_hash,
@@ -169,7 +169,7 @@ pub const COMPILED_CATALOG_ARTIFACT_SCHEMA_VERSION: u16 = 1;
 pub use ferrocat_po::MergeExtractedMessage;
 #[cfg(feature = "catalog")]
 pub use ferrocat_po::{
-    ApiError, CatalogAuditChecks, CatalogAuditDiagnostic, CatalogAuditMessageRef,
+    AiProvenance, ApiError, CatalogAuditChecks, CatalogAuditDiagnostic, CatalogAuditMessageRef,
     CatalogAuditOptions, CatalogAuditReport, CatalogAuditSummary, CatalogCombineInput,
     CatalogCombineResult, CatalogCombineSelection, CatalogCombineStats, CatalogConflictStrategy,
     CatalogCoverageMessage, CatalogCoverageOptions, CatalogCoverageReport,
@@ -191,14 +191,14 @@ pub use ferrocat_po::{
     CompiledMessage, CompiledTranslation, DescribeCompiledIdsReport, Diagnostic,
     DiagnosticSeverity, EffectiveTranslation, EffectiveTranslationRef, ExtractedMessage,
     ExtractedPluralMessage, ExtractedSingularMessage, IcuFormatterSupportPolicy, IcuSyntaxPolicy,
-    MachineTranslationMetadata, NormalizedParsedCatalog, ObsoleteStrategy, OrderBy,
-    ParseCatalogOptions, ParsedCatalog, PlaceholderCommentMode, PluralEncoding, PluralSource,
-    RenderOptions, SourceExtractedMessage, TranslationShape, UpdateCatalogFileOptions,
-    UpdateCatalogOptions, audit_catalogs, catalog_coverage, catalog_review, combine_catalog_files,
-    combine_catalogs, compile_catalog_artifact, compile_catalog_artifact_report,
-    compile_catalog_artifact_selected, compile_catalog_artifact_selected_with_icu_options,
-    compile_catalog_artifact_with_icu_options, compiled_key, machine_translation_hash,
-    parse_catalog, pseudolocalize_compiled_catalog_artifact,
+    MachineMetadata, NormalizedParsedCatalog, ObsoleteStrategy, OrderBy, ParseCatalogOptions,
+    ParsedCatalog, PlaceholderCommentMode, PluralEncoding, PluralSource, RenderOptions,
+    SourceExtractedMessage, TranslationShape, UpdateCatalogFileOptions, UpdateCatalogOptions,
+    audit_catalogs, catalog_coverage, catalog_review, combine_catalog_files, combine_catalogs,
+    compile_catalog_artifact, compile_catalog_artifact_report, compile_catalog_artifact_selected,
+    compile_catalog_artifact_selected_with_icu_options, compile_catalog_artifact_with_icu_options,
+    compiled_key, machine_translation_hash, parse_catalog,
+    pseudolocalize_compiled_catalog_artifact,
     pseudolocalize_compiled_catalog_artifact_with_syntax_policy, update_catalog,
     update_catalog_file,
 };

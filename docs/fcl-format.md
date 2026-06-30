@@ -75,17 +75,21 @@ A field containing no `\` is taken verbatim (zero-copy borrow on parse).
 | `tc=`      | `extra.translator_comments`| translator comment (`#` in PO)         | 0..n |
 | `f=`       | `extra.flags`              | a PO flag (`c-format`, …)              | 0..n |
 | `o`        | `obsolete`                 | obsolete marker (flag, no value)       | 0..1 |
-| `mt.model=`| `machine_translation.model`| MT model id                            | 0..1 |
-| `mt.conf=` | `machine_translation.confidence` | MT confidence 0..100             | 0..1 |
-| `mt.hash=` | `machine_translation.hash` | MT change-detection hash               | 0..1 |
+| `lock=`    | `machine.lock`             | integrity hash; presence marks the value as machine-managed | 0..1 |
+| `ai=`      | `machine.ai`               | AI provenance, `model[:confidence]`    | 0..1 |
 
-Canonical tag order: `r` (sorted), `c`, `tc`, `f` (sorted), `o`, `mt.model`,
-`mt.conf`, `mt.hash`.
+Canonical tag order: `r` (sorted), `c`, `tc`, `f` (sorted), `o`, `lock`, `ai`.
 
-**Deliberately omitted:** `machine_translation.modified` (a timestamp).
-Timestamps churn every line on regeneration and poison merges; change/staleness
-detection is hash-based (`mt.hash`). FCL is therefore lossy for `modified` by
-design.
+`lock` is the fingerprint of the value when a machine (AI engine, TMS, script)
+set it; if `hash(current value) != lock`, a human edited it and high-level
+writers drop the block. `ai` is optional provenance: an opaque `model` id, then
+an optional `:confidence` decimal in `[0, 1]`. The model id is free-form and may
+contain `/` or `:`; only a trailing `[0, 1]` suffix after the last `:` is read as
+confidence (see [ADR 0022](/architecture/adr/0022-machine-managed-value-integrity-and-ai-provenance)).
+
+**Deliberately omitted:** a machine-translation timestamp. Timestamps churn every
+line on regeneration and poison merges; staleness is detected by the `lock` hash
+instead.
 
 **Also omitted: line numbers.** References carry the file only. A line number
 shifts whenever anything above a message changes, so it churns diffs and merges

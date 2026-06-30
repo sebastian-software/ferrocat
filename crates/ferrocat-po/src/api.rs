@@ -47,7 +47,7 @@ pub use self::coverage::{
     catalog_coverage,
 };
 pub use self::message_status::CatalogMessageStatus;
-pub use self::mt::{MachineTranslationMetadata, machine_translation_hash};
+pub use self::mt::{AiProvenance, MachineMetadata, machine_translation_hash};
 pub use self::pseudolocalization::{
     pseudolocalize_compiled_catalog_artifact,
     pseudolocalize_compiled_catalog_artifact_with_syntax_policy,

@@ -17,7 +17,7 @@ use super::helpers::{
     merge_unique_strings,
 };
 use super::mt::{
-    MachineTranslationMetadata, PO_MACHINE_TRANSLATION_KEY, parse_po_machine_translation_metadata,
+    MachineMetadata, PO_AI_KEY, PO_LOCK_KEY, parse_ai_descriptor, validate_machine_metadata,
 };
 use super::plural::{PluralProfile, derive_plural_variable, expected_gettext_nplurals_for_locale};
 use super::{
@@ -28,7 +28,7 @@ use super::{
 };
 use crate::{MsgStr, PoFile, PoItem, PoVec, parse_po};
 
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, PartialEq, Default)]
 pub(super) struct Catalog {
     pub(super) locale: Option<String>,
     pub(super) headers: BTreeMap<String, String>,
@@ -38,7 +38,7 @@ pub(super) struct Catalog {
     pub(super) diagnostics: Vec<Diagnostic>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub(super) struct CanonicalMessage {
     pub(super) msgid: String,
     pub(super) msgctxt: Option<String>,
@@ -47,7 +47,7 @@ pub(super) struct CanonicalMessage {
     pub(super) origins: PoVec<CatalogOrigin>,
     pub(super) placeholders: BTreeMap<String, Vec<String>>,
     pub(super) obsolete: bool,
-    pub(super) machine_translation: Option<MachineTranslationMetadata>,
+    pub(super) machine: Option<MachineMetadata>,
     pub(super) translator_comments: Vec<String>,
     pub(super) flags: Vec<String>,
 }
@@ -548,11 +548,11 @@ fn merge_message(
         }
     };
 
-    let (machine_translation, translator_comments, flags, obsolete) = previous.map_or_else(
+    let (machine, translator_comments, flags, obsolete) = previous.map_or_else(
         || (None, Vec::new(), Vec::new(), false),
         |message| {
             (
-                message.machine_translation.clone(),
+                message.machine.clone(),
                 message.translator_comments.clone(),
                 message.flags.clone(),
                 false,
@@ -568,7 +568,7 @@ fn merge_message(
         origins: next.origins.clone(),
         placeholders: next.placeholders.clone(),
         obsolete,
-        machine_translation,
+        machine,
         translator_comments,
         flags,
     }
@@ -848,29 +848,46 @@ fn import_message_from_po(
         origins,
         placeholders,
         obsolete: item.obsolete,
-        machine_translation: import_machine_translation_metadata(&item.metadata)?,
+        machine: import_machine_metadata(&item.metadata)?,
         translator_comments: item.comments.into_vec(),
         flags: item.flags.into_vec(),
     })
 }
 
-fn import_machine_translation_metadata(
+fn import_machine_metadata(
     metadata: &[(String, String)],
-) -> Result<Option<MachineTranslationMetadata>, ApiError> {
-    let mut value = None;
-    for (key, next_value) in metadata {
-        if key != PO_MACHINE_TRANSLATION_KEY {
-            continue;
-        }
-        if value.replace(next_value).is_some() {
+) -> Result<Option<MachineMetadata>, ApiError> {
+    let mut lock = None;
+    let mut ai = None;
+    for (key, value) in metadata {
+        if key == PO_LOCK_KEY {
+            if lock.replace(value).is_some() {
+                return Err(ApiError::InvalidArguments(
+                    "duplicate `lock` metadata for PO item".to_owned(),
+                ));
+            }
+        } else if key == PO_AI_KEY && ai.replace(value).is_some() {
             return Err(ApiError::InvalidArguments(
-                "duplicate machine translation metadata for PO item".to_owned(),
+                "duplicate `ai` metadata for PO item".to_owned(),
             ));
         }
     }
-    value
-        .map(|value| parse_po_machine_translation_metadata(value))
-        .transpose()
+
+    let Some(lock) = lock else {
+        if ai.is_some() {
+            return Err(ApiError::InvalidArguments(
+                "PO `ai` metadata requires a `lock`".to_owned(),
+            ));
+        }
+        return Ok(None);
+    };
+
+    let metadata = MachineMetadata {
+        lock: lock.clone(),
+        ai: ai.map(|value| parse_ai_descriptor(value)),
+    };
+    validate_machine_metadata(&metadata)?;
+    Ok(Some(metadata))
 }
 
 /// Splits extractor-style placeholder comments back out of the generic
@@ -1013,7 +1030,7 @@ pub(super) fn public_message_from_canonical(message: CanonicalMessage) -> Catalo
         comments: message.comments,
         origin: message.origins,
         obsolete: message.obsolete,
-        machine_translation: message.machine_translation,
+        machine: message.machine,
         extra: Some(CatalogMessageExtra {
             translator_comments: message.translator_comments,
             flags: message.flags,

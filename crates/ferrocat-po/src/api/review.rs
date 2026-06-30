@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 
 use super::catalog_index::{index_catalogs, select_target_locales};
 use super::message_status::{active_message_keys, classify_expected_message};
-use super::mt::validate_machine_translation_metadata;
+use super::mt::validate_machine_metadata;
 use super::{
     ApiError, CatalogCoverageOptions, CatalogLocaleCoverage, CatalogMessage, CatalogMessageKey,
     CatalogMessageStatus, EffectiveTranslationRef, NormalizedParsedCatalog, catalog_coverage,
@@ -411,13 +411,13 @@ fn machine_translation_review(
 }
 
 fn machine_translation_status(message: &CatalogMessage) -> CatalogMachineTranslationStatus {
-    let Some(metadata) = message.machine_translation.as_ref() else {
+    let Some(metadata) = message.machine.as_ref() else {
         return CatalogMachineTranslationStatus::Absent;
     };
-    if validate_machine_translation_metadata(metadata).is_err() {
+    if validate_machine_metadata(metadata).is_err() {
         return CatalogMachineTranslationStatus::Invalid;
     }
-    if metadata.hash == machine_translation_hash(message.effective_translation()) {
+    if metadata.lock == machine_translation_hash(message.effective_translation()) {
         CatalogMachineTranslationStatus::Current
     } else {
         CatalogMachineTranslationStatus::Stale
@@ -474,8 +474,8 @@ mod tests {
         CatalogSourceChangeKind, catalog_review,
     };
     use crate::api::{
-        ApiError, CatalogMessage, CatalogMessageKey, CatalogMode, CatalogSemantics,
-        EffectiveTranslationRef, MachineTranslationMetadata, ParseCatalogOptions, ParsedCatalog,
+        AiProvenance, ApiError, CatalogMessage, CatalogMessageKey, CatalogMode, CatalogSemantics,
+        EffectiveTranslationRef, MachineMetadata, ParseCatalogOptions, ParsedCatalog,
         TranslationShape, machine_translation_hash, parse_catalog,
     };
 
@@ -580,9 +580,9 @@ mod tests {
         let target = catalog(
             &format!(
                 concat!(
-                    "#@ ferrocat-mt model=openai/gpt-5.5-high hash={}\n",
+                    "#@ lock: {}\n#@ ai: openai/gpt-5.5-high\n",
                     "msgid \"Hello\"\nmsgstr \"Hallo\"\n\n",
-                    "#@ ferrocat-mt model=openai/gpt-5.5-high hash=old\n",
+                    "#@ lock: old\n#@ ai: openai/gpt-5.5-high\n",
                     "msgid \"Stale\"\nmsgstr \"Alt\"\n\n",
                     "msgid \"Absent\"\nmsgstr \"Ohne\"\n",
                 ),
@@ -622,11 +622,12 @@ mod tests {
                 comments: Vec::new(),
                 origin: crate::PoVec::new(),
                 obsolete: false,
-                machine_translation: Some(MachineTranslationMetadata {
-                    model: String::new(),
-                    modified: None,
-                    confidence: None,
-                    hash: machine_translation_hash(EffectiveTranslationRef::Singular("Hallo")),
+                machine: Some(MachineMetadata {
+                    lock: machine_translation_hash(EffectiveTranslationRef::Singular("Hallo")),
+                    ai: Some(AiProvenance {
+                        model: String::new(),
+                        confidence: None,
+                    }),
                 }),
                 extra: None,
             }],

@@ -983,7 +983,7 @@ mod unit_tests {
             comments: Vec::new(),
             origin: crate::PoVec::new(),
             obsolete: false,
-            machine_translation: None,
+            machine: None,
             extra: None,
         }
     }
@@ -1006,7 +1006,7 @@ mod unit_tests {
             comments: Vec::new(),
             origin: crate::PoVec::new(),
             obsolete: false,
-            machine_translation: None,
+            machine: None,
             extra: None,
         }
     }

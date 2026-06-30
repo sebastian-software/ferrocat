@@ -23,7 +23,7 @@ fn review_report_exposes_public_summary_and_detail_api() {
     let hash = machine_translation_hash(EffectiveTranslationRef::Singular("Hallo neu"));
     let current_target = normalized_catalog(
         &format!(
-            "#@ ferrocat-mt model=openai/gpt-5.5-high hash={hash}\nmsgid \"Hello\"\nmsgstr \"Hallo neu\"\n",
+            "#@ lock: {hash}\n#@ ai: openai/gpt-5.5-high\nmsgid \"Hello\"\nmsgstr \"Hallo neu\"\n",
         ),
         Some("de"),
         PluralEncoding::Icu,

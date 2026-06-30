@@ -23,7 +23,7 @@ use super::{
     RenderOptions, UpdateCatalogOptions,
 };
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 struct CombineEntry {
     message: CanonicalMessage,
     definitions: usize,
@@ -70,7 +70,7 @@ impl<'a> CombineConfig<'a> {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 struct CombineState {
     diagnostics: Vec<Diagnostic>,
     headers: BTreeMap<String, String>,
@@ -424,12 +424,12 @@ fn merge_combine_message(
         conflict_strategy,
     );
     if translation_merge.changed {
-        entry.message.machine_translation = translation_merge
+        entry.message.machine = translation_merge
             .matches_source
-            .then(|| message.machine_translation.clone())
+            .then(|| message.machine.clone())
             .flatten();
-    } else if translation_merge.matches_source && entry.message.machine_translation.is_none() {
-        entry.message.machine_translation = message.machine_translation.clone();
+    } else if translation_merge.matches_source && entry.message.machine.is_none() {
+        entry.message.machine = message.machine.clone();
     }
 
     merge_combine_metadata(&mut entry.message, message);
