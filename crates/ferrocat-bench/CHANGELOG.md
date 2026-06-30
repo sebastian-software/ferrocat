@@ -1,5 +1,61 @@
 # Changelog
 
+## [3.0.0](https://github.com/sebastian-software/ferrocat/compare/ferrocat-bench-v2.0.0...ferrocat-bench-v3.0.0) (2026-06-30)
+
+
+### ⚠ BREAKING CHANGES
+
+* **po:** `CatalogMessage::obsolete` is now `Option<ObsoleteInfo>` instead of `bool`, `ObsoleteStrategy` gains a non-`Copy` `DropObsoleteBefore(String)` variant, and `UpdateCatalogOptions` gains a `now` field. Lands in the 2.0.0 line.
+* **po:** `CatalogMessageExtra`, `CatalogMessage::extra`, `CatalogMessageStatus::Fuzzy`, `CatalogAuditChecks::fuzzy_flags`, the `catalog.fuzzy_flag` diagnostic, and `CatalogLocaleCoverage::fuzzy` are removed; `CatalogOrigin` gains a required `scope` field; the FCL `tc=` and `f=` tags are removed. PO/FCL output no longer carries `fuzzy`/format flags and renders origins as `file#scope`. Lands in the 2.0.0 line.
+* **po:** `CatalogOrigin::line` and the `include_line_numbers` fields on `RenderOptions`, `CombineCatalogOptions`, and `CombineCatalogFilesOptions` are removed. Rendered references no longer include line numbers.
+* **po:** the NDJSON catalog storage format and its public types (NdjsonCatalogReader/Writer + options, CatalogStorageFormat::Ndjson, CatalogFileFormat::Ndjson, CatalogMode::IcuNdjson) are removed. Use FCL (CatalogMode::IcuFcl, .fcl files) instead.
+* **po:** `PoItem::references`, `comments`, `extracted_comments`, `flags`, and `metadata` are now `PoVec<T>` (`SmallVec<[T; 1]>`) instead of `Vec<T>`. Read-heavy code is unaffected (Deref to slice, iteration, indexing, serde), but constructing a field from a `Vec` now needs `.into()` and direct `PartialEq` against `Vec<_>` needs `.as_slice()` on both sides.
+* **api:** collapse redundant option fields into CatalogMode ([#102](https://github.com/sebastian-software/ferrocat/issues/102))
+
+### Features
+
+* add source-first catalog input and normalized view ([4b1272c](https://github.com/sebastian-software/ferrocat/commit/4b1272ceeacd718445c0d60eff490f780740f37e))
+* add source-first catalog input and normalized view ([1a0d295](https://github.com/sebastian-software/ferrocat/commit/1a0d295971bec7524b9e6113f3b2c40b5df2ce18))
+* **api:** collapse redundant option fields into CatalogMode ([#102](https://github.com/sebastian-software/ferrocat/issues/102)) ([2687df6](https://github.com/sebastian-software/ferrocat/commit/2687df6363755b0ef863594168da8be027d34614))
+* **api:** mark growth-prone enums non-exhaustive ([#101](https://github.com/sebastian-software/ferrocat/issues/101)) ([b4e1ca4](https://github.com/sebastian-software/ferrocat/commit/b4e1ca4262345f6e8927582ae477f104075b1474))
+* **bench:** add CLI baseline-adjusted timing ([5b48d44](https://github.com/sebastian-software/ferrocat/commit/5b48d4426a9259917ab34ab52d38b6da88927bcd))
+* **bench:** add external gettext compare suite ([1297b37](https://github.com/sebastian-software/ferrocat/commit/1297b3789af06eb57c9ee9a4457a5f490173286d))
+* **bench:** add gettext workflow benchmarks ([32e69cb](https://github.com/sebastian-software/ferrocat/commit/32e69cbdfeea4f717b15e52a62b10fab7b5abea9))
+* **bench:** add gettext workflow ecosystem baselines ([16b12b3](https://github.com/sebastian-software/ferrocat/commit/16b12b3f195e64cab0e6b8979a195b9ae8dad85e))
+* **bench:** add gettext-parser baseline ([40da744](https://github.com/sebastian-software/ferrocat/commit/40da74494d8508742bbb95ec0b65394a1198711b))
+* **bench:** add quick official gettext profile ([bff64d4](https://github.com/sebastian-software/ferrocat/commit/bff64d459bf856e6b1a5f4dd161d3b43ab4870bd))
+* **bench:** add slim official gettext profile ([49abe81](https://github.com/sebastian-software/ferrocat/commit/49abe8163035c1a20c22d986210d1ddab093a107))
+* **bench:** expand official gettext baselines ([de29e1a](https://github.com/sebastian-software/ferrocat/commit/de29e1a8a0aaef5f12071e018bbcadaa725ee25a))
+* **catalog:** add ndjson storage format ([f335df9](https://github.com/sebastian-software/ferrocat/commit/f335df94693c2cb59bf54d2a9543f89184bfa6c0))
+* **ferrocat:** migrate workspace from ferrox ([fa6bf5b](https://github.com/sebastian-software/ferrocat/commit/fa6bf5bcbc7f1552f43596ae941b3483916cab3a))
+* **po:** add catalog combine API ([761c291](https://github.com/sebastian-software/ferrocat/commit/761c29145b0aa20fc62b53f70d164dcb27abb027))
+* **po:** drop source line numbers from the catalog layer ([45beaa2](https://github.com/sebastian-software/ferrocat/commit/45beaa2ac313568f0d90f696f1259789bab4803a))
+* **po:** obsolete age with clock-injected since and age-based cleanup ([3b9789e](https://github.com/sebastian-software/ferrocat/commit/3b9789ef89e6bbbc7d808cb8c13027294c8bee4b))
+* **po:** remove NDJSON catalog format in favor of FCL ([9606441](https://github.com/sebastian-software/ferrocat/commit/96064410a154b3c05f92813d10156e4a2f454ed4))
+* **po:** store per-item PO collections inline with SmallVec ([db808e3](https://github.com/sebastian-software/ferrocat/commit/db808e3319a08d8e1fe7a810a25b0a848966055f))
+* **po:** trim entry metadata to origin scope, notes, and obsolete ([0dd85d4](https://github.com/sebastian-software/ferrocat/commit/0dd85d490fde02c4600b68de974fedc7c4226bd3))
+
+
+### Bug Fixes
+
+* **bench:** gate macos-only CString import ([4fb389a](https://github.com/sebastian-software/ferrocat/commit/4fb389aa6800a8d7357dcee980bef4a8c5b40b5d))
+* **bench:** measure borrowed parse without materializing owned ([adbdffb](https://github.com/sebastian-software/ferrocat/commit/adbdffbb89c384d15cf37f49e14eec68fe019807))
+* **bench:** normalize regression check by iterations per sample ([f530e1b](https://github.com/sebastian-software/ferrocat/commit/f530e1b777cba655c815dd7bcf9801a358db7db6))
+* **bench:** report semantic benchmark changes ([8b54340](https://github.com/sebastian-software/ferrocat/commit/8b54340566719d0a4ecd83f0d397891288b4a835))
+* **release:** align versions for release please ([96c0729](https://github.com/sebastian-software/ferrocat/commit/96c072927ca1bbcef0a66b0f74d4759645ca1d51))
+* **rust:** tighten public API docs and idioms ([dcffdd1](https://github.com/sebastian-software/ferrocat/commit/dcffdd1436e5d0060e1671017660a18c6a204aa0))
+* satisfy stable clippy lint ([7941c9a](https://github.com/sebastian-software/ferrocat/commit/7941c9ae1ac4c2ea6b13f9dd7889db4e36dacfba))
+* trigger build ([682508b](https://github.com/sebastian-software/ferrocat/commit/682508b0cabf1f31ddbcfe6d2c76687600531eb4))
+* trigger build ([fc674b8](https://github.com/sebastian-software/ferrocat/commit/fc674b859b4483459892279a9ebc8aa191ab4da4))
+
+
+### Performance Improvements
+
+* **bench:** add benchmark regression checks ([a06ea4a](https://github.com/sebastian-software/ferrocat/commit/a06ea4a673a2158f286f0e6e310891025a0fe1b7))
+* parser/merge optimizations and cross-runtime benchmark comparisons ([3c635e5](https://github.com/sebastian-software/ferrocat/commit/3c635e55eb3e29f957e99556acaf0ad14d00b819))
+* **po:** parse FCL directly into CanonicalMessage; add fcl benchmark ([0f6c71d](https://github.com/sebastian-software/ferrocat/commit/0f6c71d511a310e61d72be27f2f24c91617ff8b8))
+* **po:** reserve FCL buffers, skip mt.conf alloc; add FCL bench gates ([e847e4c](https://github.com/sebastian-software/ferrocat/commit/e847e4c7e04c4fbb4d6295c1cd5947ea1bda1cdf))
+
 ## [2.0.0](https://github.com/sebastian-software/ferrocat/compare/ferrocat-bench-v1.3.2...ferrocat-bench-v2.0.0) (2026-06-30)
 
 
