@@ -168,7 +168,7 @@ Typical use cases:
 - performance-sensitive inspection or transformation passes
 - benchmarks or pipelines where borrowing from the source text is helpful
 
-Important input constraint: `parse_po_borrowed` currently requires LF-only input. Use `parse_po` for owned parsing with built-in CRLF normalization, or normalize line endings before calling the borrowed parser.
+`parse_po_borrowed` accepts LF, CRLF, and bare CR line endings while keeping unescaped fields borrowed from the input buffer.
 
 ### `stringify_po`
 
@@ -787,11 +787,15 @@ PO catalogs store the metadata as one compact metadata comment:
 #@ ferrocat-mt model=openai/gpt-5.5-high modified=2026-05-12T10:30:00Z confidence=95 hash=...
 ```
 
-FCL catalogs store the same metadata as `mt.*` tags appended to the entry line:
+FCL catalogs store the merge-stable subset as `mt.*` tags appended to the entry line:
 
 ```fcl
 Hello		Hallo	mt.model=openai/gpt-5.5-high	mt.conf=95	mt.hash=...
 ```
+
+FCL deliberately omits `modified` because timestamps churn every regenerated
+line and make clean git merges harder. Use the hash for freshness checks in FCL
+storage; keep PO when timestamp round-tripping matters.
 
 Parsing preserves metadata even when the hash no longer matches. High-level
 writers such as `update_catalog` verify the hash while rendering and omit the

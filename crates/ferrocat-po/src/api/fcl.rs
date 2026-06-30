@@ -16,9 +16,7 @@ use super::mt::{
     MachineTranslationMetadata, machine_translation_hash, validate_machine_translation_metadata,
 };
 use super::plural::synthesize_icu_plural;
-use super::{
-    ApiError, CatalogOrigin, CatalogSemantics, EffectiveTranslationRef, PlaceholderCommentMode,
-};
+use super::{ApiError, CatalogOrigin, CatalogSemantics, EffectiveTranslationRef, RenderOptions};
 use crate::PoVec;
 use crate::scan::{find_byte, find_fcl_escapable_byte, split_once_byte};
 use crate::utf8::input_slice_as_str;
@@ -131,11 +129,7 @@ fn fcl_target(message: &CanonicalMessage) -> Cow<'_, str> {
     }
 }
 
-fn write_entry(
-    out: &mut String,
-    message: &CanonicalMessage,
-    placeholder_mode: &PlaceholderCommentMode,
-) {
+fn write_entry(out: &mut String, message: &CanonicalMessage, render: &RenderOptions<'_>) {
     escape_into(out, &fcl_id(message));
     out.push('\t');
     escape_into(out, message.msgctxt.as_deref().unwrap_or(""));
@@ -143,23 +137,35 @@ fn write_entry(
     escape_into(out, &fcl_target(message));
 
     // Canonical tag order: r (sorted), c, tc, f (sorted), o, mt.*
-    let mut refs = message
-        .origins
-        .iter()
-        .map(|origin| match origin.line {
-            Some(line) => format!("{}:{line}", origin.file),
-            None => origin.file.clone(),
-        })
-        .collect::<Vec<_>>();
-    refs.sort_unstable();
-    for reference in &refs {
-        write_tag(out, "r", reference);
+    if render.include_origins {
+        let mut refs = message
+            .origins
+            .iter()
+            .map(|origin| {
+                if render.include_line_numbers {
+                    origin.line.map_or_else(
+                        || origin.file.clone(),
+                        |line| format!("{}:{line}", origin.file),
+                    )
+                } else {
+                    origin.file.clone()
+                }
+            })
+            .collect::<Vec<_>>();
+        refs.sort_unstable();
+        for reference in &refs {
+            write_tag(out, "r", reference);
+        }
     }
 
     // Extracted comments plus the placeholder comments folded back in, matching
     // the catalog's comment round-trip.
     let mut comments = message.comments.clone();
-    append_placeholder_comments(&mut comments, &message.placeholders, placeholder_mode);
+    append_placeholder_comments(
+        &mut comments,
+        &message.placeholders,
+        &render.print_placeholders_in_comments,
+    );
     for comment in &comments {
         write_tag(out, "c", comment);
     }
@@ -205,7 +211,7 @@ pub(super) fn stringify_catalog_fcl(
     catalog: &Catalog,
     locale: Option<&str>,
     source_locale: &str,
-    placeholder_comment_mode: &PlaceholderCommentMode,
+    render: &RenderOptions<'_>,
 ) -> String {
     // Reserve a rough output budget up front so growth does not repeatedly
     // reallocate; the estimate only needs to be in the right ballpark.
@@ -220,7 +226,7 @@ pub(super) fn stringify_catalog_fcl(
     let mut messages: Vec<&CanonicalMessage> = catalog.messages.iter().collect();
     messages.sort_by_cached_key(|message| (fcl_id(message).into_owned(), message.msgctxt.clone()));
     for message in messages {
-        write_entry(&mut out, message, placeholder_comment_mode);
+        write_entry(&mut out, message, render);
     }
     out
 }
@@ -286,9 +292,16 @@ fn parse_entry(line: &str) -> Result<CanonicalMessage, ApiError> {
     let mut mt_model = None;
     let mut mt_conf = None;
     let mut mt_hash = None;
+    let mut last_tag_rank = 0_u8;
 
     for tag in fields {
         if tag == b"o" {
+            validate_tag_order(&mut last_tag_rank, 4, "o")?;
+            if obsolete {
+                return Err(ApiError::InvalidArguments(
+                    "duplicate FCL tag `o`".to_owned(),
+                ));
+            }
             obsolete = true;
             continue;
         }
@@ -299,17 +312,51 @@ fn parse_entry(line: &str) -> Result<CanonicalMessage, ApiError> {
         // whose value is stored. `mt.conf` is parsed in place and never allocates.
         let value = unescape(input_slice_as_str(raw_value))?;
         match key {
-            b"r" => origins.push(parse_origin(value.into_owned())),
-            b"c" => raw_comments.push(value.into_owned()),
-            b"tc" => translator_comments.push(value.into_owned()),
-            b"f" => flags.push(value.into_owned()),
-            b"mt.model" => mt_model = Some(value.into_owned()),
+            b"r" => {
+                validate_tag_order(&mut last_tag_rank, 0, "r")?;
+                origins.push(parse_origin(value.into_owned()));
+            }
+            b"c" => {
+                validate_tag_order(&mut last_tag_rank, 1, "c")?;
+                raw_comments.push(value.into_owned());
+            }
+            b"tc" => {
+                validate_tag_order(&mut last_tag_rank, 2, "tc")?;
+                translator_comments.push(value.into_owned());
+            }
+            b"f" => {
+                validate_tag_order(&mut last_tag_rank, 3, "f")?;
+                flags.push(value.into_owned());
+            }
+            b"mt.model" => {
+                validate_tag_order(&mut last_tag_rank, 5, "mt.model")?;
+                if mt_model.is_some() {
+                    return Err(ApiError::InvalidArguments(
+                        "duplicate FCL tag `mt.model`".to_owned(),
+                    ));
+                }
+                mt_model = Some(value.into_owned());
+            }
             b"mt.conf" => {
+                validate_tag_order(&mut last_tag_rank, 6, "mt.conf")?;
+                if mt_conf.is_some() {
+                    return Err(ApiError::InvalidArguments(
+                        "duplicate FCL tag `mt.conf`".to_owned(),
+                    ));
+                }
                 mt_conf = Some(value.parse::<u8>().map_err(|_| {
                     ApiError::InvalidArguments(format!("invalid FCL mt.conf value {value:?}"))
                 })?);
             }
-            b"mt.hash" => mt_hash = Some(value.into_owned()),
+            b"mt.hash" => {
+                validate_tag_order(&mut last_tag_rank, 7, "mt.hash")?;
+                if mt_hash.is_some() {
+                    return Err(ApiError::InvalidArguments(
+                        "duplicate FCL tag `mt.hash`".to_owned(),
+                    ));
+                }
+                mt_hash = Some(value.into_owned());
+            }
             other => {
                 return Err(ApiError::InvalidArguments(format!(
                     "unknown FCL tag key {:?}",
@@ -354,6 +401,16 @@ fn parse_entry(line: &str) -> Result<CanonicalMessage, ApiError> {
         translator_comments,
         flags,
     })
+}
+
+fn validate_tag_order(last_rank: &mut u8, rank: u8, key: &str) -> Result<(), ApiError> {
+    if rank < *last_rank {
+        return Err(ApiError::InvalidArguments(format!(
+            "FCL tag `{key}` is out of canonical order"
+        )));
+    }
+    *last_rank = rank;
+    Ok(())
 }
 
 fn field<'a>(fields: &mut impl Iterator<Item = &'a [u8]>, name: &str) -> Result<&'a str, ApiError> {
@@ -495,7 +552,7 @@ pub(super) fn parse_catalog_to_internal_fcl(
 mod tests {
     use super::{FCL_MAGIC, parse_catalog_to_internal_fcl, stringify_catalog_fcl, unescape};
     use crate::api::CatalogSemantics;
-    use crate::api::types::PlaceholderCommentMode;
+    use crate::api::types::RenderOptions;
 
     fn roundtrip(text: &str) -> String {
         let catalog =
@@ -505,7 +562,7 @@ mod tests {
             &catalog,
             catalog.locale.as_deref(),
             "en",
-            &PlaceholderCommentMode::default(),
+            &RenderOptions::default(),
         )
     }
 
@@ -657,6 +714,19 @@ mod tests {
     }
 
     #[test]
+    fn rejects_duplicate_singleton_and_out_of_order_tags() {
+        assert!(parse_err(&format!(
+            "{FCL_MAGIC}\tsource=en\nid\t\tv\to\to\n"
+        )));
+        assert!(parse_err(&format!(
+            "{FCL_MAGIC}\tsource=en\nid\t\tv\tmt.model=a\tmt.model=b\n"
+        )));
+        assert!(parse_err(&format!(
+            "{FCL_MAGIC}\tsource=en\nid\t\tv\tf=fuzzy\tc=late-comment\n"
+        )));
+    }
+
+    #[test]
     fn serializes_plural_messages_as_synthesized_icu() {
         // FCL parsing always yields singular messages (the ICU plural lives inside
         // the string), so the plural serialize arms are only reachable when a
@@ -702,12 +772,7 @@ mod tests {
             diagnostics: Vec::new(),
         };
 
-        let text = stringify_catalog_fcl(
-            &catalog,
-            Some("de"),
-            "en",
-            &PlaceholderCommentMode::default(),
-        );
+        let text = stringify_catalog_fcl(&catalog, Some("de"), "en", &RenderOptions::default());
         // Both id and target columns are synthesized ICU plural strings, and the
         // MT block survives because its hash matches the plural translation.
         assert!(text.contains("{count, plural,"));
@@ -756,12 +821,7 @@ mod tests {
             diagnostics: Vec::new(),
         };
 
-        let text = stringify_catalog_fcl(
-            &catalog,
-            Some("de"),
-            "en",
-            &PlaceholderCommentMode::default(),
-        );
+        let text = stringify_catalog_fcl(&catalog, Some("de"), "en", &RenderOptions::default());
         assert!(text.contains("Hello\t\tHallo"));
         assert!(!text.contains("mt."));
     }

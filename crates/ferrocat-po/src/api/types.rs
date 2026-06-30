@@ -912,7 +912,9 @@ impl Default for PlaceholderCommentMode {
 /// Shared rendering options for catalog serialization.
 ///
 /// These fields control how a catalog is sorted and which optional reference and
-/// placeholder details are written, independent of storage format or semantics.
+/// placeholder details are written. Some storage formats still impose their own
+/// invariants: FCL always renders in canonical `(id, ctxt)` order, while origin
+/// and placeholder detail flags apply across supported catalog storage formats.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RenderOptions<'a> {
     /// Sort order for the final rendered catalog.

@@ -2076,6 +2076,47 @@ fn update_catalog_roundtrips_fcl_via_public_api() {
 }
 
 #[test]
+fn update_catalog_fcl_respects_origin_render_options() {
+    let input = structured_input(vec![ExtractedMessage::Singular(ExtractedSingularMessage {
+        msgid: "Hello".to_owned(),
+        origin: vec![CatalogOrigin {
+            file: "src/app.rs".to_owned(),
+            line: Some(42),
+        }],
+        ..ExtractedSingularMessage::default()
+    })]);
+
+    let without_origins = update_catalog(UpdateCatalogOptions {
+        source_locale: "en",
+        locale: Some("de"),
+        mode: CatalogMode::IcuFcl,
+        render: RenderOptions {
+            include_origins: false,
+            ..RenderOptions::default()
+        },
+        input: input.clone(),
+        ..UpdateCatalogOptions::new("en", CatalogUpdateInput::default())
+    })
+    .expect("update without origins");
+    assert!(!without_origins.content.contains("\tr="));
+
+    let without_line_numbers = update_catalog(UpdateCatalogOptions {
+        source_locale: "en",
+        locale: Some("de"),
+        mode: CatalogMode::IcuFcl,
+        render: RenderOptions {
+            include_line_numbers: false,
+            ..RenderOptions::default()
+        },
+        input,
+        ..UpdateCatalogOptions::new("en", CatalogUpdateInput::default())
+    })
+    .expect("update without line numbers");
+    assert!(without_line_numbers.content.contains("\tr=src/app.rs"));
+    assert!(!without_line_numbers.content.contains("\tr=src/app.rs:42"));
+}
+
+#[test]
 fn infers_fcl_file_format_from_extension() {
     let format = crate::CatalogFileFormat::infer_from_path(std::path::Path::new("messages.de.fcl"))
         .expect("infer .fcl");
