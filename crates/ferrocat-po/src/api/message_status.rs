@@ -28,7 +28,7 @@ pub(super) fn active_message_keys(
 ) -> BTreeSet<CatalogMessageKey> {
     catalog
         .iter()
-        .filter_map(|(key, message)| (!message.obsolete).then_some(key.clone()))
+        .filter_map(|(key, message)| (message.obsolete.is_none()).then_some(key.clone()))
         .collect()
 }
 
@@ -39,7 +39,7 @@ pub(super) fn classify_expected_message(
     let Some(message) = target_catalog.get(key) else {
         return CatalogMessageStatus::Missing;
     };
-    if message.obsolete {
+    if message.obsolete.is_some() {
         return CatalogMessageStatus::Obsolete;
     }
     if translation_is_empty(message) {
@@ -53,7 +53,7 @@ pub(super) fn is_extra_target_message(
     key: &CatalogMessageKey,
     message: &CatalogMessage,
 ) -> bool {
-    !message.obsolete && !source_keys.contains(key)
+    message.obsolete.is_none() && !source_keys.contains(key)
 }
 
 pub(super) fn translation_is_empty(message: &CatalogMessage) -> bool {

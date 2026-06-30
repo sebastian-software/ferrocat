@@ -20,7 +20,9 @@ use super::mt::{
     validate_machine_metadata,
 };
 use super::plural::synthesize_icu_plural;
-use super::{ApiError, CatalogOrigin, CatalogSemantics, EffectiveTranslationRef, RenderOptions};
+use super::{
+    ApiError, CatalogOrigin, CatalogSemantics, EffectiveTranslationRef, ObsoleteInfo, RenderOptions,
+};
 use crate::PoVec;
 use crate::scan::{find_byte, find_fcl_escapable_byte, split_once_byte};
 use crate::utf8::input_slice_as_str;
@@ -168,8 +170,11 @@ fn write_entry(out: &mut String, message: &CanonicalMessage, render: &RenderOpti
         write_tag(out, "c", comment);
     }
 
-    if message.obsolete {
-        out.push_str("\to");
+    if let Some(info) = &message.obsolete {
+        match &info.since {
+            Some(since) => write_tag(out, "o", since),
+            None => out.push_str("\to"),
+        }
     }
 
     // The lock/ai block is only emitted when the lock still matches the value
@@ -274,7 +279,7 @@ fn parse_entry(line: &str) -> Result<CanonicalMessage, ApiError> {
     let msgctxt = (!ctx_raw.is_empty()).then_some(ctx_raw);
     let mut origins: PoVec<CatalogOrigin> = PoVec::new();
     let mut raw_comments: Vec<String> = Vec::new();
-    let mut obsolete = false;
+    let mut obsolete: Option<ObsoleteInfo> = None;
     let mut lock = None;
     let mut ai = None;
     let mut last_tag_rank = 0_u8;
@@ -282,12 +287,7 @@ fn parse_entry(line: &str) -> Result<CanonicalMessage, ApiError> {
     for tag in fields {
         if tag == b"o" {
             validate_tag_order(&mut last_tag_rank, 2, "o")?;
-            if obsolete {
-                return Err(ApiError::InvalidArguments(
-                    "duplicate FCL tag `o`".to_owned(),
-                ));
-            }
-            obsolete = true;
+            set_obsolete(&mut obsolete, None)?;
             continue;
         }
         let (key, raw_value) = split_once_byte(tag, b'=').ok_or_else(|| {
@@ -304,6 +304,10 @@ fn parse_entry(line: &str) -> Result<CanonicalMessage, ApiError> {
             b"c" => {
                 validate_tag_order(&mut last_tag_rank, 1, "c")?;
                 raw_comments.push(value.into_owned());
+            }
+            b"o" => {
+                validate_tag_order(&mut last_tag_rank, 2, "o")?;
+                set_obsolete(&mut obsolete, Some(value.into_owned()))?;
             }
             b"lock" => {
                 validate_tag_order(&mut last_tag_rank, 3, "lock")?;
@@ -365,6 +369,21 @@ fn validate_tag_order(last_rank: &mut u8, rank: u8, key: &str) -> Result<(), Api
         )));
     }
     *last_rank = rank;
+    Ok(())
+}
+
+/// Sets the obsolete state from a bare `o` (`since = None`) or `o=<date>` tag,
+/// rejecting a second `o` tag on the same entry.
+fn set_obsolete(
+    obsolete: &mut Option<ObsoleteInfo>,
+    since: Option<String>,
+) -> Result<(), ApiError> {
+    if obsolete.is_some() {
+        return Err(ApiError::InvalidArguments(
+            "duplicate FCL tag `o`".to_owned(),
+        ));
+    }
+    *obsolete = Some(ObsoleteInfo { since });
     Ok(())
 }
 
@@ -621,6 +640,13 @@ mod tests {
     }
 
     #[test]
+    fn roundtrips_dated_obsolete() {
+        // Covers the valued `o=<since>` serialize and parse branches.
+        let text = format!("{FCL_MAGIC}\tsource=en\nid\t\tv\to=2026-06-30\n");
+        assert_eq!(roundtrip(&text), text);
+    }
+
+    #[test]
     fn rejects_invalid_and_dangling_escapes() {
         assert!(parse_err(&format!(
             "{FCL_MAGIC}\tsource=en\nid\t\tbad\\xescape\n"
@@ -696,7 +722,7 @@ mod tests {
             comments: Vec::new(),
             origins: super::PoVec::new(),
             placeholders: std::collections::BTreeMap::new(),
-            obsolete: false,
+            obsolete: None,
             machine: Some(super::MachineMetadata {
                 lock: hash,
                 ai: Some(crate::AiProvenance {
@@ -744,7 +770,7 @@ mod tests {
             comments: Vec::new(),
             origins: super::PoVec::new(),
             placeholders: std::collections::BTreeMap::new(),
-            obsolete: false,
+            obsolete: None,
             machine: Some(super::MachineMetadata {
                 lock: stale,
                 ai: Some(crate::AiProvenance {

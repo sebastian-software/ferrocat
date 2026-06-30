@@ -19,8 +19,8 @@ use super::{
     ApiError, CatalogCombineResult, CatalogCombineSelection, CatalogCombineStats,
     CatalogConflictStrategy, CatalogFileCombineResult, CatalogFileFormat, CatalogMode,
     CatalogStorageFormat, CatalogUpdateInput, CombineCatalogFilesOptions, CombineCatalogOptions,
-    Diagnostic, DiagnosticSeverity, ObsoleteStrategy, OrderBy, PlaceholderCommentMode,
-    RenderOptions, UpdateCatalogOptions,
+    Diagnostic, DiagnosticSeverity, ObsoleteInfo, ObsoleteStrategy, OrderBy,
+    PlaceholderCommentMode, RenderOptions, UpdateCatalogOptions,
 };
 
 #[derive(Debug, Clone, PartialEq)]
@@ -130,7 +130,7 @@ impl CombineState {
         let label_index = self.labels.len();
         self.labels.push(label);
         for message in messages {
-            if message.obsolete && !config.include_obsolete {
+            if message.obsolete.is_some() && !config.include_obsolete {
                 continue;
             }
             self.stats.definitions += 1;
@@ -453,7 +453,22 @@ fn merge_combine_metadata(target: &mut CanonicalMessage, source: CanonicalMessag
     merge_unique_strings(&mut target.comments, source.comments);
     merge_unique_origins(&mut target.origins, source.origins);
     merge_placeholders(&mut target.placeholders, source.placeholders);
-    target.obsolete = target.obsolete && source.obsolete;
+    // Obsolete only if obsolete in both inputs; keep the earliest known `since`.
+    target.obsolete = match (target.obsolete.take(), source.obsolete) {
+        (Some(a), Some(b)) => Some(combine_obsolete(a, b)),
+        _ => None,
+    };
+}
+
+/// Combines two obsolete states, keeping the earliest known `since` date (ISO
+/// dates compare lexicographically).
+fn combine_obsolete(a: ObsoleteInfo, b: ObsoleteInfo) -> ObsoleteInfo {
+    let since = match (a.since, b.since) {
+        (Some(x), Some(y)) => Some(x.min(y)),
+        (Some(x), None) | (None, Some(x)) => Some(x),
+        (None, None) => None,
+    };
+    ObsoleteInfo { since }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

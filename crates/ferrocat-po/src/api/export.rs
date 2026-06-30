@@ -5,7 +5,9 @@ use std::collections::{BTreeMap, BTreeSet};
 use crate::diagnostic_codes;
 use crate::{Header, MsgStr, PoFile, PoItem, PoVec, SerializeOptions, stringify_po};
 
-use super::catalog::{CanonicalMessage, CanonicalTranslation, Catalog, format_origin};
+use super::catalog::{
+    CanonicalMessage, CanonicalTranslation, Catalog, PO_OBSOLETE_SINCE_KEY, format_origin,
+};
 use super::mt::{
     MachineMetadata, PO_AI_KEY, PO_LOCK_KEY, format_ai_descriptor, machine_translation_hash,
     validate_machine_metadata,
@@ -127,7 +129,13 @@ fn base_po_item(
 ) -> PoItem {
     let mut item = PoItem::new(nplurals);
     item.msgctxt.clone_from(&message.msgctxt);
-    item.obsolete = message.obsolete;
+    if let Some(info) = &message.obsolete {
+        item.obsolete = true;
+        if let Some(since) = &info.since {
+            item.metadata
+                .push((PO_OBSOLETE_SINCE_KEY.to_owned(), since.clone()));
+        }
+    }
     // The merged notes render as extracted (`#.`) comments.
     let mut extracted_comments = message.comments.clone();
     append_placeholder_comments(
@@ -238,7 +246,7 @@ mod tests {
             }]
             .into(),
             placeholders: BTreeMap::new(),
-            obsolete: false,
+            obsolete: None,
             machine: None,
         }
     }
