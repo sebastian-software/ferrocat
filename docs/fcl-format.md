@@ -78,11 +78,17 @@ A field containing no `\` is taken verbatim (zero-copy borrow on parse).
 
 Canonical tag order: `r` (sorted), `c`, `o`, `lock`, `ai`.
 
-`r` carries the file and an optional stable `#scope` anchor (enclosing component
-or function); see [ADR 0024](/architecture/adr/0024-origin-scope-anchor). `c`
-holds free-form notes: the gettext extracted (`#.`) and translator (`#`) comment
-kinds collapse into one list, and gettext flags (`fuzzy`, `*-format`) are not
-carried (see [ADR 0023](/architecture/adr/0023-drop-gettext-flags-merge-comments)).
+`r` carries the file and an optional stable `#scope` anchor. The file identifies
+the source file; the scope identifies the nearest stable named source container,
+such as a component, function, class, or route handler. Example references are
+`src/App.tsx#CheckoutButton`, `src/i18n.ts#formatInvoiceStatus`, and
+`src/routes/settings.tsx#SettingsPage`. Scope is metadata for review and
+tooling, not message identity, and it is not a replacement for gettext context /
+`msgctxt`; downstream tools should not derive it from `msgctxt` by default. See
+[ADR 0024](/architecture/adr/0024-origin-scope-anchor). `c` holds free-form
+notes: the gettext extracted (`#.`) and translator (`#`) comment kinds collapse
+into one list, and gettext flags (`fuzzy`, `*-format`) are not carried (see
+[ADR 0023](/architecture/adr/0023-drop-gettext-flags-merge-comments)).
 
 `lock` is the fingerprint of the value when a machine (AI engine, TMS, script)
 set it; if `hash(current value) != lock`, a human edited it and high-level

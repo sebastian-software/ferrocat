@@ -10,21 +10,25 @@ use super::plural::PluralProfile;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
-/// File and line information for an extracted message origin.
+/// Source origin metadata for an extracted message.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 pub struct CatalogOrigin {
-    /// Path-like source identifier where the message came from.
+    /// Path-like source file identifier where the message came from.
     ///
     /// Ferrocat intentionally tracks no line number: line numbers shift on every
     /// edit above a message and add diff and merge churn without identifying
     /// anything the `(msgid, msgctxt)` key does not already.
     pub file: String,
     /// Optional stable scope within the file, such as the enclosing component or
-    /// function name. Unlike a line number it survives edits, so it adds context
-    /// for translators and tools without churn. Producers (e.g. extractors) fill
-    /// it; serialized as `file#scope`.
+    /// function name.
+    ///
+    /// Unlike a line number it survives edits, so it adds context for
+    /// translators and tools without churn. It is metadata, not message
+    /// identity, and it is not a replacement for gettext context / `msgctxt`.
+    /// Producers (e.g. extractors) fill it; serialized with the file as
+    /// `file#scope`.
     pub scope: Option<String>,
 }
 
