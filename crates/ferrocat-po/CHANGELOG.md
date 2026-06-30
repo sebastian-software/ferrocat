@@ -1,5 +1,51 @@
 # Changelog
 
+## [2.0.0](https://github.com/sebastian-software/ferrocat/compare/ferrocat-po-v1.3.2...ferrocat-po-v2.0.0) (2026-06-30)
+
+
+### ⚠ BREAKING CHANGES
+
+* **po:** `CatalogMessage::obsolete` is now `Option<ObsoleteInfo>` instead of `bool`, `ObsoleteStrategy` gains a non-`Copy` `DropObsoleteBefore(String)` variant, and `UpdateCatalogOptions` gains a `now` field. Lands in the 2.0.0 line.
+* **po:** `CatalogMessageExtra`, `CatalogMessage::extra`, `CatalogMessageStatus::Fuzzy`, `CatalogAuditChecks::fuzzy_flags`, the `catalog.fuzzy_flag` diagnostic, and `CatalogLocaleCoverage::fuzzy` are removed; `CatalogOrigin` gains a required `scope` field; the FCL `tc=` and `f=` tags are removed. PO/FCL output no longer carries `fuzzy`/format flags and renders origins as `file#scope`. Lands in the 2.0.0 line.
+* **po:** `MachineTranslationMetadata` (with `model`/`modified`/ `confidence: u8`/`hash`) is replaced by `MachineMetadata { lock, ai }` + `AiProvenance`; `CatalogMessage::machine_translation` is renamed to `machine`; `confidence` is now a `[0,1]` f32. PO machine metadata is written as `#@ lock:`/`#@ ai:` instead of `#@ ferrocat-mt`, and FCL as `lock=`/`ai=`.
+* **po:** `CatalogOrigin::line` and the `include_line_numbers` fields on `RenderOptions`, `CombineCatalogOptions`, and `CombineCatalogFilesOptions` are removed. Rendered references no longer include line numbers.
+* **po:** the NDJSON catalog storage format and its public types (NdjsonCatalogReader/Writer + options, CatalogStorageFormat::Ndjson, CatalogFileFormat::Ndjson, CatalogMode::IcuNdjson) are removed. Use FCL (CatalogMode::IcuFcl, .fcl files) instead.
+* **po:** `CatalogMessage::origin` is now `PoVec<CatalogOrigin>` (`SmallVec<[CatalogOrigin; 1]>`) instead of `Vec<CatalogOrigin>`. Reads are unaffected (Deref to slice, iteration, indexing, serde); constructing it from a `Vec` needs `.into()` and direct `PartialEq` against `Vec<_>` needs `.as_slice()`.
+* **po:** `BorrowedPoItem::{references, comments, extracted_comments, flags, metadata}` are now `PoVec<Cow<'_, str>>` (`SmallVec<[_; 1]>`) instead of `Vec<Cow<'_, str>>`, mirroring the owned `PoItem` change.
+* **po:** `PoItem::references`, `comments`, `extracted_comments`, `flags`, and `metadata` are now `PoVec<T>` (`SmallVec<[T; 1]>`) instead of `Vec<T>`. Read-heavy code is unaffected (Deref to slice, iteration, indexing, serde), but constructing a field from a `Vec` now needs `.into()` and direct `PartialEq` against `Vec<_>` needs `.as_slice()` on both sides.
+
+### Features
+
+* **po:** add FCL (Ferrocat Catalog Lines) line-oriented catalog format ([a35ccc8](https://github.com/sebastian-software/ferrocat/commit/a35ccc803b041f926f2f9000371cbc7ff6451215))
+* **po:** drop source line numbers from the catalog layer ([45beaa2](https://github.com/sebastian-software/ferrocat/commit/45beaa2ac313568f0d90f696f1259789bab4803a))
+* **po:** obsolete age with clock-injected since and age-based cleanup ([3b9789e](https://github.com/sebastian-software/ferrocat/commit/3b9789ef89e6bbbc7d808cb8c13027294c8bee4b))
+* **po:** remove NDJSON catalog format in favor of FCL ([9606441](https://github.com/sebastian-software/ferrocat/commit/96064410a154b3c05f92813d10156e4a2f454ed4))
+* **po:** replace MT metadata with machine lock + AI provenance ([027440b](https://github.com/sebastian-software/ferrocat/commit/027440b25599209d159e366e186e63369fc1c002))
+* **po:** store borrowed per-item collections inline with SmallVec ([c34cd64](https://github.com/sebastian-software/ferrocat/commit/c34cd64598cd9dc021276ca08919cd3550606823))
+* **po:** store catalog message origins inline with SmallVec ([3cd4597](https://github.com/sebastian-software/ferrocat/commit/3cd4597e257c3a4c8b28e7733743352198a82881))
+* **po:** store per-item PO collections inline with SmallVec ([db808e3](https://github.com/sebastian-software/ferrocat/commit/db808e3319a08d8e1fe7a810a25b0a848966055f))
+* **po:** trim entry metadata to origin scope, notes, and obsolete ([0dd85d4](https://github.com/sebastian-software/ferrocat/commit/0dd85d490fde02c4600b68de974fedc7c4226bd3))
+
+
+### Bug Fixes
+
+* **po:** keep CatalogMode discriminants stable; cover FCL codec paths ([4f9f4b6](https://github.com/sebastian-software/ferrocat/commit/4f9f4b6c1f544bf92c15bc41012defc2e3fec3cd))
+* **po:** respect FCL render options ([8dcc1ed](https://github.com/sebastian-software/ferrocat/commit/8dcc1ed830387eae97553b100f7aa7af8bacb777))
+
+
+### Performance Improvements
+
+* **po:** byte-oriented FCL codec (memchr field split + escape scan) ([18be854](https://github.com/sebastian-software/ferrocat/commit/18be854ed330aa1fa71f8c4a665325bfd183b2cb))
+* **po:** parse FCL directly into CanonicalMessage; add fcl benchmark ([0f6c71d](https://github.com/sebastian-software/ferrocat/commit/0f6c71d511a310e61d72be27f2f24c91617ff8b8))
+* **po:** reserve FCL buffers, skip mt.conf alloc; add FCL bench gates ([e847e4c](https://github.com/sebastian-software/ferrocat/commit/e847e4c7e04c4fbb4d6295c1cd5947ea1bda1cdf))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * ferrocat-icu bumped from 1.3.2 to 2.0.0
+
 ## [1.3.2](https://github.com/sebastian-software/ferrocat/compare/ferrocat-po-v1.3.1...ferrocat-po-v1.3.2) (2026-06-29)
 
 

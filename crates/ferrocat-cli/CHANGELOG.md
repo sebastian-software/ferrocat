@@ -1,5 +1,23 @@
 # Changelog
 
+## [2.0.0](https://github.com/sebastian-software/ferrocat/compare/ferrocat-cli-v1.3.2...ferrocat-cli-v2.0.0) (2026-06-30)
+
+
+### ⚠ BREAKING CHANGES
+
+* **po:** the NDJSON catalog storage format and its public types (NdjsonCatalogReader/Writer + options, CatalogStorageFormat::Ndjson, CatalogFileFormat::Ndjson, CatalogMode::IcuNdjson) are removed. Use FCL (CatalogMode::IcuFcl, .fcl files) instead.
+
+### Features
+
+* **po:** remove NDJSON catalog format in favor of FCL ([9606441](https://github.com/sebastian-software/ferrocat/commit/96064410a154b3c05f92813d10156e4a2f454ed4))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * ferrocat-po bumped from 1.3.2 to 2.0.0
+
 ## [1.3.2](https://github.com/sebastian-software/ferrocat/compare/ferrocat-cli-v1.3.1...ferrocat-cli-v1.3.2) (2026-06-29)
 
 

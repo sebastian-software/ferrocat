@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.0](https://github.com/sebastian-software/ferrocat/compare/ferrocat-icu-v1.3.2...ferrocat-icu-v2.0.0) (2026-06-30)
+
+
+### Miscellaneous Chores
+
+* **ferrocat-icu:** Synchronize ferrocat versions
+
 ## [1.3.2](https://github.com/sebastian-software/ferrocat/compare/ferrocat-icu-v1.3.1...ferrocat-icu-v1.3.2) (2026-06-29)
 
 

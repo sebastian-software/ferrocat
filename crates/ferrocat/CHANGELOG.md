@@ -1,5 +1,35 @@
 # Changelog
 
+## [2.0.0](https://github.com/sebastian-software/ferrocat/compare/ferrocat-v1.3.2...ferrocat-v2.0.0) (2026-06-30)
+
+
+### ⚠ BREAKING CHANGES
+
+* **po:** `CatalogMessage::obsolete` is now `Option<ObsoleteInfo>` instead of `bool`, `ObsoleteStrategy` gains a non-`Copy` `DropObsoleteBefore(String)` variant, and `UpdateCatalogOptions` gains a `now` field. Lands in the 2.0.0 line.
+* **po:** `CatalogMessageExtra`, `CatalogMessage::extra`, `CatalogMessageStatus::Fuzzy`, `CatalogAuditChecks::fuzzy_flags`, the `catalog.fuzzy_flag` diagnostic, and `CatalogLocaleCoverage::fuzzy` are removed; `CatalogOrigin` gains a required `scope` field; the FCL `tc=` and `f=` tags are removed. PO/FCL output no longer carries `fuzzy`/format flags and renders origins as `file#scope`. Lands in the 2.0.0 line.
+* **po:** `MachineTranslationMetadata` (with `model`/`modified`/ `confidence: u8`/`hash`) is replaced by `MachineMetadata { lock, ai }` + `AiProvenance`; `CatalogMessage::machine_translation` is renamed to `machine`; `confidence` is now a `[0,1]` f32. PO machine metadata is written as `#@ lock:`/`#@ ai:` instead of `#@ ferrocat-mt`, and FCL as `lock=`/`ai=`.
+* **po:** the NDJSON catalog storage format and its public types (NdjsonCatalogReader/Writer + options, CatalogStorageFormat::Ndjson, CatalogFileFormat::Ndjson, CatalogMode::IcuNdjson) are removed. Use FCL (CatalogMode::IcuFcl, .fcl files) instead.
+
+### Features
+
+* **po:** obsolete age with clock-injected since and age-based cleanup ([3b9789e](https://github.com/sebastian-software/ferrocat/commit/3b9789ef89e6bbbc7d808cb8c13027294c8bee4b))
+* **po:** remove NDJSON catalog format in favor of FCL ([9606441](https://github.com/sebastian-software/ferrocat/commit/96064410a154b3c05f92813d10156e4a2f454ed4))
+* **po:** replace MT metadata with machine lock + AI provenance ([027440b](https://github.com/sebastian-software/ferrocat/commit/027440b25599209d159e366e186e63369fc1c002))
+* **po:** trim entry metadata to origin scope, notes, and obsolete ([0dd85d4](https://github.com/sebastian-software/ferrocat/commit/0dd85d490fde02c4600b68de974fedc7c4226bd3))
+
+
+### Bug Fixes
+
+* **facade,docs:** re-export PoVec/SmallVec and fix the catalog API example ([abf009e](https://github.com/sebastian-software/ferrocat/commit/abf009eb685d250dc485f73d0a4b6ace3f32276a))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * ferrocat-icu bumped from 1.3.2 to 2.0.0
+    * ferrocat-po bumped from 1.3.2 to 2.0.0
+
 ## [1.3.2](https://github.com/sebastian-software/ferrocat/compare/ferrocat-v1.3.1...ferrocat-v1.3.2) (2026-06-29)
 
 
