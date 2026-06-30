@@ -1080,7 +1080,6 @@ fn update_catalog_merges_duplicate_source_first_metadata() {
                 comments: vec!["First comment".to_owned()],
                 origin: vec![CatalogOrigin {
                     file: "src/a.rs".to_owned(),
-                    line: Some(1),
                 }],
                 placeholders: BTreeMap::from([("0".to_owned(), vec!["customer".to_owned()])]),
                 ..SourceExtractedMessage::default()
@@ -1090,7 +1089,6 @@ fn update_catalog_merges_duplicate_source_first_metadata() {
                 comments: vec!["Second comment".to_owned()],
                 origin: vec![CatalogOrigin {
                     file: "src/b.rs".to_owned(),
-                    line: Some(2),
                 }],
                 placeholders: BTreeMap::from([(
                     "0".to_owned(),
@@ -1117,7 +1115,7 @@ fn update_catalog_merges_duplicate_source_first_metadata() {
     );
     assert_eq!(
         parsed.items[0].references.as_slice(),
-        vec!["src/a.rs:1".to_owned(), "src/b.rs:2".to_owned()].as_slice()
+        vec!["src/a.rs".to_owned(), "src/b.rs".to_owned()].as_slice()
     );
 }
 
@@ -1148,7 +1146,6 @@ fn update_catalog_origin_sort_and_placeholder_options_are_applied() {
         locale: Some("en"),
         render: RenderOptions {
             order_by: OrderBy::Origin,
-            include_line_numbers: false,
             print_placeholders_in_comments: PlaceholderCommentMode::Enabled { limit: 1 },
             ..RenderOptions::default()
         },
@@ -1157,7 +1154,6 @@ fn update_catalog_origin_sort_and_placeholder_options_are_applied() {
                 msgid: "Second".to_owned(),
                 origin: vec![CatalogOrigin {
                     file: "src/z.rs".to_owned(),
-                    line: Some(9),
                 }],
                 placeholders: BTreeMap::from([(
                     "0".to_owned(),
@@ -1169,7 +1165,6 @@ fn update_catalog_origin_sort_and_placeholder_options_are_applied() {
                 msgid: "First".to_owned(),
                 origin: vec![CatalogOrigin {
                     file: "src/a.rs".to_owned(),
-                    line: Some(3),
                 }],
                 ..ExtractedSingularMessage::default()
             }),
@@ -1317,7 +1312,7 @@ fn combine_catalogs_use_first_preserves_existing_translations_and_adds_missing()
     assert_eq!(parsed.items[1].msgstr[0], "");
     assert_eq!(
         parsed.items[1].references.as_slice(),
-        vec!["src/new.rs:7"].as_slice()
+        vec!["src/new.rs"].as_slice()
     );
     assert_eq!(result.stats.inputs, 2);
     assert_eq!(result.stats.definitions, 3);
@@ -2081,7 +2076,6 @@ fn update_catalog_fcl_respects_origin_render_options() {
         msgid: "Hello".to_owned(),
         origin: vec![CatalogOrigin {
             file: "src/app.rs".to_owned(),
-            line: Some(42),
         }],
         ..ExtractedSingularMessage::default()
     })]);
@@ -2100,20 +2094,17 @@ fn update_catalog_fcl_respects_origin_render_options() {
     .expect("update without origins");
     assert!(!without_origins.content.contains("\tr="));
 
-    let without_line_numbers = update_catalog(UpdateCatalogOptions {
+    // References render the file only; line numbers are never emitted.
+    let with_origins = update_catalog(UpdateCatalogOptions {
         source_locale: "en",
         locale: Some("de"),
         mode: CatalogMode::IcuFcl,
-        render: RenderOptions {
-            include_line_numbers: false,
-            ..RenderOptions::default()
-        },
         input,
         ..UpdateCatalogOptions::new("en", CatalogUpdateInput::default())
     })
-    .expect("update without line numbers");
-    assert!(without_line_numbers.content.contains("\tr=src/app.rs"));
-    assert!(!without_line_numbers.content.contains("\tr=src/app.rs:42"));
+    .expect("update with origins");
+    assert!(with_origins.content.contains("\tr=src/app.rs"));
+    assert!(!with_origins.content.contains("\tr=src/app.rs:"));
 }
 
 #[test]

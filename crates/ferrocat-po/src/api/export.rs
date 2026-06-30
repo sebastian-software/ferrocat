@@ -144,20 +144,15 @@ fn base_po_item(
         ));
     }
     item.references = if options.render.include_origins {
-        message
-            .origins
-            .iter()
-            .map(|origin| {
-                if options.render.include_line_numbers {
-                    origin.line.map_or_else(
-                        || origin.file.clone(),
-                        |line| format!("{}:{line}", origin.file),
-                    )
-                } else {
-                    origin.file.clone()
-                }
-            })
-            .collect()
+        // References are file-only now, so distinct origins can collapse to the
+        // same path; keep the first occurrence and drop exact duplicates.
+        let mut references: PoVec<String> = PoVec::new();
+        for origin in &message.origins {
+            if !references.iter().any(|existing| existing == &origin.file) {
+                references.push(origin.file.clone());
+            }
+        }
+        references
     } else {
         PoVec::new()
     };
@@ -239,7 +234,6 @@ mod tests {
             comments: Vec::new(),
             origins: vec![CatalogOrigin {
                 file: "src/lib.rs".to_owned(),
-                line: None,
             }]
             .into(),
             placeholders: BTreeMap::new(),

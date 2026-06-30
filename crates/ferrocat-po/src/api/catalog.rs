@@ -653,11 +653,10 @@ pub(super) fn sort_messages(messages: &mut [CanonicalMessage], order_by: OrderBy
     }
 }
 
-fn first_origin_sort_key(origins: &[CatalogOrigin]) -> (String, Option<u32>) {
-    origins.first().map_or_else(
-        || (String::new(), None),
-        |origin| (origin.file.clone(), origin.line),
-    )
+fn first_origin_sort_key(origins: &[CatalogOrigin]) -> String {
+    origins
+        .first()
+        .map_or_else(String::new, |origin| origin.file.clone())
 }
 
 fn apply_storage_defaults(
@@ -900,26 +899,19 @@ fn parse_placeholder_comment(comment: &str) -> Option<(String, String)> {
     Some((rest[..end].to_owned(), rest[end + 3..].to_owned()))
 }
 
-/// Parses a gettext reference while tolerating plain paths and `path:line`.
-/// Splits a `file:line` reference into a [`CatalogOrigin`], reusing the owned
-/// reference buffer for the file part instead of allocating a fresh string.
+/// Parses a gettext reference, keeping only the file. A trailing `:line` (as
+/// emitted by gettext tools) is stripped so line numbers never enter the catalog
+/// model and cannot round-trip back into rendered output.
 fn parse_origin_owned(mut reference: String) -> CatalogOrigin {
     if let Some((file, line)) = reference.rsplit_once(':')
-        && line.chars().all(|ch| ch.is_ascii_digit())
+        && !line.is_empty()
+        && line.bytes().all(|byte| byte.is_ascii_digit())
     {
-        let parsed_line = line.parse::<u32>().ok();
         let file_len = file.len();
         reference.truncate(file_len);
-        return CatalogOrigin {
-            file: reference,
-            line: parsed_line,
-        };
     }
 
-    CatalogOrigin {
-        file: reference,
-        line: None,
-    }
+    CatalogOrigin { file: reference }
 }
 
 /// Moves the first available translation string out of a [`MsgStr`], matching
@@ -1035,20 +1027,17 @@ mod tests {
     use crate::MsgStr;
 
     #[test]
-    fn parse_origin_owned_handles_file_line_and_bare_references() {
-        let with_line = parse_origin_owned("src/app.rs:42".to_owned());
-        assert_eq!(with_line.file, "src/app.rs");
-        assert_eq!(with_line.line, Some(42));
+    fn parse_origin_owned_strips_line_numbers_and_keeps_file() {
+        // A trailing numeric `:line` is dropped so line numbers never enter the
+        // catalog model or round-trip back into rendered references.
+        assert_eq!(
+            parse_origin_owned("src/app.rs:42".to_owned()).file,
+            "src/app.rs"
+        );
 
-        // No colon and a non-numeric line suffix both fall back to a line-less
-        // origin that reuses the original buffer verbatim.
-        let bare = parse_origin_owned("README".to_owned());
-        assert_eq!(bare.file, "README");
-        assert_eq!(bare.line, None);
-
-        let non_numeric = parse_origin_owned("a:b:rev".to_owned());
-        assert_eq!(non_numeric.file, "a:b:rev");
-        assert_eq!(non_numeric.line, None);
+        // No colon, and non-numeric or empty suffixes, keep the buffer verbatim.
+        assert_eq!(parse_origin_owned("README".to_owned()).file, "README");
+        assert_eq!(parse_origin_owned("a:b:rev".to_owned()).file, "a:b:rev");
     }
 
     #[test]

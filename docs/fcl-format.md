@@ -70,7 +70,7 @@ A field containing no `\` is taken verbatim (zero-copy borrow on parse).
 
 | tag | source field | meaning | cardinality |
 |-----|--------------|---------|-------------|
-| `r=`       | `origin` (`CatalogOrigin`) | source reference `file` or `file:line` | 0..n |
+| `r=`       | `origin` (`CatalogOrigin`) | source reference `file` (no line numbers) | 0..n |
 | `c=`       | `comments`                 | extracted comment (`#.` in PO)         | 0..n |
 | `tc=`      | `extra.translator_comments`| translator comment (`#` in PO)         | 0..n |
 | `f=`       | `extra.flags`              | a PO flag (`c-format`, …)              | 0..n |
@@ -86,6 +86,12 @@ Canonical tag order: `r` (sorted), `c`, `tc`, `f` (sorted), `o`, `mt.model`,
 Timestamps churn every line on regeneration and poison merges; change/staleness
 detection is hash-based (`mt.hash`). FCL is therefore lossy for `modified` by
 design.
+
+**Also omitted: line numbers.** References carry the file only. A line number
+shifts whenever anything above a message changes, so it churns diffs and merges
+without identifying anything the `(id, ctxt)` key does not. This is a
+catalog-layer decision shared with PO output; the low-level `parse_po` /
+`stringify_po` round-trip stays faithful to whatever references a PO file holds.
 
 ## Robustness
 
