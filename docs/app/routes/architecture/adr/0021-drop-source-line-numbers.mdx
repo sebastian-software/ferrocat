@@ -1,0 +1,72 @@
+---
+title: "ADR 0021: Drop Source Line Numbers from the Catalog Layer"
+description: "Accepted architecture decision record: catalog references track the source file only, not a line number."
+order: 210
+---
+
+# ADR 0021: Drop Source Line Numbers from the Catalog Layer
+
+- Status: Accepted
+- Date: 2026-06-30
+- Refines: [ADR 0006](/architecture/adr/0006-separate-po-core-from-high-level-catalog-api)
+
+## Context
+
+Catalog references used to carry a source line number. Gettext PO writes them as
+`#: file:line`, FCL wrote them as `r=file:line`, `CatalogOrigin` modeled them as
+`file` plus `line: Option<u32>`, and `RenderOptions`, `CombineCatalogOptions`,
+and `CombineCatalogFilesOptions` each exposed an `include_line_numbers` flag.
+
+Line numbers are volatile. Inserting or deleting anything above a message shifts
+the line of every message below it, so regenerating a catalog rewrites reference
+lines on entries that did not otherwise change. That churn works directly against
+what the catalog layer is for: FCL exists so an entry no side edited stays
+byte-identical across all three inputs of a git 3-way merge, and PO catalogs want
+the same narrow diffs. A line number that moves on unrelated edits reintroduces
+exactly the spurious diffs and merge conflicts the line-oriented design removes.
+
+A line number also identifies nothing the message key does not. A catalog message
+is keyed by `(msgid, msgctxt)`. The file is useful context for "where does this
+come from"; the line is not a stable identifier and is stale the moment the file
+is edited.
+
+## Decision
+
+Track the source file only, and drop line numbers from the catalog layer.
+
+- `CatalogOrigin` keeps `file` and no longer has a `line` field.
+- `include_line_numbers` is removed from `RenderOptions`,
+  `CombineCatalogOptions`, and `CombineCatalogFilesOptions`.
+- On catalog parse, a trailing numeric `:line` is stripped from PO `#:`
+  references and FCL `r=` values, so an existing line number neither enters the
+  model nor round-trips back into rendered output.
+- Catalog serialization (PO and FCL) renders the file only and deduplicates
+  references that now collapse to the same path.
+
+This is a catalog-layer decision, and it respects the boundary from ADR 0006.
+The low-level `parse_po` / `stringify_po` / `merge_catalog` path stays faithful:
+it round-trips whatever references a PO file holds, including `file:line`, so
+reading and rewriting arbitrary third-party PO remains lossless. Line-number
+removal is an opinion the catalog layer applies, not a property of the PO parser.
+
+## Consequences
+
+Positive:
+
+- catalog references stop churning on unrelated edits; a reference line changes
+  in a diff or merge only when the file reference actually changes
+- FCL's "unchanged entry stays byte-identical" guarantee holds in practice
+  instead of being defeated by a moving line number
+- the model is simpler: one field per origin, and origin deduplication keys on
+  the file
+
+Negative:
+
+- this is a breaking API change (`CatalogOrigin::line` and the
+  `include_line_numbers` options are removed); it lands in the 2.0.0 line
+- extraction inputs, including those produced by Palamedes, stop carrying a line;
+  a tool that offered "jump to the exact source line" loses that hint at the
+  catalog layer and would resolve a position from the file and message at lookup
+  time instead
+- the catalog layer is now intentionally lossy for line numbers relative to a
+  source PO that has them, mirroring the existing `mt.modified` omission in FCL
