@@ -11,10 +11,8 @@ use super::{CatalogMessage, CatalogMessageKey, EffectiveTranslationRef, Normaliz
 #[cfg_attr(feature = "serde", serde(rename_all = "snake_case"))]
 #[non_exhaustive]
 pub enum CatalogMessageStatus {
-    /// Active target message exists and has a non-empty, non-fuzzy translation.
+    /// Active target message exists and has a non-empty translation.
     Translated,
-    /// Active target message exists and carries a visible `fuzzy` flag.
-    Fuzzy,
     /// No active or obsolete target entry exists for the active source identity.
     Missing,
     /// Active target entry exists, but its effective translation is empty.
@@ -47,9 +45,6 @@ pub(super) fn classify_expected_message(
     if translation_is_empty(message) {
         return CatalogMessageStatus::Empty;
     }
-    if message_has_fuzzy_flag(message) {
-        return CatalogMessageStatus::Fuzzy;
-    }
     CatalogMessageStatus::Translated
 }
 
@@ -68,11 +63,4 @@ pub(super) fn translation_is_empty(message: &CatalogMessage) -> bool {
             translations.is_empty() || translations.values().any(|value| value.trim().is_empty())
         }
     }
-}
-
-pub(super) fn message_has_fuzzy_flag(message: &CatalogMessage) -> bool {
-    message
-        .extra
-        .as_ref()
-        .is_some_and(|extra| extra.flags.iter().any(|flag| flag == "fuzzy"))
 }

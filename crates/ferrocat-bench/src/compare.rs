@@ -1963,8 +1963,6 @@ struct CatalogMessageSummary {
     comments: Vec<String>,
     origins: Vec<CatalogOriginSummary>,
     obsolete: bool,
-    translator_comments: Vec<String>,
-    flags: Vec<String>,
 }
 
 impl CatalogMessageSummary {
@@ -1980,14 +1978,6 @@ impl CatalogMessageSummary {
                 .map(CatalogOriginSummary::from_origin)
                 .collect(),
             obsolete: message.obsolete,
-            translator_comments: message
-                .extra
-                .as_ref()
-                .map_or_else(Vec::new, |extra| extra.translator_comments.clone()),
-            flags: message
-                .extra
-                .as_ref()
-                .map_or_else(Vec::new, |extra| extra.flags.clone()),
         }
     }
 }
@@ -2027,12 +2017,14 @@ impl CatalogTranslationSummary {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 struct CatalogOriginSummary {
     file: String,
+    scope: Option<String>,
 }
 
 impl CatalogOriginSummary {
     fn from_origin(origin: &CatalogOrigin) -> Self {
         Self {
             file: origin.file.clone(),
+            scope: origin.scope.clone(),
         }
     }
 }

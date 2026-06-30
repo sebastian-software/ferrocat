@@ -12,7 +12,6 @@ use crate::diagnostic_codes;
 use super::icu_syntax::parse_icu_with_syntax_policy;
 use super::message_status::{
     CatalogMessageStatus, active_message_keys, classify_expected_message, is_extra_target_message,
-    message_has_fuzzy_flag,
 };
 use super::{
     ApiError, CatalogMessage, CatalogMessageKey, DiagnosticSeverity, EffectiveTranslationRef,
@@ -79,8 +78,6 @@ pub struct CatalogAuditChecks {
     pub icu_compatibility: bool,
     /// Validate source-side semantic message metadata.
     pub semantic_metadata: bool,
-    /// Report existing `fuzzy` flags.
-    pub fuzzy_flags: bool,
     /// Report obsolete entries.
     pub obsolete_entries: bool,
 }
@@ -93,7 +90,6 @@ impl Default for CatalogAuditChecks {
             icu_syntax: true,
             icu_compatibility: true,
             semantic_metadata: true,
-            fuzzy_flags: true,
             obsolete_entries: true,
         }
     }
@@ -270,7 +266,7 @@ pub fn audit_catalogs_with_icu_options(
     let target_locales = select_target_locales(&catalog_index, options, &mut report);
     let source_locale = source_catalog.parsed_catalog().locale.as_deref();
 
-    if options.checks.fuzzy_flags || options.checks.obsolete_entries || options.checks.icu_syntax {
+    if options.checks.obsolete_entries || options.checks.icu_syntax {
         audit_catalog_entries(
             source_catalog,
             source_locale,
@@ -389,15 +385,6 @@ fn audit_catalog_entries(
                 None,
             ));
         }
-        if options.checks.fuzzy_flags && message_has_fuzzy_flag(message) {
-            report.diagnostics.push(CatalogAuditDiagnostic::new(
-                DiagnosticSeverity::Info,
-                diagnostic_codes::catalog::FUZZY_FLAG,
-                "Catalog entry carries a fuzzy flag.",
-                Some(message_ref.clone()),
-                Some("fuzzy".to_owned()),
-            ));
-        }
         if options.checks.icu_syntax && !message.obsolete {
             audit_icu_syntax_for_message(
                 message,
@@ -442,7 +429,7 @@ fn audit_target_catalog(
                         Some(target_locale.to_owned()),
                     ));
                 }
-                CatalogMessageStatus::Translated | CatalogMessageStatus::Fuzzy => {}
+                CatalogMessageStatus::Translated => {}
                 CatalogMessageStatus::Extra => {
                     unreachable!("expected source-key classification cannot produce extra status")
                 }

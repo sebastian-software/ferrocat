@@ -1230,18 +1230,6 @@ pub(crate) fn render_fcl_catalog(parsed: &ParsedCatalog) -> String {
                 line.push_str("\tc=");
                 fcl_escape_into(&mut line, comment);
             }
-            if let Some(extra) = &message.extra {
-                for comment in &extra.translator_comments {
-                    line.push_str("\ttc=");
-                    fcl_escape_into(&mut line, comment);
-                }
-                let mut flags = extra.flags.iter().map(String::as_str).collect::<Vec<_>>();
-                flags.sort_unstable();
-                for flag in &flags {
-                    line.push_str("\tf=");
-                    fcl_escape_into(&mut line, flag);
-                }
-            }
             if message.obsolete {
                 line.push_str("\to");
             }
@@ -1320,10 +1308,6 @@ fn render_po_catalog(parsed: &ParsedCatalog) -> String {
             .map(|origin| origin.file.clone())
             .collect();
         item.obsolete = message.obsolete;
-        if let Some(extra) = &message.extra {
-            item.comments = extra.translator_comments.clone().into();
-            item.flags = extra.flags.clone().into();
-        }
         file.items.push(item);
     }
 

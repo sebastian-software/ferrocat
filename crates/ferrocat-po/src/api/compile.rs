@@ -984,7 +984,6 @@ mod unit_tests {
             origin: crate::PoVec::new(),
             obsolete: false,
             machine: None,
-            extra: None,
         }
     }
 
@@ -1007,7 +1006,6 @@ mod unit_tests {
             origin: crate::PoVec::new(),
             obsolete: false,
             machine: None,
-            extra: None,
         }
     }
 

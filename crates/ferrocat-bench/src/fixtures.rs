@@ -1534,10 +1534,12 @@ fn parse_origin(reference: &str) -> CatalogOrigin {
         {
             CatalogOrigin {
                 file: file.to_owned(),
+                scope: None,
             }
         }
         _ => CatalogOrigin {
             file: reference.to_owned(),
+            scope: None,
         },
     }
 }

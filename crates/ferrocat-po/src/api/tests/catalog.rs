@@ -69,6 +69,29 @@ fn parse_catalog_reads_po_machine_metadata() {
 }
 
 #[test]
+fn parse_catalog_reads_origin_scope_and_merges_comments() {
+    // A `#scope` anchor on the reference becomes `CatalogOrigin::scope`, and the
+    // extracted (`#.`) and translator (`#`) comments collapse into one notes list.
+    let content = "# translator note\n\
+         #. extracted note\n\
+         #: src/Button.tsx#Button\n\
+         msgid \"Save\"\nmsgstr \"Speichern\"\n";
+    let parsed = parse_catalog(ParseCatalogOptions {
+        content,
+        source_locale: "en",
+        locale: Some("de"),
+        ..ParseCatalogOptions::new("", "en")
+    })
+    .expect("parse");
+
+    let message = &parsed.messages[0];
+    assert_eq!(message.origin[0].file, "src/Button.tsx");
+    assert_eq!(message.origin[0].scope.as_deref(), Some("Button"));
+    assert!(message.comments.contains(&"extracted note".to_owned()));
+    assert!(message.comments.contains(&"translator note".to_owned()));
+}
+
+#[test]
 fn update_catalog_keeps_valid_po_machine_metadata() {
     let hash = machine_translation_hash(EffectiveTranslationRef::Singular("Hallo"));
     let existing = format!(
@@ -1082,6 +1105,7 @@ fn update_catalog_merges_duplicate_source_first_metadata() {
                 comments: vec!["First comment".to_owned()],
                 origin: vec![CatalogOrigin {
                     file: "src/a.rs".to_owned(),
+                    scope: None,
                 }],
                 placeholders: BTreeMap::from([("0".to_owned(), vec!["customer".to_owned()])]),
                 ..SourceExtractedMessage::default()
@@ -1091,6 +1115,7 @@ fn update_catalog_merges_duplicate_source_first_metadata() {
                 comments: vec!["Second comment".to_owned()],
                 origin: vec![CatalogOrigin {
                     file: "src/b.rs".to_owned(),
+                    scope: None,
                 }],
                 placeholders: BTreeMap::from([(
                     "0".to_owned(),
@@ -1156,6 +1181,7 @@ fn update_catalog_origin_sort_and_placeholder_options_are_applied() {
                 msgid: "Second".to_owned(),
                 origin: vec![CatalogOrigin {
                     file: "src/z.rs".to_owned(),
+                    scope: None,
                 }],
                 placeholders: BTreeMap::from([(
                     "0".to_owned(),
@@ -1167,6 +1193,7 @@ fn update_catalog_origin_sort_and_placeholder_options_are_applied() {
                 msgid: "First".to_owned(),
                 origin: vec![CatalogOrigin {
                     file: "src/a.rs".to_owned(),
+                    scope: None,
                 }],
                 ..ExtractedSingularMessage::default()
             }),
@@ -2078,6 +2105,7 @@ fn update_catalog_fcl_respects_origin_render_options() {
         msgid: "Hello".to_owned(),
         origin: vec![CatalogOrigin {
             file: "src/app.rs".to_owned(),
+            scope: None,
         }],
         ..ExtractedSingularMessage::default()
     })]);
