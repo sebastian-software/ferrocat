@@ -1,0 +1,133 @@
+---
+title: "ADR 0022: Machine-Managed Value Integrity and AI Provenance"
+description: "Proposed architecture decision record: a top-level integrity lock for machine-managed values plus a compact, engine-agnostic AI provenance field, superseding the structured machine-translation metadata."
+order: 220
+---
+
+# ADR 0022: Machine-Managed Value Integrity and AI Provenance
+
+- Status: Proposed (targets 2.0.0; implementation pending producer support)
+- Date: 2026-06-30
+- Supersedes: [ADR 0018](/architecture/adr/0018-machine-translation-entry-metadata)
+
+## Context
+
+ADR 0018 added machine-translation metadata to catalog entries as four structured
+fields (`model`, `modified`, `confidence`, `hash`), rendered in PO as a single
+`#@ ferrocat-mt model=… modified=… confidence=… hash=…` comment and in FCL as
+separate `mt.model` / `mt.conf` / `mt.hash` tags. Practice since then surfaced
+three problems:
+
+- **Only two of the four fields carry weight inside Ferrocat.** The only module
+  that reasons about machine translation, `catalog_review`, looks at exactly:
+  presence (is the value machine-set?) and the hash (does it still match the
+  current translation, i.e. current vs stale). `model`, `confidence`, and
+  `modified` are never read by Ferrocat logic — they are provenance passed
+  through for hosts and dashboards.
+- **The hash is not really about *translation*.** Its job is integrity: a
+  machine set this value, and a later by-hand edit should be detectable. A
+  translation memory system or any automation manages values the same way, so
+  binding the hash to a `mt.` namespace is too narrow.
+- **The encoding is cluttered and diverges between formats.** Four `key=value`
+  pairs in PO versus three tags in FCL is verbose and not uniform, and `modified`
+  is a timestamp that churns every regenerated line and poisons merges.
+
+At the same time Ferrocat should position itself as AI-native: it should
+*understand* a small, engine-neutral provenance vocabulary across engines
+(Palamedes, a TMS, other AI providers), rather than treat the data as opaque
+host-specific bytes.
+
+## Decision
+
+Model two top-level, engine-agnostic concepts that Ferrocat understands, and
+drop the `mt.`-namespaced structured fields.
+
+### 1. Integrity lock (machine-managed, translation-agnostic)
+
+A top-level `lock` carries a fingerprint of the value at the time a machine set
+it:
+
+- present ⇒ the value was machine-managed (AI engine, TMS, script, …)
+- `hash(current value) != lock` ⇒ a human edited it after the machine
+
+```
+lock=<hash>
+```
+
+This replaces the translation-specific hash and is no longer nested under a
+machine-translation concept.
+
+### 2. AI provenance (optional, understood by Ferrocat)
+
+A top-level `ai` field describes which engine produced the value and how
+confident it was:
+
+```
+ai=<model>[:<confidence>]
+ai=openai/gpt-5.5-high:0.93
+ai=opus-4-8:0.97
+ai=grok-4
+```
+
+- `model` is an opaque, free-form identifier. Whether it carries a provider
+  prefix is the producer's choice; Ferrocat does not parse it.
+- `confidence` is optional and trails after the final `:` as a decimal in the
+  closed range `[0, 1]`.
+- Parsing mirrors the origin `file:line` heuristic: split on the last `:`, and
+  treat the suffix as confidence only when it is a valid `[0, 1]` decimal;
+  otherwise the whole string is the model. A model id that itself contains `/`
+  or `:` therefore keeps its value intact, and the single free-form field never
+  needs escaping because it is taken as the remainder.
+
+`modified` is dropped. Staleness is detected by the `lock` hash, and a timestamp
+only adds merge churn.
+
+### Encoding
+
+Both fields use the same grammar in both formats; only the wrapper differs:
+
+- FCL: `lock=<hash>` and `ai=<model>[:<confidence>]` tags
+- PO: `#@ lock <hash>` and `#@ ai <model>[:<confidence>]` metadata comments,
+  which gettext tooling ignores
+
+```fcl
+greeting⇥⇥Hallo⇥lock=9f2c…⇥ai=openai/gpt-5.5-high:0.93
+```
+
+```po
+#@ lock 9f2c…
+#@ ai openai/gpt-5.5-high:0.93
+msgctxt "greeting"
+msgid "Hello {name}"
+msgstr "Hallo"
+```
+
+## Consequences
+
+Positive:
+
+- the representation is tidy and uniform across PO and FCL, and FCL stays
+  tab-compact (two tags, not three plus a timestamp)
+- integrity is decoupled from translation, so the same mechanism covers any
+  machine-managed value (AI, TMS, scripts)
+- the AI vocabulary is engine-neutral, which supports Ferrocat as an AI-native
+  foundation for producers beyond Palamedes while staying host-neutral
+- `catalog_review` simplifies: current/stale/absent keys on `lock`, and any
+  AI-specific reporting (for example a confidence gate) keys on `ai`
+
+Negative:
+
+- this is a breaking change to the machine-translation API and serialization
+  (`model`, `modified`, `confidence`, and the `mt.*` encoding are removed); it
+  lands in the 2.0.0 line and supersedes ADR 0018
+- `confidence` changes from a `0..=100` integer to a `[0, 1]` decimal
+- the model id is opaque, so Ferrocat cannot validate a provider or normalize ids
+- the positional `ai` encoding grows only by appending optional trailing
+  positions; it deliberately trades keyed flexibility for compactness
+- it requires producer support (Palamedes and other engines) to populate the new
+  fields, so the format change and the producers must land together
+
+This refines the same line of thinking as [ADR 0021](/architecture/adr/0021-drop-source-line-numbers)
+(catalog references carry only stable, churn-free information) and respects the
+[Ferrocat/Palamedes boundary](/architecture/adr/0014-ferrocat-palamedes-boundary):
+Ferrocat owns a neutral vocabulary, producers fill it.
