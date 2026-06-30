@@ -108,7 +108,7 @@ At the high-level catalog layer, `ferrocat` supports three explicit combinations
 
 There is intentionally no FCL + gettext-plural mode; gettext plural behavior belongs to PO, while FCL is the ICU-native machine storage path. In API terms, that means `CatalogStorageFormat::Fcl` is only available with `CatalogSemantics::IcuNative`.
 
-FCL (Ferrocat Catalog Lines) is the line-oriented storage choice that replaced NDJSON for the machine-owned, git-merge-optimized storage role. Each entry is one tab-separated line, deterministically sorted by `(id, ctxt)`, behind a single `%FCL1` header line. It is useful when catalogs are maintained by larger teams, automation, or external systems that benefit from one entry per line: diffs stay focused, unchanged entries stay byte-identical across merge inputs for clean git 3-way merges, and hosted Git review workflows do not need custom merge-driver support to make routine catalog edits manageable. FCL is also the most compact of the three formats and parses faster than PO.
+FCL (Ferrocat Catalog Lines) is the machine-owned, git-merge-optimized storage choice. Each entry is one tab-separated line, deterministically sorted by `(id, ctxt)`, behind a single `%FCL1` header line. It is useful when catalogs are maintained by larger teams, automation, or external systems that benefit from one entry per line: diffs stay focused, unchanged entries stay byte-identical across merge inputs for clean git 3-way merges, and hosted Git review workflows do not need custom merge-driver support to make routine catalog edits manageable. Against the same catalog stored as PO, FCL parses about 45% faster and is roughly 12% smaller on disk.
 
 ## Quick Choice
 

@@ -103,7 +103,7 @@ At the high-level catalog layer, `ferrocat` supports three explicit combinations
 | ICU-native Gettext PO mode | Gettext PO | ICU MessageFormat | keep Gettext PO files and tooling, but author richer ICU plural/select/formatting messages |
 | ICU-native FCL catalog mode | FCL catalog storage | ICU MessageFormat | move to one-entry-per-line, tab-separated records that are easier to diff, merge, batch, and hand to external systems |
 
-There is intentionally no FCL + gettext-plural mode; gettext plural behavior stays a PO concern, while FCL is the ICU-native machine storage format for ICU-native catalogs. FCL (Ferrocat Catalog Lines) replaced NDJSON for the machine-owned, git-merge-optimized storage role. Its line-oriented shape is especially useful when large teams edit catalogs through normal Git review flows: unrelated entries stay on separate lines, conflicts are narrower, unchanged entries stay byte-identical across merge inputs for clean git 3-way merges, and the format does not depend on a custom merge handler being available.
+There is intentionally no FCL + gettext-plural mode; gettext plural behavior stays a PO concern, while FCL (Ferrocat Catalog Lines) is the ICU-native machine storage format for ICU-native catalogs. Its line-oriented shape is especially useful when large teams edit catalogs through normal Git review flows: unrelated entries stay on separate lines, conflicts are narrower, unchanged entries stay byte-identical across merge inputs for clean git 3-way merges, and the format does not depend on a custom merge handler being available.
 
 The canonical documentation now lives on the docs site:
 
