@@ -780,6 +780,11 @@ presence marks the value as machine-managed. It has two fields:
 - `ai`: optional AI provenance — an opaque `model` id and an optional
   `confidence` decimal in `[0, 1]`.
 
+The point is to protect rare human corrections. Machine translations ship as-is
+by default; when someone fixes one by hand, the lock stops matching, so a
+re-translation pass can recognize that entry and leave it alone instead of
+overwriting it.
+
 Use `machine_translation_hash` to compute the lock for the current translation.
 Ferrocat uses SHA-256 over a canonical translation payload plus the fixed
 `ferrocat:mt:v1` namespace, truncates the digest to 128 bits, and encodes it as
