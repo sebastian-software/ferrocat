@@ -15,12 +15,12 @@ Ferrocat is also part of the [Palamedes](https://github.com/sebastian-software/p
 
 ## What Ferrocat Gives You
 
-- **One reliable catalog core.** Keep source text, contexts, translations, comments, references, flags, plural forms, and obsolete entries in a model that application code can reason about.
+- **One reliable catalog core.** Keep source text, contexts, translations, notes, source origins (file plus optional scope), plural forms, and obsolete entries in a model that application code can reason about.
 - **Predictable updates.** Merge newly extracted messages into existing catalogs without fuzzy guessing, hidden identity changes, or silent conflict resolution.
-- **Release-ready QA.** Audit catalog sets for missing locales, missing translations, empty translations, stale target messages, ICU mistakes, metadata conflicts, obsolete entries, and visible `fuzzy` flags.
-- **Coverage and review reports.** Turn catalog state into completion counters, translator handoff diffs, and machine-translation freshness checks instead of rebuilding those rules in every host tool.
+- **Release-ready QA.** Audit catalog sets for missing locales, missing translations, empty translations, stale target messages, ICU mistakes, metadata conflicts, and obsolete entries.
+- **Coverage and review reports.** Turn catalog state into completion counters, translator handoff diffs, and machine-managed value freshness checks instead of rebuilding those rules in every host tool.
 - **Safer rich messages.** Analyze placeholders, formatters, plural/select branches, and rich-text tags so a translation cannot accidentally drop a required runtime value. Runtime-specific formatter support and literal-apostrophe policy stay explicit.
-- **AI translation metadata ready.** Track machine-generated translation provenance with model, confidence, and a change-detection hash, then drop stale metadata automatically when a human edits the text.
+- **AI-native metadata.** Mark any machine-managed value with a top-level integrity lock plus optional AI provenance (model and confidence); a later by-hand edit no longer matches the lock and is detected automatically.
 - **Runtime artifacts you can explain.** Compile catalogs into host-neutral payloads with stable keys, fallback behavior, missing reports, optional ICU diagnostics, and provenance rows that show where each runtime string came from.
 - **Pseudo-locale QA.** Generate ICU-aware pseudolocalized messages and runtime artifacts without damaging placeholders, plural selectors, rich-text tags, or formatter syntax.
 - **Storage that survives a merge.** Use PO when translator tooling reads the file directly, or FCL when several people and jobs touch the same locale: one canonical entry per line keeps ordinary git merges from losing untouched translations, and the file still parses about 45% faster and stores roughly 12% smaller than the same catalog as PO.
@@ -31,10 +31,10 @@ Ferrocat is also part of the [Palamedes](https://github.com/sebastian-software/p
 
 Ferrocat is a new catalog layer, but it is not invented in a vacuum. It keeps the useful parts of established translation workflows and makes them available through a Rust API:
 
-- **PO catalogs** for translator-friendly source, translation, context, comment, reference, flag, plural, and obsolete-entry handling.
+- **PO catalogs** for translator-friendly source, translation, context, comment, origin, plural, and obsolete-entry handling.
 - **ICU MessageFormat v1** for richer messages with arguments, formatting, plurals, selects, and rich-text tags.
 - **FCL catalogs** (Ferrocat Catalog Lines): one entry per line, deterministically sorted, so ordinary git merges preserve untouched entries and surface same-entry edits as normal conflicts, while parsing about 45% faster and storing roughly 12% smaller than the same catalog as PO. The machine-owned format for Git review, automation, and pipelines.
-- **Machine-translation metadata** for AI-assisted localization workflows that need to know which model produced a translation and whether that metadata still matches the current text.
+- **Machine-managed value metadata** for AI-assisted workflows: a top-level integrity lock that detects later by-hand edits to any machine-set value, plus optional AI provenance (model and confidence).
 - **Structured diagnostics** instead of ad hoc text output, so CI, editors, and host frameworks can consume the same report.
 
 ## Where Ferrocat Fits

@@ -96,7 +96,7 @@ const family: FamilyTool[] = [
 const benefits = [
   {
     title: "One catalog core, not ten formats",
-    body: "Keep source text, context, plurals, comments, references, flags, and obsolete entries in a single model your application code can reason about.",
+    body: "Keep source text, context, plurals, notes, source origins, and obsolete entries in a single model your application code can reason about.",
     icon: <Boxes size={20} />,
   },
   {
@@ -106,7 +106,7 @@ const benefits = [
   },
   {
     title: "Release QA with numbers",
-    body: "Audit for missing locales, empty translations, stale targets, ICU errors, metadata conflicts, and fuzzy flags. Coverage reports make the gap visible before release day.",
+    body: "Audit for missing locales, empty translations, stale targets, ICU errors, metadata conflicts, and obsolete entries. Coverage reports make the gap visible before release day.",
     icon: <ShieldCheck size={20} />,
   },
   {
@@ -130,8 +130,8 @@ const benefits = [
     icon: <Languages size={20} />,
   },
   {
-    title: "AI translation metadata that stays honest",
-    body: "Track model, confidence, and a change hash for machine output. When a human edits the text, stale machine-translation metadata is cleared.",
+    title: "AI-native metadata that stays honest",
+    body: "Mark any machine-managed value with an integrity lock plus optional AI provenance (model and confidence). When a human edits the text, the lock no longer matches and the edit is detected.",
     icon: <FileCheck2 size={20} />,
   },
 ]
@@ -168,7 +168,7 @@ const catalogModes = [
     title: "Translator-friendly PO",
     storage: "Gettext PO",
     semantics: "Gettext plurals",
-    body: "The catalog shape translation tools already understand, with comments, references, flags, and plural forms preserved.",
+    body: "The catalog shape translation tools already understand, with comments, references, and plural forms preserved.",
   },
   {
     title: "Rich-message PO",

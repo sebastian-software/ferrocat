@@ -50,8 +50,8 @@ without owning the JS/TS parser.
 Catalog audit reports follow that boundary too. Palamedes can run audit in CI,
 editors, or release commands and enrich it with project context; Ferrocat owns
 the generic checks for completeness, stale target messages, ICU syntax, ICU
-source/translation compatibility, semantic metadata conflicts, obsolete entries,
-and visible `fuzzy` flags.
+source/translation compatibility, semantic metadata conflicts, and obsolete
+entries.
 
 That split also makes the ecosystem easier to evaluate. If you need a full app-facing i18n framework, start with Palamedes. If you need catalog infrastructure, start with Ferrocat. If you need both, Palamedes is the natural application layer on top of Ferrocat.
 
