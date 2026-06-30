@@ -7,8 +7,8 @@ use crate::{Header, MsgStr, PoFile, PoItem, PoVec, SerializeOptions, stringify_p
 
 use super::catalog::{CanonicalMessage, CanonicalTranslation, Catalog};
 use super::mt::{
-    MachineTranslationMetadata, PO_MACHINE_TRANSLATION_KEY, format_po_machine_translation_metadata,
-    machine_translation_hash, validate_machine_translation_metadata,
+    MachineMetadata, PO_AI_KEY, PO_LOCK_KEY, format_ai_descriptor, machine_translation_hash,
+    validate_machine_metadata,
 };
 use super::plural::{PluralProfile, synthesize_icu_plural};
 use super::{
@@ -137,11 +137,13 @@ fn base_po_item(
         &options.render.print_placeholders_in_comments,
     );
     item.extracted_comments = extracted_comments.into();
-    if let Some(metadata) = valid_machine_translation_metadata(message) {
-        item.metadata.push((
-            PO_MACHINE_TRANSLATION_KEY.to_owned(),
-            format_po_machine_translation_metadata(metadata),
-        ));
+    if let Some(metadata) = valid_machine_metadata(message) {
+        item.metadata
+            .push((PO_LOCK_KEY.to_owned(), metadata.lock.clone()));
+        if let Some(ai) = &metadata.ai {
+            item.metadata
+                .push((PO_AI_KEY.to_owned(), format_ai_descriptor(ai)));
+        }
     }
     item.references = if options.render.include_origins {
         // References are file-only now, so distinct origins can collapse to the
@@ -159,14 +161,12 @@ fn base_po_item(
     item
 }
 
-fn valid_machine_translation_metadata(
-    message: &CanonicalMessage,
-) -> Option<&MachineTranslationMetadata> {
-    let metadata = message.machine_translation.as_ref()?;
-    if validate_machine_translation_metadata(metadata).is_err() {
+fn valid_machine_metadata(message: &CanonicalMessage) -> Option<&MachineMetadata> {
+    let metadata = message.machine.as_ref()?;
+    if validate_machine_metadata(metadata).is_err() {
         return None;
     }
-    (metadata.hash == machine_translation_hash(canonical_translation_ref(&message.translation)))
+    (metadata.lock == machine_translation_hash(canonical_translation_ref(&message.translation)))
         .then_some(metadata)
 }
 
@@ -223,7 +223,7 @@ fn normalize_placeholder_value(value: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::super::{CatalogMode, CatalogOrigin, CatalogUpdateInput};
+    use super::super::{AiProvenance, CatalogMode, CatalogOrigin, CatalogUpdateInput};
     use super::*;
 
     fn message_with_translation(translation: CanonicalTranslation) -> CanonicalMessage {
@@ -238,7 +238,7 @@ mod tests {
             .into(),
             placeholders: BTreeMap::new(),
             obsolete: false,
-            machine_translation: None,
+            machine: None,
             translator_comments: Vec::new(),
             flags: Vec::new(),
         }
@@ -307,15 +307,16 @@ mod tests {
     }
 
     #[test]
-    fn machine_translation_metadata_validation_handles_invalid_and_plural_cases() {
+    fn machine_metadata_validation_handles_invalid_and_plural_cases() {
         let mut invalid = singular_message("Hallo");
-        invalid.machine_translation = Some(MachineTranslationMetadata {
-            model: String::new(),
-            modified: None,
-            confidence: None,
-            hash: machine_translation_hash(EffectiveTranslationRef::Singular("Hallo")),
+        invalid.machine = Some(MachineMetadata {
+            lock: machine_translation_hash(EffectiveTranslationRef::Singular("Hallo")),
+            ai: Some(AiProvenance {
+                model: String::new(),
+                confidence: None,
+            }),
         });
-        assert!(valid_machine_translation_metadata(&invalid).is_none());
+        assert!(valid_machine_metadata(&invalid).is_none());
 
         let translations = BTreeMap::from([
             ("one".to_owned(), "Artikel".to_owned()),
@@ -323,15 +324,16 @@ mod tests {
         ]);
         let hash = machine_translation_hash(EffectiveTranslationRef::Plural(&translations));
         let mut plural = plural_message(translations);
-        plural.machine_translation = Some(MachineTranslationMetadata {
-            model: "openai/gpt-5.5-high".to_owned(),
-            modified: None,
-            confidence: Some(95),
-            hash: hash.clone(),
+        plural.machine = Some(MachineMetadata {
+            lock: hash.clone(),
+            ai: Some(AiProvenance {
+                model: "openai/gpt-5.5-high".to_owned(),
+                confidence: Some(0.95),
+            }),
         });
 
         assert_eq!(
-            valid_machine_translation_metadata(&plural).map(|metadata| metadata.hash.as_str()),
+            valid_machine_metadata(&plural).map(|metadata| metadata.lock.as_str()),
             Some(hash.as_str())
         );
     }

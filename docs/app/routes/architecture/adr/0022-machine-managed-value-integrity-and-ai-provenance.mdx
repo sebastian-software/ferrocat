@@ -1,12 +1,12 @@
 ---
 title: "ADR 0022: Machine-Managed Value Integrity and AI Provenance"
-description: "Proposed architecture decision record: a top-level integrity lock for machine-managed values plus a compact, engine-agnostic AI provenance field, superseding the structured machine-translation metadata."
+description: "Accepted architecture decision record: a top-level integrity lock for machine-managed values plus a compact, engine-agnostic AI provenance field, superseding the structured machine-translation metadata."
 order: 220
 ---
 
 # ADR 0022: Machine-Managed Value Integrity and AI Provenance
 
-- Status: Proposed (targets 2.0.0; implementation pending producer support)
+- Status: Accepted (2.0.0)
 - Date: 2026-06-30
 - Supersedes: [ADR 0018](/architecture/adr/0018-machine-translation-entry-metadata)
 
@@ -87,16 +87,16 @@ only adds merge churn.
 Both fields use the same grammar in both formats; only the wrapper differs:
 
 - FCL: `lock=<hash>` and `ai=<model>[:<confidence>]` tags
-- PO: `#@ lock <hash>` and `#@ ai <model>[:<confidence>]` metadata comments,
-  which gettext tooling ignores
+- PO: `#@ lock: <hash>` and `#@ ai: <model>[:<confidence>]` metadata comments,
+  which reuse the standard `#@ key: value` form and which gettext tooling ignores
 
 ```fcl
 greeting⇥⇥Hallo⇥lock=9f2c…⇥ai=openai/gpt-5.5-high:0.93
 ```
 
 ```po
-#@ lock 9f2c…
-#@ ai openai/gpt-5.5-high:0.93
+#@ lock: 9f2c…
+#@ ai: openai/gpt-5.5-high:0.93
 msgctxt "greeting"
 msgid "Hello {name}"
 msgstr "Hallo"

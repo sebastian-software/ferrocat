@@ -1,43 +1,57 @@
-use std::collections::BTreeSet;
-
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
 use super::types::{ApiError, EffectiveTranslationRef};
 
-pub(super) const PO_MACHINE_TRANSLATION_KEY: &str = "ferrocat-mt";
+/// PO metadata-comment key for the machine-managed integrity lock (`#@ lock …`).
+pub(super) const PO_LOCK_KEY: &str = "lock";
+/// PO metadata-comment key for AI provenance (`#@ ai …`).
+pub(super) const PO_AI_KEY: &str = "ai";
 
 const MACHINE_TRANSLATION_HASH_NAMESPACE: &[u8] = b"ferrocat:mt:v1";
 
-/// Machine-translation metadata attached to one translated catalog entry.
+/// Metadata for a catalog value that was set or managed by a machine.
 ///
-/// The metadata is translation-side provenance. When the stored [`hash`](Self::hash)
-/// no longer matches the current translation, high-level catalog writers drop
-/// the metadata instead of carrying stale machine-translation facts forward.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+/// See [ADR 0022](https://sebastian-software.github.io/ferrocat/architecture/adr/0022-machine-managed-value-integrity-and-ai-provenance).
+/// The presence of this metadata marks the value as machine-managed (by an AI
+/// engine, a translation memory system, a script, …). [`lock`](Self::lock) is an
+/// integrity fingerprint of the value at that time: when it no longer matches the
+/// current value, a human edited it, and high-level writers drop the metadata
+/// instead of carrying a stale machine fact forward.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct MachineTranslationMetadata {
-    /// Model identifier used to produce the translation.
-    ///
-    /// Callers may include provider information here, for example
-    /// `openai/gpt-5.5-high`.
-    pub model: String,
-    /// Time when the machine-generated translation was last modified.
+pub struct MachineMetadata {
+    /// Integrity fingerprint of the value at the time a machine set it.
+    pub lock: String,
+    /// Optional AI provenance, when the machine was an AI engine.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub modified: Option<String>,
-    /// Optional model confidence from 0 to 100.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub confidence: Option<u8>,
-    /// Stable change-detection hash for the current translation payload.
-    pub hash: String,
+    pub ai: Option<AiProvenance>,
 }
 
-/// Computes the machine-translation change-detection hash for a translation.
+/// AI provenance for a machine-managed value.
+///
+/// Engine-agnostic: any producer (Palamedes, a gateway, a TMS with an AI step)
+/// can fill it. Ferrocat understands it for AI-native reporting but treats the
+/// model identifier as an opaque, free-form string.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AiProvenance {
+    /// Opaque model identifier, for example `openai/gpt-5.5-high` or `opus-4-8`.
+    ///
+    /// Whether it carries a provider prefix is the producer's choice; Ferrocat
+    /// does not parse it.
+    pub model: String,
+    /// Optional model confidence in the closed range `[0, 1]`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub confidence: Option<f32>,
+}
+
+/// Computes the integrity-lock hash for a translation value.
 ///
 /// The hash is SHA-256 over a versioned, length-delimited canonical translation
 /// payload plus Ferrocat's fixed `ferrocat:mt:v1` namespace. The namespace is
-/// intentionally not secret; the hash detects accidental or manual translation
-/// changes and is not a cryptographic signature.
+/// intentionally not secret; the hash detects accidental or manual changes and is
+/// not a cryptographic signature.
 ///
 /// The emitted value is the first 128 bits encoded as unpadded Base64URL.
 ///
@@ -72,200 +86,65 @@ pub fn machine_translation_hash(translation: EffectiveTranslationRef<'_>) -> Str
     base64_url_no_pad(&digest[..16])
 }
 
-pub(super) fn validate_machine_translation_metadata(
-    metadata: &MachineTranslationMetadata,
-) -> Result<(), ApiError> {
-    if metadata.model.trim().is_empty() {
+pub(super) fn validate_machine_metadata(metadata: &MachineMetadata) -> Result<(), ApiError> {
+    if metadata.lock.trim().is_empty() {
         return Err(ApiError::InvalidArguments(
-            "machine translation model must not be empty".to_owned(),
+            "machine-managed lock must not be empty".to_owned(),
         ));
     }
-    if metadata.hash.trim().is_empty() {
-        return Err(ApiError::InvalidArguments(
-            "machine translation hash must not be empty".to_owned(),
-        ));
-    }
-    if metadata
-        .confidence
-        .is_some_and(|confidence| confidence > 100)
-    {
-        return Err(ApiError::InvalidArguments(
-            "machine translation confidence must be between 0 and 100".to_owned(),
-        ));
+    if let Some(ai) = &metadata.ai {
+        if ai.model.trim().is_empty() {
+            return Err(ApiError::InvalidArguments(
+                "ai model must not be empty".to_owned(),
+            ));
+        }
+        if ai
+            .confidence
+            .is_some_and(|confidence| !(0.0..=1.0).contains(&confidence))
+        {
+            return Err(ApiError::InvalidArguments(
+                "ai confidence must be between 0 and 1".to_owned(),
+            ));
+        }
     }
     Ok(())
 }
 
-pub(super) fn parse_po_machine_translation_metadata(
-    value: &str,
-) -> Result<MachineTranslationMetadata, ApiError> {
-    let pairs = parse_key_value_pairs(value)?;
-    let mut seen = BTreeSet::new();
-    let mut model = None;
-    let mut modified = None;
-    let mut confidence = None;
-    let mut hash = None;
-
-    for (key, value) in pairs {
-        if !seen.insert(key.clone()) {
-            return Err(ApiError::InvalidArguments(format!(
-                "duplicate machine translation metadata key {key:?}"
-            )));
-        }
-        match key.as_str() {
-            "model" => model = Some(value),
-            "modified" => modified = Some(value),
-            "confidence" => {
-                let parsed = value.parse::<u8>().map_err(|_| {
-                    ApiError::InvalidArguments(format!(
-                        "invalid machine translation confidence value {value:?}"
-                    ))
-                })?;
-                confidence = Some(parsed);
-            }
-            "hash" => hash = Some(value),
-            other => {
-                return Err(ApiError::InvalidArguments(format!(
-                    "unknown machine translation metadata key {other:?}"
-                )));
-            }
-        }
+/// Serializes an [`AiProvenance`] to the shared `model[:confidence]` descriptor
+/// used by both PO and FCL.
+pub(super) fn format_ai_descriptor(ai: &AiProvenance) -> String {
+    match ai.confidence {
+        Some(confidence) => format!("{}:{confidence}", ai.model),
+        None => ai.model.clone(),
     }
-
-    let metadata = MachineTranslationMetadata {
-        model: model.ok_or_else(|| {
-            ApiError::InvalidArguments("machine translation metadata is missing `model`".to_owned())
-        })?,
-        modified,
-        confidence,
-        hash: hash.ok_or_else(|| {
-            ApiError::InvalidArguments("machine translation metadata is missing `hash`".to_owned())
-        })?,
-    };
-    validate_machine_translation_metadata(&metadata)?;
-    Ok(metadata)
 }
 
-pub(super) fn format_po_machine_translation_metadata(
-    metadata: &MachineTranslationMetadata,
-) -> String {
-    let mut parts = Vec::with_capacity(4);
-    parts.push(format!("model={}", quote_po_value(&metadata.model)));
-    if let Some(modified) = &metadata.modified {
-        parts.push(format!("modified={}", quote_po_value(modified)));
-    }
-    if let Some(confidence) = metadata.confidence {
-        parts.push(format!("confidence={confidence}"));
-    }
-    parts.push(format!("hash={}", quote_po_value(&metadata.hash)));
-    parts.join(" ")
-}
-
-fn parse_key_value_pairs(input: &str) -> Result<Vec<(String, String)>, ApiError> {
-    let mut values = Vec::new();
-    let bytes = input.as_bytes();
-    let mut index = 0;
-
-    while index < bytes.len() {
-        while index < bytes.len() && bytes[index].is_ascii_whitespace() {
-            index += 1;
-        }
-        if index >= bytes.len() {
-            break;
-        }
-
-        let key_start = index;
-        while index < bytes.len() && bytes[index] != b'=' && !bytes[index].is_ascii_whitespace() {
-            index += 1;
-        }
-        if index == key_start || index >= bytes.len() || bytes[index] != b'=' {
-            return Err(ApiError::InvalidArguments(
-                "invalid machine translation metadata key-value syntax".to_owned(),
-            ));
-        }
-        let key = &input[key_start..index];
-        index += 1;
-
-        let value = if index < bytes.len() && bytes[index] == b'"' {
-            index += 1;
-            let mut value = String::new();
-            loop {
-                if index >= bytes.len() {
-                    return Err(ApiError::InvalidArguments(
-                        "unterminated quoted machine translation metadata value".to_owned(),
-                    ));
-                }
-                match bytes[index] {
-                    b'"' => {
-                        index += 1;
-                        break;
-                    }
-                    b'\\' => {
-                        index += 1;
-                        if index >= bytes.len() {
-                            return Err(ApiError::InvalidArguments(
-                                "unterminated escape in machine translation metadata value"
-                                    .to_owned(),
-                            ));
-                        }
-                        match bytes[index] {
-                            b'"' => value.push('"'),
-                            b'\\' => value.push('\\'),
-                            b'n' => value.push('\n'),
-                            b'r' => value.push('\r'),
-                            b't' => value.push('\t'),
-                            other => value.push(char::from(other)),
-                        }
-                        index += 1;
-                    }
-                    _ => {
-                        let rest = &input[index..];
-                        let ch = rest
-                            .chars()
-                            .next()
-                            .expect("index is within UTF-8 string bounds");
-                        value.push(ch);
-                        index += ch.len_utf8();
-                    }
-                }
-            }
-            value
-        } else {
-            let value_start = index;
-            while index < bytes.len() && !bytes[index].is_ascii_whitespace() {
-                index += 1;
-            }
-            input[value_start..index].to_owned()
-        };
-
-        values.push((key.to_owned(), value));
-    }
-
-    Ok(values)
-}
-
-fn quote_po_value(value: &str) -> String {
-    if !value
-        .bytes()
-        .any(|byte| byte.is_ascii_whitespace() || matches!(byte, b'"' | b'\\'))
+/// Parses the shared `model[:confidence]` descriptor.
+///
+/// The model identifier is free-form, so the confidence is taken from after the
+/// final `:` only when it is a valid `[0, 1]` decimal; otherwise the whole string
+/// is the model (mirroring the origin `file:line` heuristic). This keeps model
+/// ids that contain `/` or `:` intact and needs no escaping.
+pub(super) fn parse_ai_descriptor(value: &str) -> AiProvenance {
+    if let Some((model, suffix)) = value.rsplit_once(':')
+        && let Some(confidence) = parse_confidence(suffix)
     {
-        return value.to_owned();
+        return AiProvenance {
+            model: model.to_owned(),
+            confidence: Some(confidence),
+        };
     }
+    AiProvenance {
+        model: value.to_owned(),
+        confidence: None,
+    }
+}
 
-    let mut out = String::with_capacity(value.len() + 2);
-    out.push('"');
-    for ch in value.chars() {
-        match ch {
-            '"' => out.push_str("\\\""),
-            '\\' => out.push_str("\\\\"),
-            '\n' => out.push_str("\\n"),
-            '\r' => out.push_str("\\r"),
-            '\t' => out.push_str("\\t"),
-            _ => out.push(ch),
-        }
-    }
-    out.push('"');
-    out
+fn parse_confidence(value: &str) -> Option<f32> {
+    value
+        .parse::<f32>()
+        .ok()
+        .filter(|confidence| (0.0..=1.0).contains(confidence))
 }
 
 fn push_hash_component(out: &mut Vec<u8>, value: &str) {
@@ -312,8 +191,8 @@ fn base64_url_no_pad(bytes: &[u8]) -> String {
 #[cfg(test)]
 mod tests {
     use super::{
-        MachineTranslationMetadata, format_po_machine_translation_metadata,
-        machine_translation_hash, parse_po_machine_translation_metadata,
+        AiProvenance, MachineMetadata, format_ai_descriptor, machine_translation_hash,
+        parse_ai_descriptor, validate_machine_metadata,
     };
     use crate::api::EffectiveTranslationRef;
     use std::collections::BTreeMap;
@@ -346,91 +225,89 @@ mod tests {
     }
 
     #[test]
-    fn po_machine_translation_metadata_roundtrips_quoted_values() {
-        let metadata = MachineTranslationMetadata {
-            model: "openai/gpt 5.5".to_owned(),
-            modified: Some("2026-05-12T10:30:00Z".to_owned()),
-            confidence: Some(95),
-            hash: "abc\\def".to_owned(),
+    fn ai_descriptor_roundtrips_and_keeps_free_form_model() {
+        // model with provider slash + confidence
+        let ai = AiProvenance {
+            model: "openai/gpt-5.5-high".to_owned(),
+            confidence: Some(0.93),
         };
-        let rendered = format_po_machine_translation_metadata(&metadata);
+        let rendered = format_ai_descriptor(&ai);
+        assert_eq!(rendered, "openai/gpt-5.5-high:0.93");
+        assert_eq!(parse_ai_descriptor(&rendered), ai);
+
+        // no confidence, both directions
+        let bare = AiProvenance {
+            model: "grok-4".to_owned(),
+            confidence: None,
+        };
+        assert_eq!(format_ai_descriptor(&bare), "grok-4");
+        assert_eq!(parse_ai_descriptor("grok-4"), bare);
+
+        // a non-numeric or out-of-range suffix is part of the model, not confidence
         assert_eq!(
-            parse_po_machine_translation_metadata(&rendered).expect("parse rendered"),
-            metadata
+            parse_ai_descriptor("vendor:model-x"),
+            AiProvenance {
+                model: "vendor:model-x".to_owned(),
+                confidence: None,
+            }
+        );
+        assert_eq!(
+            parse_ai_descriptor("weird-model:1.5"),
+            AiProvenance {
+                model: "weird-model:1.5".to_owned(),
+                confidence: None,
+            }
         );
     }
 
     #[test]
-    fn po_machine_translation_metadata_rejects_invalid_inputs() {
-        for (input, expected) in [
-            (
-                "model= hash=abc",
-                "machine translation model must not be empty",
-            ),
-            (
-                "model=gpt hash=",
-                "machine translation hash must not be empty",
-            ),
-            (
-                "model=gpt confidence=101 hash=abc",
-                "machine translation confidence must be between 0 and 100",
-            ),
-            (
-                "model=gpt confidence=high hash=abc",
-                "invalid machine translation confidence value \"high\"",
-            ),
-            (
-                "model=gpt model=other hash=abc",
-                "duplicate machine translation metadata key \"model\"",
-            ),
-            (
-                "model=gpt provider=openai hash=abc",
-                "unknown machine translation metadata key \"provider\"",
-            ),
-            (
-                "model=gpt",
-                "machine translation metadata is missing `hash`",
-            ),
-            (
-                "hash=abc",
-                "machine translation metadata is missing `model`",
-            ),
-            (
-                "model",
-                "invalid machine translation metadata key-value syntax",
-            ),
-            (
-                "model=\"gpt",
-                "unterminated quoted machine translation metadata value",
-            ),
-            (
-                "model=\"gpt\\",
-                "unterminated escape in machine translation metadata value",
-            ),
-        ] {
-            assert_eq!(
-                parse_po_machine_translation_metadata(input)
-                    .expect_err("expected invalid machine translation metadata")
-                    .to_string(),
-                expected
-            );
-        }
+    fn validate_rejects_bad_metadata() {
+        assert!(
+            validate_machine_metadata(&MachineMetadata {
+                lock: " ".to_owned(),
+                ai: None,
+            })
+            .is_err()
+        );
+        assert!(
+            validate_machine_metadata(&MachineMetadata {
+                lock: "abc".to_owned(),
+                ai: Some(AiProvenance {
+                    model: "".to_owned(),
+                    confidence: None,
+                }),
+            })
+            .is_err()
+        );
+        assert!(
+            validate_machine_metadata(&MachineMetadata {
+                lock: "abc".to_owned(),
+                ai: Some(AiProvenance {
+                    model: "m".to_owned(),
+                    confidence: Some(1.5),
+                }),
+            })
+            .is_err()
+        );
+        assert!(
+            validate_machine_metadata(&MachineMetadata {
+                lock: "abc".to_owned(),
+                ai: Some(AiProvenance {
+                    model: "m".to_owned(),
+                    confidence: Some(0.5),
+                }),
+            })
+            .is_ok()
+        );
     }
 
     #[test]
-    fn po_machine_translation_metadata_handles_escape_sequences() {
-        let parsed = parse_po_machine_translation_metadata(
-            "model=\"gpt\\nmini\" modified=\"line\\rnext\\ttab\" hash=\"a\\\\b\"",
-        )
-        .expect("parse escaped metadata");
-
-        assert_eq!(parsed.model, "gpt\nmini");
-        assert_eq!(parsed.modified.as_deref(), Some("line\rnext\ttab"));
-        assert_eq!(parsed.hash, "a\\b");
-
-        assert_eq!(
-            format_po_machine_translation_metadata(&parsed),
-            "model=\"gpt\\nmini\" modified=\"line\\rnext\\ttab\" hash=\"a\\\\b\""
-        );
+    fn base64_url_encodes_every_remainder() {
+        // The hash always feeds 16 bytes (1-byte remainder); cover the encoder's
+        // other tail cases directly so the helper is fully exercised.
+        assert_eq!(super::base64_url_no_pad(b""), "");
+        assert_eq!(super::base64_url_no_pad(b"f"), "Zg");
+        assert_eq!(super::base64_url_no_pad(b"fo"), "Zm8");
+        assert_eq!(super::base64_url_no_pad(b"foo"), "Zm9v");
     }
 }

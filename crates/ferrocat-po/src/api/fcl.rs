@@ -13,7 +13,8 @@ use std::collections::BTreeMap;
 use super::catalog::{CanonicalMessage, CanonicalTranslation, Catalog, split_placeholder_comments};
 use super::export::{append_placeholder_comments, plural_source_branches};
 use super::mt::{
-    MachineTranslationMetadata, machine_translation_hash, validate_machine_translation_metadata,
+    MachineMetadata, format_ai_descriptor, machine_translation_hash, parse_ai_descriptor,
+    validate_machine_metadata,
 };
 use super::plural::synthesize_icu_plural;
 use super::{ApiError, CatalogOrigin, CatalogSemantics, EffectiveTranslationRef, RenderOptions};
@@ -176,9 +177,9 @@ fn write_entry(out: &mut String, message: &CanonicalMessage, render: &RenderOpti
         out.push_str("\to");
     }
 
-    // The MT block is only emitted when its hash still matches the translation
-    // (stale machine translations are dropped).
-    if let Some(mt) = message.machine_translation.as_ref() {
+    // The lock/ai block is only emitted when the lock still matches the value
+    // (stale machine metadata is dropped).
+    if let Some(machine) = message.machine.as_ref() {
         let translation_ref = match &message.translation {
             CanonicalTranslation::Singular { value } => EffectiveTranslationRef::Singular(value),
             CanonicalTranslation::Plural {
@@ -186,15 +187,13 @@ fn write_entry(out: &mut String, message: &CanonicalMessage, render: &RenderOpti
                 ..
             } => EffectiveTranslationRef::Plural(translation_by_category),
         };
-        if validate_machine_translation_metadata(mt).is_ok()
-            && mt.hash == machine_translation_hash(translation_ref)
+        if validate_machine_metadata(machine).is_ok()
+            && machine.lock == machine_translation_hash(translation_ref)
         {
-            write_tag(out, "mt.model", &mt.model);
-            if let Some(confidence) = mt.confidence {
-                out.push_str("\tmt.conf=");
-                out.push_str(&confidence.to_string());
+            write_tag(out, "lock", &machine.lock);
+            if let Some(ai) = &machine.ai {
+                write_tag(out, "ai", &format_ai_descriptor(ai));
             }
-            write_tag(out, "mt.hash", &mt.hash);
         }
     }
     out.push('\n');
@@ -283,9 +282,8 @@ fn parse_entry(line: &str) -> Result<CanonicalMessage, ApiError> {
     let mut translator_comments: Vec<String> = Vec::new();
     let mut flags: Vec<String> = Vec::new();
     let mut obsolete = false;
-    let mut mt_model = None;
-    let mut mt_conf = None;
-    let mut mt_hash = None;
+    let mut lock = None;
+    let mut ai = None;
     let mut last_tag_rank = 0_u8;
 
     for tag in fields {
@@ -303,7 +301,7 @@ fn parse_entry(line: &str) -> Result<CanonicalMessage, ApiError> {
             ApiError::InvalidArguments(format!("invalid FCL tag {:?}", input_slice_as_str(tag)))
         })?;
         // Keep the unescaped value borrowed; only allocate (`into_owned`) for tags
-        // whose value is stored. `mt.conf` is parsed in place and never allocates.
+        // whose value is stored.
         let value = unescape(input_slice_as_str(raw_value))?;
         match key {
             b"r" => {
@@ -322,34 +320,23 @@ fn parse_entry(line: &str) -> Result<CanonicalMessage, ApiError> {
                 validate_tag_order(&mut last_tag_rank, 3, "f")?;
                 flags.push(value.into_owned());
             }
-            b"mt.model" => {
-                validate_tag_order(&mut last_tag_rank, 5, "mt.model")?;
-                if mt_model.is_some() {
+            b"lock" => {
+                validate_tag_order(&mut last_tag_rank, 5, "lock")?;
+                if lock.is_some() {
                     return Err(ApiError::InvalidArguments(
-                        "duplicate FCL tag `mt.model`".to_owned(),
+                        "duplicate FCL tag `lock`".to_owned(),
                     ));
                 }
-                mt_model = Some(value.into_owned());
+                lock = Some(value.into_owned());
             }
-            b"mt.conf" => {
-                validate_tag_order(&mut last_tag_rank, 6, "mt.conf")?;
-                if mt_conf.is_some() {
+            b"ai" => {
+                validate_tag_order(&mut last_tag_rank, 6, "ai")?;
+                if ai.is_some() {
                     return Err(ApiError::InvalidArguments(
-                        "duplicate FCL tag `mt.conf`".to_owned(),
+                        "duplicate FCL tag `ai`".to_owned(),
                     ));
                 }
-                mt_conf = Some(value.parse::<u8>().map_err(|_| {
-                    ApiError::InvalidArguments(format!("invalid FCL mt.conf value {value:?}"))
-                })?);
-            }
-            b"mt.hash" => {
-                validate_tag_order(&mut last_tag_rank, 7, "mt.hash")?;
-                if mt_hash.is_some() {
-                    return Err(ApiError::InvalidArguments(
-                        "duplicate FCL tag `mt.hash`".to_owned(),
-                    ));
-                }
-                mt_hash = Some(value.into_owned());
+                ai = Some(parse_ai_descriptor(&value));
             }
             other => {
                 return Err(ApiError::InvalidArguments(format!(
@@ -360,23 +347,14 @@ fn parse_entry(line: &str) -> Result<CanonicalMessage, ApiError> {
         }
     }
 
-    let machine_translation = if mt_model.is_some() || mt_hash.is_some() || mt_conf.is_some() {
-        let metadata = MachineTranslationMetadata {
-            model: mt_model.ok_or_else(|| {
-                ApiError::InvalidArguments(
-                    "FCL `mt.model` is required when `mt.*` present".to_owned(),
-                )
-            })?,
-            modified: None,
-            confidence: mt_conf,
-            hash: mt_hash.ok_or_else(|| {
-                ApiError::InvalidArguments(
-                    "FCL `mt.hash` is required when `mt.*` present".to_owned(),
-                )
-            })?,
-        };
-        validate_machine_translation_metadata(&metadata)?;
+    let machine = if let Some(lock) = lock {
+        let metadata = MachineMetadata { lock, ai };
+        validate_machine_metadata(&metadata)?;
         Some(metadata)
+    } else if ai.is_some() {
+        return Err(ApiError::InvalidArguments(
+            "FCL `ai` tag requires a `lock` tag".to_owned(),
+        ));
     } else {
         None
     };
@@ -391,7 +369,7 @@ fn parse_entry(line: &str) -> Result<CanonicalMessage, ApiError> {
         origins,
         placeholders,
         obsolete,
-        machine_translation,
+        machine,
         translator_comments,
         flags,
     })
@@ -572,7 +550,7 @@ mod tests {
         ));
         let text = format!(
             "{FCL_MAGIC}\tsource=en\tlocale=de\n\
-             greeting\t\tHallo {{name}}\tr=src/a.tsx\tmt.model=openai/gpt-5.5\tmt.conf=88\tmt.hash={hash}\n\
+             greeting\t\tHallo {{name}}\tr=src/a.tsx\tlock={hash}\tai=openai/gpt-5.5:0.88\n\
              tabbed\tmenu\tWert mit\\tTab\tf=fuzzy\n"
         );
         assert_eq!(roundtrip(&text), text);
@@ -698,14 +676,11 @@ mod tests {
             "{FCL_MAGIC}\tsource=en\nid\t\tv\tbogus\n"
         ))); // tag without `=`
         assert!(parse_err(&format!(
-            "{FCL_MAGIC}\tsource=en\nid\t\tv\tmt.conf=nope\n"
-        ))); // bad conf
+            "{FCL_MAGIC}\tsource=en\nid\t\tv\tzz=1\n"
+        ))); // unknown tag key
         assert!(parse_err(&format!(
-            "{FCL_MAGIC}\tsource=en\nid\t\tv\tmt.model=m\n"
-        ))); // mt without hash
-        assert!(parse_err(&format!(
-            "{FCL_MAGIC}\tsource=en\nid\t\tv\tmt.hash=h\n"
-        ))); // mt without model
+            "{FCL_MAGIC}\tsource=en\nid\t\tv\tai=example/mt:0.5\n"
+        ))); // `ai` requires a `lock`
     }
 
     #[test]
@@ -714,8 +689,11 @@ mod tests {
             "{FCL_MAGIC}\tsource=en\nid\t\tv\to\to\n"
         )));
         assert!(parse_err(&format!(
-            "{FCL_MAGIC}\tsource=en\nid\t\tv\tmt.model=a\tmt.model=b\n"
-        )));
+            "{FCL_MAGIC}\tsource=en\nid\t\tv\tlock=a\tlock=b\n"
+        ))); // duplicate `lock`
+        assert!(parse_err(&format!(
+            "{FCL_MAGIC}\tsource=en\nid\t\tv\tlock=a\tai=x\tai=y\n"
+        ))); // duplicate `ai`
         assert!(parse_err(&format!(
             "{FCL_MAGIC}\tsource=en\nid\t\tv\tf=fuzzy\tc=late-comment\n"
         )));
@@ -749,11 +727,12 @@ mod tests {
             origins: super::PoVec::new(),
             placeholders: std::collections::BTreeMap::new(),
             obsolete: false,
-            machine_translation: Some(super::MachineTranslationMetadata {
-                model: "example/mt".to_owned(),
-                modified: None,
-                confidence: Some(90),
-                hash,
+            machine: Some(super::MachineMetadata {
+                lock: hash,
+                ai: Some(crate::AiProvenance {
+                    model: "example/mt".to_owned(),
+                    confidence: Some(0.90),
+                }),
             }),
             translator_comments: Vec::new(),
             flags: Vec::new(),
@@ -769,10 +748,10 @@ mod tests {
 
         let text = stringify_catalog_fcl(&catalog, Some("de"), "en", &RenderOptions::default());
         // Both id and target columns are synthesized ICU plural strings, and the
-        // MT block survives because its hash matches the plural translation.
+        // lock/ai block survives because the lock matches the plural translation.
         assert!(text.contains("{count, plural,"));
         assert!(text.contains("{count} Dateien"));
-        assert!(text.contains("mt.model=example/mt"));
+        assert!(text.contains("ai=example/mt:0.9"));
 
         // The synthesized ICU string round-trips back through the reader.
         let reparsed =
@@ -798,11 +777,12 @@ mod tests {
             origins: super::PoVec::new(),
             placeholders: std::collections::BTreeMap::new(),
             obsolete: false,
-            machine_translation: Some(super::MachineTranslationMetadata {
-                model: "example/mt".to_owned(),
-                modified: None,
-                confidence: Some(90),
-                hash: stale,
+            machine: Some(super::MachineMetadata {
+                lock: stale,
+                ai: Some(crate::AiProvenance {
+                    model: "example/mt".to_owned(),
+                    confidence: Some(0.90),
+                }),
             }),
             translator_comments: Vec::new(),
             flags: Vec::new(),

@@ -45,10 +45,10 @@ fn update_catalog_preserves_non_source_translations() {
 }
 
 #[test]
-fn parse_catalog_reads_po_machine_translation_metadata() {
+fn parse_catalog_reads_po_machine_metadata() {
     let hash = machine_translation_hash(EffectiveTranslationRef::Singular("Hallo"));
     let content = format!(
-        "#@ ferrocat-mt model=openai/gpt-5.5-high modified=2026-05-12T10:30:00Z confidence=95 hash={hash}\nmsgid \"Hello\"\nmsgstr \"Hallo\"\n"
+        "#@ lock: {hash}\n#@ ai: openai/gpt-5.5-high:0.95\nmsgid \"Hello\"\nmsgstr \"Hallo\"\n"
     );
     let parsed = parse_catalog(ParseCatalogOptions {
         content: &content,
@@ -59,20 +59,20 @@ fn parse_catalog_reads_po_machine_translation_metadata() {
     .expect("parse");
 
     let metadata = parsed.messages[0]
-        .machine_translation
+        .machine
         .as_ref()
-        .expect("machine translation metadata");
-    assert_eq!(metadata.model, "openai/gpt-5.5-high");
-    assert_eq!(metadata.modified.as_deref(), Some("2026-05-12T10:30:00Z"));
-    assert_eq!(metadata.confidence, Some(95));
-    assert_eq!(metadata.hash, hash);
+        .expect("machine metadata");
+    assert_eq!(metadata.lock, hash);
+    let ai = metadata.ai.as_ref().expect("ai provenance");
+    assert_eq!(ai.model, "openai/gpt-5.5-high");
+    assert_eq!(ai.confidence, Some(0.95));
 }
 
 #[test]
-fn update_catalog_keeps_valid_po_machine_translation_metadata() {
+fn update_catalog_keeps_valid_po_machine_metadata() {
     let hash = machine_translation_hash(EffectiveTranslationRef::Singular("Hallo"));
     let existing = format!(
-        "#@ ferrocat-mt model=openai/gpt-5.5-high confidence=95 hash={hash}\nmsgid \"Hello\"\nmsgstr \"Hallo\"\n"
+        "#@ lock: {hash}\n#@ ai: openai/gpt-5.5-high:0.95\nmsgid \"Hello\"\nmsgstr \"Hallo\"\n"
     );
 
     let result = update_catalog(UpdateCatalogOptions {
@@ -87,19 +87,17 @@ fn update_catalog_keeps_valid_po_machine_translation_metadata() {
     })
     .expect("update");
 
-    assert!(
-        result
-            .content
-            .contains("#@ ferrocat-mt model=openai/gpt-5.5-high confidence=95 hash=")
-    );
+    assert!(result.content.contains("#@ lock: "));
+    assert!(result.content.contains("#@ ai: openai/gpt-5.5-high:0.95"));
     let parsed = parse_po(&result.content).expect("parse output");
-    assert_eq!(parsed.items[0].metadata[0].0, "ferrocat-mt");
+    assert_eq!(parsed.items[0].metadata[0].0, "lock");
 }
 
 #[test]
-fn update_catalog_drops_stale_po_machine_translation_metadata() {
+fn update_catalog_drops_stale_po_machine_metadata() {
     let existing = concat!(
-        "#@ ferrocat-mt model=openai/gpt-5.5-high confidence=95 hash=stale\n",
+        "#@ lock: stale\n",
+        "#@ ai: openai/gpt-5.5-high:0.95\n",
         "msgid \"Hello\"\n",
         "msgstr \"Hallo\"\n",
     );
@@ -116,7 +114,8 @@ fn update_catalog_drops_stale_po_machine_translation_metadata() {
     })
     .expect("update");
 
-    assert!(!result.content.contains("#@ ferrocat-mt"));
+    assert!(!result.content.contains("#@ lock"));
+    assert!(!result.content.contains("#@ ai"));
     let parsed = parse_catalog(ParseCatalogOptions {
         content: existing,
         source_locale: "en",
@@ -124,28 +123,31 @@ fn update_catalog_drops_stale_po_machine_translation_metadata() {
         ..ParseCatalogOptions::new("", "en")
     })
     .expect("parse stale metadata");
-    assert!(parsed.messages[0].machine_translation.is_some());
+    assert!(parsed.messages[0].machine.is_some());
 }
 
 #[test]
-fn parse_catalog_rejects_machine_translation_confidence_above_100() {
-    let error = parse_catalog(ParseCatalogOptions {
-        content: concat!(
-            "#@ ferrocat-mt model=openai/gpt-5.5-high confidence=101 hash=abc\n",
-            "msgid \"Hello\"\n",
-            "msgstr \"Hallo\"\n",
-        ),
-        source_locale: "en",
-        locale: Some("de"),
-        ..ParseCatalogOptions::new("", "en")
-    })
-    .expect_err("confidence above 100 should fail");
-
-    assert!(matches!(
-        error,
-        ApiError::InvalidArguments(message) if message.contains("confidence")
-    ));
+fn parse_catalog_rejects_malformed_po_machine_metadata() {
+    for content in [
+        // duplicate `lock`
+        "#@ lock: a\n#@ lock: b\nmsgid \"H\"\nmsgstr \"He\"\n",
+        // duplicate `ai`
+        "#@ lock: a\n#@ ai: x\n#@ ai: y\nmsgid \"H\"\nmsgstr \"He\"\n",
+        // `ai` without a `lock`
+        "#@ ai: openai/gpt:0.5\nmsgid \"H\"\nmsgstr \"He\"\n",
+    ] {
+        assert!(
+            parse_catalog(ParseCatalogOptions {
+                content,
+                source_locale: "en",
+                locale: Some("de"),
+                ..ParseCatalogOptions::new("", "en")
+            })
+            .is_err()
+        );
+    }
 }
+
 #[test]
 fn overwrite_source_translations_refreshes_source_locale() {
     let existing = "msgid \"Hello\"\nmsgstr \"Old\"\n";

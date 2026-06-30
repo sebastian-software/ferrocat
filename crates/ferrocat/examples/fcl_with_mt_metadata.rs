@@ -6,7 +6,7 @@ use ferrocat::{
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let hash = machine_translation_hash(EffectiveTranslationRef::Singular("Hallo"));
     let existing = format!(
-        "%FCL1\tsource=en\tlocale=de\nHello\t\tHallo\tmt.model=example/mt\tmt.conf=92\tmt.hash={hash}\n",
+        "%FCL1\tsource=en\tlocale=de\nHello\t\tHallo\tlock={hash}\tai=example/mt:0.92\n",
         hash = hash
     );
 
@@ -22,7 +22,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     })?;
 
     assert!(result.content.starts_with("%FCL1"));
-    assert!(result.content.contains("mt.model=example/mt"));
+    assert!(result.content.contains("ai=example/mt:0.92"));
     assert!(result.content.contains(&hash));
 
     println!("{}", result.content);
