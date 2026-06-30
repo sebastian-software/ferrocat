@@ -23,6 +23,10 @@ translators and tooling context ("this string lives in `Checkout`") and helps
 distinguish the same text used in different places. Producers such as Palamedes
 can extract it; Ferrocat only needs a neutral slot to carry it.
 
+This scope is origin metadata, not message identity. It is separate from
+gettext context / `msgctxt`, and producers should not derive it from `msgctxt`
+by default. Ferrocat still keys catalog messages by `(msgid, msgctxt)`.
+
 ## Decision
 
 Add an optional, stable `scope` to `CatalogOrigin`:

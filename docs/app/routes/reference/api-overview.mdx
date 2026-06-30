@@ -110,6 +110,24 @@ There is intentionally no FCL + gettext-plural mode; gettext plural behavior bel
 
 FCL (Ferrocat Catalog Lines) is the machine-owned, git-merge-optimized storage choice. Each entry is one tab-separated line, deterministically sorted by `(id, ctxt)`, behind a single `%FCL1` header line. It is useful when catalogs are maintained by larger teams, automation, or external systems that benefit from one entry per line: diffs stay focused, unchanged entries stay byte-identical across merge inputs for clean git 3-way merges, and hosted Git review workflows do not need custom merge-driver support to make routine catalog edits manageable. Against the same catalog stored as PO, FCL parses about 45% faster and is roughly 12% smaller on disk.
 
+### Origin file and scope
+
+Catalog origins keep a source `file` plus an optional `scope`. The serialized
+form is either `file` or `file#scope`, for example
+`src/App.tsx#CheckoutButton`, `src/i18n.ts#formatInvoiceStatus`, or
+`src/routes/settings.tsx#SettingsPage`.
+
+`file` identifies the source file. `scope` identifies the nearest stable named
+source container around the message, such as a component, function, class, or
+route handler. It is metadata for review and tooling, not message identity, and
+it is not a replacement for gettext context / `msgctxt`. Downstream extractors
+should not derive origin scope from `msgctxt` by default; Ferrocat still treats
+message identity as `msgid` plus optional `msgctxt`.
+
+Choose a scope that is stable enough to survive ordinary edits. Do not serialize
+line numbers as origin scope: line numbers move on unrelated edits and Ferrocat
+intentionally strips or omits them from catalog origins.
+
 ## Quick Choice
 
 | If you want to... | Use |
