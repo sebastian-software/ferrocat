@@ -91,11 +91,11 @@ design.
 - Unknown tag keys are a hard error (the versioned `%FCL1` magic gates
   forward-compatible additions).
 
-## Relationship to the other formats
+## FCL vs PO
 
 - **FCL** — canonical, git-merged, fast machine artifact. Treat as generated
   (`.gitattributes linguist-generated`); do not hand-edit.
 - **PO** — gettext interop / human-readable export.
 
-FCL replaces the earlier NDJSON catalog format in the machine/merge role: it is
-faster to parse, more compact, merges just as cleanly, and needs no JSON tooling.
+Pick FCL for the machine/merge role and PO when a translator tool reads the file
+directly. The two cover different jobs; you don't have to choose one globally.
