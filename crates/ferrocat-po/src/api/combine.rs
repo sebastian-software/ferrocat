@@ -39,7 +39,6 @@ struct CombineConfig<'a> {
     selection: CatalogCombineSelection,
     order_by: OrderBy,
     include_origins: bool,
-    include_line_numbers: bool,
     include_obsolete: bool,
 }
 
@@ -53,7 +52,6 @@ impl<'a> CombineConfig<'a> {
             selection: options.selection,
             order_by: options.order_by,
             include_origins: options.include_origins,
-            include_line_numbers: options.include_line_numbers,
             include_obsolete: options.include_obsolete,
         }
     }
@@ -67,7 +65,6 @@ impl<'a> CombineConfig<'a> {
             selection: options.selection,
             order_by: options.order_by,
             include_origins: options.include_origins,
-            include_line_numbers: options.include_line_numbers,
             include_obsolete: options.include_obsolete,
         }
     }
@@ -618,7 +615,6 @@ fn export_catalog_content_for_combine(
         render: RenderOptions {
             order_by: config.order_by,
             include_origins: config.include_origins,
-            include_line_numbers: config.include_line_numbers,
             print_placeholders_in_comments: PlaceholderCommentMode::default(),
             custom_header_attributes: None,
         },

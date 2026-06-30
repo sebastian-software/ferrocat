@@ -138,21 +138,15 @@ fn write_entry(out: &mut String, message: &CanonicalMessage, render: &RenderOpti
 
     // Canonical tag order: r (sorted), c, tc, f (sorted), o, mt.*
     if render.include_origins {
+        // References are file-only; sort for determinism and drop duplicates that
+        // distinct origins can now collapse to.
         let mut refs = message
             .origins
             .iter()
-            .map(|origin| {
-                if render.include_line_numbers {
-                    origin.line.map_or_else(
-                        || origin.file.clone(),
-                        |line| format!("{}:{line}", origin.file),
-                    )
-                } else {
-                    origin.file.clone()
-                }
-            })
+            .map(|origin| origin.file.as_str())
             .collect::<Vec<_>>();
         refs.sort_unstable();
+        refs.dedup();
         for reference in &refs {
             write_tag(out, "r", reference);
         }
@@ -452,25 +446,17 @@ impl<'a> Iterator for SplitTab<'a> {
     }
 }
 
-/// Splits a `file:line` reference into a [`CatalogOrigin`], reusing the owned
-/// `value` buffer for the file part instead of allocating a fresh string.
+/// Builds a [`CatalogOrigin`] from a reference value, keeping only the file. A
+/// trailing `:line` is stripped so line numbers never enter the catalog model.
 fn parse_origin(mut value: String) -> CatalogOrigin {
     if let Some((file, line)) = value.rsplit_once(':')
         && !line.is_empty()
         && line.bytes().all(|byte| byte.is_ascii_digit())
     {
-        let parsed = line.parse::<u32>().ok();
         let file_len = file.len();
         value.truncate(file_len);
-        return CatalogOrigin {
-            file: value,
-            line: parsed,
-        };
     }
-    CatalogOrigin {
-        file: value,
-        line: None,
-    }
+    CatalogOrigin { file: value }
 }
 
 /// Parses FCL text into the internal [`Catalog`] representation.
@@ -586,7 +572,7 @@ mod tests {
         ));
         let text = format!(
             "{FCL_MAGIC}\tsource=en\tlocale=de\n\
-             greeting\t\tHallo {{name}}\tr=src/a.tsx:12\tmt.model=openai/gpt-5.5\tmt.conf=88\tmt.hash={hash}\n\
+             greeting\t\tHallo {{name}}\tr=src/a.tsx\tmt.model=openai/gpt-5.5\tmt.conf=88\tmt.hash={hash}\n\
              tabbed\tmenu\tWert mit\\tTab\tf=fuzzy\n"
         );
         assert_eq!(roundtrip(&text), text);
@@ -657,6 +643,15 @@ mod tests {
 
     fn parse_err(text: &str) -> bool {
         parse_catalog_to_internal_fcl(text, None, "en", CatalogSemantics::IcuNative, false).is_err()
+    }
+
+    #[test]
+    fn collapses_duplicate_file_references_on_serialize() {
+        // References are file-only now, so two `r=` tags for the same file are
+        // redundant; re-serializing normalizes them to a single reference.
+        let text = format!("{FCL_MAGIC}\tsource=en\nid\t\tv\tr=src/a.rs\tr=src/a.rs\n");
+        let rendered = roundtrip(&text);
+        assert_eq!(rendered.matches("\tr=src/a.rs").count(), 1);
     }
 
     #[test]

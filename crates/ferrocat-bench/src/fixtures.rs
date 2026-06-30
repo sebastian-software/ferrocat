@@ -1529,13 +1529,15 @@ fn placeholder_map(entries: &[(&str, &str)]) -> BTreeMap<String, Vec<String>> {
 
 fn parse_origin(reference: &str) -> CatalogOrigin {
     match reference.rsplit_once(':') {
-        Some((file, line)) if line.chars().all(|ch| ch.is_ascii_digit()) => CatalogOrigin {
-            file: file.to_owned(),
-            line: line.parse::<u32>().ok(),
-        },
+        Some((file, line))
+            if !line.is_empty() && line.bytes().all(|byte| byte.is_ascii_digit()) =>
+        {
+            CatalogOrigin {
+                file: file.to_owned(),
+            }
+        }
         _ => CatalogOrigin {
             file: reference.to_owned(),
-            line: None,
         },
     }
 }

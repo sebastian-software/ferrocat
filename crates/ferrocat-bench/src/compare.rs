@@ -2027,14 +2027,12 @@ impl CatalogTranslationSummary {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 struct CatalogOriginSummary {
     file: String,
-    line: Option<u32>,
 }
 
 impl CatalogOriginSummary {
     fn from_origin(origin: &CatalogOrigin) -> Self {
         Self {
             file: origin.file.clone(),
-            line: origin.line,
         }
     }
 }
