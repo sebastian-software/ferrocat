@@ -21,13 +21,14 @@ pub struct CatalogOrigin {
     /// edit above a message and add diff and merge churn without identifying
     /// anything the `(msgid, msgctxt)` key does not already.
     pub file: String,
-    /// Optional stable scope within the file, such as the enclosing component or
-    /// function name.
+    /// Optional stable scope within the file, such as the enclosing component,
+    /// function, class, route handler, or similar named authoring unit.
     ///
     /// Unlike a line number it survives edits, so it adds context for
     /// translators and tools without churn. It is metadata, not message
     /// identity, and it is not a replacement for gettext context / `msgctxt`.
-    /// Producers (e.g. extractors) fill it; serialized with the file as
+    /// Producers (e.g. extractors) fill it with values like `CheckoutButton`,
+    /// `formatInvoiceStatus`, or `SettingsPage`; serialized with the file as
     /// `file#scope`.
     pub scope: Option<String>,
 }

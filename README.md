@@ -15,7 +15,7 @@ Ferrocat is also part of the [Palamedes](https://github.com/sebastian-software/p
 
 ## What Ferrocat Gives You
 
-- **One reliable catalog core.** Keep source text, contexts, translations, notes, source origins (file plus optional scope), plural forms, and obsolete entries in a model that application code can reason about.
+- **One reliable catalog core.** Keep source text, contexts, translations, notes, source origins such as `src/App.tsx#CheckoutButton` or `src/i18n.ts#formatInvoiceStatus`, plural forms, and obsolete entries in a model that application code can reason about.
 - **Predictable updates.** Merge newly extracted messages into existing catalogs without fuzzy guessing, hidden identity changes, or silent conflict resolution.
 - **Release-ready QA.** Audit catalog sets for missing locales, missing translations, empty translations, stale target messages, ICU mistakes, metadata conflicts, and obsolete entries.
 - **Coverage and review reports.** Turn catalog state into completion counters, translator handoff diffs, and machine-managed value freshness checks instead of rebuilding those rules in every host tool.

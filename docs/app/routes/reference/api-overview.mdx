@@ -112,10 +112,16 @@ FCL (Ferrocat Catalog Lines) is the machine-owned, git-merge-optimized storage c
 
 ### Origin file and scope
 
-Catalog origins keep a source `file` plus an optional `scope`. The serialized
-form is either `file` or `file#scope`, for example
-`src/App.tsx#CheckoutButton`, `src/i18n.ts#formatInvoiceStatus`, or
-`src/routes/settings.tsx#SettingsPage`.
+Catalog origins answer "where did this message come from?" with a source `file`
+plus an optional `scope`. The serialized form is either `file` or `file#scope`.
+Use the scope for the name a developer would naturally point to in code:
+
+| Origin | Meaning |
+|---|---|
+| `src/App.tsx#CheckoutButton` | the text appears inside the `CheckoutButton` component |
+| `src/i18n.ts#formatInvoiceStatus` | the text is authored in the `formatInvoiceStatus` function |
+| `src/routes/settings.tsx#SettingsPage` | the text belongs to the `SettingsPage` route component |
+| `src/domain/invoice.ts#InvoiceStatus` | the text is grouped around the `InvoiceStatus` class, enum, or module-level authoring unit |
 
 `file` identifies the source file. `scope` identifies the nearest stable named
 source container around the message, such as a component, function, class, or
@@ -127,6 +133,10 @@ message identity as `msgid` plus optional `msgctxt`.
 Choose a scope that is stable enough to survive ordinary edits. Do not serialize
 line numbers as origin scope: line numbers move on unrelated edits and Ferrocat
 intentionally strips or omits them from catalog origins.
+
+For example, prefer `src/App.tsx#CheckoutButton` over
+`src/App.tsx#CheckoutButton:42` or `src/App.tsx#line42`. If the extractor cannot
+find a stable named container, emit the file alone and leave `scope` empty.
 
 ## Quick Choice
 

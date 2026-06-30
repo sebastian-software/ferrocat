@@ -26,6 +26,9 @@ can extract it; Ferrocat only needs a neutral slot to carry it.
 This scope is origin metadata, not message identity. It is separate from
 gettext context / `msgctxt`, and producers should not derive it from `msgctxt`
 by default. Ferrocat still keys catalog messages by `(msgid, msgctxt)`.
+Good scope values are names already present in source code, such as
+`CheckoutButton`, `formatInvoiceStatus`, `SettingsPage`, or
+`InvoicePresenter`.
 
 ## Decision
 
