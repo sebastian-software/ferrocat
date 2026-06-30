@@ -643,6 +643,9 @@ mod tests {
     fn rejects_malformed_entries() {
         assert!(parse_err(&format!("{FCL_MAGIC}\tsource=en\njustid\n"))); // missing ctxt/target
         assert!(parse_err(&format!(
+            "{FCL_MAGIC}\tsource=en\nid\t\tv\tbogus\n"
+        ))); // tag without `=`
+        assert!(parse_err(&format!(
             "{FCL_MAGIC}\tsource=en\nid\t\tv\tmt.conf=nope\n"
         ))); // bad conf
         assert!(parse_err(&format!(
@@ -651,6 +654,116 @@ mod tests {
         assert!(parse_err(&format!(
             "{FCL_MAGIC}\tsource=en\nid\t\tv\tmt.hash=h\n"
         ))); // mt without model
+    }
+
+    #[test]
+    fn serializes_plural_messages_as_synthesized_icu() {
+        // FCL parsing always yields singular messages (the ICU plural lives inside
+        // the string), so the plural serialize arms are only reachable when a
+        // catalog with gettext-style plural forms (e.g. parsed from PO) is written
+        // as FCL. Build one directly and exercise that path.
+        let translation_by_category = std::collections::BTreeMap::from([
+            ("one".to_owned(), "{count} Datei".to_owned()),
+            ("other".to_owned(), "{count} Dateien".to_owned()),
+        ]);
+        let hash = super::machine_translation_hash(super::EffectiveTranslationRef::Plural(
+            &translation_by_category,
+        ));
+        let message = super::CanonicalMessage {
+            msgid: "file.count".to_owned(),
+            msgctxt: None,
+            translation: super::CanonicalTranslation::Plural {
+                source: crate::PluralSource {
+                    one: Some("{count} file".to_owned()),
+                    other: "{count} files".to_owned(),
+                },
+                translation_by_category,
+                variable: "count".to_owned(),
+            },
+            comments: Vec::new(),
+            origins: super::PoVec::new(),
+            placeholders: std::collections::BTreeMap::new(),
+            obsolete: false,
+            machine_translation: Some(super::MachineTranslationMetadata {
+                model: "example/mt".to_owned(),
+                modified: None,
+                confidence: Some(90),
+                hash,
+            }),
+            translator_comments: Vec::new(),
+            flags: Vec::new(),
+        };
+        let catalog = super::Catalog {
+            locale: Some("de".to_owned()),
+            headers: std::collections::BTreeMap::new(),
+            file_comments: Vec::new(),
+            file_extracted_comments: Vec::new(),
+            messages: vec![message],
+            diagnostics: Vec::new(),
+        };
+
+        let text = stringify_catalog_fcl(
+            &catalog,
+            Some("de"),
+            "en",
+            &PlaceholderCommentMode::default(),
+        );
+        // Both id and target columns are synthesized ICU plural strings, and the
+        // MT block survives because its hash matches the plural translation.
+        assert!(text.contains("{count, plural,"));
+        assert!(text.contains("{count} Dateien"));
+        assert!(text.contains("mt.model=example/mt"));
+
+        // The synthesized ICU string round-trips back through the reader.
+        let reparsed =
+            parse_catalog_to_internal_fcl(&text, None, "en", CatalogSemantics::IcuNative, false)
+                .expect("parse plural FCL");
+        assert_eq!(reparsed.messages.len(), 1);
+    }
+
+    #[test]
+    fn drops_stale_machine_translation_on_serialize() {
+        // A valid-format hash that belongs to different text: validation passes but
+        // the hash no longer matches, so the MT block must not be written.
+        let stale = super::machine_translation_hash(super::EffectiveTranslationRef::Singular(
+            "some other translation",
+        ));
+        let message = super::CanonicalMessage {
+            msgid: "Hello".to_owned(),
+            msgctxt: None,
+            translation: super::CanonicalTranslation::Singular {
+                value: "Hallo".to_owned(),
+            },
+            comments: Vec::new(),
+            origins: super::PoVec::new(),
+            placeholders: std::collections::BTreeMap::new(),
+            obsolete: false,
+            machine_translation: Some(super::MachineTranslationMetadata {
+                model: "example/mt".to_owned(),
+                modified: None,
+                confidence: Some(90),
+                hash: stale,
+            }),
+            translator_comments: Vec::new(),
+            flags: Vec::new(),
+        };
+        let catalog = super::Catalog {
+            locale: Some("de".to_owned()),
+            headers: std::collections::BTreeMap::new(),
+            file_comments: Vec::new(),
+            file_extracted_comments: Vec::new(),
+            messages: vec![message],
+            diagnostics: Vec::new(),
+        };
+
+        let text = stringify_catalog_fcl(
+            &catalog,
+            Some("de"),
+            "en",
+            &PlaceholderCommentMode::default(),
+        );
+        assert!(text.contains("Hello\t\tHallo"));
+        assert!(!text.contains("mt."));
     }
 
     #[test]
