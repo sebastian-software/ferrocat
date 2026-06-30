@@ -1,0 +1,85 @@
+---
+title: "ADR 0023: Drop gettext Flags and Merge Comments"
+description: "Accepted architecture decision record: the catalog model drops the gettext flag concept (fuzzy and *-format) and collapses the two comment kinds into one notes field, while keeping obsolete entries."
+order: 230
+---
+
+# ADR 0023: Drop gettext Flags and Merge Comments
+
+- Status: Accepted (2.0.0)
+- Date: 2026-06-30
+
+## Context
+
+gettext entries carry several pieces of per-entry metadata that Ferrocat
+preserved unchanged: the `fuzzy` flag, format flags (`c-format`,
+`python-format`, …), two distinct comment kinds (`#.` extracted and `#`
+translator), and the `#~` obsolete marker. Reviewing what the catalog layer
+actually reasons about surfaced that most of this is gettext ceremony rather
+than information Ferrocat acts on:
+
+- **`fuzzy` encodes a guess.** gettext's `msgmerge` sets it when it fuzzy-matches
+  a changed source onto an old translation, expecting a human to verify. Ferrocat
+  deliberately does not fuzzy-match ([ADR 0017](/architecture/adr/0017-catalog-audit-reports)),
+  precisely because a guessed translation can be semantically wrong; any change
+  must go back to a translator regardless. Carrying a `fuzzy` status that
+  Ferrocat never produces and that contradicts its model is dead weight.
+- **Format flags target printf, not ICU.** `c-format` and friends let
+  `msgfmt --check` validate printf specifiers (`%s`, `%d`). Ferrocat is
+  ICU-native (`{name}`, `{count, plural, …}`) and validates ICU placeholders
+  itself, so the printf-oriented flags carry no meaning in an ICU catalog.
+- **The two comment kinds are a provenance split with no consumer.** Whether a
+  note was extracted by the developer (`#.`) or written by a translator (`#`)
+  does not change how Ferrocat treats it: free-form prose, decoupled from
+  identity and from the integrity `lock`.
+- **`obsolete` is genuinely useful.** Temporarily un-mounting a feature should
+  not throw away finished translations; the obsolete marker is the right "kept
+  but inactive" mechanism (git history is impractical for reviving a single
+  entry).
+
+## Decision
+
+Trim the catalog model to what Ferrocat understands:
+
+- **Drop the `flags` concept entirely.** `fuzzy` and all `*-format` flags are
+  removed from the catalog/FCL layer: the `CatalogMessageStatus::Fuzzy` variant,
+  the `CatalogAuditChecks::fuzzy_flags` check and its `catalog.fuzzy_flag`
+  diagnostic, and the coverage `fuzzy` counter all go away. A PO entry marked
+  `#, fuzzy` imports as an ordinary translation (the flag is dropped).
+- **Merge the two comment kinds into one.** `CatalogMessage` keeps a single
+  `comments` notes list; `CatalogMessageExtra` (which held `translator_comments`
+  and `flags`) is removed. On import, `#.` and `#` comments collapse into
+  `comments`; on PO export they render as `#.`.
+- **Keep `obsolete`.** No change to the obsolete marker, `ObsoleteStrategy`, or
+  the FCL `o` tag.
+
+### Faithful low-level PO is unchanged
+
+This is a *catalog-layer* decision. The low-level `parse_po` / `stringify_po`
+round-trip still preserves `PoItem::flags` and both comment kinds verbatim, so
+raw PO I/O stays lossless. Only the opinionated catalog/FCL layer stops elevating
+flags and stops distinguishing comment kinds.
+
+## Consequences
+
+Positive:
+
+- the per-entry model shrinks to identity, translation, notes, origin, obsolete,
+  and machine metadata — every field is something Ferrocat reasons about
+- FCL drops the `tc=` and `f=` tags, leaving the canonical order `r, c, o, lock, ai`
+- omitting `fuzzy` and format flags still produces standard-compliant PO; nothing
+  incompatible is invented, only optional details are left out
+
+Negative:
+
+- this is a breaking change to the catalog API and serialization
+  (`CatalogMessageExtra`, `CatalogMessageStatus::Fuzzy`,
+  `CatalogAuditChecks::fuzzy_flags`, the coverage `fuzzy` counter, and the FCL
+  `tc=`/`f=` tags are removed); it lands in the 2.0.0 line
+- a PO round-trip through the catalog layer rewrites `#` comments as `#.` and
+  drops `fuzzy`/format flags; callers needing byte-faithful PO must use the
+  low-level API
+
+This continues the same trim as [ADR 0021](/architecture/adr/0021-drop-source-line-numbers)
+and [ADR 0022](/architecture/adr/0022-machine-managed-value-integrity-and-ai-provenance):
+the catalog layer carries only stable, churn-free information Ferrocat understands.

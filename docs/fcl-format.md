@@ -70,15 +70,19 @@ A field containing no `\` is taken verbatim (zero-copy borrow on parse).
 
 | tag | source field | meaning | cardinality |
 |-----|--------------|---------|-------------|
-| `r=`       | `origin` (`CatalogOrigin`) | source reference `file` (no line numbers) | 0..n |
-| `c=`       | `comments`                 | extracted comment (`#.` in PO)         | 0..n |
-| `tc=`      | `extra.translator_comments`| translator comment (`#` in PO)         | 0..n |
-| `f=`       | `extra.flags`              | a PO flag (`c-format`, …)              | 0..n |
+| `r=`       | `origin` (`CatalogOrigin`) | source reference `file` or `file#scope` (no line numbers) | 0..n |
+| `c=`       | `comments`                 | note for translators (`#.` in PO)      | 0..n |
 | `o`        | `obsolete`                 | obsolete marker (flag, no value)       | 0..1 |
 | `lock=`    | `machine.lock`             | integrity hash; presence marks the value as machine-managed | 0..1 |
 | `ai=`      | `machine.ai`               | AI provenance, `model[:confidence]`    | 0..1 |
 
-Canonical tag order: `r` (sorted), `c`, `tc`, `f` (sorted), `o`, `lock`, `ai`.
+Canonical tag order: `r` (sorted), `c`, `o`, `lock`, `ai`.
+
+`r` carries the file and an optional stable `#scope` anchor (enclosing component
+or function); see [ADR 0024](/architecture/adr/0024-origin-scope-anchor). `c`
+holds free-form notes: the gettext extracted (`#.`) and translator (`#`) comment
+kinds collapse into one list, and gettext flags (`fuzzy`, `*-format`) are not
+carried (see [ADR 0023](/architecture/adr/0023-drop-gettext-flags-merge-comments)).
 
 `lock` is the fingerprint of the value when a machine (AI engine, TMS, script)
 set it; if `hash(current value) != lock`, a human edited it and high-level

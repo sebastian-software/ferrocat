@@ -221,8 +221,8 @@ pub enum CatalogMachineTranslationStatus {
 /// Target status rollups reuse [`CatalogMessageStatus`] and therefore match
 /// [`super::audit_catalogs`] and [`super::catalog_coverage`] semantics.
 /// Translation change details are limited to source identities whose current
-/// target status is [`CatalogMessageStatus::Translated`]; missing, empty,
-/// fuzzy, and obsolete current entries are surfaced by the coverage counters.
+/// target status is [`CatalogMessageStatus::Translated`]; missing, empty, and
+/// obsolete current entries are surfaced by the coverage counters.
 ///
 /// # Errors
 ///
@@ -629,7 +629,6 @@ mod tests {
                         confidence: None,
                     }),
                 }),
-                extra: None,
             }],
         );
 

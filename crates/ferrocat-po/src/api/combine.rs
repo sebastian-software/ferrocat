@@ -453,8 +453,6 @@ fn merge_combine_metadata(target: &mut CanonicalMessage, source: CanonicalMessag
     merge_unique_strings(&mut target.comments, source.comments);
     merge_unique_origins(&mut target.origins, source.origins);
     merge_placeholders(&mut target.placeholders, source.placeholders);
-    merge_unique_strings(&mut target.translator_comments, source.translator_comments);
-    merge_unique_strings(&mut target.flags, source.flags);
     target.obsolete = target.obsolete && source.obsolete;
 }
 

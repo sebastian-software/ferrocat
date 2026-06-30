@@ -360,7 +360,6 @@ Default checks cover:
 - requested target locale presence
 - missing and empty target translations
 - target-only active messages that look stale
-- visible `fuzzy` flags
 - obsolete entries
 - ICU syntax in active source and target messages
 - ICU source/translation compatibility
@@ -414,8 +413,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 ```json
 {
   "severity": "info",
-  "code": "catalog.fuzzy_flag",
-  "message": "Message `Checkout` in locale `de` is marked fuzzy."
+  "code": "catalog.obsolete_entry",
+  "message": "Message `Checkout` in locale `de` is obsolete."
 }
 ```
 
@@ -464,15 +463,14 @@ source locale's active, non-obsolete identities define the expected set for each
 target locale. Each target message is classified with the same shared status
 taxonomy used by catalog audit:
 
-- `translated`: active target entry with a non-empty, non-fuzzy translation
-- `fuzzy`: active target entry carrying a visible `fuzzy` flag
+- `translated`: active target entry with a non-empty translation
 - `missing`: no active or obsolete target entry exists
 - `empty`: active target entry exists, but its effective translation is empty
 - `obsolete`: target entry exists for the source identity, but is obsolete
 - `extra`: active target entry is not present in the active source set
 
-Only `translated` messages count toward completion. Fuzzy, empty, obsolete, and
-absent entries remain visible as separate counters so hosts can choose their own
+Only `translated` messages count toward completion. Empty, obsolete, and absent
+entries remain visible as separate counters so hosts can choose their own
 threshold and presentation rules.
 
 ```rust
@@ -736,7 +734,7 @@ instead of guessing a plural expression.
 
 In native mode, `CatalogUpdateInput::SourceFirst` stays source-text-first; it no longer auto-projects ICU strings into structured plural messages. Use `CatalogUpdateInput::Structured` when you want explicit plural structure.
 
-In FCL storage, arbitrary gettext-style custom headers are intentionally out of scope for `v1`; only the explicit `%FCL1` header metadata and per-entry columns are persisted. Machine-translation metadata uses optional `mt.*` tags appended to the entry line.
+In FCL storage, arbitrary gettext-style custom headers are intentionally out of scope for `v1`; only the explicit `%FCL1` header metadata and per-entry columns are persisted. Machine-managed value metadata uses the optional `lock=` and `ai=` tags appended to the entry line (see [ADR 0022](/architecture/adr/0022-machine-managed-value-integrity-and-ai-provenance)).
 
 ```rust
 use ferrocat_po::{

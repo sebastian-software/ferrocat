@@ -45,14 +45,15 @@ fn coverage_report_counts_expected_message_statuses() {
     assert_eq!(report.source_messages, 5);
     assert_eq!(report.target_locales, 1);
     assert_eq!(locale.total, 5);
-    assert_eq!(locale.translated, 1);
+    // The `#, fuzzy` entry imports as a normal translation now that flags are
+    // dropped, so it counts as translated rather than a separate fuzzy bucket.
+    assert_eq!(locale.translated, 2);
     assert_eq!(locale.empty, 1);
-    assert_eq!(locale.fuzzy, 1);
     assert_eq!(locale.obsolete, 1);
     assert_eq!(locale.missing, 1);
     assert_eq!(locale.extra, 1);
-    assert_eq!(locale.incomplete(), 4);
-    assert_eq!(locale.completion_percent(), 20.0);
+    assert_eq!(locale.incomplete(), 3);
+    assert_eq!(locale.completion_percent(), 40.0);
 }
 
 #[test]

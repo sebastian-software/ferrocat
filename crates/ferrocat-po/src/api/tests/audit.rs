@@ -85,22 +85,6 @@ fn audit_does_not_let_obsolete_target_satisfy_completeness() {
 }
 
 #[test]
-fn audit_reports_existing_fuzzy_flags_as_info() {
-    let source = catalog("msgid \"Hello\"\nmsgstr \"Hello\"\n", "en");
-    let target = catalog("#, fuzzy\nmsgid \"Hello\"\nmsgstr \"Hallo\"\n", "de");
-
-    let report =
-        audit_catalogs(&[&source, &target], &CatalogAuditOptions::new("en")).expect("audit");
-
-    let diagnostic = report
-        .diagnostics
-        .iter()
-        .find(|diagnostic| diagnostic.code == "catalog.fuzzy_flag")
-        .expect("fuzzy diagnostic");
-    assert_eq!(diagnostic.severity, DiagnosticSeverity::Info);
-}
-
-#[test]
 fn audit_reports_missing_source_locale() {
     let target = catalog("msgid \"Hello\"\nmsgstr \"Hallo\"\n", "de");
 

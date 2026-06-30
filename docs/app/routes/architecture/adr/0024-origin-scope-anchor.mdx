@@ -1,0 +1,76 @@
+---
+title: "ADR 0024: Stable Origin Scope Anchor"
+description: "Accepted architecture decision record: catalog origins gain an optional stable scope (enclosing component or function), serialized as a file#scope anchor in both PO and FCL."
+order: 240
+---
+
+# ADR 0024: Stable Origin Scope Anchor
+
+- Status: Accepted (2.0.0)
+- Date: 2026-06-30
+- Refines: [ADR 0021](/architecture/adr/0021-drop-source-line-numbers)
+
+## Context
+
+[ADR 0021](/architecture/adr/0021-drop-source-line-numbers) removed source line
+numbers from catalog origins because they shift on every edit above a message and
+add diff and merge churn without identifying anything the `(msgid, msgctxt)` key
+does not. That left origins as file-only.
+
+A line number is volatile, but the *enclosing symbol* — the component or function
+a message appears in — is stable across edits and genuinely useful: it gives
+translators and tooling context ("this string lives in `Checkout`") and helps
+distinguish the same text used in different places. Producers such as Palamedes
+can extract it; Ferrocat only needs a neutral slot to carry it.
+
+## Decision
+
+Add an optional, stable `scope` to `CatalogOrigin`:
+
+```rust
+pub struct CatalogOrigin {
+    pub file: String,
+    pub scope: Option<String>, // enclosing component/function, producer-filled
+}
+```
+
+The model stays typed (scope is its own field, not smuggled into `file`), while
+the *wire form* is a single anchor token, shared by both formats so a scope always
+travels with its file:
+
+- PO: `#: src/Button.tsx#Button`
+- FCL: `r=src/Button.tsx#Button`
+
+### Parsing and de-duplication
+
+- The anchor splits on the **last** `#`, so a `#` earlier in a path stays with the
+  file; an absent or empty anchor yields `scope: None`.
+- A legacy trailing `:line` is still stripped (ADR 0021), so gettext input keeps
+  round-tripping.
+- Origin de-duplication keys on `(file, scope)`: the same text in two components is
+  two meaningful origins, while exact duplicates still collapse.
+
+Producers populate `scope`; until they do it is simply `None`, and the reference
+renders as a bare `file`.
+
+## Consequences
+
+Positive:
+
+- origins carry stable, churn-free context (the symbol) instead of a volatile line
+  number, while the model stays strongly typed
+- one uniform `file#scope` grammar across PO and FCL keeps file↔scope pairing intact
+  even when a message has several origins
+- gettext tooling reads `src/Button.tsx#Button` as an ordinary reference token, so
+  PO output stays standard-compatible
+
+Negative:
+
+- a `#` literally present in a file path *with no scope* would be misread as a
+  scope boundary — as rare as a `:` in a path was for `file:line`, and accepted
+- it requires producer support to populate `scope`, so the value is `None` until
+  extractors emit it
+
+This refines [ADR 0021](/architecture/adr/0021-drop-source-line-numbers) and
+respects the [Ferrocat/Palamedes boundary](/architecture/adr/0014-ferrocat-palamedes-boundary):
+Ferrocat owns the neutral slot and grammar, producers fill it.

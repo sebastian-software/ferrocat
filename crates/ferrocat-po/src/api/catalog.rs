@@ -21,10 +21,10 @@ use super::mt::{
 };
 use super::plural::{PluralProfile, derive_plural_variable, expected_gettext_nplurals_for_locale};
 use super::{
-    ApiError, CatalogMessage, CatalogMessageExtra, CatalogOrigin, CatalogSemantics, CatalogStats,
-    CatalogStorageFormat, CatalogUpdateInput, CatalogUpdateResult, Diagnostic, DiagnosticSeverity,
-    ExtractedMessage, ObsoleteStrategy, OrderBy, ParseCatalogOptions, ParsedCatalog,
-    PluralEncoding, PluralSource, TranslationShape, UpdateCatalogFileOptions, UpdateCatalogOptions,
+    ApiError, CatalogMessage, CatalogOrigin, CatalogSemantics, CatalogStats, CatalogStorageFormat,
+    CatalogUpdateInput, CatalogUpdateResult, Diagnostic, DiagnosticSeverity, ExtractedMessage,
+    ObsoleteStrategy, OrderBy, ParseCatalogOptions, ParsedCatalog, PluralEncoding, PluralSource,
+    TranslationShape, UpdateCatalogFileOptions, UpdateCatalogOptions,
 };
 use crate::{MsgStr, PoFile, PoItem, PoVec, parse_po};
 
@@ -48,8 +48,6 @@ pub(super) struct CanonicalMessage {
     pub(super) placeholders: BTreeMap<String, Vec<String>>,
     pub(super) obsolete: bool,
     pub(super) machine: Option<MachineMetadata>,
-    pub(super) translator_comments: Vec<String>,
-    pub(super) flags: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -548,17 +546,8 @@ fn merge_message(
         }
     };
 
-    let (machine, translator_comments, flags, obsolete) = previous.map_or_else(
-        || (None, Vec::new(), Vec::new(), false),
-        |message| {
-            (
-                message.machine.clone(),
-                message.translator_comments.clone(),
-                message.flags.clone(),
-                false,
-            )
-        },
-    );
+    let (machine, obsolete) =
+        previous.map_or_else(|| (None, false), |message| (message.machine.clone(), false));
 
     CanonicalMessage {
         msgid: next.msgid.clone(),
@@ -569,8 +558,6 @@ fn merge_message(
         placeholders: next.placeholders.clone(),
         obsolete,
         machine,
-        translator_comments,
-        flags,
     }
 }
 
@@ -796,7 +783,10 @@ fn import_message_from_po(
     _strict: bool,
     _diagnostics: &mut Vec<Diagnostic>,
 ) -> Result<CanonicalMessage, ApiError> {
-    let (comments, placeholders) = split_placeholder_comments(item.extracted_comments.into_vec());
+    // Extracted (`#.`) and translator (`#`) comments collapse into one notes list.
+    let (mut comments, placeholders) =
+        split_placeholder_comments(item.extracted_comments.into_vec());
+    comments.extend(item.comments.into_vec());
     let origins = item
         .references
         .into_iter()
@@ -849,8 +839,6 @@ fn import_message_from_po(
         placeholders,
         obsolete: item.obsolete,
         machine: import_machine_metadata(&item.metadata)?,
-        translator_comments: item.comments.into_vec(),
-        flags: item.flags.into_vec(),
     })
 }
 
@@ -916,10 +904,23 @@ fn parse_placeholder_comment(comment: &str) -> Option<(String, String)> {
     Some((rest[..end].to_owned(), rest[end + 3..].to_owned()))
 }
 
-/// Parses a gettext reference, keeping only the file. A trailing `:line` (as
-/// emitted by gettext tools) is stripped so line numbers never enter the catalog
-/// model and cannot round-trip back into rendered output.
-fn parse_origin_owned(mut reference: String) -> CatalogOrigin {
+/// Parses a reference into a [`CatalogOrigin`]. A trailing `#scope` anchor (the
+/// stable enclosing component or function) becomes [`CatalogOrigin::scope`], and
+/// a legacy trailing `:line` (as emitted by gettext tools) is stripped so line
+/// numbers never enter the catalog model and cannot round-trip into output.
+pub(super) fn parse_origin_owned(mut reference: String) -> CatalogOrigin {
+    // Anchor first: split on the last `#`, so a `#` earlier in the path stays
+    // with the file.
+    let scope = match reference.rsplit_once('#') {
+        Some((file, scope)) if !scope.is_empty() => {
+            let scope = scope.to_owned();
+            let file_len = file.len();
+            reference.truncate(file_len);
+            Some(scope)
+        }
+        _ => None,
+    };
+
     if let Some((file, line)) = reference.rsplit_once(':')
         && !line.is_empty()
         && line.bytes().all(|byte| byte.is_ascii_digit())
@@ -928,7 +929,19 @@ fn parse_origin_owned(mut reference: String) -> CatalogOrigin {
         reference.truncate(file_len);
     }
 
-    CatalogOrigin { file: reference }
+    CatalogOrigin {
+        file: reference,
+        scope,
+    }
+}
+
+/// Serializes a [`CatalogOrigin`] to its wire form, shared by PO references and
+/// FCL `r=` tags: `file` or `file#scope`.
+pub(super) fn format_origin(origin: &CatalogOrigin) -> String {
+    match &origin.scope {
+        Some(scope) => format!("{}#{scope}", origin.file),
+        None => origin.file.clone(),
+    }
 }
 
 /// Moves the first available translation string out of a [`MsgStr`], matching
@@ -1031,10 +1044,6 @@ pub(super) fn public_message_from_canonical(message: CanonicalMessage) -> Catalo
         origin: message.origins,
         obsolete: message.obsolete,
         machine: message.machine,
-        extra: Some(CatalogMessageExtra {
-            translator_comments: message.translator_comments,
-            flags: message.flags,
-        }),
     }
 }
 

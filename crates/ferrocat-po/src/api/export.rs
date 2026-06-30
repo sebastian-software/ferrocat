@@ -5,7 +5,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use crate::diagnostic_codes;
 use crate::{Header, MsgStr, PoFile, PoItem, PoVec, SerializeOptions, stringify_po};
 
-use super::catalog::{CanonicalMessage, CanonicalTranslation, Catalog};
+use super::catalog::{CanonicalMessage, CanonicalTranslation, Catalog, format_origin};
 use super::mt::{
     MachineMetadata, PO_AI_KEY, PO_LOCK_KEY, format_ai_descriptor, machine_translation_hash,
     validate_machine_metadata,
@@ -127,9 +127,8 @@ fn base_po_item(
 ) -> PoItem {
     let mut item = PoItem::new(nplurals);
     item.msgctxt.clone_from(&message.msgctxt);
-    item.comments = message.translator_comments.iter().cloned().collect();
-    item.flags = message.flags.iter().cloned().collect();
     item.obsolete = message.obsolete;
+    // The merged notes render as extracted (`#.`) comments.
     let mut extracted_comments = message.comments.clone();
     append_placeholder_comments(
         &mut extracted_comments,
@@ -146,12 +145,13 @@ fn base_po_item(
         }
     }
     item.references = if options.render.include_origins {
-        // References are file-only now, so distinct origins can collapse to the
-        // same path; keep the first occurrence and drop exact duplicates.
+        // Origins serialize as `file` or `file#scope`; keep the first occurrence
+        // and drop exact duplicates of the rendered reference.
         let mut references: PoVec<String> = PoVec::new();
         for origin in &message.origins {
-            if !references.iter().any(|existing| existing == &origin.file) {
-                references.push(origin.file.clone());
+            let reference = format_origin(origin);
+            if !references.iter().any(|existing| existing == &reference) {
+                references.push(reference);
             }
         }
         references
@@ -234,13 +234,12 @@ mod tests {
             comments: Vec::new(),
             origins: vec![CatalogOrigin {
                 file: "src/lib.rs".to_owned(),
+                scope: None,
             }]
             .into(),
             placeholders: BTreeMap::new(),
             obsolete: false,
             machine: None,
-            translator_comments: Vec::new(),
-            flags: Vec::new(),
         }
     }
 

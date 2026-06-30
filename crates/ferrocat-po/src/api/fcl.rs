@@ -10,7 +10,10 @@ use std::borrow::Cow;
 use std::cmp::Ordering;
 use std::collections::BTreeMap;
 
-use super::catalog::{CanonicalMessage, CanonicalTranslation, Catalog, split_placeholder_comments};
+use super::catalog::{
+    CanonicalMessage, CanonicalTranslation, Catalog, format_origin, parse_origin_owned,
+    split_placeholder_comments,
+};
 use super::export::{append_placeholder_comments, plural_source_branches};
 use super::mt::{
     MachineMetadata, format_ai_descriptor, machine_translation_hash, parse_ai_descriptor,
@@ -144,7 +147,7 @@ fn write_entry(out: &mut String, message: &CanonicalMessage, render: &RenderOpti
         let mut refs = message
             .origins
             .iter()
-            .map(|origin| origin.file.as_str())
+            .map(format_origin)
             .collect::<Vec<_>>();
         refs.sort_unstable();
         refs.dedup();
@@ -165,14 +168,6 @@ fn write_entry(out: &mut String, message: &CanonicalMessage, render: &RenderOpti
         write_tag(out, "c", comment);
     }
 
-    for comment in &message.translator_comments {
-        write_tag(out, "tc", comment);
-    }
-    let mut flags = message.flags.clone();
-    flags.sort_unstable();
-    for flag in &flags {
-        write_tag(out, "f", flag);
-    }
     if message.obsolete {
         out.push_str("\to");
     }
@@ -279,8 +274,6 @@ fn parse_entry(line: &str) -> Result<CanonicalMessage, ApiError> {
     let msgctxt = (!ctx_raw.is_empty()).then_some(ctx_raw);
     let mut origins: PoVec<CatalogOrigin> = PoVec::new();
     let mut raw_comments: Vec<String> = Vec::new();
-    let mut translator_comments: Vec<String> = Vec::new();
-    let mut flags: Vec<String> = Vec::new();
     let mut obsolete = false;
     let mut lock = None;
     let mut ai = None;
@@ -288,7 +281,7 @@ fn parse_entry(line: &str) -> Result<CanonicalMessage, ApiError> {
 
     for tag in fields {
         if tag == b"o" {
-            validate_tag_order(&mut last_tag_rank, 4, "o")?;
+            validate_tag_order(&mut last_tag_rank, 2, "o")?;
             if obsolete {
                 return Err(ApiError::InvalidArguments(
                     "duplicate FCL tag `o`".to_owned(),
@@ -306,22 +299,14 @@ fn parse_entry(line: &str) -> Result<CanonicalMessage, ApiError> {
         match key {
             b"r" => {
                 validate_tag_order(&mut last_tag_rank, 0, "r")?;
-                origins.push(parse_origin(value.into_owned()));
+                origins.push(parse_origin_owned(value.into_owned()));
             }
             b"c" => {
                 validate_tag_order(&mut last_tag_rank, 1, "c")?;
                 raw_comments.push(value.into_owned());
             }
-            b"tc" => {
-                validate_tag_order(&mut last_tag_rank, 2, "tc")?;
-                translator_comments.push(value.into_owned());
-            }
-            b"f" => {
-                validate_tag_order(&mut last_tag_rank, 3, "f")?;
-                flags.push(value.into_owned());
-            }
             b"lock" => {
-                validate_tag_order(&mut last_tag_rank, 5, "lock")?;
+                validate_tag_order(&mut last_tag_rank, 3, "lock")?;
                 if lock.is_some() {
                     return Err(ApiError::InvalidArguments(
                         "duplicate FCL tag `lock`".to_owned(),
@@ -330,7 +315,7 @@ fn parse_entry(line: &str) -> Result<CanonicalMessage, ApiError> {
                 lock = Some(value.into_owned());
             }
             b"ai" => {
-                validate_tag_order(&mut last_tag_rank, 6, "ai")?;
+                validate_tag_order(&mut last_tag_rank, 4, "ai")?;
                 if ai.is_some() {
                     return Err(ApiError::InvalidArguments(
                         "duplicate FCL tag `ai`".to_owned(),
@@ -370,8 +355,6 @@ fn parse_entry(line: &str) -> Result<CanonicalMessage, ApiError> {
         placeholders,
         obsolete,
         machine,
-        translator_comments,
-        flags,
     })
 }
 
@@ -422,19 +405,6 @@ impl<'a> Iterator for SplitTab<'a> {
             }
         }
     }
-}
-
-/// Builds a [`CatalogOrigin`] from a reference value, keeping only the file. A
-/// trailing `:line` is stripped so line numbers never enter the catalog model.
-fn parse_origin(mut value: String) -> CatalogOrigin {
-    if let Some((file, line)) = value.rsplit_once(':')
-        && !line.is_empty()
-        && line.bytes().all(|byte| byte.is_ascii_digit())
-    {
-        let file_len = file.len();
-        value.truncate(file_len);
-    }
-    CatalogOrigin { file: value }
 }
 
 /// Parses FCL text into the internal [`Catalog`] representation.
@@ -550,8 +520,8 @@ mod tests {
         ));
         let text = format!(
             "{FCL_MAGIC}\tsource=en\tlocale=de\n\
-             greeting\t\tHallo {{name}}\tr=src/a.tsx\tlock={hash}\tai=openai/gpt-5.5:0.88\n\
-             tabbed\tmenu\tWert mit\\tTab\tf=fuzzy\n"
+             greeting\t\tHallo {{name}}\tr=src/a.tsx#Greeting\tlock={hash}\tai=openai/gpt-5.5:0.88\n\
+             tabbed\tmenu\tWert mit\\tTab\n"
         );
         assert_eq!(roundtrip(&text), text);
     }
@@ -633,12 +603,12 @@ mod tests {
     }
 
     #[test]
-    fn roundtrips_comments_flags_obsolete_and_escapes() {
-        // Covers the c=/tc=/o serialize branches and the \t \n \\ escape paths
-        // in both directions on a single entry.
+    fn roundtrips_comments_obsolete_and_escapes() {
+        // Covers the c=/o serialize branches and the \t \n \\ escape paths in both
+        // directions on a single entry.
         let text = format!(
             "{FCL_MAGIC}\tsource=en\n\
-             a.tab\\there\t\tWert\\nZeile\\\\back\tc=extracted\ttc=translator\to\n"
+             a.tab\\there\t\tWert\\nZeile\\\\back\tc=note\to\n"
         );
         assert_eq!(roundtrip(&text), text);
     }
@@ -695,8 +665,8 @@ mod tests {
             "{FCL_MAGIC}\tsource=en\nid\t\tv\tlock=a\tai=x\tai=y\n"
         ))); // duplicate `ai`
         assert!(parse_err(&format!(
-            "{FCL_MAGIC}\tsource=en\nid\t\tv\tf=fuzzy\tc=late-comment\n"
-        )));
+            "{FCL_MAGIC}\tsource=en\nid\t\tv\to\tc=late-comment\n"
+        ))); // `c` after `o` is out of canonical order
     }
 
     #[test]
@@ -734,8 +704,6 @@ mod tests {
                     confidence: Some(0.90),
                 }),
             }),
-            translator_comments: Vec::new(),
-            flags: Vec::new(),
         };
         let catalog = super::Catalog {
             locale: Some("de".to_owned()),
@@ -784,8 +752,6 @@ mod tests {
                     confidence: Some(0.90),
                 }),
             }),
-            translator_comments: Vec::new(),
-            flags: Vec::new(),
         };
         let catalog = super::Catalog {
             locale: Some("de".to_owned()),

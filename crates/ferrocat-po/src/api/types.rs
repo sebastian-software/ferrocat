@@ -17,10 +17,15 @@ use serde::{Deserialize, Serialize};
 pub struct CatalogOrigin {
     /// Path-like source identifier where the message came from.
     ///
-    /// Ferrocat intentionally tracks only the file, not a line number: line
-    /// numbers shift on every edit above a message and add diff and merge churn
-    /// without identifying anything the `(msgid, msgctxt)` key does not already.
+    /// Ferrocat intentionally tracks no line number: line numbers shift on every
+    /// edit above a message and add diff and merge churn without identifying
+    /// anything the `(msgid, msgctxt)` key does not already.
     pub file: String,
+    /// Optional stable scope within the file, such as the enclosing component or
+    /// function name. Unlike a line number it survives edits, so it adds context
+    /// for translators and tools without churn. Producers (e.g. extractors) fill
+    /// it; serialized as `file#scope`.
+    pub scope: Option<String>,
 }
 
 /// Structured singular message input used by catalog update operations.
@@ -156,17 +161,6 @@ pub enum EffectiveTranslation {
     Plural(BTreeMap<String, String>),
 }
 
-/// Extra translator-facing metadata preserved on a catalog message.
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
-pub struct CatalogMessageExtra {
-    /// Translator comments that were attached to the original PO item.
-    pub translator_comments: Vec<String>,
-    /// PO flags such as `fuzzy`.
-    pub flags: Vec<String>,
-}
-
 /// Public message representation returned by [`super::parse_catalog`].
 ///
 /// Not `Eq`: AI confidence is a float ([`MachineMetadata`]).
@@ -180,7 +174,7 @@ pub struct CatalogMessage {
     pub msgctxt: Option<String>,
     /// Public translation representation.
     pub translation: TranslationShape,
-    /// Extracted comments preserved from the source catalog.
+    /// Free-text notes for translators (developer- or translator-provided).
     pub comments: Vec<String>,
     /// Source origins preserved from PO references.
     pub origin: PoVec<CatalogOrigin>,
@@ -189,8 +183,6 @@ pub struct CatalogMessage {
     /// Optional metadata when the current value is machine-managed (see
     /// [`MachineMetadata`]).
     pub machine: Option<MachineMetadata>,
-    /// Optional additional translator-facing PO metadata.
-    pub extra: Option<CatalogMessageExtra>,
 }
 
 impl CatalogMessage {
@@ -1203,8 +1195,8 @@ mod tests {
 
     use super::{
         ApiError, CatalogCombineInput, CatalogCombineSelection, CatalogConflictStrategy,
-        CatalogFileFormat, CatalogMessage, CatalogMessageExtra, CatalogMessageKey, CatalogMode,
-        CatalogSemantics, CatalogStorageFormat, CatalogUpdateInput, CombineCatalogFilesOptions,
+        CatalogFileFormat, CatalogMessage, CatalogMessageKey, CatalogMode, CatalogSemantics,
+        CatalogStorageFormat, CatalogUpdateInput, CombineCatalogFilesOptions,
         CombineCatalogOptions, Diagnostic, DiagnosticSeverity, EffectiveTranslation,
         EffectiveTranslationRef, NormalizedParsedCatalog, ObsoleteStrategy, OrderBy,
         ParseCatalogOptions, ParsedCatalog, PlaceholderCommentMode, PluralEncoding, PluralSource,
@@ -1240,10 +1232,6 @@ mod tests {
             origin: crate::PoVec::new(),
             obsolete: false,
             machine: None,
-            extra: Some(CatalogMessageExtra {
-                translator_comments: vec!["Imperative".to_owned()],
-                flags: vec!["fuzzy".to_owned()],
-            }),
         };
 
         assert_eq!(
@@ -1277,7 +1265,6 @@ mod tests {
             origin: crate::PoVec::new(),
             obsolete: false,
             machine: None,
-            extra: None,
         };
 
         assert!(matches!(
@@ -1311,7 +1298,6 @@ mod tests {
                     origin: crate::PoVec::new(),
                     obsolete: false,
                     machine: None,
-                    extra: None,
                 },
                 CatalogMessage {
                     msgid: "Hello".to_owned(),
@@ -1323,7 +1309,6 @@ mod tests {
                     origin: crate::PoVec::new(),
                     obsolete: false,
                     machine: None,
-                    extra: None,
                 },
             ],
             diagnostics: Vec::new(),
@@ -1567,7 +1552,6 @@ mod tests {
             origin: crate::PoVec::new(),
             obsolete: false,
             machine: None,
-            extra: None,
         };
         let message_json =
             serde_json::to_value(&message).expect("catalog message serialization must succeed");
