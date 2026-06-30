@@ -43,9 +43,12 @@ Keeping Ferrocat and Palamedes separate gives both projects cleaner boundaries.
 Ferrocat can focus on catalog correctness, performance, conformance, and storage contracts without becoming a JavaScript framework plugin. Palamedes can focus on application ergonomics, framework integrations, transforms, runtime wiring, and bundler behavior without duplicating PO parsing or catalog semantics.
 
 Semantic message metadata follows the same split. Palamedes can infer argument
-types, enum values, tags, component names, and source origins from JS/TS code;
-Ferrocat can normalize and validate those facts against `msgid + msgctxt`
-without owning the JS/TS parser.
+types, enum values, tags, component names, and source origins from JS/TS code.
+For origin scope, that usually means names already visible in application
+source: a component like `CheckoutButton`, a formatter function like
+`formatInvoiceStatus`, a route handler like `SettingsPage`, or a class such as
+`InvoicePresenter`. Ferrocat can normalize and validate those facts against
+`msgid + msgctxt` without owning the JS/TS parser.
 
 Catalog audit reports follow that boundary too. Palamedes can run audit in CI,
 editors, or release commands and enrich it with project context; Ferrocat owns
