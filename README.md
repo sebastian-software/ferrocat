@@ -34,7 +34,7 @@ Ferrocat is a new catalog layer, but it is not invented in a vacuum. It keeps th
 - **PO catalogs** for translator-friendly source, translation, context, comment, origin, plural, and obsolete-entry handling.
 - **ICU MessageFormat v1** for richer messages with arguments, formatting, plurals, selects, and rich-text tags.
 - **FCL catalogs** (Ferrocat Catalog Lines): one entry per line, deterministically sorted, so ordinary git merges preserve untouched entries and surface same-entry edits as normal conflicts, while parsing about 45% faster and storing roughly 12% smaller than the same catalog as PO. The machine-owned format for Git review, automation, and pipelines.
-- **Machine-managed value metadata** for AI-assisted workflows: a top-level integrity lock that detects later by-hand edits to any machine-set value, plus optional AI provenance (model and confidence).
+- **Machine-managed value metadata** for AI-assisted workflows: a top-level integrity lock that detects later by-hand edits to any machine-set value, so a re-translation pass leaves human corrections intact, plus optional AI provenance (model and confidence).
 - **Structured diagnostics** instead of ad hoc text output, so CI, editors, and host frameworks can consume the same report.
 
 ## Where Ferrocat Fits
