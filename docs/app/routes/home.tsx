@@ -131,7 +131,7 @@ const benefits = [
   },
   {
     title: "AI-native metadata that stays honest",
-    body: "Tag any machine-written value (AI model, TMS, or a script) with an integrity lock plus optional model and confidence. Edit it by hand and the lock stops matching, so machine output never ships as if a person reviewed it.",
+    body: "Tag any machine-written value (AI model, TMS, or a script) with an integrity lock plus optional model and confidence. Ship it as-is by default; when a human corrects one, the lock stops matching, so your next re-translation run won't silently overwrite their fix.",
     icon: <FileCheck2 size={20} />,
   },
 ]
