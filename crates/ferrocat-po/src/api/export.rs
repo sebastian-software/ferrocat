@@ -31,7 +31,7 @@ pub(super) fn export_catalog_content(
             catalog,
             locale,
             options.source_locale,
-            &options.render.print_placeholders_in_comments,
+            &options.render,
         )),
     }
 }

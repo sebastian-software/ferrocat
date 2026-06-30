@@ -2,14 +2,18 @@
 
 A line-oriented, machine-owned catalog format. You don't have to trade speed for
 safety to get it: compared with the same catalog stored as PO, FCL parses about
-45% faster, takes roughly 12% less disk, and, unlike PO, git can merge it line
-by line without dropping translations. One entry per line, deterministically
-sorted. It is *not* meant for hand editing; the only non-API writer it must
-tolerate is git's 3-way line merge.
+45% faster, takes roughly 12% less disk, and gives git one canonical line per
+entry so ordinary 3-way merges preserve untouched translations. One entry per
+line, deterministically sorted. It is *not* meant for hand editing; the only
+non-API writer it must tolerate is git's 3-way line merge.
 
 FCL is **ICU-native only**. Plurals live inside the ICU message string
 (`{count, plural, …}`), not as separate slots. Gettext plural-compat catalogs
 are not representable; use PO for those.
+
+Generate FCL through the catalog layer with `CatalogMode::IcuFcl` in
+`parse_catalog`, `update_catalog`, or file-based update flows. Keep PO for
+translator-facing files when external tools need gettext compatibility.
 
 ## Why a line format (and why it beats PO)
 
@@ -22,7 +26,7 @@ on merge. FCL removes this by construction:
 - **Sorted by a stable key** → independent edits touch distant lines and
   auto-merge; only edits to the *same* entry conflict (correctly, both sides
   visible). An entry neither side touched is byte-identical in all three
-  versions and therefore cannot be altered or lost.
+  versions, so ordinary 3-way merges preserve it.
 - **Deterministic writer** → unchanged entries serialize byte-identically, so a
   regeneration never churns lines it didn't change.
 
@@ -88,6 +92,7 @@ design.
 - A line beginning with a git conflict marker (`<<<<<<<`, `=======`, `>>>>>>>`)
   is a hard parse error with position — never silently mis-parsed.
 - Duplicate `(id, ctxt)` (adjacent after sort) is a hard error.
+- Duplicate singleton tags and tags outside canonical order are hard errors.
 - Unknown tag keys are a hard error (the versioned `%FCL1` magic gates
   forward-compatible additions).
 

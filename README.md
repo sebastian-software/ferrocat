@@ -20,10 +20,10 @@ Ferrocat is also part of the [Palamedes](https://github.com/sebastian-software/p
 - **Release-ready QA.** Audit catalog sets for missing locales, missing translations, empty translations, stale target messages, ICU mistakes, metadata conflicts, obsolete entries, and visible `fuzzy` flags.
 - **Coverage and review reports.** Turn catalog state into completion counters, translator handoff diffs, and machine-translation freshness checks instead of rebuilding those rules in every host tool.
 - **Safer rich messages.** Analyze placeholders, formatters, plural/select branches, and rich-text tags so a translation cannot accidentally drop a required runtime value. Runtime-specific formatter support and literal-apostrophe policy stay explicit.
-- **AI translation metadata ready.** Track machine-generated translations with model, modification time, confidence, and a change-detection hash, then drop stale metadata automatically when a human edits the text.
+- **AI translation metadata ready.** Track machine-generated translation provenance with model, confidence, and a change-detection hash, then drop stale metadata automatically when a human edits the text.
 - **Runtime artifacts you can explain.** Compile catalogs into host-neutral payloads with stable keys, fallback behavior, missing reports, optional ICU diagnostics, and provenance rows that show where each runtime string came from.
 - **Pseudo-locale QA.** Generate ICU-aware pseudolocalized messages and runtime artifacts without damaging placeholders, plural selectors, rich-text tags, or formatter syntax.
-- **Storage that survives a merge.** Use PO when translator tooling reads the file directly, or FCL when several people and jobs touch the same locale: one entry per line means git merges catalogs without silently dropping translations, and the file still parses about 45% faster and stores roughly 12% smaller than the same catalog as PO.
+- **Storage that survives a merge.** Use PO when translator tooling reads the file directly, or FCL when several people and jobs touch the same locale: one canonical entry per line keeps ordinary git merges from losing untouched translations, and the file still parses about 45% faster and stores roughly 12% smaller than the same catalog as PO.
 - **Room for host frameworks.** Palamedes can own JS/TS extraction, bindings, and framework integration while Ferrocat owns the catalog behavior that should stay consistent underneath.
 - **Measured behavior.** Parser, serializer, merge, combine, audit, and runtime paths are covered by fixtures, 60 upstream-derived conformance cases (454 assertions), coverage gates, and PR-visible benchmark regression checks.
 
@@ -33,7 +33,7 @@ Ferrocat is a new catalog layer, but it is not invented in a vacuum. It keeps th
 
 - **PO catalogs** for translator-friendly source, translation, context, comment, reference, flag, plural, and obsolete-entry handling.
 - **ICU MessageFormat v1** for richer messages with arguments, formatting, plurals, selects, and rich-text tags.
-- **FCL catalogs** (Ferrocat Catalog Lines): one entry per line, deterministically sorted, so git merges catalogs line by line without losing translations, while parsing about 45% faster and storing roughly 12% smaller than the same catalog as PO. The machine-owned format for Git review, automation, and pipelines.
+- **FCL catalogs** (Ferrocat Catalog Lines): one entry per line, deterministically sorted, so ordinary git merges preserve untouched entries and surface same-entry edits as normal conflicts, while parsing about 45% faster and storing roughly 12% smaller than the same catalog as PO. The machine-owned format for Git review, automation, and pipelines.
 - **Machine-translation metadata** for AI-assisted localization workflows that need to know which model produced a translation and whether that metadata still matches the current text.
 - **Structured diagnostics** instead of ad hoc text output, so CI, editors, and host frameworks can consume the same report.
 
@@ -83,7 +83,7 @@ Ferrocat focuses on the work that happens around real translation catalogs:
 - Analyze ICU message structure and compare source/translation compatibility.
 - Validate runtime-specific ICU formatter support and literal-apostrophe syntax policy.
 - Normalize semantic message metadata around `msgid + msgctxt`.
-- Preserve AI translation metadata in PO and FCL catalogs, including stale-metadata cleanup when translations are edited.
+- Preserve AI translation provenance in PO and FCL catalogs, including stale-metadata cleanup when translations are edited.
 - Audit catalog sets before release with structured diagnostics.
 - Summarize per-locale catalog coverage for dashboards and CI thresholds.
 - Compare catalog states for translator review handoffs.
@@ -103,7 +103,7 @@ At the high-level catalog layer, `ferrocat` supports three explicit combinations
 | ICU-native Gettext PO mode | Gettext PO | ICU MessageFormat | keep Gettext PO files and tooling, but author richer ICU plural/select/formatting messages |
 | ICU-native FCL catalog mode | FCL catalog storage | ICU MessageFormat | move to one-entry-per-line, tab-separated records that are easier to diff, merge, batch, and hand to external systems |
 
-There is intentionally no FCL + gettext-plural mode; gettext plural behavior stays a PO concern, while FCL (Ferrocat Catalog Lines) is the ICU-native machine storage format for ICU-native catalogs. Its line-oriented shape is especially useful when large teams edit catalogs through normal Git review flows: unrelated entries stay on separate lines, conflicts are narrower, unchanged entries stay byte-identical across merge inputs for clean git 3-way merges, and the format does not depend on a custom merge handler being available.
+There is intentionally no FCL + gettext-plural mode; gettext plural behavior stays a PO concern, while FCL (Ferrocat Catalog Lines) is the ICU-native machine storage format for ICU-native catalogs. Its line-oriented shape is especially useful when large teams edit catalogs through normal Git review flows: unrelated entries stay on separate lines, conflicts are narrower, unchanged entries stay byte-identical across merge inputs for clean git 3-way merges, and the format does not depend on a custom merge handler being available. Generate FCL through the catalog layer by choosing `CatalogMode::IcuFcl` in `parse_catalog`, `update_catalog`, or file-based update flows; keep PO when external translator tools need gettext compatibility.
 
 The canonical documentation now lives on the docs site:
 

@@ -26,7 +26,7 @@ export const meta: MetaFunction = () => [
   {
     name: "description",
     content:
-      "Parse, update, review, audit, and compile translations with a Rust-native catalog engine. Missing strings, ICU mistakes, stale copy, and weak coverage fail CI instead of reaching production.",
+      "Parse, update, review, audit, and compile translations with a Rust-native catalog engine. Missing strings, ICU mistakes, stale copy, and weak coverage can become CI diagnostics before they reach production.",
   },
 ]
 
@@ -130,8 +130,8 @@ const benefits = [
     icon: <Languages size={20} />,
   },
   {
-    title: "AI translation you can trust",
-    body: "Track model, confidence, and a change hash for machine output. The metadata clears itself the moment a human edits the text.",
+    title: "AI translation metadata that stays honest",
+    body: "Track model, confidence, and a change hash for machine output. When a human edits the text, stale machine-translation metadata is cleared.",
     icon: <FileCheck2 size={20} />,
   },
 ]
@@ -180,7 +180,7 @@ const catalogModes = [
     title: "Mergeable FCL",
     storage: "FCL",
     semantics: "ICU MessageFormat",
-    body: "One entry per line, so git merges catalogs without dropping translations. It also parses ~45% faster and stores ~12% smaller than the same catalog as PO.",
+    body: "One canonical entry per line keeps ordinary git merges from losing untouched translations. It also parses ~45% faster and stores ~12% smaller than the same catalog as PO.",
   },
 ]
 
@@ -283,7 +283,7 @@ export default function HomePage() {
               className="ferro-button ferro-button-primary"
               to="/guide/getting-started"
             >
-              Get started
+              Run the quick start
               <ArrowRight size={16} />
             </Link>
             <a className="ferro-button ferro-button-tertiary" href={GITHUB}>
@@ -684,7 +684,7 @@ export default function HomePage() {
             className="ferro-button ferro-button-primary"
             to="/guide/getting-started"
           >
-            Get started
+            Run the quick start
             <ArrowRight size={16} />
           </Link>
           <a className="ferro-button ferro-button-secondary" href="https://docs.rs/ferrocat">
