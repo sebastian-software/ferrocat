@@ -82,10 +82,10 @@ pub(super) fn merge_unique_origins(
 
     let mut seen = target
         .iter()
-        .map(|origin| (origin.file.clone(), origin.line))
+        .map(|origin| origin.file.clone())
         .collect::<BTreeSet<_>>();
     for value in incoming {
-        if seen.insert((value.file.clone(), value.line)) {
+        if seen.insert(value.file.clone()) {
             target.push(value);
         }
     }
@@ -93,9 +93,7 @@ pub(super) fn merge_unique_origins(
 
 /// Fast membership check used by the small-origin merge path above.
 pub(super) fn push_unique_origin(target: &[CatalogOrigin], value: &CatalogOrigin) -> bool {
-    target
-        .iter()
-        .any(|origin| origin.file == value.file && origin.line == value.line)
+    target.iter().any(|origin| origin.file == value.file)
 }
 
 /// Deduplicates placeholder example values per placeholder name.
@@ -181,11 +179,9 @@ mod tests {
     fn dedupe_and_merge_origins_keep_unique_entries() {
         let origin_a = CatalogOrigin {
             file: "src/a.rs".to_owned(),
-            line: Some(1),
         };
         let origin_b = CatalogOrigin {
             file: "src/b.rs".to_owned(),
-            line: None,
         };
 
         assert_eq!(
@@ -206,7 +202,6 @@ mod tests {
             &merged,
             &CatalogOrigin {
                 file: "src/c.rs".to_owned(),
-                line: Some(2),
             }
         ));
     }
@@ -216,7 +211,6 @@ mod tests {
         let mut merged = (0..6)
             .map(|index| CatalogOrigin {
                 file: format!("src/{index}.rs"),
-                line: Some(index),
             })
             .collect::<PoVec<_>>();
 
@@ -225,15 +219,12 @@ mod tests {
             vec![
                 CatalogOrigin {
                     file: "src/1.rs".to_owned(),
-                    line: Some(1),
                 },
                 CatalogOrigin {
                     file: "src/6.rs".to_owned(),
-                    line: Some(6),
                 },
                 CatalogOrigin {
                     file: "src/7.rs".to_owned(),
-                    line: None,
                 },
             ]
             .into(),
@@ -241,7 +232,7 @@ mod tests {
 
         assert_eq!(merged.len(), 8);
         assert_eq!(merged[6].file, "src/6.rs");
-        assert_eq!(merged[7].line, None);
+        assert_eq!(merged[7].file, "src/7.rs");
     }
 
     #[test]

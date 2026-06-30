@@ -16,9 +16,11 @@ use serde::{Deserialize, Serialize};
 #[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 pub struct CatalogOrigin {
     /// Path-like source identifier where the message came from.
+    ///
+    /// Ferrocat intentionally tracks only the file, not a line number: line
+    /// numbers shift on every edit above a message and add diff and merge churn
+    /// without identifying anything the `(msgid, msgctxt)` key does not already.
     pub file: String,
-    /// One-based line number when the extractor provided one.
-    pub line: Option<u32>,
 }
 
 /// Structured singular message input used by catalog update operations.
@@ -531,8 +533,6 @@ pub struct CombineCatalogFilesOptions<'a> {
     pub order_by: OrderBy,
     /// Whether source origins should be rendered as references.
     pub include_origins: bool,
-    /// Whether rendered references should include line numbers.
-    pub include_line_numbers: bool,
     /// Whether obsolete definitions should participate in the combine operation.
     pub include_obsolete: bool,
 }
@@ -554,7 +554,6 @@ impl<'a> CombineCatalogFilesOptions<'a> {
             selection: CatalogCombineSelection::All,
             order_by: OrderBy::Msgid,
             include_origins: true,
-            include_line_numbers: true,
             include_obsolete: false,
         }
     }
@@ -915,14 +914,15 @@ impl Default for PlaceholderCommentMode {
 /// placeholder details are written. Some storage formats still impose their own
 /// invariants: FCL always renders in canonical `(id, ctxt)` order, while origin
 /// and placeholder detail flags apply across supported catalog storage formats.
+///
+/// References render the source file only; Ferrocat does not track or emit line
+/// numbers (see [`CatalogOrigin`]).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RenderOptions<'a> {
     /// Sort order for the final rendered catalog.
     pub order_by: OrderBy,
     /// Whether source origins should be rendered as references.
     pub include_origins: bool,
-    /// Whether rendered references should include line numbers.
-    pub include_line_numbers: bool,
     /// Controls emission of placeholder comments.
     pub print_placeholders_in_comments: PlaceholderCommentMode,
     /// Optional additional header attributes to inject or override.
@@ -934,7 +934,6 @@ impl Default for RenderOptions<'_> {
         Self {
             order_by: OrderBy::Msgid,
             include_origins: true,
-            include_line_numbers: true,
             print_placeholders_in_comments: PlaceholderCommentMode::Enabled { limit: 3 },
             custom_header_attributes: None,
         }
@@ -1029,8 +1028,6 @@ pub struct CombineCatalogOptions<'a> {
     pub order_by: OrderBy,
     /// Whether source origins should be rendered as references.
     pub include_origins: bool,
-    /// Whether rendered references should include line numbers.
-    pub include_line_numbers: bool,
     /// Whether obsolete definitions should participate in the combine operation.
     pub include_obsolete: bool,
 }
@@ -1051,7 +1048,6 @@ impl<'a> CombineCatalogOptions<'a> {
             selection: CatalogCombineSelection::All,
             order_by: OrderBy::Msgid,
             include_origins: true,
-            include_line_numbers: true,
             include_obsolete: false,
         }
     }
@@ -1376,7 +1372,6 @@ mod tests {
         assert_eq!(update.obsolete_strategy, ObsoleteStrategy::Mark);
         assert_eq!(update.render.order_by, OrderBy::Msgid);
         assert!(update.render.include_origins);
-        assert!(update.render.include_line_numbers);
         assert_eq!(
             update.render.print_placeholders_in_comments,
             PlaceholderCommentMode::Enabled { limit: 3 }
@@ -1417,7 +1412,6 @@ mod tests {
         assert_eq!(combine.conflict_strategy, CatalogConflictStrategy::UseFirst);
         assert_eq!(combine.selection, CatalogCombineSelection::All);
         assert!(combine.include_origins);
-        assert!(combine.include_line_numbers);
         assert!(!combine.include_obsolete);
 
         let input_paths = [PathBuf::from("locale/de.po")];
@@ -1434,7 +1428,6 @@ mod tests {
         );
         assert_eq!(combine_files.selection, CatalogCombineSelection::All);
         assert!(combine_files.include_origins);
-        assert!(combine_files.include_line_numbers);
         assert!(!combine_files.include_obsolete);
     }
 

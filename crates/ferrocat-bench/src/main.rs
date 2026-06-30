@@ -1218,12 +1218,10 @@ pub(crate) fn render_fcl_catalog(parsed: &ParsedCatalog) -> String {
             let mut refs = message
                 .origin
                 .iter()
-                .map(|origin| match origin.line {
-                    Some(number) => format!("{}:{number}", origin.file),
-                    None => origin.file.clone(),
-                })
+                .map(|origin| origin.file.clone())
                 .collect::<Vec<_>>();
             refs.sort_unstable();
+            refs.dedup();
             for reference in &refs {
                 line.push_str("\tr=");
                 fcl_escape_into(&mut line, reference);
@@ -1319,12 +1317,7 @@ fn render_po_catalog(parsed: &ParsedCatalog) -> String {
         item.references = message
             .origin
             .iter()
-            .map(|origin| {
-                origin.line.map_or_else(
-                    || origin.file.clone(),
-                    |line| format!("{}:{line}", origin.file),
-                )
-            })
+            .map(|origin| origin.file.clone())
             .collect();
         item.obsolete = message.obsolete;
         if let Some(extra) = &message.extra {
