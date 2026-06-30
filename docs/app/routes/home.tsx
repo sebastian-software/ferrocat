@@ -111,7 +111,7 @@ const benefits = [
   },
   {
     title: "Review reports for handoffs",
-    body: "Compare catalog states before a translator handoff. Source additions, removed strings, changed translations, and machine-translation freshness all land in one report.",
+    body: "Compare catalog states before a translator handoff. New strings, removed strings, changed translations, and which machine translations a human has edited since: all in one report.",
     icon: <BookOpenText size={20} />,
   },
   {
@@ -131,7 +131,7 @@ const benefits = [
   },
   {
     title: "AI-native metadata that stays honest",
-    body: "Mark any machine-managed value with an integrity lock plus optional AI provenance (model and confidence). When a human edits the text, the lock no longer matches and the edit is detected.",
+    body: "Tag any machine-written value (AI model, TMS, or a script) with an integrity lock plus optional model and confidence. Edit it by hand and the lock stops matching, so machine output never ships as if a person reviewed it.",
     icon: <FileCheck2 size={20} />,
   },
 ]
@@ -180,7 +180,7 @@ const catalogModes = [
     title: "Mergeable FCL",
     storage: "FCL",
     semantics: "ICU MessageFormat",
-    body: "One canonical entry per line keeps ordinary git merges from losing untouched translations. It also parses ~45% faster and stores ~12% smaller than the same catalog as PO.",
+    body: "Ordinary git merges stop losing untouched translations: one canonical, sorted entry per line means only real edits collide. It also parses ~45% faster and stores ~12% smaller than the same catalog as PO.",
   },
 ]
 
