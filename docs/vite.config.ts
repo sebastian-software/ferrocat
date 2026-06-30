@@ -3,6 +3,11 @@ import { ardo } from 'ardo/vite'
 import { ferrocatReleaseVersion } from './release-version'
 
 export default defineConfig({
+  // Served from the custom apex domain ferrocat.dev at the root path. Setting
+  // base explicitly disables ardo's GitHub Pages auto-detection, which would
+  // otherwise prefix every asset URL with "/ferrocat/" (the repo name) and
+  // break the site when it is not served from github.io/ferrocat/.
+  base: '/',
   plugins: [
     ardo({
       title: 'Ferrocat',
