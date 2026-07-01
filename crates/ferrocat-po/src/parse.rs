@@ -1,4 +1,4 @@
-use memchr::memchr_iter;
+use memchr::{memchr_iter, memchr2_iter};
 
 use crate::line_state::{PoLineContext, PoLineState};
 use crate::scan::{
@@ -218,9 +218,23 @@ fn declared_charset(input: &[u8]) -> Option<&str> {
 }
 
 fn find_ascii_case(haystack: &[u8], needle: &[u8]) -> Option<usize> {
-    haystack
-        .windows(needle.len())
-        .position(|window| window.eq_ignore_ascii_case(needle))
+    let Some((&first, rest)) = needle.split_first() else {
+        return Some(0);
+    };
+
+    let matches_at = |index: usize| {
+        haystack
+            .get(index + 1..index + 1 + rest.len())
+            .is_some_and(|tail| tail.eq_ignore_ascii_case(rest))
+    };
+
+    if first.is_ascii_alphabetic() {
+        let lower = first.to_ascii_lowercase();
+        let upper = first.to_ascii_uppercase();
+        memchr2_iter(lower, upper, haystack).find(|&index| matches_at(index))
+    } else {
+        memchr_iter(first, haystack).find(|&index| matches_at(index))
+    }
 }
 
 fn parse_line(
@@ -414,7 +428,7 @@ fn finish_item(state: &mut ParserState, file: &mut PoFile, current_nplurals: &mu
         state.item.msgstr = MsgStr::Singular(String::new());
     }
     if state.item.msgid_plural.is_some() && state.item.msgstr.len() == 1 {
-        let mut values = state.item.msgstr.clone().into_vec();
+        let mut values = core::mem::take(&mut state.item.msgstr).into_vec();
         values.resize(state.item.nplurals.max(1), String::new());
         state.item.msgstr = MsgStr::Plural(values);
     }
@@ -486,7 +500,7 @@ fn trimmed_string(bytes: &[u8]) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{declared_charset, parse_po, parse_po_bytes};
+    use super::{declared_charset, find_ascii_case, parse_po, parse_po_bytes};
 
     const MULTI_LINE: &str = r#"# French translation of Link (6.x-2.9)
 # Copyright (c) 2011 by the French translation team
@@ -733,6 +747,17 @@ msgstr "Datei"
         let input = b"msgid \"\"\nmsgstr \"\"\n\"Content-Type: text/plain; CHARSET=utf8\\n\"\n\n";
 
         assert_eq!(declared_charset(input), Some("utf8"));
+    }
+
+    #[test]
+    fn ascii_case_search_matches_alpha_and_non_alpha_anchors() {
+        assert_eq!(
+            find_ascii_case(b"xxCONTENT-TYPE: text/plain", b"content-type:"),
+            Some(2)
+        );
+        assert_eq!(find_ascii_case(b"name=value", b"=VALUE"), Some(4));
+        assert_eq!(find_ascii_case(b"anything", b""), Some(0));
+        assert_eq!(find_ascii_case(b"anything", b"missing"), None);
     }
 
     #[test]

@@ -536,10 +536,12 @@ fn has_other_clause(options: &[IcuOption]) -> bool {
 #[inline]
 fn find_literal_stop(haystack: &[u8], in_plural: bool) -> Option<usize> {
     let structural = memchr::memchr3(b'{', b'}', b'<', haystack);
-    let quote = memchr::memchr(b'\'', haystack);
+    let search_end = structural.unwrap_or(haystack.len());
+    let literal_prefix = &haystack[..search_end];
+    let quote = memchr::memchr(b'\'', literal_prefix);
     let stop = min_option(structural, quote);
     if in_plural {
-        min_option(stop, memchr::memchr(b'#', haystack))
+        min_option(stop, memchr::memchr(b'#', literal_prefix))
     } else {
         stop
     }
@@ -560,6 +562,8 @@ mod tests {
         IcuNode, IcuParseError, IcuParserOptions, IcuPluralKind, parse_icu, parse_icu_with_options,
         validate_icu,
     };
+
+    use super::find_literal_stop;
 
     #[test]
     fn parses_simple_argument_message() {
@@ -730,6 +734,14 @@ mod tests {
             message.nodes,
             vec![IcuNode::Literal("Total # items".to_owned())]
         );
+    }
+
+    #[test]
+    fn literal_stop_search_ignores_markers_after_structural_stop() {
+        assert_eq!(find_literal_stop(b"abc{later#'", true), Some(3));
+        assert_eq!(find_literal_stop(b"abc#later{", true), Some(3));
+        assert_eq!(find_literal_stop(b"abc#later{", false), Some(9));
+        assert_eq!(find_literal_stop(b"abc'later{", true), Some(3));
     }
 
     #[test]

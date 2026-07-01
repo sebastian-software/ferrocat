@@ -466,36 +466,36 @@ fn unique_names<'a>(names: impl IntoIterator<Item = &'a String>) -> Vec<String> 
     let mut seen = BTreeSet::new();
     let mut out = Vec::new();
     for name in names {
-        if seen.insert(name.clone()) {
+        if seen.insert(name.as_str()) {
             out.push(name.clone());
         }
     }
     out
 }
 
-fn argument_map(analysis: &IcuAnalysis) -> BTreeMap<String, IcuArgumentKind> {
+fn argument_map(analysis: &IcuAnalysis) -> BTreeMap<&str, IcuArgumentKind> {
     analysis
         .arguments
         .iter()
-        .map(|argument| (argument.name.clone(), argument.kind))
+        .map(|argument| (argument.name.as_str(), argument.kind))
         .collect()
 }
 
-fn formatter_map(analysis: &IcuAnalysis) -> BTreeMap<(String, IcuArgumentKind), Option<String>> {
+fn formatter_map(analysis: &IcuAnalysis) -> BTreeMap<(&str, IcuArgumentKind), Option<&str>> {
     analysis
         .formatters
         .iter()
         .map(|formatter| {
             (
-                (formatter.name.clone(), formatter.kind),
-                formatter.style.clone().map(|style| style.trim().to_owned()),
+                (formatter.name.as_str(), formatter.kind),
+                formatter.style.as_deref().map(str::trim),
             )
         })
         .collect()
 }
 
-fn selector_set(selectors: &[String]) -> BTreeSet<String> {
-    selectors.iter().cloned().collect()
+fn selector_set(selectors: &[String]) -> BTreeSet<&str> {
+    selectors.iter().map(String::as_str).collect()
 }
 
 fn formatter_style_label(style: Option<&str>) -> &str {
@@ -520,7 +520,7 @@ fn compare_arguments(
                 IcuDiagnosticSeverity::Error,
                 diagnostic_codes::icu::MISSING_ARGUMENT,
                 format!("Translation is missing ICU argument `{name}`."),
-                Some(name.clone()),
+                Some((*name).to_owned()),
             ));
             continue;
         };
@@ -531,7 +531,7 @@ fn compare_arguments(
                 format!(
                     "Translation changes ICU argument `{name}` from {source_kind:?} to {translation_kind:?}."
                 ),
-                Some(name.clone()),
+                Some((*name).to_owned()),
             ));
         }
     }
@@ -545,7 +545,7 @@ fn compare_arguments(
                     format!(
                         "Translation adds ICU argument `{name}` that is not present in source."
                     ),
-                    Some(name.clone()),
+                    Some((*name).to_owned()),
                 ));
             }
         }
@@ -561,7 +561,7 @@ fn compare_formatter_styles(
     let translation_formatters = formatter_map(translation);
 
     for ((name, kind), source_style) in source_formatters {
-        let Some(translation_style) = translation_formatters.get(&(name.clone(), kind)) else {
+        let Some(translation_style) = translation_formatters.get(&(name, kind)) else {
             continue;
         };
         if source_style != *translation_style {
@@ -571,16 +571,16 @@ fn compare_formatter_styles(
                 format!(
                     "Translation changes ICU formatter style for `{name}` from {source_style:?} to {translation_style:?}."
                 ),
-                Some(name),
+                Some(name.to_owned()),
             ));
         }
     }
 }
 
-fn tag_counts(analysis: &IcuAnalysis) -> BTreeMap<String, usize> {
+fn tag_counts(analysis: &IcuAnalysis) -> BTreeMap<&str, usize> {
     let mut counts = BTreeMap::new();
     for tag in &analysis.tags {
-        *counts.entry(tag.name.clone()).or_insert(0) += 1;
+        *counts.entry(tag.name.as_str()).or_insert(0) += 1;
     }
     counts
 }
@@ -600,7 +600,7 @@ fn compare_tags(
                 IcuDiagnosticSeverity::Error,
                 diagnostic_codes::icu::MISSING_TAG,
                 format!("Translation is missing ICU tag `{name}`."),
-                Some(name.clone()),
+                Some((*name).to_owned()),
             ));
         }
     }
@@ -612,17 +612,17 @@ fn compare_tags(
                     IcuDiagnosticSeverity::Error,
                     diagnostic_codes::icu::EXTRA_TAG,
                     format!("Translation adds ICU tag `{name}` that is not present in source."),
-                    Some(name.clone()),
+                    Some((*name).to_owned()),
                 ));
             }
         }
     }
 }
 
-fn select_map(analysis: &IcuAnalysis) -> BTreeMap<String, BTreeSet<String>> {
-    let mut out = BTreeMap::<String, BTreeSet<String>>::new();
+fn select_map(analysis: &IcuAnalysis) -> BTreeMap<&str, BTreeSet<&str>> {
+    let mut out = BTreeMap::<&str, BTreeSet<&str>>::new();
     for select in &analysis.selects {
-        out.entry(select.name.clone())
+        out.entry(select.name.as_str())
             .or_default()
             .extend(selector_set(&select.selectors));
     }
@@ -641,7 +641,7 @@ fn compare_selects(
         let Some(translation_selectors) = translation_selects.get(name) else {
             continue;
         };
-        for selector in source_selectors {
+        for &selector in source_selectors {
             if !translation_selectors.contains(selector) {
                 report.diagnostics.push(IcuDiagnostic::new(
                     IcuDiagnosticSeverity::Error,
@@ -654,7 +654,7 @@ fn compare_selects(
             }
         }
         if options.report_extra_selectors {
-            for selector in translation_selectors {
+            for &selector in translation_selectors {
                 if !source_selectors.contains(selector) {
                     report.diagnostics.push(IcuDiagnostic::new(
                         IcuDiagnosticSeverity::Warning,
@@ -668,15 +668,15 @@ fn compare_selects(
     }
 }
 
-fn plural_key(plural: &IcuPluralSummary) -> (String, IcuPluralKind) {
-    (plural.name.clone(), plural.kind.clone())
+fn plural_key(plural: &IcuPluralSummary) -> (&str, IcuPluralKind) {
+    (plural.name.as_str(), plural.kind.clone())
 }
 
-fn plural_map(analysis: &IcuAnalysis) -> BTreeMap<(String, IcuPluralKind), IcuPluralSummary> {
+fn plural_map(analysis: &IcuAnalysis) -> BTreeMap<(&str, IcuPluralKind), &IcuPluralSummary> {
     analysis
         .plurals
         .iter()
-        .map(|plural| (plural_key(plural), plural.clone()))
+        .map(|plural| (plural_key(plural), plural))
         .collect()
 }
 
@@ -706,6 +706,7 @@ fn compare_plurals(
 
         let translation_selectors = selector_set(&translation_plural.selectors);
         for selector in &source_plural.selectors {
+            let selector = selector.as_str();
             if !translation_selectors.contains(selector) {
                 report.diagnostics.push(IcuDiagnostic::new(
                     IcuDiagnosticSeverity::Error,
