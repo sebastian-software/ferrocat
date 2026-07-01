@@ -48,10 +48,14 @@ mod backend {
 
     #[inline]
     fn fallback_find_escapable_byte(haystack: &[u8]) -> Option<usize> {
+        let structural = memchr3(b'"', b'\\', b'\n', haystack);
+        let search_end = structural.unwrap_or(haystack.len());
+        let controls = &haystack[..search_end];
+
         min_option3(
-            memchr3(b'"', b'\\', b'\n', haystack),
-            memchr3(b'\t', b'\r', b'\x0b', haystack),
-            memchr3(b'\x07', b'\x08', b'\x0c', haystack),
+            structural,
+            memchr3(b'\t', b'\r', b'\x0b', controls),
+            memchr3(b'\x07', b'\x08', b'\x0c', controls),
         )
     }
 

@@ -328,10 +328,9 @@ fn write_complex_keyword(
     } else {
         options.fold_length.saturating_sub(2).max(1)
     };
-    let parts = parts_with_has_next(text).collect::<Vec<_>>();
     let requires_folding = options.fold_length > 0
-        && parts.iter().any(|(part, has_next)| {
-            let escaped_len = escaped_part_len(part, *has_next);
+        && parts_with_has_next(text).any(|(part, has_next)| {
+            let escaped_len = escaped_part_len(part, has_next);
             let limit = if has_multiple_lines {
                 other_line_max
             } else {
@@ -351,7 +350,7 @@ fn write_complex_keyword(
         true
     };
 
-    for (part, has_next) in parts {
+    for (part, has_next) in parts_with_has_next(text) {
         scratch.clear();
         escape_string_into(scratch, part);
         if has_next {
@@ -429,16 +428,23 @@ fn write_quoted_segment(
 }
 
 fn escaped_part_len(part: &str, has_next: bool) -> usize {
-    let escaped_len = match find_escapable_byte(part.as_bytes()) {
-        Some(_) => {
-            let mut escaped = String::new();
-            escape_string_into(&mut escaped, part);
-            escaped.len()
-        }
-        None => part.len(),
-    };
+    let escaped_len = escaped_string_len(part);
 
     escaped_len + if has_next { 2 } else { 0 }
+}
+
+fn escaped_string_len(input: &str) -> usize {
+    let bytes = input.as_bytes();
+    let Some(mut escape_index) = find_escapable_byte(bytes) else {
+        return input.len();
+    };
+
+    let mut escaped_len = input.len() + 1;
+    while let Some(relative) = find_escapable_byte(&bytes[escape_index + 1..]) {
+        escape_index += 1 + relative;
+        escaped_len += 1;
+    }
+    escaped_len
 }
 
 fn folded_split_point(input: &str, start: usize, max_len: usize) -> usize {

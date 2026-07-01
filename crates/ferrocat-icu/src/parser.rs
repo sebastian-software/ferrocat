@@ -536,10 +536,12 @@ fn has_other_clause(options: &[IcuOption]) -> bool {
 #[inline]
 fn find_literal_stop(haystack: &[u8], in_plural: bool) -> Option<usize> {
     let structural = memchr::memchr3(b'{', b'}', b'<', haystack);
-    let quote = memchr::memchr(b'\'', haystack);
+    let search_end = structural.unwrap_or(haystack.len());
+    let literal_prefix = &haystack[..search_end];
+    let quote = memchr::memchr(b'\'', literal_prefix);
     let stop = min_option(structural, quote);
     if in_plural {
-        min_option(stop, memchr::memchr(b'#', haystack))
+        min_option(stop, memchr::memchr(b'#', literal_prefix))
     } else {
         stop
     }

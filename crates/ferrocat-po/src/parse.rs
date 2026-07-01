@@ -1,4 +1,4 @@
-use memchr::memchr_iter;
+use memchr::{memchr_iter, memchr2_iter};
 
 use crate::line_state::{PoLineContext, PoLineState};
 use crate::scan::{
@@ -218,9 +218,23 @@ fn declared_charset(input: &[u8]) -> Option<&str> {
 }
 
 fn find_ascii_case(haystack: &[u8], needle: &[u8]) -> Option<usize> {
-    haystack
-        .windows(needle.len())
-        .position(|window| window.eq_ignore_ascii_case(needle))
+    let Some((&first, rest)) = needle.split_first() else {
+        return Some(0);
+    };
+
+    let matches_at = |index: usize| {
+        haystack
+            .get(index + 1..index + 1 + rest.len())
+            .is_some_and(|tail| tail.eq_ignore_ascii_case(rest))
+    };
+
+    if first.is_ascii_alphabetic() {
+        let lower = first.to_ascii_lowercase();
+        let upper = first.to_ascii_uppercase();
+        memchr2_iter(lower, upper, haystack).find(|&index| matches_at(index))
+    } else {
+        memchr_iter(first, haystack).find(|&index| matches_at(index))
+    }
 }
 
 fn parse_line(
@@ -414,7 +428,7 @@ fn finish_item(state: &mut ParserState, file: &mut PoFile, current_nplurals: &mu
         state.item.msgstr = MsgStr::Singular(String::new());
     }
     if state.item.msgid_plural.is_some() && state.item.msgstr.len() == 1 {
-        let mut values = state.item.msgstr.clone().into_vec();
+        let mut values = core::mem::take(&mut state.item.msgstr).into_vec();
         values.resize(state.item.nplurals.max(1), String::new());
         state.item.msgstr = MsgStr::Plural(values);
     }
