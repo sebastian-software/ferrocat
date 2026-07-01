@@ -116,6 +116,35 @@ pub struct CatalogCoverageMessage {
 /// Active target-only messages are counted as `extra` and do not affect the
 /// completion denominator.
 ///
+/// # Examples
+///
+/// ```rust
+/// use ferrocat_po::{
+///     CatalogCoverageOptions, CatalogMessageStatus, ParseCatalogOptions, catalog_coverage,
+///     parse_catalog,
+/// };
+///
+/// let source = parse_catalog(ParseCatalogOptions {
+///     locale: Some("en"),
+///     ..ParseCatalogOptions::new("msgid \"Save\"\nmsgstr \"\"\n", "en")
+/// })?
+/// .into_normalized_view()?;
+/// let target = parse_catalog(ParseCatalogOptions {
+///     locale: Some("de"),
+///     ..ParseCatalogOptions::new("msgid \"Save\"\nmsgstr \"Speichern\"\n", "en")
+/// })?
+/// .into_normalized_view()?;
+///
+/// let options = CatalogCoverageOptions::new("en").with_details(true);
+/// let report = catalog_coverage(&[&source, &target], &options)?;
+///
+/// assert_eq!(report.source_messages, 1);
+/// assert_eq!(report.locales[0].locale, "de");
+/// assert_eq!(report.locales[0].translated, 1);
+/// assert_eq!(report.locales[0].details[0].status, CatalogMessageStatus::Translated);
+/// # Ok::<(), ferrocat_po::ApiError>(())
+/// ```
+///
 /// # Errors
 ///
 /// Returns [`ApiError::InvalidArguments`] when locales are missing, empty,

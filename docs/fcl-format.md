@@ -92,17 +92,17 @@ Use names a developer would recognize in source code:
 Scope is metadata for review and tooling, not message identity, and it is not a
 replacement for gettext context / `msgctxt`; downstream tools should not derive
 it from `msgctxt` by default. See
-[ADR 0024](/architecture/adr/0024-origin-scope-anchor). `c` holds free-form
+[ADR 0024](app/routes/architecture/adr/0024-origin-scope-anchor.mdx). `c` holds free-form
 notes: the gettext extracted (`#.`) and translator (`#`) comment kinds collapse
 into one list, and gettext flags (`fuzzy`, `*-format`) are not carried (see
-[ADR 0023](/architecture/adr/0023-drop-gettext-flags-merge-comments)).
+[ADR 0023](app/routes/architecture/adr/0023-drop-gettext-flags-merge-comments.mdx)).
 
 `lock` is the fingerprint of the value when a machine (AI engine, TMS, script)
 set it; if `hash(current value) != lock`, a human edited it and high-level
 writers drop the block. `ai` is optional provenance: an opaque `model` id, then
 an optional `:confidence` decimal in `[0, 1]`. The model id is free-form and may
 contain `/` or `:`; only a trailing `[0, 1]` suffix after the last `:` is read as
-confidence (see [ADR 0022](/architecture/adr/0022-machine-managed-value-integrity-and-ai-provenance)).
+confidence (see [ADR 0022](app/routes/architecture/adr/0022-machine-managed-value-integrity-and-ai-provenance.mdx)).
 
 **Deliberately omitted:** a machine-translation timestamp. Timestamps churn every
 line on regeneration and poison merges; staleness is detected by the `lock` hash

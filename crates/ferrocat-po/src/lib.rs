@@ -190,7 +190,13 @@ pub struct PoItem {
     pub comments: PoVec<String>,
     /// Extracted comments attached to the item.
     pub extracted_comments: PoVec<String>,
-    /// Flags such as `fuzzy`.
+    /// Raw gettext flags such as `fuzzy`.
+    ///
+    /// The low-level PO parser and serializer preserve this field for faithful
+    /// PO round trips. Since Ferrocat 2.0, the high-level catalog layer drops
+    /// gettext flags, including `fuzzy`, when parsing or writing catalog data;
+    /// fuzzy/discard decisions are modeled by catalog-layer behavior instead
+    /// of being carried through this raw PO field.
     pub flags: PoVec<String>,
     /// Raw metadata lines that do not fit the dedicated fields.
     pub metadata: PoVec<(String, String)>,

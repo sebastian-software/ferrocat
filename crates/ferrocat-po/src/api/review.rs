@@ -224,6 +224,52 @@ pub enum CatalogMachineTranslationStatus {
 /// target status is [`CatalogMessageStatus::Translated`]; missing, empty, and
 /// obsolete current entries are surfaced by the coverage counters.
 ///
+/// # Examples
+///
+/// ```rust
+/// use ferrocat_po::{CatalogReviewOptions, ParseCatalogOptions, catalog_review, parse_catalog};
+///
+/// let previous_source = parse_catalog(ParseCatalogOptions {
+///     locale: Some("en"),
+///     ..ParseCatalogOptions::new("msgid \"Save\"\nmsgstr \"\"\n", "en")
+/// })?
+/// .into_normalized_view()?;
+/// let previous_target = parse_catalog(ParseCatalogOptions {
+///     locale: Some("de"),
+///     ..ParseCatalogOptions::new("msgid \"Save\"\nmsgstr \"Speichern\"\n", "en")
+/// })?
+/// .into_normalized_view()?;
+///
+/// let current_source = parse_catalog(ParseCatalogOptions {
+///     locale: Some("en"),
+///     ..ParseCatalogOptions::new(
+///         "msgid \"Save\"\nmsgstr \"\"\n\nmsgid \"Cancel\"\nmsgstr \"\"\n",
+///         "en",
+///     )
+/// })?
+/// .into_normalized_view()?;
+/// let current_target = parse_catalog(ParseCatalogOptions {
+///     locale: Some("de"),
+///     ..ParseCatalogOptions::new(
+///         "msgid \"Save\"\nmsgstr \"Sichern\"\n\nmsgid \"Cancel\"\nmsgstr \"\"\n",
+///         "en",
+///     )
+/// })?
+/// .into_normalized_view()?;
+///
+/// let options = CatalogReviewOptions::new("en").with_details(true);
+/// let report = catalog_review(
+///     &[&previous_source, &previous_target],
+///     &[&current_source, &current_target],
+///     &options,
+/// )?;
+///
+/// assert_eq!(report.summary.source_added, 1);
+/// assert_eq!(report.summary.translation_changed, 1);
+/// assert_eq!(report.locales[0].coverage.empty, 1);
+/// # Ok::<(), ferrocat_po::ApiError>(())
+/// ```
+///
 /// # Errors
 ///
 /// Returns [`ApiError::InvalidArguments`] when either catalog state is missing
