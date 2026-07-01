@@ -1809,7 +1809,7 @@ fn combine_catalog_files_merges_po_inputs_with_use_first_and_preserves_first_hea
 fn combine_catalog_files_can_use_gettext_po_mode_for_classic_plural_slots() {
     let temp_dir = unique_catalog_temp_dir("combine-files-gettext-po");
     let existing = temp_dir.join("existing.po");
-    let template = temp_dir.join("template.po");
+    let template = temp_dir.join("template.pot");
     let output = temp_dir.join("merged.po");
     fs::write(
         &existing,

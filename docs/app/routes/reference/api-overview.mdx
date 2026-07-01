@@ -303,6 +303,7 @@ The helper reads input paths in precedence order, infers a single file format fr
 Supported inferred suffixes are:
 
 - `.po` for `CatalogFileFormat::Po`
+- `.pot` for `CatalogFileFormat::Po`
 - `.fcl` for `CatalogFileFormat::Fcl`
 
 The file helper returns the output path, the file format used, combine stats, and non-fatal diagnostics. It supports one or more input files, so two-file host workflows can stay thin while larger overlay workflows do not need a separate wrapper.
@@ -323,7 +324,10 @@ High-level catalog parsing should normally choose one `CatalogMode` instead of s
 - `CatalogMode::IcuFcl` for ICU-native messages stored as a `%FCL1` header plus one tab-separated entry per line
 - `CatalogMode::GettextPo` for classic Gettext-compatible plurals stored in PO
 
-The lower-level `storage_format`, `semantics`, and `plural_encoding` fields remain available for compatibility, but `CatalogMode` keeps the three choices synchronized.
+If a host adapter already has separate storage, semantics, and plural-encoding
+choices, use `CatalogMode::from_parts(...)` to validate that the combination is
+supported before building request options. The request structs take a
+`CatalogMode` so those choices stay synchronized at the API boundary.
 
 Important boundaries:
 

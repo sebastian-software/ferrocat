@@ -112,8 +112,9 @@ pub struct CompileCatalogArtifactOptions<'a> {
 impl<'a> CompileCatalogArtifactOptions<'a> {
     /// Creates artifact compile options with required locales set.
     ///
-    /// Optional fields use the same defaults that the previous `Default`
-    /// implementation provided.
+    /// Optional fields default to an empty fallback chain, `FerrocatV1` keys,
+    /// no source fallback, non-strict ICU diagnostics, no ICU compatibility
+    /// check, and ICU-native semantics.
     #[must_use]
     pub fn new(requested_locale: &'a str, source_locale: &'a str) -> Self {
         Self {
@@ -173,8 +174,8 @@ pub struct CompileSelectedCatalogArtifactOptions<'a> {
 impl<'a> CompileSelectedCatalogArtifactOptions<'a> {
     /// Creates selected artifact compile options with required locales and IDs set.
     ///
-    /// Optional fields use the same defaults that the previous `Default`
-    /// implementation provided.
+    /// Optional fields on the nested artifact options use
+    /// [`CompileCatalogArtifactOptions::new`] defaults.
     #[must_use]
     pub fn new(
         requested_locale: &'a str,

@@ -476,7 +476,7 @@ pub struct CatalogCombineResult {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 #[non_exhaustive]
 pub enum CatalogFileFormat {
-    /// Classic gettext PO catalog files.
+    /// Classic gettext PO catalog files, including gettext template (`.pot`) files.
     #[default]
     Po,
     /// Ferrocat Catalog Lines (`.fcl`) files.
@@ -486,7 +486,7 @@ pub enum CatalogFileFormat {
 impl CatalogFileFormat {
     /// Infers a catalog file format from a path extension.
     ///
-    /// Supported path suffixes are `.po` and `.fcl`.
+    /// Supported path suffixes are `.po`, `.pot`, and `.fcl`.
     ///
     /// # Errors
     ///
@@ -499,7 +499,7 @@ impl CatalogFileFormat {
             .unwrap_or_default()
             .to_ascii_lowercase();
 
-        if name.ends_with(".po") {
+        if name.ends_with(".po") || name.ends_with(".pot") {
             return Ok(Self::Po);
         }
         if name.ends_with(".fcl") {
@@ -507,7 +507,7 @@ impl CatalogFileFormat {
         }
 
         Err(ApiError::Unsupported(format!(
-            "could not infer catalog file format from `{}`; expected .po or .fcl",
+            "could not infer catalog file format from `{}`; expected .po, .pot, or .fcl",
             path.display()
         )))
     }
@@ -989,8 +989,9 @@ pub struct UpdateCatalogOptions<'a> {
 impl<'a> UpdateCatalogOptions<'a> {
     /// Creates in-memory update options with required fields set.
     ///
-    /// Optional fields use the same defaults that the previous `Default`
-    /// implementation provided.
+    /// Optional fields default to an inferred locale, ICU-native PO mode,
+    /// marking missing messages obsolete, preserving source-locale translations,
+    /// no host clock, and [`RenderOptions::default`].
     #[must_use]
     pub fn new(source_locale: &'a str, input: impl Into<CatalogUpdateInput>) -> Self {
         Self {
@@ -1019,8 +1020,8 @@ pub struct UpdateCatalogFileOptions<'a> {
 impl<'a> UpdateCatalogFileOptions<'a> {
     /// Creates file update options with required fields set.
     ///
-    /// Optional fields use the same defaults that the previous `Default`
-    /// implementation provided.
+    /// Optional fields on the nested update options use
+    /// [`UpdateCatalogOptions::new`] defaults.
     #[must_use]
     pub fn new(
         target_path: &'a Path,
@@ -1061,8 +1062,9 @@ pub struct CombineCatalogOptions<'a> {
 impl<'a> CombineCatalogOptions<'a> {
     /// Creates combine options with required fields set.
     ///
-    /// Optional fields use the same defaults that the previous `Default`
-    /// implementation provided.
+    /// Optional fields default to an inferred locale, ICU-native PO mode,
+    /// first-definition conflict resolution, all message identities, `msgid`
+    /// ordering, rendered origins, and skipped obsolete entries.
     #[must_use]
     pub fn new(inputs: &'a [CatalogCombineInput<'a>], source_locale: &'a str) -> Self {
         Self {
@@ -1097,8 +1099,8 @@ pub struct ParseCatalogOptions<'a> {
 impl<'a> ParseCatalogOptions<'a> {
     /// Creates parse options with required fields set.
     ///
-    /// Optional fields use the same defaults that the previous `Default`
-    /// implementation provided.
+    /// Optional fields default to an inferred locale, ICU-native PO mode, and
+    /// non-strict plural projection.
     #[must_use]
     pub fn new(content: &'a str, source_locale: &'a str) -> Self {
         Self {
@@ -1454,6 +1456,10 @@ mod tests {
     fn catalog_file_format_infers_supported_suffixes() {
         assert_eq!(
             CatalogFileFormat::infer_from_path(Path::new("locale/de.po")).expect("po"),
+            CatalogFileFormat::Po
+        );
+        assert_eq!(
+            CatalogFileFormat::infer_from_path(Path::new("locale/messages.POT")).expect("pot"),
             CatalogFileFormat::Po
         );
         assert_eq!(
