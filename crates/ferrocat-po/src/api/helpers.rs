@@ -42,15 +42,7 @@ pub(super) fn merge_unique_strings(target: &mut Vec<String>, incoming: Vec<Strin
 
 /// Fast membership check used by the small-vector path above.
 pub(super) fn push_unique_string(target: &[String], value: &str) -> bool {
-    if target.len() < 8 {
-        target.iter().any(|existing| existing == value)
-    } else {
-        target
-            .iter()
-            .cloned()
-            .collect::<BTreeSet<_>>()
-            .contains(value)
-    }
+    target.iter().any(|existing| existing == value)
 }
 
 /// Deduplicates origins while preserving first-seen order.

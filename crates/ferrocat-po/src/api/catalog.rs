@@ -657,19 +657,18 @@ pub(super) fn sort_messages(messages: &mut [CanonicalMessage], order_by: OrderBy
                 .then_with(|| left.msgctxt.cmp(&right.msgctxt))
                 .then_with(|| left.obsolete.cmp(&right.obsolete))
         }),
-        OrderBy::Origin => messages.sort_by(|left, right| {
+        OrderBy::Origin => messages.sort_unstable_by(|left, right| {
             first_origin_sort_key(&left.origins)
-                .cmp(&first_origin_sort_key(&right.origins))
+                .cmp(first_origin_sort_key(&right.origins))
                 .then_with(|| left.msgid.cmp(&right.msgid))
                 .then_with(|| left.msgctxt.cmp(&right.msgctxt))
+                .then_with(|| left.obsolete.cmp(&right.obsolete))
         }),
     }
 }
 
-fn first_origin_sort_key(origins: &[CatalogOrigin]) -> String {
-    origins
-        .first()
-        .map_or_else(String::new, |origin| origin.file.clone())
+fn first_origin_sort_key(origins: &[CatalogOrigin]) -> &str {
+    origins.first().map_or("", |origin| origin.file.as_str())
 }
 
 fn apply_storage_defaults(
@@ -1088,8 +1087,12 @@ pub(super) fn public_message_from_canonical(message: CanonicalMessage) -> Catalo
 
 #[cfg(test)]
 mod tests {
-    use super::{parse_origin_owned, take_first_msgstr};
-    use crate::MsgStr;
+    use super::{
+        CanonicalMessage, CanonicalTranslation, first_origin_sort_key, parse_origin_owned,
+        sort_messages, take_first_msgstr,
+    };
+    use crate::api::{CatalogOrigin, OrderBy};
+    use crate::{MsgStr, PoVec};
 
     #[test]
     fn parse_origin_owned_strips_line_numbers_and_keeps_file() {
@@ -1114,5 +1117,64 @@ mod tests {
         );
         assert_eq!(take_first_msgstr(MsgStr::Plural(Vec::new())), "");
         assert_eq!(take_first_msgstr(MsgStr::None), "");
+    }
+
+    #[test]
+    fn first_origin_sort_key_borrows_origin_file() {
+        let origins = PoVec::from(vec![CatalogOrigin {
+            file: "src/app.rs".to_owned(),
+            scope: None,
+        }]);
+
+        assert_eq!(first_origin_sort_key(&origins), "src/app.rs");
+    }
+
+    #[test]
+    fn sort_messages_by_origin_uses_msgid_and_context_tiebreakers() {
+        let mut messages = vec![
+            test_message("src/app.rs", "beta", Some("dialog")),
+            test_message("src/app.rs", "alpha", Some("dialog")),
+            test_message("src/app.rs", "alpha", None),
+            test_message("src/lib.rs", "alpha", None),
+        ];
+
+        sort_messages(&mut messages, OrderBy::Origin);
+
+        assert_eq!(
+            messages
+                .iter()
+                .map(|message| {
+                    (
+                        message.origins[0].file.as_str(),
+                        message.msgid.as_str(),
+                        message.msgctxt.as_deref(),
+                    )
+                })
+                .collect::<Vec<_>>(),
+            vec![
+                ("src/app.rs", "alpha", None),
+                ("src/app.rs", "alpha", Some("dialog")),
+                ("src/app.rs", "beta", Some("dialog")),
+                ("src/lib.rs", "alpha", None)
+            ]
+        );
+    }
+
+    fn test_message(file: &str, msgid: &str, msgctxt: Option<&str>) -> CanonicalMessage {
+        CanonicalMessage {
+            msgid: msgid.to_owned(),
+            msgctxt: msgctxt.map(str::to_owned),
+            translation: CanonicalTranslation::Singular {
+                value: String::new(),
+            },
+            comments: Vec::new(),
+            origins: PoVec::from(vec![CatalogOrigin {
+                file: file.to_owned(),
+                scope: None,
+            }]),
+            placeholders: Default::default(),
+            obsolete: None,
+            machine: None,
+        }
     }
 }
