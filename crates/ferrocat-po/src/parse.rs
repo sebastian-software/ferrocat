@@ -500,7 +500,7 @@ fn trimmed_string(bytes: &[u8]) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{declared_charset, parse_po, parse_po_bytes};
+    use super::{declared_charset, find_ascii_case, parse_po, parse_po_bytes};
 
     const MULTI_LINE: &str = r#"# French translation of Link (6.x-2.9)
 # Copyright (c) 2011 by the French translation team
@@ -747,6 +747,17 @@ msgstr "Datei"
         let input = b"msgid \"\"\nmsgstr \"\"\n\"Content-Type: text/plain; CHARSET=utf8\\n\"\n\n";
 
         assert_eq!(declared_charset(input), Some("utf8"));
+    }
+
+    #[test]
+    fn ascii_case_search_matches_alpha_and_non_alpha_anchors() {
+        assert_eq!(
+            find_ascii_case(b"xxCONTENT-TYPE: text/plain", b"content-type:"),
+            Some(2)
+        );
+        assert_eq!(find_ascii_case(b"name=value", b"=VALUE"), Some(4));
+        assert_eq!(find_ascii_case(b"anything", b""), Some(0));
+        assert_eq!(find_ascii_case(b"anything", b"missing"), None);
     }
 
     #[test]

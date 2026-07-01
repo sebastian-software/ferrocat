@@ -427,6 +427,7 @@ mod tests {
         assert_eq!(split_once_byte(b"a:b", b':'), Some((&b"a"[..], &b"b"[..])));
         assert_eq!(find_quoted_bounds(br#"msgid "abc""#), Some((7, 10)));
         assert_eq!(find_escapable_byte(b"plain\ttext"), Some(5));
+        assert_eq!(find_escapable_byte(b"plain\tbefore\\later"), Some(5));
         assert_eq!(find_escapable_byte(b"plain\\text"), Some(5));
         assert_eq!(find_escapable_byte(b"plain text"), None);
         assert_eq!(parse_plural_index(b"msgstr[12] \"x\""), Some(12));

@@ -563,6 +563,8 @@ mod tests {
         validate_icu,
     };
 
+    use super::find_literal_stop;
+
     #[test]
     fn parses_simple_argument_message() {
         let message = parse_icu("Hello {name}!").expect("parse");
@@ -732,6 +734,14 @@ mod tests {
             message.nodes,
             vec![IcuNode::Literal("Total # items".to_owned())]
         );
+    }
+
+    #[test]
+    fn literal_stop_search_ignores_markers_after_structural_stop() {
+        assert_eq!(find_literal_stop(b"abc{later#'", true), Some(3));
+        assert_eq!(find_literal_stop(b"abc#later{", true), Some(3));
+        assert_eq!(find_literal_stop(b"abc#later{", false), Some(9));
+        assert_eq!(find_literal_stop(b"abc'later{", true), Some(3));
     }
 
     #[test]

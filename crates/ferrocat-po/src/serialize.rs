@@ -503,9 +503,9 @@ fn clamp_char_boundary(input: &str, start: usize, requested_end: usize) -> usize
 
 #[cfg(test)]
 mod tests {
-    use crate::{Header, MsgStr, PoFile, PoItem, SerializeOptions, parse_po};
+    use crate::{Header, MsgStr, PoFile, PoItem, SerializeOptions, escape_string, parse_po};
 
-    use super::stringify_po;
+    use super::{escaped_string_len, stringify_po};
 
     #[test]
     fn serializes_comments_headers_and_items() {
@@ -631,6 +631,14 @@ mod tests {
         let reparsed = parse_po(&output).expect("reparse folded utf8 output");
         assert_eq!(reparsed.items[0].msgid, "Grüße aus Köln");
         assert_eq!(reparsed.items[0].msgstr[0], "Übermäßig höflich");
+    }
+
+    #[test]
+    fn escaped_string_len_matches_rendered_escape_length() {
+        let input = "plain\tquote\"slash\\newline\ncarriage\r";
+
+        assert_eq!(escaped_string_len(input), escape_string(input).len());
+        assert_eq!(escaped_string_len("plain"), "plain".len());
     }
 
     #[test]
