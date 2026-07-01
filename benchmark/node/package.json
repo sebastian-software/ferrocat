@@ -5,7 +5,7 @@
   "description": "External Node-based benchmark adapters for ferrocat comparison runs.",
   "license": "MIT",
   "dependencies": {
-    "@formatjs/icu-messageformat-parser": "^3.5.11",
+    "@formatjs/icu-messageformat-parser": "^3.5.12",
     "@messageformat/parser": "^5.1.1",
     "gettext-parser": "^9.0.2",
     "pofile": "^1.1.4",
