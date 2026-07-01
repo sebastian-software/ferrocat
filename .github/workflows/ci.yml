@@ -36,7 +36,7 @@ jobs:
           pnpm config set store-dir "$PNPM_STORE_DIR"
 
       - name: Restore pnpm store
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: ${{ env.PNPM_STORE_DIR }}
           key: ${{ runner.os }}-pnpm-store-${{ hashFiles('docs/pnpm-lock.yaml') }}
