@@ -73,6 +73,9 @@ jobs:
       - name: Run Clippy
         run: cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
 
+      - name: Check umbrella crate without default features
+        run: cargo check -p ferrocat --no-default-features --locked
+
   rustdoc:
     name: Rustdoc warnings
     runs-on: ubuntu-24.04

@@ -1,13 +1,14 @@
 use ferrocat::{
+    COMPILED_CATALOG_ARTIFACT_SCHEMA_VERSION, ParsePosition,
     catalog::{
-        CatalogCombineInput, CatalogMessageKey, CatalogMode, CatalogUpdateInput,
-        CombineCatalogOptions, CompileCatalogArtifactOptions,
+        CatalogAuditIcuOptions, CatalogAuditOptions, CatalogCombineInput, CatalogMessageKey,
+        CatalogMode, CatalogUpdateInput, CombineCatalogOptions, CompileCatalogArtifactOptions,
         CompileSelectedCatalogArtifactOptions, CompiledCatalogIdIndex, CompiledKeyStrategy,
         EffectiveTranslation, EffectiveTranslationRef, ParseCatalogOptions, SourceExtractedMessage,
-        combine_catalogs, compile_catalog_artifact, compile_catalog_artifact_selected,
-        parse_catalog,
+        audit_catalogs_with_icu_options, combine_catalogs, compile_catalog_artifact,
+        compile_catalog_artifact_selected, parse_catalog,
     },
-    icu, po,
+    icu, parse_po_bytes, po,
 };
 
 #[test]
@@ -24,6 +25,16 @@ msgstr "world"
 
     let rendered = po::stringify_po(&file, &po::SerializeOptions::default());
     assert!(rendered.contains(r#"msgstr "Welt""#));
+
+    let bytes = parse_po_bytes(b"msgid \"bytes\"\nmsgstr \"ok\"\n").expect("parse po bytes");
+    assert_eq!(bytes.items[0].msgid, "bytes");
+    let byte_position = ParsePosition::new(12, 2, 3);
+    assert_eq!(byte_position.line(), 2);
+    assert_eq!(po::ParsePosition::new(4, 1, 5).column(), 5);
+    assert_eq!(
+        po::diagnostic_codes::plural::UNSUPPORTED_GETTEXT_EXPORT,
+        "plural.unsupported_gettext_export"
+    );
 
     let merged = po::merge_catalog(
         rendered.as_str(),
@@ -46,6 +57,10 @@ msgstr "world"
     let message =
         icu::parse_icu("{count, selectordinal, one {#st} other {#th}}").expect("parse icu");
     assert!(icu::has_select_ordinal(&message));
+    assert_eq!(
+        icu::diagnostic_codes::icu::MISSING_ARGUMENT,
+        "icu.missing_argument"
+    );
 
     let _source_input = CatalogUpdateInput::SourceFirst(vec![SourceExtractedMessage {
         msgid: "hello".into(),
@@ -91,6 +106,22 @@ msgstr "world"
     .expect("parse source catalog")
     .into_normalized_view()
     .expect("normalized source catalog");
+    let audit = audit_catalogs_with_icu_options(
+        &[&source, &normalized],
+        &CatalogAuditOptions::new("en"),
+        &CatalogAuditIcuOptions::default(),
+    )
+    .expect("audit catalogs with icu options");
+    assert!(!audit.has_errors());
+    assert_eq!(
+        ferrocat::catalog::diagnostic_codes::catalog::MISSING_TRANSLATION,
+        "catalog.missing_translation"
+    );
+    assert_eq!(
+        ferrocat::catalog::COMPILED_CATALOG_ARTIFACT_SCHEMA_VERSION,
+        COMPILED_CATALOG_ARTIFACT_SCHEMA_VERSION
+    );
+
     let artifact = compile_catalog_artifact(
         &[&normalized, &source],
         &CompileCatalogArtifactOptions::new("de", "en"),
