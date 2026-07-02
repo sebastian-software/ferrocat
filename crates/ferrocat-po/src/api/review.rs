@@ -229,32 +229,31 @@ pub enum CatalogMachineTranslationStatus {
 /// ```rust
 /// use ferrocat_po::{CatalogReviewOptions, ParseCatalogOptions, catalog_review, parse_catalog};
 ///
-/// let previous_source = parse_catalog(ParseCatalogOptions {
-///     locale: Some("en"),
-///     ..ParseCatalogOptions::new("msgid \"Save\"\nmsgstr \"\"\n", "en")
-/// })?
+/// let previous_source = parse_catalog(
+///     ParseCatalogOptions::new("msgid \"Save\"\nmsgstr \"\"\n", "en").with_locale("en"),
+/// )?
 /// .into_normalized_view()?;
-/// let previous_target = parse_catalog(ParseCatalogOptions {
-///     locale: Some("de"),
-///     ..ParseCatalogOptions::new("msgid \"Save\"\nmsgstr \"Speichern\"\n", "en")
-/// })?
+/// let previous_target = parse_catalog(
+///     ParseCatalogOptions::new("msgid \"Save\"\nmsgstr \"Speichern\"\n", "en")
+///         .with_locale("de"),
+/// )?
 /// .into_normalized_view()?;
 ///
-/// let current_source = parse_catalog(ParseCatalogOptions {
-///     locale: Some("en"),
-///     ..ParseCatalogOptions::new(
+/// let current_source = parse_catalog(
+///     ParseCatalogOptions::new(
 ///         "msgid \"Save\"\nmsgstr \"\"\n\nmsgid \"Cancel\"\nmsgstr \"\"\n",
 ///         "en",
 ///     )
-/// })?
+///     .with_locale("en"),
+/// )?
 /// .into_normalized_view()?;
-/// let current_target = parse_catalog(ParseCatalogOptions {
-///     locale: Some("de"),
-///     ..ParseCatalogOptions::new(
+/// let current_target = parse_catalog(
+///     ParseCatalogOptions::new(
 ///         "msgid \"Save\"\nmsgstr \"Sichern\"\n\nmsgid \"Cancel\"\nmsgstr \"\"\n",
 ///         "en",
 ///     )
-/// })?
+///     .with_locale("de"),
+/// )?
 /// .into_normalized_view()?;
 ///
 /// let options = CatalogReviewOptions::new("en").with_details(true);

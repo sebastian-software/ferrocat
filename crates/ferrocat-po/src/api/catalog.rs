@@ -115,14 +115,16 @@ struct MergeCatalogContext<'a> {
 ///     CatalogMode, CatalogUpdateInput, SourceExtractedMessage, UpdateCatalogOptions, update_catalog,
 /// };
 ///
-/// let result = update_catalog(UpdateCatalogOptions {
-///     locale: Some("de"),
-///     input: CatalogUpdateInput::SourceFirst(vec![SourceExtractedMessage {
-///         msgid: "Checkout".to_owned(),
-///         ..SourceExtractedMessage::default()
-///     }]),
-///     ..UpdateCatalogOptions::new("en", CatalogUpdateInput::default())
-/// })?;
+/// let result = update_catalog(
+///     UpdateCatalogOptions::new(
+///         "en",
+///         CatalogUpdateInput::SourceFirst(vec![SourceExtractedMessage {
+///             msgid: "Checkout".to_owned(),
+///             ..SourceExtractedMessage::default()
+///         }]),
+///     )
+///     .with_locale("de"),
+/// )?;
 ///
 /// assert!(result.created);
 /// assert!(result.content.contains("msgid \"Checkout\""));
@@ -234,10 +236,10 @@ pub fn update_catalog_file(
 /// ```rust
 /// use ferrocat_po::{ParseCatalogOptions, parse_catalog};
 ///
-/// let catalog = parse_catalog(ParseCatalogOptions {
-///     locale: Some("de"),
-///     ..ParseCatalogOptions::new("msgid \"Checkout\"\nmsgstr \"Zur Kasse\"\n", "en")
-/// })?;
+/// let catalog = parse_catalog(
+///     ParseCatalogOptions::new("msgid \"Checkout\"\nmsgstr \"Zur Kasse\"\n", "en")
+///         .with_locale("de"),
+/// )?;
 ///
 /// assert_eq!(catalog.locale.as_deref(), Some("de"));
 /// assert_eq!(catalog.messages.len(), 1);

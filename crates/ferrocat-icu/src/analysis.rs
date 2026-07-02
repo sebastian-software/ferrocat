@@ -189,6 +189,36 @@ impl Default for IcuCompatibilityOptions {
     }
 }
 
+impl IcuCompatibilityOptions {
+    /// Returns options that enable or disable translation-only argument diagnostics.
+    #[must_use]
+    pub fn with_report_extra_arguments(mut self, report_extra_arguments: bool) -> Self {
+        self.report_extra_arguments = report_extra_arguments;
+        self
+    }
+
+    /// Returns options that enable or disable translation-only rich-text tag diagnostics.
+    #[must_use]
+    pub fn with_report_extra_tags(mut self, report_extra_tags: bool) -> Self {
+        self.report_extra_tags = report_extra_tags;
+        self
+    }
+
+    /// Returns options that enable or disable translation-only select selector diagnostics.
+    #[must_use]
+    pub fn with_report_extra_selectors(mut self, report_extra_selectors: bool) -> Self {
+        self.report_extra_selectors = report_extra_selectors;
+        self
+    }
+
+    /// Returns options that enable or disable opaque number/date/time pattern diagnostics.
+    #[must_use]
+    pub fn with_report_pattern_styles(mut self, report_pattern_styles: bool) -> Self {
+        self.report_pattern_styles = report_pattern_styles;
+        self
+    }
+}
+
 /// One diagnostic emitted by an ICU compatibility check.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct IcuDiagnostic {
@@ -1102,5 +1132,19 @@ mod tests {
 
         assert!(report.diagnostics.is_empty());
         assert_eq!(visited, vec![("created".to_owned(), IcuArgumentKind::Date)]);
+    }
+
+    #[test]
+    fn compatibility_option_builders_set_fields() {
+        let options = IcuCompatibilityOptions::default()
+            .with_report_extra_arguments(false)
+            .with_report_extra_tags(false)
+            .with_report_extra_selectors(false)
+            .with_report_pattern_styles(false);
+
+        assert!(!options.report_extra_arguments);
+        assert!(!options.report_extra_tags);
+        assert!(!options.report_extra_selectors);
+        assert!(!options.report_pattern_styles);
     }
 }

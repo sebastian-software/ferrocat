@@ -45,10 +45,10 @@ impl NormalizedParsedCatalog {
     /// ```rust
     /// use ferrocat_po::{CompileCatalogOptions, ParseCatalogOptions, parse_catalog};
     ///
-    /// let parsed = parse_catalog(ParseCatalogOptions {
-    ///     locale: Some("de"),
-    ///     ..ParseCatalogOptions::new("msgid \"Hello\"\nmsgstr \"Hallo\"\n", "en")
-    /// })?;
+    /// let parsed = parse_catalog(
+    ///     ParseCatalogOptions::new("msgid \"Hello\"\nmsgstr \"Hallo\"\n", "en")
+    ///         .with_locale("de"),
+    /// )?;
     /// let normalized = parsed.into_normalized_view()?;
     /// let compiled = normalized.compile(&CompileCatalogOptions::default())?;
     ///
