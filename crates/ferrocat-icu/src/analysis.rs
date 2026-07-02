@@ -236,6 +236,33 @@ impl IcuCompatibilityReport {
 }
 
 /// Produces a structural summary of a parsed ICU message.
+///
+/// The summary preserves first-seen occurrences for data arguments, formatter
+/// arguments, plural/select expressions, and rich-text tags. Use it when a tool
+/// needs to inspect authoring structure without rendering or normalizing the
+/// original message text.
+///
+/// # Examples
+///
+/// ```rust
+/// use ferrocat_icu::{IcuArgumentKind, IcuStyleKind, analyze_icu, parse_icu};
+///
+/// let message = parse_icu(
+///     "Hi <bold>{name}</bold>, {count, plural, one {# file} other {# files}} \
+///      due {due, date, ::yMMMd}",
+/// )?;
+/// let analysis = analyze_icu(&message);
+///
+/// assert!(analysis.arguments.iter().any(|arg| arg.name == "name"));
+/// assert!(analysis.plurals.iter().any(|plural| plural.name == "count"));
+/// assert!(analysis.tags.iter().any(|tag| tag.name == "bold"));
+/// assert!(analysis.formatters.iter().any(|formatter| {
+///     formatter.name == "due"
+///         && formatter.kind == IcuArgumentKind::Date
+///         && formatter.style_kind == IcuStyleKind::Skeleton
+/// }));
+/// # Ok::<(), ferrocat_icu::IcuParseError>(())
+/// ```
 #[must_use]
 pub fn analyze_icu(message: &IcuMessage) -> IcuAnalysis {
     let mut analysis = IcuAnalysis::default();
@@ -317,6 +344,29 @@ pub fn validate_icu_formatter_support_from_analysis(
 }
 
 /// Compares source and translation ICU messages for authoring compatibility.
+///
+/// The comparison checks whether the translation keeps source-required data
+/// arguments, rich-text tags, formatter roles and styles, select selectors, and
+/// plural structure. Optional settings control whether translation-only
+/// arguments, tags, selectors, and opaque pattern styles are reported.
+///
+/// # Examples
+///
+/// ```rust
+/// use ferrocat_icu::{IcuCompatibilityOptions, compare_icu_messages, parse_icu};
+///
+/// let source = parse_icu("Hello {name}, you have <strong>{count}</strong> files")?;
+/// let translation = parse_icu("Hallo {name}, du hast {count} Dateien")?;
+///
+/// let report = compare_icu_messages(&source, &translation, &IcuCompatibilityOptions::default());
+///
+/// assert!(report.has_errors());
+/// assert!(report
+///     .diagnostics
+///     .iter()
+///     .any(|diagnostic| diagnostic.name.as_deref() == Some("strong")));
+/// # Ok::<(), ferrocat_icu::IcuParseError>(())
+/// ```
 #[must_use]
 pub fn compare_icu_messages(
     source: &IcuMessage,
