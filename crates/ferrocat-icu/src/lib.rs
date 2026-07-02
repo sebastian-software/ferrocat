@@ -88,5 +88,5 @@ pub use pseudolocalization::{
 };
 pub use serialize::stringify_icu;
 pub use utils::{
-    extract_variables, has_plural, has_select, has_selectordinal, has_tag, validate_icu,
+    extract_variables, has_plural, has_select, has_select_ordinal, has_tag, validate_icu,
 };

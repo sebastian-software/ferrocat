@@ -1,6 +1,6 @@
 use super::{
     ApiError, CatalogCoverageOptions, CatalogMessageKey, CatalogMessageStatus, PluralEncoding,
-    catalog_coverage, normalized_catalog,
+    measure_catalog_coverage, normalized_catalog,
 };
 
 fn invalid_arguments_message(error: ApiError) -> String {
@@ -35,7 +35,7 @@ fn coverage_report_counts_expected_message_statuses() {
         PluralEncoding::Icu,
     );
 
-    let report = catalog_coverage(
+    let report = measure_catalog_coverage(
         &[&source, &target],
         &CatalogCoverageOptions::new("en").with_details(true),
     )
@@ -69,7 +69,7 @@ fn coverage_report_includes_optional_details() {
         PluralEncoding::Icu,
     );
 
-    let report = catalog_coverage(
+    let report = measure_catalog_coverage(
         &[&source, &target],
         &CatalogCoverageOptions::new("en").with_details(true),
     )
@@ -105,7 +105,7 @@ fn coverage_report_filters_requested_locales() {
     );
     let requested = ["fr"];
 
-    let report = catalog_coverage(
+    let report = measure_catalog_coverage(
         &[&source, &de, &fr],
         &CatalogCoverageOptions {
             locales: &requested,
@@ -137,7 +137,7 @@ fn coverage_report_skips_source_and_duplicate_requested_locales() {
     );
     let requested = ["en", "de", "de", "fr"];
 
-    let report = catalog_coverage(
+    let report = measure_catalog_coverage(
         &[&source, &de, &fr],
         &CatalogCoverageOptions {
             locales: &requested,
@@ -156,7 +156,7 @@ fn coverage_report_treats_empty_source_set_as_complete() {
     let source = normalized_catalog("", Some("en"), PluralEncoding::Icu);
     let target = normalized_catalog("", Some("de"), PluralEncoding::Icu);
 
-    let report = catalog_coverage(&[&source, &target], &CatalogCoverageOptions::new("en"))
+    let report = measure_catalog_coverage(&[&source, &target], &CatalogCoverageOptions::new("en"))
         .expect("coverage");
     let locale = &report.locales[0];
 
@@ -191,7 +191,7 @@ fn coverage_report_classifies_plural_messages_with_empty_slots() {
         PluralEncoding::Gettext,
     );
 
-    let report = catalog_coverage(
+    let report = measure_catalog_coverage(
         &[&source, &target],
         &CatalogCoverageOptions::new("en").with_details(true),
     )
@@ -229,11 +229,11 @@ fn coverage_report_rejects_invalid_catalog_locale_inputs() {
     );
     let requested = ["fr"];
 
-    let missing_source = catalog_coverage(&[&de], &CatalogCoverageOptions::new("en"))
+    let missing_source = measure_catalog_coverage(&[&de], &CatalogCoverageOptions::new("en"))
         .expect_err("missing source locale should fail");
     assert!(invalid_arguments_message(missing_source).contains("source locale"));
 
-    let duplicate_locale = catalog_coverage(
+    let duplicate_locale = measure_catalog_coverage(
         &[&source, &duplicate_source],
         &CatalogCoverageOptions::new("en"),
     )
@@ -241,11 +241,11 @@ fn coverage_report_rejects_invalid_catalog_locale_inputs() {
     assert!(invalid_arguments_message(duplicate_locale).contains("duplicate catalog locale"));
 
     let undeclared_locale =
-        catalog_coverage(&[&missing_locale], &CatalogCoverageOptions::new("en"))
+        measure_catalog_coverage(&[&missing_locale], &CatalogCoverageOptions::new("en"))
             .expect_err("missing declared locale should fail");
     assert!(invalid_arguments_message(undeclared_locale).contains("declare a locale"));
 
-    let missing_requested = catalog_coverage(
+    let missing_requested = measure_catalog_coverage(
         &[&source, &de],
         &CatalogCoverageOptions {
             locales: &requested,

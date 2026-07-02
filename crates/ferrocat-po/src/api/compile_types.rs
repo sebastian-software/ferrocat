@@ -126,7 +126,7 @@ pub struct CompileCatalogArtifactOptions<'a> {
     /// Source locale used for explicit source fallback behavior.
     pub source_locale: &'a str,
     /// Ordered fallback locales consulted after the requested locale.
-    pub fallback_chain: &'a [String],
+    pub fallback_chain: &'a [&'a str],
     /// Built-in strategy used to derive stable runtime keys.
     pub key_strategy: CompiledKeyStrategy,
     /// Whether source text should be used when no non-source translation exists.
@@ -175,7 +175,7 @@ impl<'a> CompileCatalogArtifactOptions<'a> {
 
     /// Returns options that consult the given ordered fallback locales.
     #[must_use]
-    pub fn with_fallback_chain(mut self, fallback_chain: &'a [String]) -> Self {
+    pub fn with_fallback_chain(mut self, fallback_chain: &'a [&'a str]) -> Self {
         self.fallback_chain = fallback_chain;
         self
     }
@@ -253,7 +253,7 @@ impl CompileCatalogArtifactIcuOptions {
 #[non_exhaustive]
 pub struct CompileSelectedCatalogArtifactOptions<'a> {
     /// Requested compiled runtime IDs to include in the artifact.
-    pub compiled_ids: &'a [String],
+    pub compiled_ids: &'a [&'a str],
     /// Shared artifact compile options applied to the selected IDs.
     pub options: CompileCatalogArtifactOptions<'a>,
 }
@@ -267,7 +267,7 @@ impl<'a> CompileSelectedCatalogArtifactOptions<'a> {
     pub fn new(
         requested_locale: &'a str,
         source_locale: &'a str,
-        compiled_ids: &'a [String],
+        compiled_ids: &'a [&'a str],
     ) -> Self {
         Self {
             compiled_ids,
@@ -277,7 +277,7 @@ impl<'a> CompileSelectedCatalogArtifactOptions<'a> {
 
     /// Returns options that include the given compiled runtime IDs.
     #[must_use]
-    pub fn with_compiled_ids(mut self, compiled_ids: &'a [String]) -> Self {
+    pub fn with_compiled_ids(mut self, compiled_ids: &'a [&'a str]) -> Self {
         self.compiled_ids = compiled_ids;
         self
     }
@@ -300,7 +300,7 @@ pub enum CompileCatalogArtifactReportSelection<'a> {
         /// Stable ID index used to map compiled IDs back to source identities.
         index: &'a CompiledCatalogIdIndex,
         /// Requested compiled runtime IDs to include in the artifact and provenance report.
-        compiled_ids: &'a [String],
+        compiled_ids: &'a [&'a str],
     },
 }
 
@@ -333,7 +333,7 @@ impl<'a> CompileCatalogArtifactReportOptions<'a> {
         requested_locale: &'a str,
         source_locale: &'a str,
         index: &'a CompiledCatalogIdIndex,
-        compiled_ids: &'a [String],
+        compiled_ids: &'a [&'a str],
     ) -> Self {
         Self {
             options: CompileCatalogArtifactOptions::new(requested_locale, source_locale),
@@ -575,14 +575,14 @@ impl CompiledCatalogIdIndex {
     pub fn describe_compiled_ids(
         &self,
         catalogs: &[&NormalizedParsedCatalog],
-        compiled_ids: &[String],
+        compiled_ids: &[&str],
     ) -> Result<DescribeCompiledIdsReport, ApiError> {
         let locales = describe_compiled_id_catalogs(catalogs)?;
         let mut report = DescribeCompiledIdsReport::default();
 
-        for compiled_id in std::collections::BTreeSet::from_iter(compiled_ids.iter().cloned()) {
-            let Some(source_key) = self.get(&compiled_id).cloned() else {
-                report.unknown_compiled_ids.push(compiled_id);
+        for compiled_id in std::collections::BTreeSet::from_iter(compiled_ids.iter().copied()) {
+            let Some(source_key) = self.get(compiled_id).cloned() else {
+                report.unknown_compiled_ids.push(compiled_id.to_owned());
                 continue;
             };
 
@@ -615,7 +615,7 @@ impl CompiledCatalogIdIndex {
 
             if let Some(translation_kind) = translation_kind {
                 report.described.push(CompiledCatalogIdDescription {
-                    compiled_id,
+                    compiled_id: compiled_id.to_owned(),
                     source_key,
                     available_locales,
                     translation_kind,
@@ -624,7 +624,7 @@ impl CompiledCatalogIdIndex {
                 report
                     .unavailable_compiled_ids
                     .push(CompiledCatalogUnavailableId {
-                        compiled_id,
+                        compiled_id: compiled_id.to_owned(),
                         source_key,
                     });
             }
@@ -829,7 +829,7 @@ mod tests {
         assert_eq!(artifact.key_strategy, CompiledKeyStrategy::FerrocatV1);
         assert_eq!(artifact.semantics, CatalogSemantics::IcuNative);
 
-        let selected_ids = vec!["abc123".to_owned()];
+        let selected_ids = ["abc123"];
         let selected = CompileSelectedCatalogArtifactOptions::new("de", "en", &selected_ids);
         assert_eq!(selected.options.requested_locale, "de");
         assert_eq!(selected.options.source_locale, "en");
@@ -861,7 +861,7 @@ mod tests {
         assert_eq!(compile.source_locale, Some("en"));
         assert_eq!(compile.semantics, CatalogSemantics::GettextCompat);
 
-        let fallback_chain = vec!["fr".to_owned(), "en".to_owned()];
+        let fallback_chain = ["fr", "en"];
         let artifact = CompileCatalogArtifactOptions::new("de", "en")
             .with_requested_locale("fr")
             .with_source_locale("en-US")
@@ -880,8 +880,8 @@ mod tests {
         assert!(artifact.icu_compatibility);
         assert_eq!(artifact.semantics, CatalogSemantics::GettextCompat);
 
-        let selected_ids = vec!["id-1".to_owned()];
-        let other_ids = vec!["id-2".to_owned()];
+        let selected_ids = ["id-1"];
+        let other_ids = ["id-2"];
         let selected = CompileSelectedCatalogArtifactOptions::new("de", "en", &selected_ids)
             .with_compiled_ids(&other_ids)
             .with_options(artifact.clone());

@@ -44,7 +44,7 @@ pub use self::compile_types::{
 };
 pub use self::coverage::{
     CatalogCoverageMessage, CatalogCoverageOptions, CatalogCoverageReport, CatalogLocaleCoverage,
-    catalog_coverage,
+    measure_catalog_coverage,
 };
 pub use self::message_status::CatalogMessageStatus;
 pub use self::mt::{AiProvenance, MachineMetadata, machine_translation_hash};
@@ -57,7 +57,7 @@ pub use self::review::{
     CatalogMachineTranslationStatus, CatalogReviewOptions, CatalogReviewReport,
     CatalogReviewSummary, CatalogReviewTranslation, CatalogSourceChange, CatalogSourceChangeKind,
     CatalogSourceChangeReport, CatalogTranslationChange, CatalogTranslationChangeReport,
-    catalog_review,
+    review_catalogs,
 };
 pub use self::types::{
     ApiError, CatalogCombineInput, CatalogCombineResult, CatalogCombineSelection,

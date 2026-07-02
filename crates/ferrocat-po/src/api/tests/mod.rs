@@ -11,11 +11,11 @@ pub(super) use super::{
     ExtractedSingularMessage, IcuSyntaxPolicy, ObsoleteStrategy, OrderBy, ParseCatalogOptions,
     PlaceholderCommentMode, PluralEncoding, PluralSource, RenderOptions, SourceExtractedMessage,
     TranslationShape, UpdateCatalogFileOptions, UpdateCatalogOptions, audit_catalogs,
-    catalog_coverage, catalog_review, combine_catalog_files, combine_catalogs,
-    compile::compiled_key_for, compile_catalog_artifact, compile_catalog_artifact_report,
-    compile_catalog_artifact_selected, compile_catalog_artifact_selected_with_icu_options,
-    compile_catalog_artifact_with_icu_options, compiled_key, machine_translation_hash,
-    parse_catalog, plural::cached_icu_plural_categories_for, update_catalog, update_catalog_file,
+    combine_catalog_files, combine_catalogs, compile::compiled_key_for, compile_catalog_artifact,
+    compile_catalog_artifact_report, compile_catalog_artifact_selected,
+    compile_catalog_artifact_selected_with_icu_options, compile_catalog_artifact_with_icu_options,
+    compiled_key, machine_translation_hash, measure_catalog_coverage, parse_catalog,
+    plural::cached_icu_plural_categories_for, review_catalogs, update_catalog, update_catalog_file,
 };
 pub(super) use crate::parse_po;
 pub(super) use std::collections::{BTreeMap, HashMap};

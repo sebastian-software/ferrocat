@@ -8,8 +8,8 @@ use super::message_status::{active_message_keys, classify_expected_message};
 use super::mt::validate_machine_metadata;
 use super::{
     ApiError, CatalogCoverageOptions, CatalogLocaleCoverage, CatalogMessage, CatalogMessageKey,
-    CatalogMessageStatus, EffectiveTranslationRef, NormalizedParsedCatalog, catalog_coverage,
-    machine_translation_hash, validate_source_locale,
+    CatalogMessageStatus, EffectiveTranslationRef, NormalizedParsedCatalog,
+    machine_translation_hash, measure_catalog_coverage, validate_source_locale,
 };
 
 /// Options controlling catalog review reports.
@@ -220,7 +220,7 @@ pub enum CatalogMachineTranslationStatus {
 /// Source changes are deterministic identity additions/removals by
 /// `msgctxt + msgid`; semantic rename detection is intentionally out of scope.
 /// Target status rollups reuse [`CatalogMessageStatus`] and therefore match
-/// [`super::audit_catalogs`] and [`super::catalog_coverage`] semantics.
+/// [`super::audit_catalogs`] and [`super::measure_catalog_coverage`] semantics.
 /// Translation change details are limited to source identities whose current
 /// target status is [`CatalogMessageStatus::Translated`]; missing, empty, and
 /// obsolete current entries are surfaced by the coverage counters.
@@ -228,7 +228,7 @@ pub enum CatalogMachineTranslationStatus {
 /// # Examples
 ///
 /// ```rust
-/// use ferrocat_po::{CatalogReviewOptions, ParseCatalogOptions, catalog_review, parse_catalog};
+/// use ferrocat_po::{CatalogReviewOptions, ParseCatalogOptions, review_catalogs, parse_catalog};
 ///
 /// let previous_source = parse_catalog(
 ///     ParseCatalogOptions::new("msgid \"Save\"\nmsgstr \"\"\n", "en").with_locale("en"),
@@ -258,7 +258,7 @@ pub enum CatalogMachineTranslationStatus {
 /// .into_normalized_view()?;
 ///
 /// let options = CatalogReviewOptions::new("en").with_details(true);
-/// let report = catalog_review(
+/// let report = review_catalogs(
 ///     &[&previous_source, &previous_target],
 ///     &[&current_source, &current_target],
 ///     &options,
@@ -275,14 +275,14 @@ pub enum CatalogMachineTranslationStatus {
 /// Returns [`ApiError::InvalidArguments`] when either catalog state is missing
 /// required locales, contains duplicate locales, or a requested target locale is
 /// not available in the current catalog state.
-pub fn catalog_review(
+pub fn review_catalogs(
     previous_catalogs: &[&NormalizedParsedCatalog],
     current_catalogs: &[&NormalizedParsedCatalog],
     options: &CatalogReviewOptions<'_>,
 ) -> Result<CatalogReviewReport, ApiError> {
     validate_source_locale(options.source_locale)?;
-    let previous_index = index_catalogs(previous_catalogs, "catalog_review previous")?;
-    let current_index = index_catalogs(current_catalogs, "catalog_review current")?;
+    let previous_index = index_catalogs(previous_catalogs, "review_catalogs previous")?;
+    let current_index = index_catalogs(current_catalogs, "review_catalogs current")?;
     let previous_source = previous_index
         .get(options.source_locale)
         .copied()
@@ -297,7 +297,7 @@ pub fn catalog_review(
         &current_index,
         options.source_locale,
         options.locales,
-        "catalog_review",
+        "review_catalogs",
     )?;
     let source_changes = source_change_report(
         &previous_source_keys,
@@ -309,7 +309,7 @@ pub fn catalog_review(
         locales: options.locales,
         include_details: options.include_details,
     };
-    let coverage = catalog_coverage(current_catalogs, &coverage_options)?;
+    let coverage = measure_catalog_coverage(current_catalogs, &coverage_options)?;
     let mut locales = Vec::with_capacity(target_locales.len());
 
     for locale in target_locales {
@@ -350,7 +350,7 @@ pub fn catalog_review(
 
 fn missing_source_error(state: &str, source_locale: &str) -> ApiError {
     ApiError::InvalidArguments(format!(
-        "catalog_review {state} catalogs did not receive source locale {source_locale:?}"
+        "review_catalogs {state} catalogs did not receive source locale {source_locale:?}"
     ))
 }
 
@@ -517,7 +517,7 @@ mod tests {
 
     use super::{
         CatalogMachineTranslationStatus, CatalogReviewOptions, CatalogReviewTranslation,
-        CatalogSourceChangeKind, catalog_review,
+        CatalogSourceChangeKind, review_catalogs,
     };
     use crate::api::{
         AiProvenance, ApiError, CatalogMessage, CatalogMessageKey, CatalogMode, CatalogSemantics,
@@ -575,7 +575,7 @@ mod tests {
     }
 
     #[test]
-    fn catalog_review_reports_source_and_target_changes() {
+    fn review_catalogs_reports_source_and_target_changes() {
         let previous_source = catalog(
             "msgid \"Hello\"\nmsgstr \"Hello\"\n\nmsgid \"Removed\"\nmsgstr \"Removed\"\n",
             "en",
@@ -593,7 +593,7 @@ mod tests {
             "de",
         );
 
-        let report = catalog_review(
+        let report = review_catalogs(
             &[&previous_source, &previous_target],
             &[&current_source, &current_target],
             &CatalogReviewOptions::new("en").with_details(true),
@@ -617,7 +617,7 @@ mod tests {
     }
 
     #[test]
-    fn catalog_review_reports_machine_translation_freshness() {
+    fn review_catalogs_reports_machine_translation_freshness() {
         let hash = machine_translation_hash(EffectiveTranslationRef::Singular("Hallo"));
         let source = catalog(
             "msgid \"Hello\"\nmsgstr \"Hello\"\n\nmsgid \"Stale\"\nmsgstr \"Stale\"\n\nmsgid \"Absent\"\nmsgstr \"Absent\"\n",
@@ -637,7 +637,7 @@ mod tests {
             "de",
         );
 
-        let report = catalog_review(
+        let report = review_catalogs(
             &[&source, &target],
             &[&source, &target],
             &CatalogReviewOptions::new("en").with_details(true),
@@ -655,7 +655,7 @@ mod tests {
     }
 
     #[test]
-    fn catalog_review_reports_invalid_machine_translation_metadata() {
+    fn review_catalogs_reports_invalid_machine_translation_metadata() {
         let source = catalog("msgid \"Hello\"\nmsgstr \"Hello\"\n", "en");
         let target = catalog_with_messages(
             "de",
@@ -678,7 +678,7 @@ mod tests {
             }],
         );
 
-        let report = catalog_review(
+        let report = review_catalogs(
             &[&source, &target],
             &[&source, &target],
             &CatalogReviewOptions::new("en").with_details(true),
@@ -695,11 +695,11 @@ mod tests {
     }
 
     #[test]
-    fn catalog_review_can_return_summary_only() {
+    fn review_catalogs_can_return_summary_only() {
         let source = catalog("msgid \"Hello\"\nmsgstr \"Hello\"\n", "en");
         let target = catalog("msgid \"Hello\"\nmsgstr \"Hallo\"\n", "de");
 
-        let report = catalog_review(
+        let report = review_catalogs(
             &[&source, &target],
             &[&source, &target],
             &CatalogReviewOptions::new("en"),
@@ -714,14 +714,14 @@ mod tests {
     }
 
     #[test]
-    fn catalog_review_rejects_invalid_locale_inputs() {
+    fn review_catalogs_rejects_invalid_locale_inputs() {
         let source = catalog("msgid \"Hello\"\nmsgstr \"Hello\"\n", "en");
         let duplicate_source = catalog("msgid \"Bye\"\nmsgstr \"Bye\"\n", "en");
         let missing_locale = catalog_with_locale("msgid \"Hello\"\nmsgstr \"Hallo\"\n", None);
         let target = catalog("msgid \"Hello\"\nmsgstr \"Hallo\"\n", "de");
         let requested = ["fr"];
 
-        let missing_previous_source = catalog_review(
+        let missing_previous_source = review_catalogs(
             &[&target],
             &[&source, &target],
             &CatalogReviewOptions::new("en"),
@@ -729,7 +729,7 @@ mod tests {
         .expect_err("missing previous source should fail");
         assert!(error_debug(missing_previous_source).contains("previous catalogs"));
 
-        let missing_current_source = catalog_review(
+        let missing_current_source = review_catalogs(
             &[&source, &target],
             &[&target],
             &CatalogReviewOptions::new("en"),
@@ -737,7 +737,7 @@ mod tests {
         .expect_err("missing current source should fail");
         assert!(error_debug(missing_current_source).contains("current catalogs"));
 
-        let undeclared_locale = catalog_review(
+        let undeclared_locale = review_catalogs(
             &[&missing_locale],
             &[&source, &target],
             &CatalogReviewOptions::new("en"),
@@ -745,7 +745,7 @@ mod tests {
         .expect_err("missing declared locale should fail");
         assert!(error_debug(undeclared_locale).contains("declare a locale"));
 
-        let duplicate_locale = catalog_review(
+        let duplicate_locale = review_catalogs(
             &[&source, &duplicate_source],
             &[&source, &target],
             &CatalogReviewOptions::new("en"),
@@ -753,7 +753,7 @@ mod tests {
         .expect_err("duplicate locale should fail");
         assert!(error_debug(duplicate_locale).contains("duplicate catalog locale"));
 
-        let missing_requested = catalog_review(
+        let missing_requested = review_catalogs(
             &[&source, &target],
             &[&source, &target],
             &CatalogReviewOptions {
@@ -766,13 +766,13 @@ mod tests {
     }
 
     #[test]
-    fn catalog_review_filters_requested_locales_and_handles_new_target_locale() {
+    fn review_catalogs_filters_requested_locales_and_handles_new_target_locale() {
         let source = catalog("msgid \"Hello\"\nmsgstr \"Hello\"\n", "en");
         let de = catalog("msgid \"Hello\"\nmsgstr \"Hallo\"\n", "de");
         let fr = catalog("msgid \"Hello\"\nmsgstr \"Bonjour\"\n", "fr");
         let requested = ["en", "de", "de", "fr"];
 
-        let report = catalog_review(
+        let report = review_catalogs(
             &[&source],
             &[&source, &de, &fr],
             &CatalogReviewOptions {
@@ -790,7 +790,7 @@ mod tests {
     }
 
     #[test]
-    fn catalog_review_ignores_new_messages_when_tracking_translation_changes() {
+    fn review_catalogs_ignores_new_messages_when_tracking_translation_changes() {
         let previous_source = catalog("msgid \"Hello\"\nmsgstr \"Hello\"\n", "en");
         let current_source = catalog(
             "msgid \"Hello\"\nmsgstr \"Hello\"\n\nmsgid \"Added\"\nmsgstr \"Added\"\n",
@@ -802,7 +802,7 @@ mod tests {
             "de",
         );
 
-        let report = catalog_review(
+        let report = review_catalogs(
             &[&previous_source, &previous_target],
             &[&current_source, &current_target],
             &CatalogReviewOptions::new("en").with_details(true),
@@ -814,7 +814,7 @@ mod tests {
     }
 
     #[test]
-    fn catalog_review_reports_plural_translation_changes() {
+    fn review_catalogs_reports_plural_translation_changes() {
         let previous_source = gettext_catalog(
             concat!(
                 "msgid \"book\"\n",
@@ -852,7 +852,7 @@ mod tests {
             "de",
         );
 
-        let report = catalog_review(
+        let report = review_catalogs(
             &[&previous_source, &previous_target],
             &[&current_source, &current_target],
             &CatalogReviewOptions::new("en").with_details(true),
@@ -868,14 +868,14 @@ mod tests {
     }
 
     #[test]
-    fn catalog_review_skips_obsolete_machine_translation_entries() {
+    fn review_catalogs_skips_obsolete_machine_translation_entries() {
         let source = catalog("msgid \"Hello\"\nmsgstr \"Hello\"\n", "en");
         let target = catalog(
             "msgid \"Hello\"\nmsgstr \"Hallo\"\n\n#~ msgid \"Old\"\n#~ msgstr \"Alt\"\n",
             "de",
         );
 
-        let report = catalog_review(
+        let report = review_catalogs(
             &[&source, &target],
             &[&source, &target],
             &CatalogReviewOptions::new("en").with_details(true),

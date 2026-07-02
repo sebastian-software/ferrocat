@@ -453,7 +453,7 @@ fn prepare_compiled_catalog_artifact_catalogs<'a>(
     catalogs: &[&'a NormalizedParsedCatalog],
     requested_locale: &str,
     source_locale: &str,
-    fallback_chain: &[String],
+    fallback_chain: &[&str],
     semantics: CatalogSemantics,
 ) -> Result<BTreeMap<String, &'a NormalizedParsedCatalog>, ApiError> {
     super::validate_source_locale(source_locale)?;
@@ -510,13 +510,14 @@ fn prepare_compiled_catalog_artifact_catalogs<'a>(
 
     let mut seen_fallbacks = BTreeSet::new();
     for locale in fallback_chain {
+        let locale = *locale;
         if locale == requested_locale || locale == source_locale {
             return Err(ApiError::InvalidArguments(format!(
                 "compile_catalog_artifact fallback_chain must not repeat requested or source locale {:?}",
                 locale
             )));
         }
-        if !seen_fallbacks.insert(locale.clone()) {
+        if !seen_fallbacks.insert(locale) {
             return Err(ApiError::InvalidArguments(format!(
                 "compile_catalog_artifact fallback_chain contains duplicate locale {:?}",
                 locale
@@ -563,11 +564,12 @@ fn compiled_catalog_artifact_catalogs_contain_key(
 fn selected_compiled_catalog_artifact_source_keys(
     locales: &BTreeMap<String, &NormalizedParsedCatalog>,
     index: &CompiledCatalogIdIndex,
-    compiled_ids: &[String],
+    compiled_ids: &[&str],
     function_name: &str,
 ) -> Result<BTreeSet<CatalogMessageKey>, ApiError> {
     let mut source_keys = BTreeSet::new();
     for compiled_id in compiled_ids {
+        let compiled_id = *compiled_id;
         let source_key = index.get(compiled_id).ok_or_else(|| {
             ApiError::InvalidArguments(format!(
                 "{function_name} received unknown compiled ID {compiled_id:?}"
@@ -617,7 +619,11 @@ where
     let mut provenance = CompiledCatalogProvenanceReport {
         requested_locale: options.requested_locale.to_owned(),
         source_locale: options.source_locale.to_owned(),
-        fallback_chain: options.fallback_chain.to_vec(),
+        fallback_chain: options
+            .fallback_chain
+            .iter()
+            .map(|locale| (*locale).to_owned())
+            .collect(),
         messages: Vec::new(),
     };
     let artifact = compile_catalog_artifact_from_source_keys_inner(
@@ -839,8 +845,8 @@ fn resolve_compiled_catalog_artifact_message(
     let msgid = source_key.msgid.as_str();
     let msgctxt = source_key.msgctxt.as_deref();
 
-    for locale in std::iter::once(options.requested_locale)
-        .chain(options.fallback_chain.iter().map(String::as_str))
+    for locale in
+        std::iter::once(options.requested_locale).chain(options.fallback_chain.iter().copied())
     {
         let Some(catalog) = catalogs.get(locale) else {
             continue;
@@ -1120,7 +1126,7 @@ mod unit_tests {
                 &[&de, &en],
                 "de",
                 "en",
-                &[String::from("de")],
+                &["de"],
                 CatalogSemantics::IcuNative,
             ),
             Err(ApiError::InvalidArguments(message))
@@ -1131,7 +1137,7 @@ mod unit_tests {
                 &[&de, &en],
                 "de",
                 "en",
-                &[String::from("fr")],
+                &["fr"],
                 CatalogSemantics::IcuNative,
             ),
             Err(ApiError::InvalidArguments(message))

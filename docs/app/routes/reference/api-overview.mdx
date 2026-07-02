@@ -106,11 +106,7 @@ for new code:
 
 The historical top-level re-exports remain for compatibility. New examples use
 the modules because they avoid collisions such as source extraction inputs for
-catalog updates versus inputs for the PO merge helper. The legacy top-level
-`has_selectordinal` export is deprecated; use `has_select_ordinal` or
-`ferrocat::icu::has_select_ordinal`. The legacy top-level
-`MergeExtractedMessage` export is also deprecated; use
-`ferrocat::po::MergeMessageInput`.
+catalog updates versus inputs for the PO merge helper.
 
 ## Supported Catalog Modes
 
@@ -166,8 +162,8 @@ find a stable named container, emit the file alone and leave `scope` empty.
 | Read a Gettext PO or FCL catalog into the higher-level canonical catalog model | `parse_catalog` |
 | Build keyed lookup/helpers on top of a parsed catalog | `ParsedCatalog::into_normalized_view` |
 | Audit source and target catalogs for release readiness | `audit_catalogs` |
-| Summarize per-locale catalog completeness | `catalog_coverage` |
-| Compare catalog states for translator review handoffs | `catalog_review` |
+| Summarize per-locale catalog completeness | `measure_catalog_coverage` |
+| Compare catalog states for translator review handoffs | `review_catalogs` |
 | Derive the default stable runtime key from `msgid` and `msgctxt` | `compiled_key` |
 | Compile a normalized catalog into runtime lookup entries | `NormalizedParsedCatalog::compile` |
 | Compile a requested-locale runtime artifact with fallbacks and missing reports | `compile_catalog_artifact` |
@@ -501,7 +497,7 @@ let has_missing = report
     .any(|diagnostic| diagnostic.code == diagnostic_codes::catalog::MISSING_TRANSLATION);
 ```
 
-### `catalog_coverage`
+### `measure_catalog_coverage`
 
 Use this when you need per-locale completeness counters for dashboards, CI
 thresholds, or translator handoff summaries without rebuilding Ferrocat's
@@ -524,7 +520,7 @@ threshold and presentation rules.
 
 ```rust
 use ferrocat::{
-    CatalogCoverageOptions, ParseCatalogOptions, catalog_coverage, parse_catalog,
+    CatalogCoverageOptions, ParseCatalogOptions, measure_catalog_coverage, parse_catalog,
 };
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -539,7 +535,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     )?
     .into_normalized_view()?;
 
-    let report = catalog_coverage(&[&source, &target], &CatalogCoverageOptions::new("en"))?;
+    let report = measure_catalog_coverage(&[&source, &target], &CatalogCoverageOptions::new("en"))?;
     assert_eq!(report.locales[0].completion_percent(), 100.0);
     Ok(())
 }
@@ -549,7 +545,7 @@ Set `CatalogCoverageOptions::with_details(true)` when callers also need
 per-message rows. File discovery, threshold failures, JSON/table formatting, and
 pseudo-locale filtering stay outside the core API.
 
-### `catalog_review`
+### `review_catalogs`
 
 Use this when a host needs a deterministic translator handoff or CI review
 report between two normalized catalog states. The API compares previous and
@@ -567,7 +563,7 @@ Ferrocat reports a removal plus an addition instead of guessing intent.
 
 ```rust
 use ferrocat::{
-    CatalogReviewOptions, ParseCatalogOptions, catalog_review, parse_catalog,
+    CatalogReviewOptions, ParseCatalogOptions, review_catalogs, parse_catalog,
 };
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -595,7 +591,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     )?
     .into_normalized_view()?;
 
-    let report = catalog_review(
+    let report = review_catalogs(
         &[&previous_source, &previous_de],
         &[&current_source, &current_de],
         &CatalogReviewOptions::new("en").with_details(true),
@@ -1030,7 +1026,7 @@ part of this source-side metadata format.
 - Selected locale artifact generation by compiled ID: `compile_catalog_artifact_selected`
 - Runtime artifact provenance reporting: `compile_catalog_artifact_report`
 - Release QA across catalog sets: `audit_catalogs`
-- Per-locale completeness dashboards: `catalog_coverage`
-- Translator handoff diffs: `catalog_review`
+- Per-locale completeness dashboards: `measure_catalog_coverage`
+- Translator handoff diffs: `review_catalogs`
 - ICU analysis: `parse_icu`
 - ICU-aware pseudolocalization: `pseudolocalize_icu`

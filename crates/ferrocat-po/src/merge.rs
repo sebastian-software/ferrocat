@@ -10,9 +10,9 @@ use crate::text::{escape_string_into, unescape_string_known, validate_quoted_con
 use crate::utf8::input_slice_as_str;
 use crate::{BorrowedMsgStr, ParseError, ParsePosition, SerializeOptions};
 
-/// Borrowed extracted message input for the lightweight merge helper.
+/// Borrowed message input for the lightweight PO merge helper.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub struct ExtractedMessage<'a> {
+pub struct MergeMessageInput<'a> {
     /// Optional gettext message context.
     pub msgctxt: Option<Cow<'a, str>>,
     /// Source message identifier.
@@ -127,13 +127,13 @@ struct MergeLine<'a> {
 /// ```rust
 /// use std::borrow::Cow;
 ///
-/// use ferrocat_po::{MergeExtractedMessage, merge_catalog};
+/// use ferrocat_po::{MergeMessageInput, merge_catalog};
 ///
 /// let existing = "msgid \"Hello\"\nmsgstr \"Hallo\"\n";
-/// let extracted = [MergeExtractedMessage {
+/// let extracted = [MergeMessageInput {
 ///     msgid: Cow::Borrowed("Hello"),
 ///     references: vec![Cow::Borrowed("src/app.rs:10")],
-///     ..MergeExtractedMessage::default()
+///     ..MergeMessageInput::default()
 /// }];
 ///
 /// let merged = merge_catalog(existing, &extracted)?;
@@ -143,7 +143,7 @@ struct MergeLine<'a> {
 /// ```
 pub fn merge_catalog<'a>(
     existing_po: &'a str,
-    extracted_messages: &[ExtractedMessage<'a>],
+    extracted_messages: &[MergeMessageInput<'a>],
 ) -> Result<String, ParseError> {
     let existing = parse_merge_po(existing_po)?;
     let nplurals = parse_nplurals(&existing.headers).unwrap_or(2);
@@ -572,7 +572,7 @@ fn find_existing_index(
         .find_map(|(candidate_ctxt, index)| (*candidate_ctxt == msgctxt).then_some(*index))
 }
 
-fn estimate_merge_capacity(input: &str, extracted_messages: &[ExtractedMessage<'_>]) -> usize {
+fn estimate_merge_capacity(input: &str, extracted_messages: &[MergeMessageInput<'_>]) -> usize {
     let extracted_bytes: usize = extracted_messages
         .iter()
         .map(|message| {
@@ -616,7 +616,7 @@ fn write_merged_existing_item(
     out: &mut String,
     scratch: &mut String,
     existing: &MergeBorrowedItem<'_>,
-    extracted: &ExtractedMessage<'_>,
+    extracted: &MergeMessageInput<'_>,
     nplurals: usize,
     options: &SerializeOptions,
 ) {
@@ -677,7 +677,7 @@ fn write_merged_existing_item(
 fn write_new_item(
     out: &mut String,
     scratch: &mut String,
-    extracted: &ExtractedMessage<'_>,
+    extracted: &MergeMessageInput<'_>,
     nplurals: usize,
     options: &SerializeOptions,
 ) {
@@ -1017,7 +1017,7 @@ mod tests {
     use std::borrow::Cow;
 
     use super::{
-        ExtractedMessage, MergeHeader, estimate_merge_capacity, extract_merge_quoted_cow,
+        MergeHeader, MergeMessageInput, estimate_merge_capacity, extract_merge_quoted_cow,
         find_existing_index, header_fragment_is_borrowable, merge_catalog, parse_header_fragment,
         parse_nplurals,
     };
@@ -1031,10 +1031,10 @@ mod tests {
             "msgid \"old\"\n",
             "msgstr \"alt\"\n",
         );
-        let extracted = vec![ExtractedMessage {
+        let extracted = vec![MergeMessageInput {
             msgid: Cow::Borrowed("hello"),
             references: vec![Cow::Borrowed("src/new.rs:10")],
-            ..ExtractedMessage::default()
+            ..MergeMessageInput::default()
         }];
 
         let merged = merge_catalog(existing, &extracted).expect("merge");
@@ -1063,10 +1063,10 @@ mod tests {
     fn creates_new_items_for_new_extracted_messages() {
         let merged = merge_catalog(
             "",
-            &[ExtractedMessage {
+            &[MergeMessageInput {
                 msgid: Cow::Borrowed("fresh"),
                 extracted_comments: vec![Cow::Borrowed("from extractor")],
-                ..ExtractedMessage::default()
+                ..MergeMessageInput::default()
             }],
         )
         .expect("merge");
@@ -1083,10 +1083,10 @@ mod tests {
     #[test]
     fn resets_msgstr_when_switching_between_singular_and_plural() {
         let existing = concat!("msgid \"count\"\n", "msgstr \"Anzahl\"\n",);
-        let extracted = vec![ExtractedMessage {
+        let extracted = vec![MergeMessageInput {
             msgid: Cow::Borrowed("count"),
             msgid_plural: Some(Cow::Borrowed("counts")),
-            ..ExtractedMessage::default()
+            ..MergeMessageInput::default()
         }];
 
         let merged = merge_catalog(existing, &extracted).expect("merge");
@@ -1153,10 +1153,10 @@ mod tests {
         assert!(
             estimate_merge_capacity(
                 "msgid \"a\"\nmsgstr \"b\"\n",
-                &[ExtractedMessage {
+                &[MergeMessageInput {
                     msgid: Cow::Borrowed("hello"),
                     references: vec![Cow::Borrowed("src/app.rs:1")],
-                    ..ExtractedMessage::default()
+                    ..MergeMessageInput::default()
                 }],
             ) > 24
         );
@@ -1176,11 +1176,11 @@ mod tests {
             "msgstr[1] \"zwei\"\n",
             "msgstr[2] \"viele\"\n",
         );
-        let extracted = vec![ExtractedMessage {
+        let extracted = vec![MergeMessageInput {
             msgid: Cow::Borrowed("count"),
             msgid_plural: Some(Cow::Borrowed("counts")),
             flags: vec![Cow::Borrowed("fuzzy"), Cow::Borrowed("rust-format")],
-            ..ExtractedMessage::default()
+            ..MergeMessageInput::default()
         }];
 
         let merged = merge_catalog(existing, &extracted).expect("merge plural");
@@ -1196,9 +1196,9 @@ mod tests {
         let existing = "msgid \"hello\"\r\nmsgstr \"world\"\r\n";
         let merged = merge_catalog(
             existing,
-            &[ExtractedMessage {
+            &[MergeMessageInput {
                 msgid: Cow::Borrowed("hello"),
-                ..ExtractedMessage::default()
+                ..MergeMessageInput::default()
             }],
         )
         .expect("merge normalized crlf");
@@ -1235,13 +1235,13 @@ mod tests {
             "msgid \"Remove me\"\n",
             "msgstr \"Entferne mich\"\n",
         );
-        let extracted = vec![ExtractedMessage {
+        let extracted = vec![MergeMessageInput {
             msgctxt: Some(Cow::Borrowed("button")),
             msgid: Cow::Borrowed("Save now"),
             references: vec![Cow::Borrowed("new.rs:2")],
             extracted_comments: vec![Cow::Borrowed("Fresh extracted note")],
             flags: vec![Cow::Borrowed("fuzzy"), Cow::Borrowed("rust-format")],
-            ..ExtractedMessage::default()
+            ..MergeMessageInput::default()
         }];
 
         let merged = merge_catalog(existing, &extracted).expect("merge context item");
@@ -1271,14 +1271,14 @@ mod tests {
             "msgstr[2] \"Viele\"\n",
         );
         let extracted = vec![
-            ExtractedMessage {
+            MergeMessageInput {
                 msgid: Cow::Borrowed("One file"),
                 msgid_plural: Some(Cow::Borrowed("{count} files")),
-                ..ExtractedMessage::default()
+                ..MergeMessageInput::default()
             },
-            ExtractedMessage {
+            MergeMessageInput {
                 msgid: Cow::Borrowed("Plain"),
-                ..ExtractedMessage::default()
+                ..MergeMessageInput::default()
             },
         ];
 
@@ -1322,7 +1322,7 @@ mod tests {
             "msgstr[0] \"Alte Datei\"\n",
             "msgstr[1] \"Alte Dateien\"\n",
         );
-        let extracted = vec![ExtractedMessage {
+        let extracted = vec![MergeMessageInput {
             msgctxt: Some(Cow::Borrowed("files")),
             msgid: Cow::Borrowed("New file"),
             msgid_plural: Some(Cow::Borrowed("New files")),
@@ -1388,9 +1388,9 @@ mod tests {
 
     #[test]
     fn merge_rejects_unrecognized_existing_lines() {
-        let extracted = [ExtractedMessage {
+        let extracted = [MergeMessageInput {
             msgid: Cow::Borrowed("ok"),
-            ..ExtractedMessage::default()
+            ..MergeMessageInput::default()
         }];
         let error = merge_catalog("msgid \"ok\"\nmsgstr_ \"typo\"\n", &extracted)
             .expect_err("unknown existing PO line should fail");
@@ -1413,9 +1413,9 @@ mod tests {
         );
         let merged = merge_catalog(
             existing,
-            &[ExtractedMessage {
+            &[MergeMessageInput {
                 msgid: Cow::Borrowed("hello"),
-                ..ExtractedMessage::default()
+                ..MergeMessageInput::default()
             }],
         )
         .expect("merge with owned header fragments");

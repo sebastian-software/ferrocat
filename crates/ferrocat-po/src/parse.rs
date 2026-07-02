@@ -71,7 +71,7 @@ impl ParserState {
     }
 
     fn header_msgstr(&self) -> &str {
-        self.msgstr.first_str().unwrap_or_default()
+        self.msgstr.first().unwrap_or_default()
     }
 
     fn materialize_msgstr(&mut self) {
