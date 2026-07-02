@@ -78,7 +78,7 @@ struct CombineState {
     file_extracted_comments: Vec<String>,
     inferred_locale: Option<String>,
     entries: Vec<CombineEntry>,
-    index: BTreeMap<(String, Option<String>), usize>,
+    index: BTreeMap<String, BTreeMap<Option<String>, usize>>,
     stats: CatalogCombineStats,
     labels: Vec<String>,
 }
@@ -146,9 +146,8 @@ impl CombineState {
         label_index: usize,
         conflict_strategy: CatalogConflictStrategy,
     ) -> Result<(), ApiError> {
-        let key = (message.msgid.clone(), message.msgctxt.clone());
-        let Some(existing_index) = self.index.get(&key).copied() else {
-            self.index.insert(key, self.entries.len());
+        let Some(existing_index) = self.message_index(&message) else {
+            self.insert_message_index(&message);
             self.entries.push(CombineEntry {
                 message,
                 definitions: 1,
@@ -168,6 +167,25 @@ impl CombineState {
             &mut self.stats,
             &mut self.diagnostics,
         )
+    }
+
+    fn message_index(&self, message: &CanonicalMessage) -> Option<usize> {
+        self.index
+            .get(message.msgid.as_str())
+            .and_then(|by_context| by_context.get(&message.msgctxt))
+            .copied()
+    }
+
+    fn insert_message_index(&mut self, message: &CanonicalMessage) {
+        let entry_index = self.entries.len();
+        if let Some(by_context) = self.index.get_mut(message.msgid.as_str()) {
+            by_context.insert(message.msgctxt.clone(), entry_index);
+        } else {
+            self.index.insert(
+                message.msgid.clone(),
+                BTreeMap::from([(message.msgctxt.clone(), entry_index)]),
+            );
+        }
     }
 
     fn finish(mut self, config: CombineConfig<'_>) -> Result<CatalogCombineResult, ApiError> {
