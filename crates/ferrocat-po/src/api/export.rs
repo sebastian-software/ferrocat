@@ -2,8 +2,10 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
+use crate::SerializeOptions;
 use crate::diagnostic_codes;
-use crate::{Header, MsgStr, PoFile, PoItem, PoVec, SerializeOptions, stringify_po};
+use crate::serialize::{write_keyword, write_prefixed_line};
+use crate::text::escape_string_into;
 
 use super::catalog::{
     CanonicalMessage, CanonicalTranslation, Catalog, PO_OBSOLETE_SINCE_KEY, format_origin,
@@ -26,8 +28,7 @@ pub(super) fn export_catalog_content(
 ) -> Result<String, ApiError> {
     match options.mode.storage_format() {
         super::CatalogStorageFormat::Po => {
-            let file = export_catalog_to_po(catalog, options, locale, diagnostics)?;
-            Ok(stringify_po(&file, &SerializeOptions::default()))
+            stringify_catalog_po(catalog, options, locale, diagnostics)
         }
         super::CatalogStorageFormat::Fcl => Ok(super::fcl::stringify_catalog_fcl(
             catalog,
@@ -38,46 +39,153 @@ pub(super) fn export_catalog_content(
     }
 }
 
-fn export_catalog_to_po(
+fn stringify_catalog_po(
     catalog: &Catalog,
     options: &UpdateCatalogOptions<'_>,
     locale: Option<&str>,
     diagnostics: &mut Vec<Diagnostic>,
-) -> Result<PoFile, ApiError> {
-    let mut file = PoFile {
-        comments: catalog.file_comments.clone(),
-        extracted_comments: catalog.file_extracted_comments.clone(),
-        headers: catalog
-            .headers
-            .iter()
-            .map(|(key, value)| Header {
-                key: key.clone(),
-                value: value.clone(),
-            })
-            .collect(),
-        items: Vec::with_capacity(catalog.messages.len()),
-    };
+) -> Result<String, ApiError> {
+    let serialize_options = SerializeOptions::default();
+    let mut out = String::with_capacity(estimate_catalog_po_capacity(catalog));
+    let mut scratch = String::new();
 
-    for message in &catalog.messages {
-        file.items
-            .push(export_message_to_po(message, options, locale, diagnostics)?);
+    for comment in &catalog.file_comments {
+        write_prefixed_line(&mut out, "", "#", comment);
+    }
+    for comment in &catalog.file_extracted_comments {
+        write_prefixed_line(&mut out, "", "#.", comment);
     }
 
-    Ok(file)
+    out.push_str("msgid \"\"\n");
+    out.push_str("msgstr \"\"\n");
+    for (key, value) in &catalog.headers {
+        out.push('"');
+        escape_string_into(&mut out, key);
+        out.push_str(": ");
+        escape_string_into(&mut out, value);
+        out.push_str("\\n");
+        out.push_str("\"\n");
+    }
+    out.push('\n');
+
+    let mut iter = catalog.messages.iter().peekable();
+    while let Some(message) = iter.next() {
+        write_catalog_po_message(
+            &mut out,
+            &mut scratch,
+            message,
+            options,
+            locale,
+            diagnostics,
+            &serialize_options,
+        )?;
+        if iter.peek().is_some() {
+            out.push('\n');
+        }
+    }
+
+    Ok(out)
 }
 
-fn export_message_to_po(
+fn estimate_catalog_po_capacity(catalog: &Catalog) -> usize {
+    let comments_len: usize = catalog
+        .file_comments
+        .iter()
+        .chain(catalog.file_extracted_comments.iter())
+        .map(String::len)
+        .sum();
+    let headers_len: usize = catalog
+        .headers
+        .iter()
+        .map(|(key, value)| key.len() + value.len() + 8)
+        .sum();
+    let messages_len: usize = catalog
+        .messages
+        .iter()
+        .map(|message| {
+            message.msgid.len()
+                + message.msgctxt.as_ref().map_or(0, String::len)
+                + message.comments.iter().map(String::len).sum::<usize>()
+                + message
+                    .origins
+                    .iter()
+                    .map(|origin| {
+                        origin.file.len() + origin.scope.as_ref().map_or(0, |scope| scope.len() + 1)
+                    })
+                    .sum::<usize>()
+                + translation_len(&message.translation)
+        })
+        .sum();
+
+    comments_len + headers_len + messages_len + 256
+}
+
+fn translation_len(translation: &CanonicalTranslation) -> usize {
+    match translation {
+        CanonicalTranslation::Singular { value } => value.len(),
+        CanonicalTranslation::Plural {
+            source,
+            translation_by_category,
+            ..
+        } => {
+            source.one.as_ref().map_or(0, String::len)
+                + source.other.len()
+                + translation_by_category
+                    .values()
+                    .map(String::len)
+                    .sum::<usize>()
+        }
+    }
+}
+
+fn write_catalog_po_message(
+    out: &mut String,
+    scratch: &mut String,
     message: &CanonicalMessage,
     options: &UpdateCatalogOptions<'_>,
     locale: Option<&str>,
     diagnostics: &mut Vec<Diagnostic>,
-) -> Result<PoItem, ApiError> {
+    serialize_options: &SerializeOptions,
+) -> Result<(), ApiError> {
+    let obsolete_prefix = if message.obsolete.is_some() {
+        "#~ "
+    } else {
+        ""
+    };
+    write_catalog_po_metadata(out, obsolete_prefix, message, options);
+    if let Some(context) = &message.msgctxt {
+        write_keyword(
+            out,
+            scratch,
+            obsolete_prefix,
+            "msgctxt",
+            context,
+            None,
+            serialize_options,
+        );
+    }
+
     match &message.translation {
         CanonicalTranslation::Singular { value } => {
-            let mut item = base_po_item(message, options, 1);
-            item.msgid.clone_from(&message.msgid);
-            item.msgstr = MsgStr::from(value.clone());
-            Ok(item)
+            write_keyword(
+                out,
+                scratch,
+                obsolete_prefix,
+                "msgid",
+                &message.msgid,
+                None,
+                serialize_options,
+            );
+            write_keyword(
+                out,
+                scratch,
+                obsolete_prefix,
+                "msgstr",
+                value,
+                None,
+                serialize_options,
+            );
+            Ok(())
         }
         CanonicalTranslation::Plural {
             source,
@@ -85,11 +193,27 @@ fn export_message_to_po(
             variable,
         } => {
             if options.mode.semantics() == CatalogSemantics::IcuNative {
-                let mut item = base_po_item(message, options, 1);
-                item.msgid = synthesize_icu_plural(variable, &plural_source_branches(source));
-                item.msgstr =
-                    MsgStr::from(synthesize_icu_plural(variable, translation_by_category));
-                return Ok(item);
+                let msgid = synthesize_icu_plural(variable, &plural_source_branches(source));
+                let msgstr = synthesize_icu_plural(variable, translation_by_category);
+                write_keyword(
+                    out,
+                    scratch,
+                    obsolete_prefix,
+                    "msgid",
+                    &msgid,
+                    None,
+                    serialize_options,
+                );
+                write_keyword(
+                    out,
+                    scratch,
+                    obsolete_prefix,
+                    "msgstr",
+                    &msgstr,
+                    None,
+                    serialize_options,
+                );
+                return Ok(());
             }
 
             let plural_profile =
@@ -97,7 +221,6 @@ fn export_message_to_po(
             let nplurals = plural_profile
                 .nplurals()
                 .max(translation_by_category.len().max(1));
-            let mut item = base_po_item(message, options, nplurals);
 
             if !translation_by_category.contains_key("other") {
                 diagnostics.push(
@@ -112,61 +235,165 @@ fn export_message_to_po(
                     "plural translation is missing the required \"other\" category".to_owned(),
                 ));
             }
-            item.msgid = source.one.clone().unwrap_or_else(|| source.other.clone());
-            item.msgid_plural = Some(source.other.clone());
-            item.msgstr = MsgStr::from(plural_profile.gettext_values(translation_by_category));
-            item.nplurals = plural_profile.nplurals();
 
-            Ok(item)
+            let msgid = source.one.as_deref().unwrap_or(&source.other);
+            write_keyword(
+                out,
+                scratch,
+                obsolete_prefix,
+                "msgid",
+                msgid,
+                None,
+                serialize_options,
+            );
+            write_keyword(
+                out,
+                scratch,
+                obsolete_prefix,
+                "msgid_plural",
+                &source.other,
+                None,
+                serialize_options,
+            );
+            let values = plural_profile.gettext_values(translation_by_category);
+            write_plural_msgstr(
+                out,
+                scratch,
+                obsolete_prefix,
+                &values,
+                nplurals,
+                serialize_options,
+            );
+
+            Ok(())
         }
     }
 }
 
-fn base_po_item(
+fn write_catalog_po_metadata(
+    out: &mut String,
+    obsolete_prefix: &str,
     message: &CanonicalMessage,
     options: &UpdateCatalogOptions<'_>,
-    nplurals: usize,
-) -> PoItem {
-    let mut item = PoItem::new(nplurals);
-    item.msgctxt.clone_from(&message.msgctxt);
-    if let Some(info) = &message.obsolete {
-        item.obsolete = true;
-        if let Some(since) = &info.since {
-            item.metadata
-                .push((PO_OBSOLETE_SINCE_KEY.to_owned(), since.clone()));
-        }
+) {
+    for comment in &message.comments {
+        write_prefixed_line(out, obsolete_prefix, "#.", comment);
     }
-    // The merged notes render as extracted (`#.`) comments.
-    let mut extracted_comments = message.comments.clone();
-    append_placeholder_comments(
-        &mut extracted_comments,
+    write_placeholder_comments(
+        out,
+        obsolete_prefix,
+        &message.comments,
         &message.placeholders,
         &options.render.print_placeholders_in_comments,
     );
-    item.extracted_comments = extracted_comments.into();
+
+    if let Some(info) = &message.obsolete
+        && let Some(since) = &info.since
+    {
+        write_metadata_line(out, obsolete_prefix, PO_OBSOLETE_SINCE_KEY, since);
+    }
     if let Some(metadata) = valid_machine_metadata(message) {
-        item.metadata
-            .push((PO_LOCK_KEY.to_owned(), metadata.lock.clone()));
+        write_metadata_line(out, obsolete_prefix, PO_LOCK_KEY, &metadata.lock);
         if let Some(ai) = &metadata.ai {
-            item.metadata
-                .push((PO_AI_KEY.to_owned(), format_ai_descriptor(ai)));
+            write_metadata_line(out, obsolete_prefix, PO_AI_KEY, &format_ai_descriptor(ai));
         }
     }
-    item.references = if options.render.include_origins {
+
+    if options.render.include_origins {
         // Origins serialize as `file` or `file#scope`; keep the first occurrence
         // and drop exact duplicates of the rendered reference.
-        let mut references: PoVec<String> = PoVec::new();
+        let mut references: Vec<String> = Vec::new();
         for origin in &message.origins {
             let reference = format_origin(origin);
             if !references.iter().any(|existing| existing == &reference) {
+                out.push_str(obsolete_prefix);
+                out.push_str("#: ");
+                out.push_str(&reference);
+                out.push('\n');
                 references.push(reference);
             }
         }
-        references
-    } else {
-        PoVec::new()
+    }
+}
+
+fn write_placeholder_comments(
+    out: &mut String,
+    obsolete_prefix: &str,
+    comments: &[String],
+    placeholders: &BTreeMap<String, Vec<String>>,
+    mode: &PlaceholderCommentMode,
+) {
+    let limit = match mode {
+        PlaceholderCommentMode::Disabled => return,
+        PlaceholderCommentMode::Enabled { limit } => *limit,
     };
-    item
+
+    let mut generated_comments = Vec::<String>::new();
+    for (name, values) in placeholders {
+        if !name.chars().all(|ch| ch.is_ascii_digit()) {
+            continue;
+        }
+        for value in values.iter().take(limit) {
+            let comment = format!(
+                "placeholder {{{name}}}: {}",
+                normalize_placeholder_value(value)
+            );
+            if comments.iter().any(|existing| existing == &comment)
+                || generated_comments
+                    .iter()
+                    .any(|existing| existing == &comment)
+            {
+                continue;
+            }
+            write_prefixed_line(out, obsolete_prefix, "#.", &comment);
+            generated_comments.push(comment);
+        }
+    }
+}
+
+fn write_plural_msgstr(
+    out: &mut String,
+    scratch: &mut String,
+    obsolete_prefix: &str,
+    values: &[String],
+    nplurals: usize,
+    options: &SerializeOptions,
+) {
+    if values.is_empty() {
+        for index in 0..nplurals.max(1) {
+            write_keyword(
+                out,
+                scratch,
+                obsolete_prefix,
+                "msgstr",
+                "",
+                Some(index),
+                options,
+            );
+        }
+        return;
+    }
+
+    for (index, value) in values.iter().enumerate() {
+        write_keyword(
+            out,
+            scratch,
+            obsolete_prefix,
+            "msgstr",
+            value,
+            Some(index),
+            options,
+        );
+    }
+}
+
+fn write_metadata_line(out: &mut String, obsolete_prefix: &str, key: &str, value: &str) {
+    out.push_str(obsolete_prefix);
+    out.push_str("#@ ");
+    out.push_str(key);
+    out.push_str(": ");
+    out.push_str(value);
+    out.push('\n');
 }
 
 fn valid_machine_metadata(message: &CanonicalMessage) -> Option<&MachineMetadata> {
@@ -231,7 +458,9 @@ fn normalize_placeholder_value(value: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::super::{AiProvenance, CatalogMode, CatalogOrigin, CatalogUpdateInput};
+    use super::super::{
+        AiProvenance, CatalogMode, CatalogOrigin, CatalogUpdateInput, ObsoleteInfo,
+    };
     use super::*;
 
     fn message_with_translation(translation: CanonicalTranslation) -> CanonicalMessage {
@@ -295,12 +524,17 @@ mod tests {
     }
 
     #[test]
-    fn base_po_item_renders_origin_without_line_and_can_omit_origins() {
-        let message = singular_message("Hallo");
+    fn po_export_renders_origin_without_line_and_can_omit_origins() {
+        let catalog = Catalog {
+            messages: vec![singular_message("Hallo")],
+            ..Catalog::default()
+        };
         let options = UpdateCatalogOptions::new("en", CatalogUpdateInput::default());
+        let mut diagnostics = Vec::new();
 
-        let item = base_po_item(&message, &options, 1);
-        assert_eq!(item.references.as_slice(), vec!["src/lib.rs"].as_slice());
+        let output = export_catalog_content(&catalog, &options, Some("de"), &mut diagnostics)
+            .expect("export succeeds");
+        assert!(output.contains("#: src/lib.rs\n"));
 
         let options = UpdateCatalogOptions {
             render: super::super::RenderOptions {
@@ -309,12 +543,211 @@ mod tests {
             },
             ..UpdateCatalogOptions::new("en", CatalogUpdateInput::default())
         };
-        let item = base_po_item(&message, &options, 1);
-        assert!(item.references.is_empty());
+        let output = export_catalog_content(&catalog, &options, Some("de"), &mut diagnostics)
+            .expect("export succeeds");
+        assert!(!output.contains("#: src/lib.rs\n"));
+    }
+
+    #[test]
+    fn po_export_writes_catalog_and_message_metadata_directly() {
+        let mut message = singular_message("Hallo");
+        message.msgctxt = Some("CheckoutButton".to_owned());
+        message.comments = vec!["Translator note".to_owned()];
+        message.origins = vec![
+            CatalogOrigin {
+                file: "src/lib.rs".to_owned(),
+                scope: Some("CheckoutButton".to_owned()),
+            },
+            CatalogOrigin {
+                file: "src/lib.rs".to_owned(),
+                scope: Some("CheckoutButton".to_owned()),
+            },
+        ]
+        .into();
+        message.placeholders = BTreeMap::from([
+            (
+                "0".to_owned(),
+                vec!["user\nname".to_owned(), "ignored".to_owned()],
+            ),
+            ("name".to_owned(), vec!["not generated".to_owned()]),
+        ]);
+        message.obsolete = Some(ObsoleteInfo {
+            since: Some("2026-07-01".to_owned()),
+        });
+        let lock = machine_translation_hash(EffectiveTranslationRef::Singular("Hallo"));
+        message.machine = Some(MachineMetadata {
+            lock: lock.clone(),
+            ai: Some(AiProvenance {
+                model: "openai/gpt-5.5-high".to_owned(),
+                confidence: Some(0.92),
+            }),
+        });
+
+        let catalog = Catalog {
+            headers: BTreeMap::from([("Language".to_owned(), "de".to_owned())]),
+            file_comments: vec!["Project note".to_owned()],
+            file_extracted_comments: vec!["Header hint".to_owned()],
+            messages: vec![message],
+            ..Catalog::default()
+        };
+        let options = UpdateCatalogOptions::new("en", CatalogUpdateInput::default());
+        let mut diagnostics = Vec::new();
+
+        let output = export_catalog_content(&catalog, &options, Some("de"), &mut diagnostics)
+            .expect("export succeeds");
+
+        assert!(diagnostics.is_empty());
+        assert!(output.contains("# Project note\n"));
+        assert!(output.contains("#. Header hint\n"));
+        assert!(output.contains("\"Language: de\\n\"\n"));
+        assert!(output.contains("#~ #. Translator note\n"));
+        assert!(output.contains("#~ #. placeholder {0}: user name\n"));
+        assert!(output.contains("#~ #@ obsolete-since: 2026-07-01\n"));
+        assert!(output.contains(&format!("#~ #@ lock: {lock}\n")));
+        assert!(output.contains("#~ #@ ai: openai/gpt-5.5-high:0.92\n"));
+        assert_eq!(
+            output.matches("#~ #: src/lib.rs#CheckoutButton\n").count(),
+            1
+        );
+        assert!(output.contains("#~ msgctxt \"CheckoutButton\"\n"));
+        assert!(output.contains("#~ msgid \"items\"\n"));
+        assert!(output.contains("#~ msgstr \"Hallo\"\n"));
+        assert!(!output.contains("not generated"));
+    }
+
+    #[test]
+    fn po_export_skips_duplicate_generated_placeholder_comments() {
+        let mut message = singular_message("Hallo");
+        message.comments = vec!["placeholder {0}: user name".to_owned()];
+        message.placeholders = BTreeMap::from([(
+            "0".to_owned(),
+            vec!["user\nname".to_owned(), "account".to_owned()],
+        )]);
+
+        let catalog = Catalog {
+            messages: vec![message],
+            ..Catalog::default()
+        };
+        let options = UpdateCatalogOptions::new("en", CatalogUpdateInput::default());
+        let mut diagnostics = Vec::new();
+
+        let output = export_catalog_content(&catalog, &options, Some("de"), &mut diagnostics)
+            .expect("export succeeds");
+
+        assert!(diagnostics.is_empty());
+        assert_eq!(output.matches("#. placeholder {0}: user name\n").count(), 1);
+        assert!(output.contains("#. placeholder {0}: account\n"));
+    }
+
+    #[test]
+    fn icu_po_export_writes_plural_messages_directly() {
+        let catalog = Catalog {
+            messages: vec![plural_message(BTreeMap::from([
+                ("one".to_owned(), "Ein Artikel".to_owned()),
+                ("other".to_owned(), "{count} Artikel".to_owned()),
+            ]))],
+            ..Catalog::default()
+        };
+        let options = UpdateCatalogOptions::new("en", CatalogUpdateInput::default());
+        let mut diagnostics = Vec::new();
+
+        let output = export_catalog_content(&catalog, &options, Some("de"), &mut diagnostics)
+            .expect("export succeeds");
+
+        assert!(diagnostics.is_empty());
+        assert!(output.contains("msgid \"{count, plural, one {item} other {items}}\"\n"));
+        assert!(
+            output.contains(
+                "msgstr \"{count, plural, one {Ein Artikel} other {{count} Artikel}}\"\n"
+            )
+        );
+    }
+
+    #[test]
+    fn plural_msgstr_writer_preserves_declared_empty_slots() {
+        let mut output = String::new();
+        let mut scratch = String::new();
+
+        write_plural_msgstr(
+            &mut output,
+            &mut scratch,
+            "",
+            &[],
+            2,
+            &SerializeOptions::default(),
+        );
+
+        assert_eq!(output, "msgstr[0] \"\"\nmsgstr[1] \"\"\n");
+    }
+
+    #[test]
+    fn plural_msgstr_writer_renders_declared_values() {
+        let mut output = String::new();
+        let mut scratch = String::new();
+
+        write_plural_msgstr(
+            &mut output,
+            &mut scratch,
+            "#~ ",
+            &["eins".to_owned(), "viele".to_owned()],
+            2,
+            &SerializeOptions::default(),
+        );
+
+        assert_eq!(output, "#~ msgstr[0] \"eins\"\n#~ msgstr[1] \"viele\"\n");
+    }
+
+    #[test]
+    fn append_placeholder_comments_respects_mode_limit_and_duplicates() {
+        let mut comments = vec!["placeholder {0}: known value".to_owned()];
+        let placeholders = BTreeMap::from([
+            (
+                "0".to_owned(),
+                vec!["known value".to_owned(), "next\nvalue".to_owned()],
+            ),
+            ("name".to_owned(), vec!["ignored".to_owned()]),
+        ]);
+
+        append_placeholder_comments(
+            &mut comments,
+            &placeholders,
+            &PlaceholderCommentMode::Enabled { limit: 2 },
+        );
+
+        assert_eq!(
+            comments,
+            vec![
+                "placeholder {0}: known value".to_owned(),
+                "placeholder {0}: next value".to_owned(),
+            ]
+        );
+
+        append_placeholder_comments(
+            &mut comments,
+            &placeholders,
+            &PlaceholderCommentMode::Disabled,
+        );
+
+        assert_eq!(
+            comments,
+            vec![
+                "placeholder {0}: known value".to_owned(),
+                "placeholder {0}: next value".to_owned(),
+            ]
+        );
     }
 
     #[test]
     fn machine_metadata_validation_handles_invalid_and_plural_cases() {
+        assert!(valid_machine_metadata(&singular_message("Hallo")).is_none());
+
+        let mut stale = singular_message("Hallo");
+        stale.machine = Some(MachineMetadata {
+            lock: machine_translation_hash(EffectiveTranslationRef::Singular("Tschuess")),
+            ai: None,
+        });
+        assert!(valid_machine_metadata(&stale).is_none());
+
         let mut invalid = singular_message("Hallo");
         invalid.machine = Some(MachineMetadata {
             lock: machine_translation_hash(EffectiveTranslationRef::Singular("Hallo")),
