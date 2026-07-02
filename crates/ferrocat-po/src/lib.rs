@@ -153,22 +153,238 @@ pub use parse::{parse_po, parse_po_bytes};
 pub use serialize::stringify_po;
 pub use text::{escape_string, extract_quoted, extract_quoted_cow, unescape_string};
 
-use core::{fmt, ops::Index};
+use core::{
+    fmt,
+    iter::FusedIterator,
+    ops::{Deref, DerefMut, Index},
+    slice,
+};
 
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
-#[doc(hidden)]
-pub use smallvec::SmallVec;
+use smallvec::{IntoIter as SmallVecIntoIter, SmallVec};
 
 /// Inline-capable vector for the small per-item collections (references, flags,
 /// comments, metadata) that hold a single element in the overwhelmingly common
 /// case, avoiding a heap allocation for the backing buffer.
 ///
-/// Name this type as `PoVec<T>` in public signatures and examples. The inline
-/// capacity and backing collection remain implementation details for the 2.x
-/// compatibility line.
-pub type PoVec<T> = SmallVec<[T; 1]>;
+/// The inline capacity and backing collection are private implementation
+/// details. Use this type by value in PO/catalog structures and read it through
+/// its slice view.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(transparent))]
+pub struct PoVec<T>(SmallVec<[T; 1]>);
+
+impl<T> PoVec<T> {
+    /// Creates an empty vector.
+    #[must_use]
+    pub fn new() -> Self {
+        Self(SmallVec::new())
+    }
+
+    /// Creates an empty vector with room for at least `capacity` elements.
+    #[must_use]
+    pub fn with_capacity(capacity: usize) -> Self {
+        Self(SmallVec::with_capacity(capacity))
+    }
+
+    /// Returns the number of stored elements.
+    #[must_use]
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    /// Returns `true` when the vector contains no elements.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+
+    /// Returns the values as a slice.
+    #[must_use]
+    pub fn as_slice(&self) -> &[T] {
+        self.0.as_slice()
+    }
+
+    /// Returns the values as a mutable slice.
+    #[must_use]
+    pub fn as_mut_slice(&mut self) -> &mut [T] {
+        self.0.as_mut_slice()
+    }
+
+    /// Returns an iterator over the values.
+    pub fn iter(&self) -> slice::Iter<'_, T> {
+        self.as_slice().iter()
+    }
+
+    /// Returns a mutable iterator over the values.
+    pub fn iter_mut(&mut self) -> slice::IterMut<'_, T> {
+        self.as_mut_slice().iter_mut()
+    }
+
+    /// Appends `value` to the end of the vector.
+    pub fn push(&mut self, value: T) {
+        self.0.push(value);
+    }
+
+    /// Removes all values.
+    pub fn clear(&mut self) {
+        self.0.clear();
+    }
+
+    /// Converts the collection into a standard [`Vec`].
+    #[must_use]
+    pub fn into_vec(self) -> Vec<T> {
+        self.0.into_vec()
+    }
+}
+
+impl<T> AsRef<[T]> for PoVec<T> {
+    fn as_ref(&self) -> &[T] {
+        self.as_slice()
+    }
+}
+
+impl<T> AsMut<[T]> for PoVec<T> {
+    fn as_mut(&mut self) -> &mut [T] {
+        self.as_mut_slice()
+    }
+}
+
+impl<T> Deref for PoVec<T> {
+    type Target = [T];
+
+    fn deref(&self) -> &Self::Target {
+        self.as_slice()
+    }
+}
+
+impl<T> DerefMut for PoVec<T> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.as_mut_slice()
+    }
+}
+
+impl<T> Extend<T> for PoVec<T> {
+    fn extend<I>(&mut self, iter: I)
+    where
+        I: IntoIterator<Item = T>,
+    {
+        self.0.extend(iter);
+    }
+}
+
+impl<T> From<Vec<T>> for PoVec<T> {
+    fn from(value: Vec<T>) -> Self {
+        Self(SmallVec::from_vec(value))
+    }
+}
+
+impl<T, const N: usize> From<[T; N]> for PoVec<T> {
+    fn from(value: [T; N]) -> Self {
+        Self(value.into_iter().collect())
+    }
+}
+
+impl<T> FromIterator<T> for PoVec<T> {
+    fn from_iter<I>(iter: I) -> Self
+    where
+        I: IntoIterator<Item = T>,
+    {
+        Self(iter.into_iter().collect())
+    }
+}
+
+impl<T> From<PoVec<T>> for Vec<T> {
+    fn from(value: PoVec<T>) -> Self {
+        value.into_vec()
+    }
+}
+
+impl<T> IntoIterator for PoVec<T> {
+    type Item = T;
+    type IntoIter = PoVecIntoIter<T>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        PoVecIntoIter {
+            inner: self.0.into_iter(),
+        }
+    }
+}
+
+impl<'a, T> IntoIterator for &'a PoVec<T> {
+    type Item = &'a T;
+    type IntoIter = slice::Iter<'a, T>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.iter()
+    }
+}
+
+impl<'a, T> IntoIterator for &'a mut PoVec<T> {
+    type Item = &'a mut T;
+    type IntoIter = slice::IterMut<'a, T>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.iter_mut()
+    }
+}
+
+impl<T, U> PartialEq<[U]> for PoVec<T>
+where
+    T: PartialEq<U>,
+{
+    fn eq(&self, other: &[U]) -> bool {
+        self.as_slice() == other
+    }
+}
+
+impl<T, U> PartialEq<&[U]> for PoVec<T>
+where
+    T: PartialEq<U>,
+{
+    fn eq(&self, other: &&[U]) -> bool {
+        self.as_slice() == *other
+    }
+}
+
+impl<T, U> PartialEq<Vec<U>> for PoVec<T>
+where
+    T: PartialEq<U>,
+{
+    fn eq(&self, other: &Vec<U>) -> bool {
+        self.as_slice() == other.as_slice()
+    }
+}
+
+/// Owning iterator returned by [`PoVec::into_iter`].
+pub struct PoVecIntoIter<T> {
+    inner: SmallVecIntoIter<[T; 1]>,
+}
+
+impl<T> Iterator for PoVecIntoIter<T> {
+    type Item = T;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.inner.next()
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        self.inner.size_hint()
+    }
+}
+
+impl<T> DoubleEndedIterator for PoVecIntoIter<T> {
+    fn next_back(&mut self) -> Option<Self::Item> {
+        self.inner.next_back()
+    }
+}
+
+impl<T> ExactSizeIterator for PoVecIntoIter<T> {}
+
+impl<T> FusedIterator for PoVecIntoIter<T> {}
 
 /// An owned PO document.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -547,7 +763,7 @@ impl std::error::Error for ParseError {}
 
 #[cfg(test)]
 mod tests {
-    use super::{MsgStr, ParseError, ParsePosition, SerializeOptions};
+    use super::{MsgStr, ParseError, ParsePosition, PoVec, SerializeOptions};
 
     #[cfg(feature = "serde")]
     use super::{Header, PoFile, PoItem};
@@ -618,6 +834,77 @@ mod tests {
         assert_eq!(plural.iter().collect::<Vec<_>>(), vec!["eins", "viele"]);
         assert_eq!(plural[1], "viele");
         assert_eq!(plural.into_vec(), vec!["eins", "viele"]);
+    }
+
+    #[test]
+    fn povec_keeps_slice_iteration_and_vec_conversion_ergonomics() {
+        let mut values = PoVec::new();
+        assert!(values.is_empty());
+
+        values.push("src/app.rs:10".to_owned());
+        values.extend(["src/app.rs:20".to_owned()]);
+
+        assert_eq!(values.len(), 2);
+        assert_eq!(
+            values.as_slice(),
+            ["src/app.rs:10".to_owned(), "src/app.rs:20".to_owned()]
+        );
+        assert_eq!(
+            values.iter().map(String::as_str).collect::<Vec<_>>(),
+            ["src/app.rs:10", "src/app.rs:20"]
+        );
+
+        let from_vec = PoVec::from(vec!["fuzzy".to_owned()]);
+        assert_eq!(from_vec, vec!["fuzzy".to_owned()]);
+        assert_eq!(Vec::<String>::from(from_vec), vec!["fuzzy".to_owned()]);
+    }
+
+    #[test]
+    fn povec_trait_views_cover_mutable_slice_and_reference_iteration() {
+        let mut values = PoVec::with_capacity(2);
+        values.extend([1, 2]);
+
+        assert_eq!(AsRef::<[i32]>::as_ref(&values), [1, 2]);
+
+        AsMut::<[i32]>::as_mut(&mut values)[0] = 3;
+        values.as_mut_slice()[1] = 4;
+        for value in &mut values {
+            *value += 1;
+        }
+        values.iter_mut().for_each(|value| *value *= 2);
+
+        let as_slice: &[i32] = &values;
+        assert_eq!(as_slice, [8, 10]);
+
+        let as_mut_slice: &mut [i32] = &mut values;
+        as_mut_slice[0] += 1;
+
+        let expected = [9, 10];
+        assert!(values == expected[..]);
+        assert!(values == expected.as_slice());
+    }
+
+    #[test]
+    fn povec_owned_iterator_preserves_values_without_exposing_backing_type() {
+        let values = PoVec::from(["one".to_owned(), "other".to_owned()]);
+
+        assert_eq!(
+            values.into_iter().collect::<Vec<_>>(),
+            vec!["one".to_owned(), "other".to_owned()]
+        );
+    }
+
+    #[test]
+    fn povec_owned_iterator_supports_double_ended_size_hints() {
+        let mut iter = PoVec::from([1, 2, 3]).into_iter();
+
+        assert_eq!(iter.size_hint(), (3, Some(3)));
+        assert_eq!(iter.next_back(), Some(3));
+        assert_eq!(iter.size_hint(), (2, Some(2)));
+        assert_eq!(iter.next(), Some(1));
+        assert_eq!(iter.next_back(), Some(2));
+        assert_eq!(iter.next(), None);
+        assert_eq!(iter.next_back(), None);
     }
 
     #[test]

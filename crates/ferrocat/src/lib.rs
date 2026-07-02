@@ -83,8 +83,6 @@
 #[cfg(feature = "catalog")]
 #[cfg_attr(docsrs, doc(cfg(feature = "catalog")))]
 pub mod catalog {
-    #[doc(hidden)]
-    pub use ferrocat_po::SmallVec;
     pub use ferrocat_po::diagnostic_codes;
     pub use ferrocat_po::{
         AiProvenance, ApiError, COMPILED_CATALOG_ARTIFACT_SCHEMA_VERSION, CatalogAuditChecks,
@@ -150,8 +148,6 @@ pub mod icu {
 /// Low-level PO parsing, serialization, and text merge APIs.
 pub mod po {
     pub use ferrocat_po::MergeExtractedMessage as MergeMessageInput;
-    #[doc(hidden)]
-    pub use ferrocat_po::SmallVec;
     pub use ferrocat_po::diagnostic_codes;
     pub use ferrocat_po::{
         BorrowedHeader, BorrowedMsgStr, BorrowedPoFile, BorrowedPoItem, Header, MsgStr, MsgStrIter,
@@ -193,8 +189,6 @@ pub const COMPILED_CATALOG_ARTIFACT_SCHEMA_VERSION: u16 =
     note = "use ferrocat::po::MergeMessageInput for the PO merge helper input"
 )]
 pub use ferrocat_po::MergeExtractedMessage;
-#[doc(hidden)]
-pub use ferrocat_po::SmallVec;
 #[cfg(feature = "catalog")]
 #[cfg_attr(docsrs, doc(cfg(feature = "catalog")))]
 pub use ferrocat_po::{

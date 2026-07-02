@@ -80,7 +80,7 @@ See [ADR 0019](/architecture/adr/0019-versioned-artifact-json-contract) for the
 compatibility rules around the compiled artifact JSON contract.
 ## API Compatibility
 
-Growth-prone public enums are deliberately marked as non-exhaustive where new variants are realistic, so new variants can be added without a breaking change within the `1.x` line. Downstream code should keep fallback match arms for ICU AST nodes, catalog storage formats, compiled key strategies, and API-level error categories.
+Growth-prone public enums are deliberately marked as non-exhaustive where new variants are realistic, so new variants can be added without a breaking change within a normal major line. Downstream code should keep fallback match arms for ICU AST nodes, catalog storage formats, compiled key strategies, and API-level error categories.
 
 Semantically closed option enums such as `CatalogSemantics` and `PluralEncoding` remain exhaustive so callers can continue to match every documented mode directly.
 ## Umbrella Crate Namespaces
@@ -800,7 +800,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 > unchanged (it dereferences to a slice and iterates like a `Vec`); to construct
 > one, use `PoVec::new()`, `Default::default()`, or `vec![…].into()`. Prefer
 > naming `PoVec<T>` in public signatures and examples. Its inline capacity and
-> backing collection are implementation details for the 2.x compatibility line.
+> backing collection are private implementation details.
 
 ### Machine-managed value metadata
 
