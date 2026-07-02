@@ -225,13 +225,19 @@ const parseCompare: Bar[] = [
 const PARSE_MAX = 455
 
 const updateCompare: Bar[] = [
-  { name: "Ferrocat", lang: "Rust", rate: 192, self: true },
-  { name: "pofile-ts", lang: "Node", rate: 40 },
+  { name: "Ferrocat", lang: "Rust, plain update", rate: 245, self: true },
+  {
+    name: "Ferrocat full catalog update",
+    lang: "with ICU checks + placeholder tracking",
+    rate: 88,
+    self: true,
+  },
+  { name: "pofile-ts", lang: "Node", rate: 39 },
   { name: "gettext/gettext", lang: "PHP", rate: 16 },
   { name: "polib", lang: "Python", rate: 7 },
-  { name: "msgmerge", lang: "GNU gettext", rate: 4 },
+  { name: "msgmerge", lang: "GNU gettext", rate: 4.5 },
 ]
-const UPDATE_MAX = 192
+const UPDATE_MAX = 245
 
 // ── Other open source from the same studio ──
 
@@ -375,7 +381,11 @@ export default function HomePage() {
             the same 10k-message catalog, reading the same files, Ferrocat still
             parses several times faster than the quickest Node parser&mdash;and
             the PHP and Python stacks, with no JIT that helps here, fall much
-            further back.
+            further back. The part we like most: Ferrocat&rsquo;s{" "}
+            <em>full</em> catalog update&mdash;ICU structure analysis,
+            placeholder tracking, deterministic output, work none of the other
+            tools even attempt&mdash;still finishes twice as fast as the
+            quickest plain merge in the field.
           </p>
         </div>
         <div className="ferro-bar-charts">
@@ -439,7 +449,13 @@ export default function HomePage() {
           by identity, and write it back. Once allocation and serialization
           dominate, the JIT&rsquo;s edge fades and the zero-copy,
           move-not-clone hot path pulls further ahead&mdash;which is why the
-          update lead is wider than the parse lead. The GNU msgmerge bar is not
+          update lead is wider than the parse lead. The second Ferrocat bar is
+          the high-level catalog update on the same files: on top of the plain
+          update it analyzes ICU message structure, tracks placeholders, and
+          produces deterministic output. None of the compared tools has an
+          equivalent layer&mdash;their update <em>is</em> the plain bar&mdash;
+          and a compatibility probe asserts the output stays semantically
+          identical to msgmerge&rsquo;s on this corpus. The GNU msgmerge bar is not
           a launch-cost artifact either: the benchmark records an empty-run
           baseline, and its fixed process and I/O overhead is about 2% of the
           measured time on this corpus, so the gap is real work. The Node
@@ -449,7 +465,7 @@ export default function HomePage() {
           parse chart uses
           borrowed, zero-copy parsing; reading into a fully owned model still
           reaches 362 MiB/s. Serialization runs at about 1.16 GiB/s on the same
-          corpus. Median of 10 runs on an Apple M1 Ultra, every tool reading
+          corpus. Median throughput on an Apple M1 Ultra, every tool reading
           the same files (pofile-ts 4.0.3, gettext-parser 9.0.2, polib 1.2.0,
           gettext/gettext 5.7.3, GNU gettext 1.0).{" "}
           <Link to="/performance/benchmarking">Methodology</Link> and{" "}
