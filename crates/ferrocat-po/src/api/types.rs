@@ -291,6 +291,19 @@ impl CatalogMessageKey {
             msgctxt,
         }
     }
+
+    /// Creates a message key from `msgid` and context.
+    ///
+    /// This is equivalent to `CatalogMessageKey::new(msgid, Some(msgctxt.into()))`
+    /// but lets callers pass borrowed context strings without spelling the
+    /// intermediate `Some(String)`.
+    #[must_use]
+    pub fn with_context(msgid: impl Into<String>, msgctxt: impl Into<String>) -> Self {
+        Self {
+            msgid: msgid.into(),
+            msgctxt: Some(msgctxt.into()),
+        }
+    }
 }
 
 /// Severity level attached to a [`Diagnostic`].
@@ -1539,7 +1552,7 @@ mod tests {
 
         assert_eq!(
             singular.key(),
-            CatalogMessageKey::new("Hello", Some("button".to_owned()))
+            CatalogMessageKey::with_context("Hello", "button")
         );
         assert!(matches!(
             singular.effective_translation(),
