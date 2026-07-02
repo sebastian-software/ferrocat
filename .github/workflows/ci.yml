@@ -73,8 +73,16 @@ jobs:
       - name: Run Clippy
         run: cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
 
-      - name: Check umbrella crate without default features
-        run: cargo check -p ferrocat --no-default-features --locked
+      - name: Check documented feature profiles
+        run: |
+          cargo check -p ferrocat-po --no-default-features --locked
+          cargo check -p ferrocat-po --no-default-features --features serde --locked
+          cargo check -p ferrocat-po --no-default-features --features catalog --locked
+          cargo check -p ferrocat-po --no-default-features --features compile,mt,plurals --locked
+          cargo check -p ferrocat --no-default-features --locked
+          cargo check -p ferrocat --no-default-features --features serde --locked
+          cargo check -p ferrocat --no-default-features --features catalog --locked
+          cargo check -p ferrocat --no-default-features --features compile,mt,plurals --locked
 
   rustdoc:
     name: Rustdoc warnings
