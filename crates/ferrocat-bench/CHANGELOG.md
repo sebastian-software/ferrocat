@@ -1,5 +1,14 @@
 # Changelog
 
+## [2.1.0](https://github.com/sebastian-software/ferrocat/compare/ferrocat-bench-v2.0.0...ferrocat-bench-v2.1.0) (2026-07-02)
+
+
+### Features
+
+* **api:** align public cleanup names ([80924ea](https://github.com/sebastian-software/ferrocat/commit/80924eac840d9445f36bf5f5f23b7153e1a12eca))
+* **api:** make options extensible ([#213](https://github.com/sebastian-software/ferrocat/issues/213)) ([b8c9a6a](https://github.com/sebastian-software/ferrocat/commit/b8c9a6adea3b6d063599964e6ae66e997458f0f1))
+* **bench:** add file-to-file catalog-update cross-tool comparison ([6542f2a](https://github.com/sebastian-software/ferrocat/commit/6542f2ab80dca8db339d51f8e6be14e1e1efb589))
+
 ## [2.0.0](https://github.com/sebastian-software/ferrocat/compare/ferrocat-bench-v1.3.2...ferrocat-bench-v2.0.0) (2026-06-30)
 
 
