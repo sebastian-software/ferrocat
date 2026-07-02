@@ -160,12 +160,16 @@ use core::{fmt, ops::Index};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
+#[doc(hidden)]
 pub use smallvec::SmallVec;
 
 /// Inline-capable vector for the small per-item collections (references, flags,
 /// comments, metadata) that hold a single element in the overwhelmingly common
-/// case, avoiding a heap allocation for the backing buffer. Re-exported via
-/// [`SmallVec`] so callers need not depend on `smallvec` directly.
+/// case, avoiding a heap allocation for the backing buffer.
+///
+/// Name this type as `PoVec<T>` in public signatures and examples. The inline
+/// capacity and backing collection remain implementation details for the 2.x
+/// compatibility line.
 pub type PoVec<T> = SmallVec<[T; 1]>;
 
 /// An owned PO document.

@@ -798,12 +798,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 > **Field type note.** `CatalogMessage::origin` — and the per-item collections
 > on the lower-level `PoItem`/`BorrowedPoItem` (`references`, `comments`,
-> `extracted_comments`, `flags`, `metadata`) — are `PoVec<T>`, a re-exported
-> `SmallVec` that stores the common single-element case inline. Reading is
+> `extracted_comments`, `flags`, `metadata`) — are `PoVec<T>`. Reading is
 > unchanged (it dereferences to a slice and iterates like a `Vec`); to construct
-> one, use `PoVec::new()`, `Default::default()`, or `vec![…].into()`. `PoVec`
-> and `SmallVec` are re-exported through `ferrocat::catalog`, `ferrocat::po`, and
-> the crate root, so you never need to depend on `smallvec` directly.
+> one, use `PoVec::new()`, `Default::default()`, or `vec![…].into()`. Prefer
+> naming `PoVec<T>` in public signatures and examples. Its inline capacity and
+> backing collection are implementation details for the 2.x compatibility line.
 
 ### Machine-managed value metadata
 

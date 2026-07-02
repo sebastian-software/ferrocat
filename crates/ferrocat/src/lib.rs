@@ -89,6 +89,8 @@
 #[cfg(feature = "catalog")]
 #[cfg_attr(docsrs, doc(cfg(feature = "catalog")))]
 pub mod catalog {
+    #[doc(hidden)]
+    pub use ferrocat_po::SmallVec;
     pub use ferrocat_po::diagnostic_codes;
     pub use ferrocat_po::{
         AiProvenance, ApiError, COMPILED_CATALOG_ARTIFACT_SCHEMA_VERSION, CatalogAuditChecks,
@@ -116,7 +118,7 @@ pub mod catalog {
         ExtractedPluralMessage, ExtractedSingularMessage, IcuFormatterSupportPolicy,
         IcuPseudolocalizationOptions, IcuSyntaxPolicy, MachineMetadata, NormalizedParsedCatalog,
         ObsoleteInfo, ObsoleteStrategy, OrderBy, ParseCatalogOptions, ParsedCatalog,
-        PlaceholderCommentMode, PluralEncoding, PluralSource, PoVec, RenderOptions, SmallVec,
+        PlaceholderCommentMode, PluralEncoding, PluralSource, PoVec, RenderOptions,
         SourceExtractedMessage, TranslationShape, UpdateCatalogFileOptions, UpdateCatalogOptions,
         audit_catalogs, audit_catalogs_with_icu_options, catalog_coverage, catalog_review,
         combine_catalog_files, combine_catalogs, compile_catalog_artifact,
@@ -154,12 +156,14 @@ pub mod icu {
 /// Low-level PO parsing, serialization, and text merge APIs.
 pub mod po {
     pub use ferrocat_po::MergeExtractedMessage as MergeMessageInput;
+    #[doc(hidden)]
+    pub use ferrocat_po::SmallVec;
     pub use ferrocat_po::diagnostic_codes;
     pub use ferrocat_po::{
         BorrowedHeader, BorrowedMsgStr, BorrowedPoFile, BorrowedPoItem, Header, MsgStr, MsgStrIter,
-        ParseError, ParsePosition, PoFile, PoItem, PoVec, SerializeOptions, SmallVec,
-        escape_string, extract_quoted, extract_quoted_cow, merge_catalog, parse_po,
-        parse_po_borrowed, parse_po_bytes, stringify_po, unescape_string,
+        ParseError, ParsePosition, PoFile, PoItem, PoVec, SerializeOptions, escape_string,
+        extract_quoted, extract_quoted_cow, merge_catalog, parse_po, parse_po_borrowed,
+        parse_po_bytes, stringify_po, unescape_string,
     };
 }
 
@@ -195,6 +199,8 @@ pub const COMPILED_CATALOG_ARTIFACT_SCHEMA_VERSION: u16 =
     note = "use ferrocat::po::MergeMessageInput for the PO merge helper input"
 )]
 pub use ferrocat_po::MergeExtractedMessage;
+#[doc(hidden)]
+pub use ferrocat_po::SmallVec;
 #[cfg(feature = "catalog")]
 #[cfg_attr(docsrs, doc(cfg(feature = "catalog")))]
 pub use ferrocat_po::{
@@ -233,7 +239,7 @@ pub use ferrocat_po::{
 };
 pub use ferrocat_po::{
     BorrowedHeader, BorrowedMsgStr, BorrowedPoFile, BorrowedPoItem, Header, MsgStr, MsgStrIter,
-    ParseError, ParsePosition, PoFile, PoItem, PoVec, SerializeOptions, SmallVec, escape_string,
+    ParseError, ParsePosition, PoFile, PoItem, PoVec, SerializeOptions, escape_string,
     extract_quoted, extract_quoted_cow, merge_catalog, parse_po, parse_po_borrowed, parse_po_bytes,
     stringify_po, unescape_string,
 };
