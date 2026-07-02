@@ -138,7 +138,7 @@ pub fn update_catalog(
     let input = mem::take(&mut options.input);
     let created = options.existing.is_none();
     let original = options.existing.unwrap_or("");
-    let existing = match options.existing {
+    let mut existing = match options.existing {
         Some(content) if !content.is_empty() => parse_catalog_to_internal(
             content,
             options.locale,
@@ -163,7 +163,7 @@ pub fn update_catalog(
         .map(str::to_owned)
         .or_else(|| existing.locale.clone())
         .or_else(|| existing.headers.get("Language").cloned());
-    let mut diagnostics = existing.diagnostics.clone();
+    let mut diagnostics = mem::take(&mut existing.diagnostics);
     let normalized = normalize_update_input(input)?;
     let merge_context = MergeCatalogContext {
         locale: locale.as_deref(),
@@ -947,7 +947,7 @@ pub(super) fn split_placeholder_comments(
     (comments, dedupe_placeholders(placeholders))
 }
 
-/// Parses the internal placeholder comment format emitted by `append_placeholder_comments`.
+/// Parses the internal placeholder comment format emitted by the export helpers.
 fn parse_placeholder_comment(comment: &str) -> Option<(String, String)> {
     let rest = comment.strip_prefix("placeholder {")?;
     let end = rest.find("}: ")?;
