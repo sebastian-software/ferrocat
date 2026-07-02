@@ -122,6 +122,23 @@ At the high-level catalog layer, `ferrocat` supports three explicit combinations
 
 There is intentionally no FCL + gettext-plural mode; gettext plural behavior stays a PO concern, while FCL is the ICU-native machine storage format for ICU-native catalogs. Generate FCL through the catalog layer by choosing `CatalogMode::IcuFcl` in `parse_catalog`, `update_catalog`, or file-based update flows; keep PO when external translator tools need gettext compatibility. The in-repo [FCL format specification](docs/fcl-format.md) documents the exact line format, escaping rules, and architecture decisions behind that storage mode.
 
+## Feature Profiles
+
+The published crates default to the full current API surface. Use
+`default-features = false` when you want the low-level PO and ICU parsers without
+the catalog workflow layer.
+
+- `catalog` enables high-level catalog parsing, updates, combining, audits,
+  machine-translation metadata, plural handling, FCL storage, and runtime
+  artifact compilation.
+- `serde` enables serialization support for tooling, cache, schema, report, and
+  runtime artifact shapes.
+- `compile`, `mt`, and `plurals` are reserved subsystem aliases that currently
+  imply `catalog`; they do not reduce or split the catalog API surface yet.
+
+See the [API overview](https://sebastian-software.github.io/ferrocat/reference/api-overview#feature-profiles)
+for the crate-by-crate feature profile details.
+
 ## Compatibility Snapshot
 
 - **MSRV:** Rust `1.93.0`
