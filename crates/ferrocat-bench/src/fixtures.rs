@@ -1522,7 +1522,7 @@ fn placeholder_map(entries: &[(&str, &str)]) -> BTreeMap<String, Vec<String>> {
     map
 }
 
-fn parse_origin(reference: &str) -> CatalogOrigin {
+pub(crate) fn parse_origin(reference: &str) -> CatalogOrigin {
     match reference.rsplit_once(':') {
         Some((file, line))
             if !line.is_empty() && line.bytes().all(|byte| byte.is_ascii_digit()) =>
