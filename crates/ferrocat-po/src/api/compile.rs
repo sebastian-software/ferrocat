@@ -135,12 +135,6 @@ struct ResolvedArtifactMessage {
     message: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct CompiledCatalogArtifactOutput {
-    artifact: CompiledCatalogArtifact,
-    provenance: CompiledCatalogProvenanceReport,
-}
-
 #[derive(Debug, Clone, Copy)]
 struct CompiledIcuDiagnosticTarget<'a> {
     source_key: &'a CatalogMessageKey,
@@ -605,13 +599,13 @@ fn compile_catalog_artifact_from_source_keys<I>(
 where
     I: IntoIterator<Item = CatalogMessageKey>,
 {
-    let output = compile_catalog_artifact_from_source_keys_inner(
+    compile_catalog_artifact_from_source_keys_inner(
         locales,
         source_keys,
         options,
         icu_options,
-    )?;
-    Ok(output.artifact)
+        None,
+    )
 }
 
 fn compile_catalog_artifact_report_from_source_keys<I>(
@@ -623,15 +617,22 @@ fn compile_catalog_artifact_report_from_source_keys<I>(
 where
     I: IntoIterator<Item = CatalogMessageKey>,
 {
-    let output = compile_catalog_artifact_from_source_keys_inner(
+    let mut provenance = CompiledCatalogProvenanceReport {
+        requested_locale: options.requested_locale.to_owned(),
+        source_locale: options.source_locale.to_owned(),
+        fallback_chain: options.fallback_chain.to_vec(),
+        messages: Vec::new(),
+    };
+    let artifact = compile_catalog_artifact_from_source_keys_inner(
         locales,
         source_keys,
         options,
         icu_options,
+        Some(&mut provenance),
     )?;
     Ok(CompiledCatalogArtifactReport {
-        artifact: output.artifact,
-        provenance: output.provenance,
+        artifact,
+        provenance,
     })
 }
 
@@ -640,18 +641,14 @@ fn compile_catalog_artifact_from_source_keys_inner<I>(
     source_keys: I,
     options: &CompileCatalogArtifactOptions<'_>,
     icu_options: &CompileCatalogArtifactIcuOptions,
-) -> Result<CompiledCatalogArtifactOutput, ApiError>
+    provenance: Option<&mut CompiledCatalogProvenanceReport>,
+) -> Result<CompiledCatalogArtifact, ApiError>
 where
     I: IntoIterator<Item = CatalogMessageKey>,
 {
     let mut compiled_keys = BTreeMap::<String, CatalogMessageKey>::new();
     let mut artifact = CompiledCatalogArtifact::default();
-    let mut provenance = CompiledCatalogProvenanceReport {
-        requested_locale: options.requested_locale.to_owned(),
-        source_locale: options.source_locale.to_owned(),
-        fallback_chain: options.fallback_chain.to_vec(),
-        messages: Vec::new(),
-    };
+    let mut provenance = provenance;
 
     for source_key in source_keys {
         let compiled_key = compiled_key_for(options.key_strategy, &source_key);
@@ -667,12 +664,14 @@ where
         }
 
         let resolved = resolve_compiled_catalog_artifact_message(locales, &source_key, options);
-        provenance.messages.push(CompiledCatalogResolution {
-            key: compiled_key.clone(),
-            source_key: source_key.clone(),
-            resolved_locale: resolved.as_ref().map(|value| value.locale.clone()),
-            kind: compiled_catalog_resolution_kind(options, resolved.as_ref()),
-        });
+        if let Some(provenance) = provenance.as_deref_mut() {
+            provenance.messages.push(CompiledCatalogResolution {
+                key: compiled_key.clone(),
+                source_key: source_key.clone(),
+                resolved_locale: resolved.as_ref().map(|value| value.locale.clone()),
+                kind: compiled_catalog_resolution_kind(options, resolved.as_ref()),
+            });
+        }
 
         if options.requested_locale != options.source_locale {
             let resolved_locale = resolved.as_ref().map(|value| value.locale.clone());
@@ -740,10 +739,7 @@ where
         artifact.messages.insert(compiled_key, resolved.message);
     }
 
-    Ok(CompiledCatalogArtifactOutput {
-        artifact,
-        provenance,
-    })
+    Ok(artifact)
 }
 
 fn compiled_catalog_resolution_kind(
