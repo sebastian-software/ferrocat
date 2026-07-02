@@ -960,6 +960,42 @@ impl Default for RenderOptions<'_> {
     }
 }
 
+impl<'a> RenderOptions<'a> {
+    /// Returns options that render messages with the given sort order.
+    #[must_use]
+    pub fn with_order_by(mut self, order_by: OrderBy) -> Self {
+        self.order_by = order_by;
+        self
+    }
+
+    /// Returns options that enable or disable rendered source origins.
+    #[must_use]
+    pub fn with_include_origins(mut self, include_origins: bool) -> Self {
+        self.include_origins = include_origins;
+        self
+    }
+
+    /// Returns options that use the given placeholder comment mode.
+    #[must_use]
+    pub fn with_placeholder_comments(
+        mut self,
+        print_placeholders_in_comments: PlaceholderCommentMode,
+    ) -> Self {
+        self.print_placeholders_in_comments = print_placeholders_in_comments;
+        self
+    }
+
+    /// Returns options that inject or override the given header attributes.
+    #[must_use]
+    pub fn with_custom_header_attributes(
+        mut self,
+        custom_header_attributes: &'a BTreeMap<String, String>,
+    ) -> Self {
+        self.custom_header_attributes = Some(custom_header_attributes);
+        self
+    }
+}
+
 /// Options for in-memory catalog updates.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct UpdateCatalogOptions<'a> {
@@ -1005,6 +1041,58 @@ impl<'a> UpdateCatalogOptions<'a> {
             now: None,
             render: RenderOptions::default(),
         }
+    }
+
+    /// Returns options that use the given catalog locale.
+    #[must_use]
+    pub fn with_locale(mut self, locale: &'a str) -> Self {
+        self.locale = Some(locale);
+        self
+    }
+
+    /// Returns options that update the given existing catalog content.
+    #[must_use]
+    pub fn with_existing(mut self, existing: &'a str) -> Self {
+        self.existing = Some(existing);
+        self
+    }
+
+    /// Returns options that parse, merge, and render with the given catalog mode.
+    #[must_use]
+    pub fn with_mode(mut self, mode: CatalogMode) -> Self {
+        self.mode = mode;
+        self
+    }
+
+    /// Returns options that render the updated catalog with the given options.
+    #[must_use]
+    pub fn with_render(mut self, render: RenderOptions<'a>) -> Self {
+        self.render = render;
+        self
+    }
+
+    /// Returns options that handle missing extracted messages with the given strategy.
+    #[must_use]
+    pub fn with_obsolete_strategy(mut self, obsolete_strategy: ObsoleteStrategy) -> Self {
+        self.obsolete_strategy = obsolete_strategy;
+        self
+    }
+
+    /// Returns options that enable or disable source-locale translation refreshes.
+    #[must_use]
+    pub fn with_overwrite_source_translations(
+        mut self,
+        overwrite_source_translations: bool,
+    ) -> Self {
+        self.overwrite_source_translations = overwrite_source_translations;
+        self
+    }
+
+    /// Returns options that stamp newly obsolete entries with the given ISO date.
+    #[must_use]
+    pub fn with_now(mut self, now: &'a str) -> Self {
+        self.now = Some(now);
+        self
     }
 }
 
@@ -1110,6 +1198,27 @@ impl<'a> ParseCatalogOptions<'a> {
             mode: CatalogMode::default(),
             strict: false,
         }
+    }
+
+    /// Returns options that use the given explicit catalog locale.
+    #[must_use]
+    pub fn with_locale(mut self, locale: &'a str) -> Self {
+        self.locale = Some(locale);
+        self
+    }
+
+    /// Returns options that interpret catalog content with the given mode.
+    #[must_use]
+    pub fn with_mode(mut self, mode: CatalogMode) -> Self {
+        self.mode = mode;
+        self
+    }
+
+    /// Returns options that enable or disable strict plural projection.
+    #[must_use]
+    pub fn with_strict(mut self, strict: bool) -> Self {
+        self.strict = strict;
+        self
     }
 }
 
@@ -1233,7 +1342,7 @@ mod tests {
         CombineCatalogOptions, Diagnostic, DiagnosticSeverity, EffectiveTranslation,
         EffectiveTranslationRef, NormalizedParsedCatalog, ObsoleteStrategy, OrderBy,
         ParseCatalogOptions, ParsedCatalog, PlaceholderCommentMode, PluralEncoding, PluralSource,
-        TranslationShape, UpdateCatalogFileOptions, UpdateCatalogOptions,
+        RenderOptions, TranslationShape, UpdateCatalogFileOptions, UpdateCatalogOptions,
     };
     use crate::ParseError;
 
@@ -1453,6 +1562,50 @@ mod tests {
     }
 
     #[test]
+    fn catalog_option_builders_set_fields() {
+        let headers = BTreeMap::from([("X-Generator".to_owned(), "ferrocat".to_owned())]);
+        let render = RenderOptions::default()
+            .with_order_by(OrderBy::Origin)
+            .with_include_origins(false)
+            .with_placeholder_comments(PlaceholderCommentMode::Disabled)
+            .with_custom_header_attributes(&headers);
+
+        assert_eq!(render.order_by, OrderBy::Origin);
+        assert!(!render.include_origins);
+        assert_eq!(
+            render.print_placeholders_in_comments,
+            PlaceholderCommentMode::Disabled
+        );
+        assert_eq!(render.custom_header_attributes, Some(&headers));
+
+        let update = UpdateCatalogOptions::new("en", CatalogUpdateInput::default())
+            .with_locale("de")
+            .with_existing("msgid \"Hello\"\nmsgstr \"Hallo\"\n")
+            .with_mode(CatalogMode::GettextPo)
+            .with_render(render.clone())
+            .with_obsolete_strategy(ObsoleteStrategy::Delete)
+            .with_overwrite_source_translations(true)
+            .with_now("2026-07-02");
+
+        assert_eq!(update.locale, Some("de"));
+        assert_eq!(update.existing, Some("msgid \"Hello\"\nmsgstr \"Hallo\"\n"));
+        assert_eq!(update.mode, CatalogMode::GettextPo);
+        assert_eq!(update.render, render);
+        assert_eq!(update.obsolete_strategy, ObsoleteStrategy::Delete);
+        assert!(update.overwrite_source_translations);
+        assert_eq!(update.now, Some("2026-07-02"));
+
+        let parse = ParseCatalogOptions::new("content", "en")
+            .with_locale("fr")
+            .with_mode(CatalogMode::IcuFcl)
+            .with_strict(true);
+
+        assert_eq!(parse.locale, Some("fr"));
+        assert_eq!(parse.mode, CatalogMode::IcuFcl);
+        assert!(parse.strict);
+    }
+
+    #[test]
     fn catalog_file_format_infers_supported_suffixes() {
         assert_eq!(
             CatalogFileFormat::infer_from_path(Path::new("locale/de.po")).expect("po"),
@@ -1514,10 +1667,8 @@ mod tests {
             ),
             Some(CatalogMode::IcuPo)
         );
-        let update = UpdateCatalogOptions {
-            mode: CatalogMode::GettextPo,
-            ..UpdateCatalogOptions::new("en", Vec::<super::SourceExtractedMessage>::new())
-        };
+        let update = UpdateCatalogOptions::new("en", Vec::<super::SourceExtractedMessage>::new())
+            .with_mode(CatalogMode::GettextPo);
         assert_eq!(update.mode, CatalogMode::GettextPo);
     }
 

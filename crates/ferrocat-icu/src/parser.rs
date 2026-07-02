@@ -19,6 +19,22 @@ impl Default for IcuParserOptions {
     }
 }
 
+impl IcuParserOptions {
+    /// Returns options that enable or disable rich-text tag parsing.
+    #[must_use]
+    pub fn with_ignore_tag(mut self, ignore_tag: bool) -> Self {
+        self.ignore_tag = ignore_tag;
+        self
+    }
+
+    /// Returns options that enable or disable required `other` clauses.
+    #[must_use]
+    pub fn with_requires_other_clause(mut self, requires_other_clause: bool) -> Self {
+        self.requires_other_clause = requires_other_clause;
+        self
+    }
+}
+
 /// Parses ICU `MessageFormat` input with the default parser options.
 ///
 /// # Errors
@@ -656,10 +672,7 @@ mod tests {
     fn ignore_tag_treats_tags_as_literal_text() {
         let message = parse_icu_with_options(
             "<b>Hello</b>",
-            &IcuParserOptions {
-                ignore_tag: true,
-                ..IcuParserOptions::default()
-            },
+            &IcuParserOptions::default().with_ignore_tag(true),
         )
         .expect("parse");
         assert_eq!(
@@ -693,10 +706,7 @@ mod tests {
     fn missing_other_clause_can_be_disabled() {
         parse_icu_with_options(
             "{count, plural, one {item}}",
-            &IcuParserOptions {
-                requires_other_clause: false,
-                ..IcuParserOptions::default()
-            },
+            &IcuParserOptions::default().with_requires_other_clause(false),
         )
         .expect("parse");
     }

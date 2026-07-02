@@ -40,6 +40,27 @@ impl<'a> CatalogAuditOptions<'a> {
             ..Self::default()
         }
     }
+
+    /// Returns options that audit only the given target locales.
+    #[must_use]
+    pub fn with_locales(mut self, locales: &'a [&'a str]) -> Self {
+        self.locales = locales;
+        self
+    }
+
+    /// Returns options that validate the given source-side metadata records.
+    #[must_use]
+    pub fn with_metadata(mut self, metadata: &'a [MessageMetadataInput]) -> Self {
+        self.metadata = metadata;
+        self
+    }
+
+    /// Returns options that run the given audit check set.
+    #[must_use]
+    pub fn with_checks(mut self, checks: CatalogAuditChecks) -> Self {
+        self.checks = checks;
+        self
+    }
 }
 
 /// ICU-specific options used by catalog audit checks.
@@ -92,6 +113,50 @@ impl Default for CatalogAuditChecks {
             semantic_metadata: true,
             obsolete_entries: true,
         }
+    }
+}
+
+impl CatalogAuditChecks {
+    /// Returns checks with completeness validation enabled or disabled.
+    #[must_use]
+    pub fn with_completeness(mut self, completeness: bool) -> Self {
+        self.completeness = completeness;
+        self
+    }
+
+    /// Returns checks with extra-message validation enabled or disabled.
+    #[must_use]
+    pub fn with_extra_messages(mut self, extra_messages: bool) -> Self {
+        self.extra_messages = extra_messages;
+        self
+    }
+
+    /// Returns checks with ICU syntax validation enabled or disabled.
+    #[must_use]
+    pub fn with_icu_syntax(mut self, icu_syntax: bool) -> Self {
+        self.icu_syntax = icu_syntax;
+        self
+    }
+
+    /// Returns checks with ICU compatibility validation enabled or disabled.
+    #[must_use]
+    pub fn with_icu_compatibility(mut self, icu_compatibility: bool) -> Self {
+        self.icu_compatibility = icu_compatibility;
+        self
+    }
+
+    /// Returns checks with semantic metadata validation enabled or disabled.
+    #[must_use]
+    pub fn with_semantic_metadata(mut self, semantic_metadata: bool) -> Self {
+        self.semantic_metadata = semantic_metadata;
+        self
+    }
+
+    /// Returns checks with obsolete-entry reporting enabled or disabled.
+    #[must_use]
+    pub fn with_obsolete_entries(mut self, obsolete_entries: bool) -> Self {
+        self.obsolete_entries = obsolete_entries;
+        self
     }
 }
 
@@ -209,15 +274,13 @@ impl CatalogAuditReport {
 /// ```rust
 /// use ferrocat_po::{CatalogAuditOptions, ParseCatalogOptions, audit_catalogs, parse_catalog};
 ///
-/// let source = parse_catalog(ParseCatalogOptions {
-///     locale: Some("en"),
-///     ..ParseCatalogOptions::new("msgid \"Checkout\"\nmsgstr \"Checkout\"\n", "en")
-/// })?
+/// let source = parse_catalog(
+///     ParseCatalogOptions::new("msgid \"Checkout\"\nmsgstr \"Checkout\"\n", "en").with_locale("en"),
+/// )?
 /// .into_normalized_view()?;
-/// let target = parse_catalog(ParseCatalogOptions {
-///     locale: Some("de"),
-///     ..ParseCatalogOptions::new("msgid \"Checkout\"\nmsgstr \"\"\n", "en")
-/// })?
+/// let target = parse_catalog(
+///     ParseCatalogOptions::new("msgid \"Checkout\"\nmsgstr \"\"\n", "en").with_locale("de"),
+/// )?
 /// .into_normalized_view()?;
 ///
 /// let report = audit_catalogs(&[&source, &target], &CatalogAuditOptions::new("en"))?;
@@ -597,6 +660,43 @@ fn message_strings(message: &CatalogMessage, include_msgid: bool) -> Vec<&str> {
 fn push_unique<'a>(values: &mut Vec<&'a str>, value: &'a str) {
     if !values.contains(&value) {
         values.push(value);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use ferrocat_icu::MessageMetadataInput;
+
+    use super::{CatalogAuditChecks, CatalogAuditOptions};
+
+    #[test]
+    fn audit_option_builders_set_fields() {
+        let metadata = [MessageMetadataInput::new("Checkout")];
+        let locales = ["de", "fr"];
+        let checks = CatalogAuditChecks::default()
+            .with_completeness(false)
+            .with_extra_messages(false)
+            .with_icu_syntax(false)
+            .with_icu_compatibility(false)
+            .with_semantic_metadata(false)
+            .with_obsolete_entries(false);
+
+        assert!(!checks.completeness);
+        assert!(!checks.extra_messages);
+        assert!(!checks.icu_syntax);
+        assert!(!checks.icu_compatibility);
+        assert!(!checks.semantic_metadata);
+        assert!(!checks.obsolete_entries);
+
+        let options = CatalogAuditOptions::new("en")
+            .with_locales(&locales)
+            .with_metadata(&metadata)
+            .with_checks(checks);
+
+        assert_eq!(options.source_locale, "en");
+        assert_eq!(options.locales, &locales);
+        assert_eq!(options.metadata, &metadata);
+        assert_eq!(options.checks, checks);
     }
 }
 

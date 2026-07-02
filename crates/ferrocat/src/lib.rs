@@ -42,15 +42,13 @@
 //!     ParseCatalogOptions, compile_catalog_artifact_selected, parse_catalog,
 //! };
 //!
-//! let source = parse_catalog(ParseCatalogOptions {
-//!     locale: Some("en"),
-//!     ..ParseCatalogOptions::new("msgid \"Hello\"\nmsgstr \"Hello\"\n", "en")
-//! })?
+//! let source = parse_catalog(
+//!     ParseCatalogOptions::new("msgid \"Hello\"\nmsgstr \"Hello\"\n", "en").with_locale("en"),
+//! )?
 //! .into_normalized_view()?;
-//! let requested = parse_catalog(ParseCatalogOptions {
-//!     locale: Some("de"),
-//!     ..ParseCatalogOptions::new("msgid \"Hello\"\nmsgstr \"Hallo\"\n", "en")
-//! })?
+//! let requested = parse_catalog(
+//!     ParseCatalogOptions::new("msgid \"Hello\"\nmsgstr \"Hallo\"\n", "en").with_locale("de"),
+//! )?
 //! .into_normalized_view()?;
 //! let index = CompiledCatalogIdIndex::new(&[&requested, &source], CompiledKeyStrategy::FerrocatV1)?;
 //! let compiled_ids = index.iter().map(|(id, _)| id.to_owned()).collect::<Vec<_>>();
@@ -69,15 +67,11 @@
 //!     CatalogAuditOptions, ParseCatalogOptions, audit_catalogs, parse_catalog,
 //! };
 //!
-//! let source = parse_catalog(ParseCatalogOptions {
-//!     locale: Some("en"),
-//!     ..ParseCatalogOptions::new("msgid \"Checkout\"\nmsgstr \"Checkout\"\n", "en")
-//! })?
+//! let source = parse_catalog(
+//!     ParseCatalogOptions::new("msgid \"Checkout\"\nmsgstr \"Checkout\"\n", "en").with_locale("en"),
+//! )?
 //! .into_normalized_view()?;
-//! let target = parse_catalog(ParseCatalogOptions {
-//!     locale: Some("de"),
-//!     ..ParseCatalogOptions::new("", "en")
-//! })?
+//! let target = parse_catalog(ParseCatalogOptions::new("", "en").with_locale("de"))?
 //! .into_normalized_view()?;
 //! let report = audit_catalogs(&[&source, &target], &CatalogAuditOptions::new("en"))?;
 //!

@@ -56,15 +56,13 @@
 //!     parse_catalog,
 //! };
 //!
-//! let source = parse_catalog(ParseCatalogOptions {
-//!     locale: Some("en"),
-//!     ..ParseCatalogOptions::new("msgid \"Hello\"\nmsgstr \"Hello\"\n", "en")
-//! })?
+//! let source = parse_catalog(
+//!     ParseCatalogOptions::new("msgid \"Hello\"\nmsgstr \"Hello\"\n", "en").with_locale("en"),
+//! )?
 //! .into_normalized_view()?;
-//! let requested = parse_catalog(ParseCatalogOptions {
-//!     locale: Some("de"),
-//!     ..ParseCatalogOptions::new("msgid \"Hello\"\nmsgstr \"Hallo\"\n", "en")
-//! })?
+//! let requested = parse_catalog(
+//!     ParseCatalogOptions::new("msgid \"Hello\"\nmsgstr \"Hallo\"\n", "en").with_locale("de"),
+//! )?
 //! .into_normalized_view()?;
 //! let index = CompiledCatalogIdIndex::new(&[&requested, &source], ferrocat_po::CompiledKeyStrategy::FerrocatV1)?;
 //! let compiled_ids = index.iter().map(|(id, _)| id.to_owned()).collect::<Vec<_>>();
@@ -81,15 +79,15 @@
 //! ```rust
 //! use ferrocat_po::{CatalogAuditOptions, ParseCatalogOptions, audit_catalogs, parse_catalog};
 //!
-//! let source = parse_catalog(ParseCatalogOptions {
-//!     locale: Some("en"),
-//!     ..ParseCatalogOptions::new("msgid \"Hello {name}\"\nmsgstr \"Hello {name}\"\n", "en")
-//! })?
+//! let source = parse_catalog(
+//!     ParseCatalogOptions::new("msgid \"Hello {name}\"\nmsgstr \"Hello {name}\"\n", "en")
+//!         .with_locale("en"),
+//! )?
 //! .into_normalized_view()?;
-//! let target = parse_catalog(ParseCatalogOptions {
-//!     locale: Some("de"),
-//!     ..ParseCatalogOptions::new("msgid \"Hello {name}\"\nmsgstr \"Hallo\"\n", "en")
-//! })?
+//! let target = parse_catalog(
+//!     ParseCatalogOptions::new("msgid \"Hello {name}\"\nmsgstr \"Hallo\"\n", "en")
+//!         .with_locale("de"),
+//! )?
 //! .into_normalized_view()?;
 //! let report = audit_catalogs(&[&source, &target], &CatalogAuditOptions::new("en"))?;
 //!
@@ -438,6 +436,22 @@ impl Default for SerializeOptions {
     }
 }
 
+impl SerializeOptions {
+    /// Returns options that wrap string literals at the given soft limit.
+    #[must_use]
+    pub fn with_fold_length(mut self, fold_length: usize) -> Self {
+        self.fold_length = fold_length;
+        self
+    }
+
+    /// Returns options that keep one-line values compact when possible.
+    #[must_use]
+    pub fn with_compact_multiline(mut self, compact_multiline: bool) -> Self {
+        self.compact_multiline = compact_multiline;
+        self
+    }
+}
+
 /// One-based line/column context plus the byte offset for a parse error.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ParsePosition {
@@ -533,7 +547,7 @@ impl std::error::Error for ParseError {}
 
 #[cfg(test)]
 mod tests {
-    use super::{MsgStr, ParseError, ParsePosition};
+    use super::{MsgStr, ParseError, ParsePosition, SerializeOptions};
 
     #[cfg(feature = "serde")]
     use super::{Header, PoFile, PoItem};
@@ -604,6 +618,16 @@ mod tests {
         assert_eq!(plural.iter().collect::<Vec<_>>(), vec!["eins", "viele"]);
         assert_eq!(plural[1], "viele");
         assert_eq!(plural.into_vec(), vec!["eins", "viele"]);
+    }
+
+    #[test]
+    fn serialize_option_builders_set_fields() {
+        let options = SerializeOptions::default()
+            .with_fold_length(120)
+            .with_compact_multiline(false);
+
+        assert_eq!(options.fold_length, 120);
+        assert!(!options.compact_multiline);
     }
 
     #[cfg(feature = "serde")]

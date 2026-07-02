@@ -354,10 +354,10 @@ The normalized view supports both owned-key lookup with `CatalogMessageKey` and 
 use ferrocat::{ParseCatalogOptions, parse_catalog};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let catalog = parse_catalog(ParseCatalogOptions {
-        locale: Some("de"),
-        ..ParseCatalogOptions::new("msgid \"Checkout\"\nmsgstr \"Zur Kasse\"\n", "en")
-    })?;
+    let catalog = parse_catalog(
+        ParseCatalogOptions::new("msgid \"Checkout\"\nmsgstr \"Zur Kasse\"\n", "en")
+            .with_locale("de"),
+    )?;
 
     let view = catalog.into_normalized_view()?;
     assert!(view.contains_parts("Checkout", None));
@@ -415,15 +415,14 @@ Diagnostics are machine-readable. Examples include:
 use ferrocat::{CatalogAuditOptions, ParseCatalogOptions, audit_catalogs, parse_catalog};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let source = parse_catalog(ParseCatalogOptions {
-        locale: Some("en"),
-        ..ParseCatalogOptions::new("msgid \"Checkout\"\nmsgstr \"Checkout\"\n", "en")
-    })?
+    let source = parse_catalog(
+        ParseCatalogOptions::new("msgid \"Checkout\"\nmsgstr \"Checkout\"\n", "en")
+            .with_locale("en"),
+    )?
     .into_normalized_view()?;
-    let target = parse_catalog(ParseCatalogOptions {
-        locale: Some("de"),
-        ..ParseCatalogOptions::new("msgid \"Checkout\"\nmsgstr \"\"\n", "en")
-    })?
+    let target = parse_catalog(
+        ParseCatalogOptions::new("msgid \"Checkout\"\nmsgstr \"\"\n", "en").with_locale("de"),
+    )?
     .into_normalized_view()?;
 
     let report = audit_catalogs(&[&source, &target], &CatalogAuditOptions::new("en"))?;
@@ -517,15 +516,15 @@ use ferrocat::{
 };
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let source = parse_catalog(ParseCatalogOptions {
-        locale: Some("en"),
-        ..ParseCatalogOptions::new("msgid \"Checkout\"\nmsgstr \"Checkout\"\n", "en")
-    })?
+    let source = parse_catalog(
+        ParseCatalogOptions::new("msgid \"Checkout\"\nmsgstr \"Checkout\"\n", "en")
+            .with_locale("en"),
+    )?
     .into_normalized_view()?;
-    let target = parse_catalog(ParseCatalogOptions {
-        locale: Some("de"),
-        ..ParseCatalogOptions::new("msgid \"Checkout\"\nmsgstr \"Zur Kasse\"\n", "en")
-    })?
+    let target = parse_catalog(
+        ParseCatalogOptions::new("msgid \"Checkout\"\nmsgstr \"Zur Kasse\"\n", "en")
+            .with_locale("de"),
+    )?
     .into_normalized_view()?;
 
     let report = catalog_coverage(&[&source, &target], &CatalogCoverageOptions::new("en"))?;
@@ -560,28 +559,28 @@ use ferrocat::{
 };
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let previous_source = parse_catalog(ParseCatalogOptions {
-        locale: Some("en"),
-        ..ParseCatalogOptions::new("msgid \"Checkout\"\nmsgstr \"Checkout\"\n", "en")
-    })?
+    let previous_source = parse_catalog(
+        ParseCatalogOptions::new("msgid \"Checkout\"\nmsgstr \"Checkout\"\n", "en")
+            .with_locale("en"),
+    )?
     .into_normalized_view()?;
-    let current_source = parse_catalog(ParseCatalogOptions {
-        locale: Some("en"),
-        ..ParseCatalogOptions::new(
+    let current_source = parse_catalog(
+        ParseCatalogOptions::new(
             "msgid \"Checkout\"\nmsgstr \"Checkout\"\n\nmsgid \"Cancel\"\nmsgstr \"Cancel\"\n",
             "en",
         )
-    })?
+        .with_locale("en"),
+    )?
     .into_normalized_view()?;
-    let previous_de = parse_catalog(ParseCatalogOptions {
-        locale: Some("de"),
-        ..ParseCatalogOptions::new("msgid \"Checkout\"\nmsgstr \"Zur Kasse\"\n", "en")
-    })?
+    let previous_de = parse_catalog(
+        ParseCatalogOptions::new("msgid \"Checkout\"\nmsgstr \"Zur Kasse\"\n", "en")
+            .with_locale("de"),
+    )?
     .into_normalized_view()?;
-    let current_de = parse_catalog(ParseCatalogOptions {
-        locale: Some("de"),
-        ..ParseCatalogOptions::new("msgid \"Checkout\"\nmsgstr \"Checkout\"\n", "en")
-    })?
+    let current_de = parse_catalog(
+        ParseCatalogOptions::new("msgid \"Checkout\"\nmsgstr \"Checkout\"\n", "en")
+            .with_locale("de"),
+    )?
     .into_normalized_view()?;
 
     let report = catalog_review(
@@ -633,24 +632,21 @@ use ferrocat::{
 };
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let source = parse_catalog(ParseCatalogOptions {
-        locale: Some("en"),
-        ..ParseCatalogOptions::new(
+    let source = parse_catalog(
+        ParseCatalogOptions::new(
             "msgid \"Checkout\"\nmsgstr \"Checkout\"\n\nmsgid \"Cart\"\nmsgstr \"Cart\"\n",
             "en",
         )
-    })?
+        .with_locale("en"),
+    )?
     .into_normalized_view()?;
-    let german = parse_catalog(ParseCatalogOptions {
-        locale: Some("de"),
-        ..ParseCatalogOptions::new("msgid \"Checkout\"\nmsgstr \"Zur Kasse\"\n", "en")
-    })?
+    let german = parse_catalog(
+        ParseCatalogOptions::new("msgid \"Checkout\"\nmsgstr \"Zur Kasse\"\n", "en")
+            .with_locale("de"),
+    )?
     .into_normalized_view()?;
 
-    let options = CompileCatalogArtifactOptions {
-        source_fallback: true,
-        ..CompileCatalogArtifactOptions::new("de", "en")
-    };
+    let options = CompileCatalogArtifactOptions::new("de", "en").with_source_fallback(true);
     let artifact = compile_catalog_artifact(&[&source, &german], &options)?;
     assert_eq!(artifact.messages.len(), 2);
     assert_eq!(artifact.missing.len(), 1);
@@ -780,15 +776,17 @@ use ferrocat_po::{
 };
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let result = update_catalog(UpdateCatalogOptions {
-        locale: Some("de"),
-        mode: CatalogMode::IcuFcl,
-        input: CatalogUpdateInput::SourceFirst(vec![SourceExtractedMessage {
-            msgid: "Checkout".to_owned(),
-            ..SourceExtractedMessage::default()
-        }]),
-        ..UpdateCatalogOptions::new("en", CatalogUpdateInput::default())
-    })?;
+    let result = update_catalog(
+        UpdateCatalogOptions::new(
+            "en",
+            CatalogUpdateInput::SourceFirst(vec![SourceExtractedMessage {
+                msgid: "Checkout".to_owned(),
+                ..SourceExtractedMessage::default()
+            }]),
+        )
+        .with_locale("de")
+        .with_mode(CatalogMode::IcuFcl),
+    )?;
 
     assert!(result.content.starts_with("%FCL1\t"));
     assert!(result.content.contains("Checkout"));

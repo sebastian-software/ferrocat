@@ -80,11 +80,39 @@ impl Default for CompileCatalogOptions<'_> {
     }
 }
 
-impl CompileCatalogOptions<'_> {
+impl<'a> CompileCatalogOptions<'a> {
     /// Creates runtime catalog compile options with default behavior.
     #[must_use]
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// Returns options that derive runtime keys with the given strategy.
+    #[must_use]
+    pub fn with_key_strategy(mut self, key_strategy: CompiledKeyStrategy) -> Self {
+        self.key_strategy = key_strategy;
+        self
+    }
+
+    /// Returns options that enable or disable source-locale fallback.
+    #[must_use]
+    pub fn with_source_fallback(mut self, source_fallback: bool) -> Self {
+        self.source_fallback = source_fallback;
+        self
+    }
+
+    /// Returns options that use the given source locale for source fallback.
+    #[must_use]
+    pub fn with_source_locale(mut self, source_locale: &'a str) -> Self {
+        self.source_locale = Some(source_locale);
+        self
+    }
+
+    /// Returns options that interpret input catalogs with the given semantics.
+    #[must_use]
+    pub fn with_semantics(mut self, semantics: CatalogSemantics) -> Self {
+        self.semantics = semantics;
+        self
     }
 }
 
@@ -127,6 +155,62 @@ impl<'a> CompileCatalogArtifactOptions<'a> {
             icu_compatibility: false,
             semantics: CatalogSemantics::IcuNative,
         }
+    }
+
+    /// Returns options that compile the given requested locale.
+    #[must_use]
+    pub fn with_requested_locale(mut self, requested_locale: &'a str) -> Self {
+        self.requested_locale = requested_locale;
+        self
+    }
+
+    /// Returns options that use the given source locale.
+    #[must_use]
+    pub fn with_source_locale(mut self, source_locale: &'a str) -> Self {
+        self.source_locale = source_locale;
+        self
+    }
+
+    /// Returns options that consult the given ordered fallback locales.
+    #[must_use]
+    pub fn with_fallback_chain(mut self, fallback_chain: &'a [String]) -> Self {
+        self.fallback_chain = fallback_chain;
+        self
+    }
+
+    /// Returns options that derive runtime keys with the given strategy.
+    #[must_use]
+    pub fn with_key_strategy(mut self, key_strategy: CompiledKeyStrategy) -> Self {
+        self.key_strategy = key_strategy;
+        self
+    }
+
+    /// Returns options that enable or disable source-text fallback.
+    #[must_use]
+    pub fn with_source_fallback(mut self, source_fallback: bool) -> Self {
+        self.source_fallback = source_fallback;
+        self
+    }
+
+    /// Returns options that enable or disable hard errors for invalid final ICU messages.
+    #[must_use]
+    pub fn with_strict_icu(mut self, strict_icu: bool) -> Self {
+        self.strict_icu = strict_icu;
+        self
+    }
+
+    /// Returns options that enable or disable final ICU compatibility checks.
+    #[must_use]
+    pub fn with_icu_compatibility(mut self, icu_compatibility: bool) -> Self {
+        self.icu_compatibility = icu_compatibility;
+        self
+    }
+
+    /// Returns options that interpret input catalogs with the given semantics.
+    #[must_use]
+    pub fn with_semantics(mut self, semantics: CatalogSemantics) -> Self {
+        self.semantics = semantics;
+        self
     }
 }
 
@@ -187,6 +271,20 @@ impl<'a> CompileSelectedCatalogArtifactOptions<'a> {
             options: CompileCatalogArtifactOptions::new(requested_locale, source_locale),
         }
     }
+
+    /// Returns options that include the given compiled runtime IDs.
+    #[must_use]
+    pub fn with_compiled_ids(mut self, compiled_ids: &'a [String]) -> Self {
+        self.compiled_ids = compiled_ids;
+        self
+    }
+
+    /// Returns options that use the given shared artifact compile options.
+    #[must_use]
+    pub fn with_options(mut self, options: CompileCatalogArtifactOptions<'a>) -> Self {
+        self.options = options;
+        self
+    }
 }
 
 /// Message selection for [`super::compile_catalog_artifact_report`].
@@ -241,6 +339,27 @@ impl<'a> CompileCatalogArtifactReportOptions<'a> {
                 compiled_ids,
             },
         }
+    }
+
+    /// Returns report options that use the given shared artifact compile options.
+    #[must_use]
+    pub fn with_options(mut self, options: CompileCatalogArtifactOptions<'a>) -> Self {
+        self.options = options;
+        self
+    }
+
+    /// Returns report options that use the given ICU validation options.
+    #[must_use]
+    pub fn with_icu_options(mut self, icu_options: CompileCatalogArtifactIcuOptions) -> Self {
+        self.icu_options = icu_options;
+        self
+    }
+
+    /// Returns report options that use the given source identity selection.
+    #[must_use]
+    pub fn with_selection(mut self, selection: CompileCatalogArtifactReportSelection<'a>) -> Self {
+        self.selection = selection;
+        self
     }
 }
 
@@ -686,12 +805,13 @@ mod tests {
     use std::collections::BTreeMap;
 
     use super::{
-        COMPILED_CATALOG_ARTIFACT_SCHEMA_VERSION, CompileCatalogArtifactOptions,
-        CompileCatalogArtifactReportOptions, CompileCatalogArtifactReportSelection,
-        CompileCatalogOptions, CompileSelectedCatalogArtifactOptions, CompiledCatalogArtifact,
-        CompiledCatalogDiagnostic, CompiledCatalogMissingMessage, CompiledKeyStrategy,
+        COMPILED_CATALOG_ARTIFACT_SCHEMA_VERSION, CompileCatalogArtifactIcuOptions,
+        CompileCatalogArtifactOptions, CompileCatalogArtifactReportOptions,
+        CompileCatalogArtifactReportSelection, CompileCatalogOptions,
+        CompileSelectedCatalogArtifactOptions, CompiledCatalogArtifact, CompiledCatalogDiagnostic,
+        CompiledCatalogIdIndex, CompiledCatalogMissingMessage, CompiledKeyStrategy,
     };
-    use crate::api::{CatalogMessageKey, CatalogSemantics, DiagnosticSeverity};
+    use crate::api::{CatalogMessageKey, CatalogSemantics, DiagnosticSeverity, IcuSyntaxPolicy};
 
     #[test]
     fn compile_option_constructors_set_required_fields_and_keep_defaults() {
@@ -721,6 +841,72 @@ mod tests {
         assert!(matches!(
             report.selection,
             CompileCatalogArtifactReportSelection::All
+        ));
+    }
+
+    #[test]
+    fn compile_option_builders_set_fields() {
+        let compile = CompileCatalogOptions::new()
+            .with_key_strategy(CompiledKeyStrategy::FerrocatV1)
+            .with_source_fallback(true)
+            .with_source_locale("en")
+            .with_semantics(CatalogSemantics::GettextCompat);
+
+        assert_eq!(compile.key_strategy, CompiledKeyStrategy::FerrocatV1);
+        assert!(compile.source_fallback);
+        assert_eq!(compile.source_locale, Some("en"));
+        assert_eq!(compile.semantics, CatalogSemantics::GettextCompat);
+
+        let fallback_chain = vec!["fr".to_owned(), "en".to_owned()];
+        let artifact = CompileCatalogArtifactOptions::new("de", "en")
+            .with_requested_locale("fr")
+            .with_source_locale("en-US")
+            .with_fallback_chain(&fallback_chain)
+            .with_key_strategy(CompiledKeyStrategy::FerrocatV1)
+            .with_source_fallback(true)
+            .with_strict_icu(true)
+            .with_icu_compatibility(true)
+            .with_semantics(CatalogSemantics::GettextCompat);
+
+        assert_eq!(artifact.requested_locale, "fr");
+        assert_eq!(artifact.source_locale, "en-US");
+        assert_eq!(artifact.fallback_chain, fallback_chain.as_slice());
+        assert!(artifact.source_fallback);
+        assert!(artifact.strict_icu);
+        assert!(artifact.icu_compatibility);
+        assert_eq!(artifact.semantics, CatalogSemantics::GettextCompat);
+
+        let selected_ids = vec!["id-1".to_owned()];
+        let other_ids = vec!["id-2".to_owned()];
+        let selected = CompileSelectedCatalogArtifactOptions::new("de", "en", &selected_ids)
+            .with_compiled_ids(&other_ids)
+            .with_options(artifact.clone());
+
+        assert_eq!(selected.compiled_ids, other_ids.as_slice());
+        assert_eq!(selected.options, artifact);
+
+        let index = CompiledCatalogIdIndex::default();
+        let selection = CompileCatalogArtifactReportSelection::Selected {
+            index: &index,
+            compiled_ids: &other_ids,
+        };
+        let report = CompileCatalogArtifactReportOptions::new("de", "en")
+            .with_options(artifact.clone())
+            .with_icu_options(
+                CompileCatalogArtifactIcuOptions::new()
+                    .with_syntax_policy(IcuSyntaxPolicy::RuntimeLiteralApostrophes),
+            )
+            .with_selection(selection);
+
+        assert_eq!(report.options, artifact);
+        assert_eq!(
+            report.icu_options.syntax_policy,
+            IcuSyntaxPolicy::RuntimeLiteralApostrophes
+        );
+        assert!(matches!(
+            report.selection,
+            CompileCatalogArtifactReportSelection::Selected { compiled_ids, .. }
+                if compiled_ids == other_ids.as_slice()
         ));
     }
 

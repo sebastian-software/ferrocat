@@ -124,15 +124,14 @@ pub struct CatalogCoverageMessage {
 ///     parse_catalog,
 /// };
 ///
-/// let source = parse_catalog(ParseCatalogOptions {
-///     locale: Some("en"),
-///     ..ParseCatalogOptions::new("msgid \"Save\"\nmsgstr \"\"\n", "en")
-/// })?
+/// let source = parse_catalog(
+///     ParseCatalogOptions::new("msgid \"Save\"\nmsgstr \"\"\n", "en").with_locale("en"),
+/// )?
 /// .into_normalized_view()?;
-/// let target = parse_catalog(ParseCatalogOptions {
-///     locale: Some("de"),
-///     ..ParseCatalogOptions::new("msgid \"Save\"\nmsgstr \"Speichern\"\n", "en")
-/// })?
+/// let target = parse_catalog(
+///     ParseCatalogOptions::new("msgid \"Save\"\nmsgstr \"Speichern\"\n", "en")
+///         .with_locale("de"),
+/// )?
 /// .into_normalized_view()?;
 ///
 /// let options = CatalogCoverageOptions::new("en").with_details(true);
