@@ -5,8 +5,8 @@
 //! and serializer hot paths stay elsewhere; this layer is where we preserve
 //! catalog semantics and diagnostics.
 
-use std::collections::BTreeMap;
 use std::fs;
+use std::{collections::BTreeMap, mem};
 
 use crate::diagnostic_codes;
 
@@ -128,13 +128,12 @@ struct MergeCatalogContext<'a> {
 /// assert!(result.content.contains("msgid \"Checkout\""));
 /// # Ok::<(), ferrocat_po::ApiError>(())
 /// ```
-#[expect(
-    clippy::needless_pass_by_value,
-    reason = "Public API takes owned option structs so callers can build and move them ergonomically."
-)]
-pub fn update_catalog(options: UpdateCatalogOptions<'_>) -> Result<CatalogUpdateResult, ApiError> {
+pub fn update_catalog(
+    mut options: UpdateCatalogOptions<'_>,
+) -> Result<CatalogUpdateResult, ApiError> {
     super::validate_source_locale(options.source_locale)?;
 
+    let input = mem::take(&mut options.input);
     let created = options.existing.is_none();
     let original = options.existing.unwrap_or("");
     let existing = match options.existing {
@@ -163,7 +162,7 @@ pub fn update_catalog(options: UpdateCatalogOptions<'_>) -> Result<CatalogUpdate
         .or_else(|| existing.locale.clone())
         .or_else(|| existing.headers.get("Language").cloned());
     let mut diagnostics = existing.diagnostics.clone();
-    let normalized = normalize_update_input(&options.input)?;
+    let normalized = normalize_update_input(input)?;
     let merge_context = MergeCatalogContext {
         locale: locale.as_deref(),
         source_locale: options.source_locale,
@@ -173,7 +172,7 @@ pub fn update_catalog(options: UpdateCatalogOptions<'_>) -> Result<CatalogUpdate
         now: options.now,
     };
     let (mut merged, stats) =
-        merge_catalogs(existing, &normalized, &merge_context, &mut diagnostics);
+        merge_catalogs(existing, normalized, &merge_context, &mut diagnostics);
     merged.locale.clone_from(&locale);
     apply_storage_defaults(&mut merged, &options, locale.as_deref(), &mut diagnostics)?;
     sort_messages(&mut merged.messages, options.render.order_by);
@@ -279,7 +278,7 @@ pub fn parse_catalog(options: ParseCatalogOptions<'_>) -> Result<ParsedCatalog, 
 /// The result keeps only the fields that matter for catalog identity and merge
 /// semantics, while also projecting source-first ICU plurals into the same
 /// structured plural representation used by `CatalogUpdateInput::Structured`.
-fn normalize_update_input(input: &CatalogUpdateInput) -> Result<Vec<NormalizedMessage>, ApiError> {
+fn normalize_update_input(input: CatalogUpdateInput) -> Result<Vec<NormalizedMessage>, ApiError> {
     let mut index = BTreeMap::<(String, Option<String>), usize>::new();
     let mut normalized = Vec::<NormalizedMessage>::new();
 
@@ -288,23 +287,23 @@ fn normalize_update_input(input: &CatalogUpdateInput) -> Result<Vec<NormalizedMe
             for message in extracted {
                 let (msgid, msgctxt, kind, comments, origins, placeholders) = match message {
                     ExtractedMessage::Singular(message) => (
-                        message.msgid.clone(),
-                        message.msgctxt.clone(),
+                        message.msgid,
+                        message.msgctxt,
                         NormalizedKind::Singular,
-                        message.comments.clone(),
-                        message.origin.clone(),
-                        message.placeholders.clone(),
+                        message.comments,
+                        message.origin,
+                        message.placeholders,
                     ),
                     ExtractedMessage::Plural(message) => (
-                        message.msgid.clone(),
-                        message.msgctxt.clone(),
+                        message.msgid,
+                        message.msgctxt,
                         NormalizedKind::Plural {
-                            source: message.source.clone(),
+                            source: message.source,
                             variable: None,
                         },
-                        message.comments.clone(),
-                        message.origin.clone(),
-                        message.placeholders.clone(),
+                        message.comments,
+                        message.origin,
+                        message.placeholders,
                     ),
                 };
 
@@ -328,12 +327,12 @@ fn normalize_update_input(input: &CatalogUpdateInput) -> Result<Vec<NormalizedMe
                     &mut index,
                     &mut normalized,
                     NormalizedMessage {
-                        msgid: message.msgid.clone(),
-                        msgctxt: message.msgctxt.clone(),
+                        msgid: message.msgid,
+                        msgctxt: message.msgctxt,
                         kind: NormalizedKind::Singular,
-                        comments: dedupe_strings(message.comments.clone()),
-                        origins: dedupe_origins(message.origin.clone()),
-                        placeholders: dedupe_placeholders(message.placeholders.clone()),
+                        comments: dedupe_strings(message.comments),
+                        origins: dedupe_origins(message.origin),
+                        placeholders: dedupe_placeholders(message.placeholders),
                     },
                 )?;
             }
@@ -384,7 +383,7 @@ fn push_normalized_message(
 /// coarse-grained update counters used by the high-level API.
 fn merge_catalogs(
     existing: Catalog,
-    normalized: &[NormalizedMessage],
+    normalized: Vec<NormalizedMessage>,
     context: &MergeCatalogContext<'_>,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> (Catalog, CatalogStats) {
@@ -392,11 +391,6 @@ fn merge_catalogs(
         .locale
         .is_none_or(|value| value == context.source_locale);
     let mut stats = CatalogStats::default();
-
-    let mut existing_index = BTreeMap::<(String, Option<String>), usize>::new();
-    for (index, message) in existing.messages.iter().enumerate() {
-        existing_index.insert((message.msgid.clone(), message.msgctxt.clone()), index);
-    }
 
     let mut matched = vec![false; existing.messages.len()];
     let mut messages = Vec::with_capacity(normalized.len() + existing.messages.len());
@@ -409,30 +403,38 @@ fn merge_catalogs(
         PluralProfile::for_locale(context.locale)
     };
 
-    for next in normalized {
-        let key = (next.msgid.clone(), next.msgctxt.clone());
-        let previous = if let Some(&index) = existing_index.get(&key) {
-            matched[index] = true;
-            Some(&existing.messages[index])
-        } else {
-            None
-        };
-        let merged = merge_message(
-            previous,
-            next,
-            is_source_locale,
-            &plural_profile,
-            context.overwrite_source_translations,
-            diagnostics,
-        );
-        if previous.is_none() {
-            stats.added += 1;
-        } else if previous == Some(&merged) {
-            stats.unchanged += 1;
-        } else {
-            stats.changed += 1;
+    {
+        let mut existing_index = BTreeMap::<(&str, Option<&str>), usize>::new();
+        for (index, message) in existing.messages.iter().enumerate() {
+            existing_index.insert((message.msgid.as_str(), message.msgctxt.as_deref()), index);
         }
-        messages.push(merged);
+
+        for next in normalized {
+            let previous = if let Some(&index) =
+                existing_index.get(&(next.msgid.as_str(), next.msgctxt.as_deref()))
+            {
+                matched[index] = true;
+                Some(&existing.messages[index])
+            } else {
+                None
+            };
+            let merged = merge_message(
+                previous,
+                next,
+                is_source_locale,
+                &plural_profile,
+                context.overwrite_source_translations,
+                diagnostics,
+            );
+            if previous.is_none() {
+                stats.added += 1;
+            } else if previous == Some(&merged) {
+                stats.unchanged += 1;
+            } else {
+                stats.changed += 1;
+            }
+            messages.push(merged);
+        }
     }
 
     for (index, message) in existing.messages.into_iter().enumerate() {
@@ -500,13 +502,22 @@ fn mark_obsolete(message: &mut CanonicalMessage, now: Option<&str>, stats: &mut 
 /// variable inference, and locale-aware plural category materialization meet.
 fn merge_message(
     previous: Option<&CanonicalMessage>,
-    next: &NormalizedMessage,
+    next: NormalizedMessage,
     is_source_locale: bool,
     plural_profile: &PluralProfile,
     overwrite_source_translations: bool,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> CanonicalMessage {
-    let translation = match (&next.kind, previous) {
+    let NormalizedMessage {
+        msgid,
+        msgctxt,
+        kind,
+        comments,
+        origins,
+        placeholders,
+    } = next;
+
+    let translation = match (kind, previous) {
         (NormalizedKind::Singular, Some(previous))
             if matches!(previous.translation, CanonicalTranslation::Singular { .. })
                 && !(is_source_locale && overwrite_source_translations) =>
@@ -515,7 +526,7 @@ fn merge_message(
         }
         (NormalizedKind::Singular, _) => CanonicalTranslation::Singular {
             value: if is_source_locale {
-                next.msgid.clone()
+                msgid.clone()
             } else {
                 String::new()
             },
@@ -536,18 +547,15 @@ fn merge_message(
                 ..
             }),
         ) if !(is_source_locale && overwrite_source_translations) => CanonicalTranslation::Plural {
-            source: source.clone(),
+            source,
             translation_by_category: plural_profile
                 .materialize_translation(translation_by_category),
-            variable: variable
-                .as_deref()
-                .map_or_else(|| previous_variable.clone(), str::to_owned),
+            variable: variable.unwrap_or_else(|| previous_variable.clone()),
         },
         (NormalizedKind::Plural { source, variable }, previous) => {
             let variable = variable
-                .clone()
                 .or_else(|| previous.and_then(extract_plural_variable))
-                .or_else(|| derive_plural_variable(&next.placeholders))
+                .or_else(|| derive_plural_variable(&placeholders))
                 .unwrap_or_else(|| {
                     diagnostics.push(
                         Diagnostic::new(
@@ -555,18 +563,20 @@ fn merge_message(
                             diagnostic_codes::plural::ASSUMED_VARIABLE,
                             "Unable to determine plural placeholder name, assuming \"count\".",
                         )
-                        .with_identity(&next.msgid, next.msgctxt.as_deref()),
+                        .with_identity(&msgid, msgctxt.as_deref()),
                     );
                     "count".to_owned()
                 });
 
+            let translation_by_category = if is_source_locale {
+                plural_profile.source_locale_translation(&source)
+            } else {
+                plural_profile.empty_translation()
+            };
+
             CanonicalTranslation::Plural {
-                source: source.clone(),
-                translation_by_category: if is_source_locale {
-                    plural_profile.source_locale_translation(source)
-                } else {
-                    plural_profile.empty_translation()
-                },
+                source,
+                translation_by_category,
                 variable,
             }
         }
@@ -576,12 +586,12 @@ fn merge_message(
         previous.map_or_else(|| (None, None), |message| (message.machine.clone(), None));
 
     CanonicalMessage {
-        msgid: next.msgid.clone(),
-        msgctxt: next.msgctxt.clone(),
+        msgid,
+        msgctxt,
         translation,
-        comments: next.comments.clone(),
-        origins: next.origins.clone(),
-        placeholders: next.placeholders.clone(),
+        comments,
+        origins,
+        placeholders,
         obsolete,
         machine,
     }
