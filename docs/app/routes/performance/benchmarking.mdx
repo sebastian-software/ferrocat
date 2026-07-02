@@ -155,8 +155,9 @@ This checks the required executables and adapter packages and prints the detecte
 - `rust-scheduled-v1`
   - Rust-only scheduled/reporting profile used by the `Benchmark Reports`
     workflow
-  - covers owned/borrowed PO parse, PO stringify, merge, update, catalog storage
-    parse, and ICU parse scenarios
+  - covers owned/borrowed PO parse, PO stringify, merge, catalog update (both
+    pre-structured and file-to-file), catalog storage parse, and ICU parse
+    scenarios
   - avoids Node, Python, and GNU gettext adapter setup so the scheduled run stays
     about Ferrocat internals
 - `gettext-official-v1`
@@ -179,6 +180,7 @@ This checks the required executables and adapter packages and prints the detecte
 - `gettext-workflows-ecosystem-v1`
   - extended workflow suite for classic gettext merge paths
   - compares `merge_catalog` against `msgmerge`, `pofile`, `pofile-ts`, and `polib`
+  - additionally compares the full `update_catalog` maintenance path (`po-update` groups) against the same tools on the same fixtures: Ferrocat parses the shared `template.pot` inside the timed loop and runs the complete catalog update, while the competitors run their native parse/merge/serialize update
   - every tool runs the same file-to-file pipeline: parse `existing.po`, parse `template.pot`, merge, and serialize. Ferrocat reads the same `.pot` instead of pre-structured messages, so the update comparison stays strictly apples-to-apples
   - the validation reparse used for the equivalence digest runs once outside the timed loop for every implementation, so no tool is charged for it
   - useful when you want workflow numbers across the broader gettext ecosystem
@@ -234,7 +236,7 @@ For the workflow ecosystem suite (the catalog-update comparison):
 cargo run --release -p ferrocat-bench -- compare gettext-workflows-ecosystem-v1 --out benchmark/results/gettext-workflows-ecosystem-v1-$(date +%Y%m%d-%H%M%S).json
 ```
 
-That profile compares `merge_catalog` against:
+That profile compares `merge_catalog` (`po-merge` groups) and the full `update_catalog` maintenance path (`po-update` groups) against:
 
 - `msgmerge`
 - `pofile`
@@ -275,7 +277,7 @@ Workflow-only baselines currently wired:
 - `pofile`, `pofile-ts`, and `polib` on `gettext-workflows-ecosystem-v1`
 - each measured as parse -> merge -> serialize pipelines on `gettext-ui-de-1000` and `gettext-ui-de-10000`
 - `gettext-parser` is intentionally excluded from workflow benchmarking for now because its PO compile/parse path does not preserve obsolete entries in a way that is semantically fair for `msgmerge`-style workflows
-- `update_catalog` is intentionally excluded from the public cross-tool benchmark tables because it is a broader catalog-maintenance API without a clean direct equivalent in the external comparison set
+- `update_catalog` is measured file-to-file in the `po-update` groups: Ferrocat parses the shared `template.pot` inside the timed loop, builds the extraction input from it, and runs the complete catalog update, so it is charged for strictly more work than the plain merge pipelines it is compared against. A compatibility probe asserts the output stays semantically identical to the `msgmerge` result on these corpora
 
 This is intentional. The official profile answers the small, understandable benchmark question first. The broader `gettext-compat-v1` profile is available when you want more detail, and the advanced `mixed-*` / ICU-heavy corpora remain separate from the official Gettext comparison track.
 
