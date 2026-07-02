@@ -145,7 +145,7 @@ for the crate-by-crate feature profile details.
 - **MSRV policy:** align with OXC when practical, while avoiding churn from tracking only the newest stable toolchain
 - **MSRV bumps:** raising the MSRV is treated as a minor-version change and called out in the changelog; patch releases do not raise the MSRV
 - **Prebuilt CLI target:** `x86_64-unknown-linux-musl` is validated in CI and published as a smoke-tested GitHub Release archive for `ferrocat-cli`
-- **Semver:** the public API follows semantic versioning; breaking changes ship in a new major version and are documented in the changelog
+- **Semver:** the public API follows semantic versioning; the planned `2.1.0` cleanup window may include reviewed API cleanups that remove accidental coupling, and those exceptions are documented in the changelog
 - **Error surface:** PO parse errors stay intentionally compact but expose `message()` plus optional `position()` metadata with zero-based byte offset and one-based line/column when source context is available
 - **Documentation surface:** README examples, rustdoc examples, and the docs site aim to stay aligned
 

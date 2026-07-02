@@ -6,7 +6,11 @@ order: 40
 
 # Project Status
 
-Ferrocat is a stable, production-ready Rust project. Since the `1.0` release the public API follows semantic versioning, so breaking changes ship only in a new major version and applications can depend on it with confidence. The focus stays product-facing: make translation catalogs easier to update, validate, audit, compile, and ship.
+Ferrocat is a stable, production-ready Rust project. Since the `1.0` release the
+public API follows semantic versioning. The planned `2.1.0` cleanup window is a
+small, reviewed exception for API cleanups that remove accidental coupling while
+the user base is still small. The focus stays product-facing: make translation
+catalogs easier to update, validate, audit, compile, and ship.
 
 ## Current strengths
 
@@ -26,7 +30,9 @@ Ferrocat is a stable, production-ready Rust project. Since the `1.0` release the
   called out in the changelog; patch releases should not raise the MSRV.
 - **Prebuilt CLI target:** `x86_64-unknown-linux-musl` is validated in CI and
   published as a smoke-tested GitHub Release archive for `ferrocat-cli`.
-- **Semver:** the public API follows semantic versioning; breaking changes ship in a new major version and are documented in the changelog
+- **Semver:** the public API follows semantic versioning; the planned `2.1.0`
+  cleanup window may include reviewed API cleanups that remove accidental
+  coupling, and those exceptions are documented in the changelog.
 - **Documentation:** README examples, rustdoc, and repository docs aim to stay aligned
 - **Host bindings:** Ferrocat is currently a pure-Rust engine. JS/TS access
   belongs in Palamedes and its `palamedes-node` bridge; other hosts should use

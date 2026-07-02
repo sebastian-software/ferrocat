@@ -7,9 +7,11 @@ order: 45
 # Releases And Upgrading
 
 Ferrocat follows semantic versioning from `1.0` onward: breaking API changes
-ship in a new major version, while minor and patch releases stay backward
-compatible. Start every upgrade from the changelog and keep the workspace crate
-versions aligned.
+normally ship in a new major version, while minor and patch releases stay
+backward compatible. The planned `2.1.0` cleanup window is a small, reviewed
+exception for API cleanups that remove accidental public coupling while the user
+base is still small. Start every upgrade from the changelog and keep the
+workspace crate versions aligned.
 
 ## Where release notes live
 
@@ -21,8 +23,10 @@ versions aligned.
   `ferrocat-icu` changelog for low-level parser, catalog, or ICU changes.
 
 Release Please generates these changelogs from Conventional Commits. Breaking
-changes should be marked with `feat!:` or a `BREAKING CHANGE` note so they are
-visible in release notes and changelog sections.
+changes normally use a major-release marker such as `feat!:` or a
+`BREAKING CHANGE` note so they are visible in release notes and changelog
+sections. Reviewed `2.1.0` cleanup exceptions are documented in the matching
+release notes without using a major-release marker.
 
 MSRV bumps follow the same release-note rule. Ferrocat aligns its declared MSRV
 with OXC when practical while avoiding churn from tracking only the newest
@@ -50,7 +54,7 @@ ferrocat-po = "1"
 ferrocat-icu = "1"
 ```
 
-Within the `1.x` line, minor and patch releases stay backward compatible, so
+Within a normal major line, minor and patch releases stay backward compatible, so
 Cargo resolves a shared `"1"` requirement to a single, latest-compatible
 version. Avoid pinning the umbrella crate and a direct sub-crate to different
 exact versions, for example `ferrocat = "=1.2.0"` with `ferrocat-po = "=1.0.0"`:
