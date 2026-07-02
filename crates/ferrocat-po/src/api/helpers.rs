@@ -12,10 +12,41 @@ use crate::PoVec;
 
 /// Deduplicates strings while preserving first-seen order.
 pub(super) fn dedupe_strings(values: Vec<String>) -> Vec<String> {
+    if values.len() < 8 {
+        return dedupe_strings_linear(values);
+    }
+
+    dedupe_strings_with_seen(values)
+}
+
+fn dedupe_strings_linear(values: Vec<String>) -> Vec<String> {
     let mut out = Vec::new();
     for value in values {
         if !push_unique_string(&out, &value) {
             out.push(value);
+        }
+    }
+    out
+}
+
+fn dedupe_strings_with_seen(values: Vec<String>) -> Vec<String> {
+    let mut selected_indexes = Vec::new();
+    {
+        let mut seen = BTreeSet::new();
+        for (index, value) in values.iter().enumerate() {
+            if seen.insert(value.as_str()) {
+                selected_indexes.push(index);
+            }
+        }
+    }
+
+    let mut out = Vec::with_capacity(selected_indexes.len());
+    let mut selected_indexes = selected_indexes.into_iter();
+    let mut next_selected = selected_indexes.next();
+    for (index, value) in values.into_iter().enumerate() {
+        if next_selected == Some(index) {
+            out.push(value);
+            next_selected = selected_indexes.next();
         }
     }
     out
@@ -129,6 +160,31 @@ mod tests {
                 "gamma".to_owned(),
             ]),
             vec!["alpha".to_owned(), "beta".to_owned(), "gamma".to_owned(),]
+        );
+        assert_eq!(
+            dedupe_strings(vec![
+                "a".to_owned(),
+                "b".to_owned(),
+                "c".to_owned(),
+                "d".to_owned(),
+                "e".to_owned(),
+                "f".to_owned(),
+                "g".to_owned(),
+                "h".to_owned(),
+                "a".to_owned(),
+                "i".to_owned(),
+            ]),
+            vec![
+                "a".to_owned(),
+                "b".to_owned(),
+                "c".to_owned(),
+                "d".to_owned(),
+                "e".to_owned(),
+                "f".to_owned(),
+                "g".to_owned(),
+                "h".to_owned(),
+                "i".to_owned(),
+            ]
         );
 
         let mut small = vec!["alpha".to_owned()];
