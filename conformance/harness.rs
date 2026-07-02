@@ -8,7 +8,7 @@ use ferrocat_conformance::{
 };
 use ferrocat_icu::{IcuNode, IcuPluralKind, parse_icu};
 use ferrocat_po::{
-    MergeExtractedMessage, ParseCatalogOptions, PoFile, PoItem, SerializeOptions, merge_catalog,
+    MergeMessageInput, ParseCatalogOptions, PoFile, PoItem, SerializeOptions, merge_catalog,
     parse_catalog, parse_po, stringify_po,
 };
 
@@ -200,7 +200,7 @@ fn evaluate_po_merge(case: &ConformanceCase) -> Result<String, String> {
         .map_err(|error| format!("parse template failed: {error}"))?
         .items
         .into_iter()
-        .map(|item| MergeExtractedMessage {
+        .map(|item| MergeMessageInput {
             msgctxt: item.msgctxt.map(Cow::Owned),
             msgid: Cow::Owned(item.msgid),
             msgid_plural: item.msgid_plural.map(Cow::Owned),
@@ -416,7 +416,7 @@ fn compare_po_item(actual: &PoItem, expected: &PoItemExpected) -> Result<(), Str
             expected.msgid_plural, actual.msgid_plural
         ));
     }
-    let actual_msgstr = actual.msgstr.iter().cloned().collect::<Vec<_>>();
+    let actual_msgstr = actual.msgstr.iter().map(str::to_owned).collect::<Vec<_>>();
     if actual_msgstr != expected.msgstr {
         return Err(format!(
             "msgstr mismatch: expected {:?}, got {:?}",

@@ -51,7 +51,7 @@
 //! )?
 //! .into_normalized_view()?;
 //! let index = CompiledCatalogIdIndex::new(&[&requested, &source], CompiledKeyStrategy::FerrocatV1)?;
-//! let compiled_ids = index.iter().map(|(id, _)| id.to_owned()).collect::<Vec<_>>();
+//! let compiled_ids = index.iter().map(|(id, _)| id).collect::<Vec<_>>();
 //! let compiled = compile_catalog_artifact_selected(
 //!     &[&requested, &source],
 //!     &index,
@@ -112,21 +112,19 @@ pub mod catalog {
         ObsoleteInfo, ObsoleteStrategy, OrderBy, ParseCatalogOptions, ParsedCatalog,
         PlaceholderCommentMode, PluralEncoding, PluralSource, PoVec, RenderOptions,
         SourceExtractedMessage, TranslationShape, UpdateCatalogFileOptions, UpdateCatalogOptions,
-        audit_catalogs, audit_catalogs_with_icu_options, catalog_coverage, catalog_review,
-        combine_catalog_files, combine_catalogs, compile_catalog_artifact,
-        compile_catalog_artifact_report, compile_catalog_artifact_selected,
-        compile_catalog_artifact_selected_with_icu_options,
+        audit_catalogs, audit_catalogs_with_icu_options, combine_catalog_files, combine_catalogs,
+        compile_catalog_artifact, compile_catalog_artifact_report,
+        compile_catalog_artifact_selected, compile_catalog_artifact_selected_with_icu_options,
         compile_catalog_artifact_with_icu_options, compiled_key, machine_translation_hash,
-        parse_catalog, pseudolocalize_compiled_catalog_artifact,
-        pseudolocalize_compiled_catalog_artifact_with_syntax_policy, update_catalog,
-        update_catalog_file,
+        measure_catalog_coverage, parse_catalog, pseudolocalize_compiled_catalog_artifact,
+        pseudolocalize_compiled_catalog_artifact_with_syntax_policy, review_catalogs,
+        update_catalog, update_catalog_file,
     };
 }
 
 /// ICU MessageFormat parsing, analysis, compatibility, and metadata APIs.
 pub mod icu {
     pub use ferrocat_icu::diagnostic_codes;
-    pub use ferrocat_icu::has_selectordinal as has_select_ordinal;
     pub use ferrocat_icu::{
         IcuAnalysis, IcuArgument, IcuArgumentKind, IcuCompatibilityOptions, IcuCompatibilityReport,
         IcuDiagnostic, IcuDiagnosticSeverity, IcuErrorKind, IcuFormatter, IcuFormatterSupport,
@@ -138,30 +136,24 @@ pub mod icu {
         MessageMetadataValidationReport, MessageOriginMetadata, MessageSelectorKind,
         MessageSelectorMetadata, analyze_icu, compare_icu_messages,
         derive_message_metadata_from_icu, extract_argument_names, extract_tag_names,
-        extract_variables, has_plural, has_select, has_tag, normalize_message_metadata, parse_icu,
-        parse_icu_with_options, pseudolocalize_icu, pseudolocalize_icu_message, stringify_icu,
-        validate_icu, validate_icu_formatter_support, validate_icu_formatter_support_from_analysis,
-        validate_message_metadata,
+        extract_variables, has_plural, has_select, has_select_ordinal, has_tag,
+        normalize_message_metadata, parse_icu, parse_icu_with_options, pseudolocalize_icu,
+        pseudolocalize_icu_message, stringify_icu, validate_icu, validate_icu_formatter_support,
+        validate_icu_formatter_support_from_analysis, validate_message_metadata,
     };
 }
 
 /// Low-level PO parsing, serialization, and text merge APIs.
 pub mod po {
-    pub use ferrocat_po::MergeExtractedMessage as MergeMessageInput;
     pub use ferrocat_po::diagnostic_codes;
     pub use ferrocat_po::{
-        BorrowedHeader, BorrowedMsgStr, BorrowedPoFile, BorrowedPoItem, Header, MsgStr, MsgStrIter,
-        ParseError, ParsePosition, PoFile, PoItem, PoVec, SerializeOptions, escape_string,
-        extract_quoted, extract_quoted_cow, merge_catalog, parse_po, parse_po_borrowed,
-        parse_po_bytes, stringify_po, unescape_string,
+        BorrowedHeader, BorrowedMsgStr, BorrowedPoFile, BorrowedPoItem, Header, MergeMessageInput,
+        MsgStr, MsgStrIter, ParseError, ParsePosition, PoFile, PoItem, PoVec, SerializeOptions,
+        escape_string, extract_quoted, extract_quoted_cow, merge_catalog, parse_po,
+        parse_po_borrowed, parse_po_bytes, stringify_po, unescape_string,
     };
 }
 
-#[deprecated(
-    since = "2.0.0",
-    note = "use ferrocat::has_select_ordinal or ferrocat::icu::has_select_ordinal"
-)]
-pub use ferrocat_icu::has_selectordinal;
 pub use ferrocat_icu::{
     IcuAnalysis, IcuArgument, IcuArgumentKind, IcuCompatibilityOptions, IcuCompatibilityReport,
     IcuDiagnostic, IcuDiagnosticSeverity, IcuErrorKind, IcuFormatter, IcuFormatterSupport,
@@ -172,7 +164,7 @@ pub use ferrocat_icu::{
     MessageMetadataDiagnostic, MessageMetadataInput, MessageMetadataValidationReport,
     MessageOriginMetadata, MessageSelectorKind, MessageSelectorMetadata, analyze_icu,
     compare_icu_messages, derive_message_metadata_from_icu, extract_argument_names,
-    extract_tag_names, extract_variables, has_plural, has_select, has_tag,
+    extract_tag_names, extract_variables, has_plural, has_select, has_select_ordinal, has_tag,
     normalize_message_metadata, parse_icu, parse_icu_with_options, pseudolocalize_icu,
     pseudolocalize_icu_message, stringify_icu, validate_icu, validate_icu_formatter_support,
     validate_icu_formatter_support_from_analysis, validate_message_metadata,
@@ -184,11 +176,6 @@ pub use ferrocat_icu::{
 pub const COMPILED_CATALOG_ARTIFACT_SCHEMA_VERSION: u16 =
     ferrocat_po::COMPILED_CATALOG_ARTIFACT_SCHEMA_VERSION;
 
-#[deprecated(
-    since = "2.0.0",
-    note = "use ferrocat::po::MergeMessageInput for the PO merge helper input"
-)]
-pub use ferrocat_po::MergeExtractedMessage;
 #[cfg(feature = "catalog")]
 #[cfg_attr(docsrs, doc(cfg(feature = "catalog")))]
 pub use ferrocat_po::{
@@ -217,18 +204,17 @@ pub use ferrocat_po::{
     ObsoleteInfo, ObsoleteStrategy, OrderBy, ParseCatalogOptions, ParsedCatalog,
     PlaceholderCommentMode, PluralEncoding, PluralSource, RenderOptions, SourceExtractedMessage,
     TranslationShape, UpdateCatalogFileOptions, UpdateCatalogOptions, audit_catalogs,
-    audit_catalogs_with_icu_options, catalog_coverage, catalog_review, combine_catalog_files,
-    combine_catalogs, compile_catalog_artifact, compile_catalog_artifact_report,
-    compile_catalog_artifact_selected, compile_catalog_artifact_selected_with_icu_options,
-    compile_catalog_artifact_with_icu_options, compiled_key, machine_translation_hash,
-    parse_catalog, pseudolocalize_compiled_catalog_artifact,
-    pseudolocalize_compiled_catalog_artifact_with_syntax_policy, update_catalog,
+    audit_catalogs_with_icu_options, combine_catalog_files, combine_catalogs,
+    compile_catalog_artifact, compile_catalog_artifact_report, compile_catalog_artifact_selected,
+    compile_catalog_artifact_selected_with_icu_options, compile_catalog_artifact_with_icu_options,
+    compiled_key, machine_translation_hash, measure_catalog_coverage, parse_catalog,
+    pseudolocalize_compiled_catalog_artifact,
+    pseudolocalize_compiled_catalog_artifact_with_syntax_policy, review_catalogs, update_catalog,
     update_catalog_file,
 };
 pub use ferrocat_po::{
-    BorrowedHeader, BorrowedMsgStr, BorrowedPoFile, BorrowedPoItem, Header, MsgStr, MsgStrIter,
-    ParseError, ParsePosition, PoFile, PoItem, PoVec, SerializeOptions, escape_string,
-    extract_quoted, extract_quoted_cow, merge_catalog, parse_po, parse_po_borrowed, parse_po_bytes,
-    stringify_po, unescape_string,
+    BorrowedHeader, BorrowedMsgStr, BorrowedPoFile, BorrowedPoItem, Header, MergeMessageInput,
+    MsgStr, MsgStrIter, ParseError, ParsePosition, PoFile, PoItem, PoVec, SerializeOptions,
+    escape_string, extract_quoted, extract_quoted_cow, merge_catalog, parse_po, parse_po_borrowed,
+    parse_po_bytes, stringify_po, unescape_string,
 };
-pub use icu::has_select_ordinal;

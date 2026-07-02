@@ -65,7 +65,7 @@
 //! )?
 //! .into_normalized_view()?;
 //! let index = CompiledCatalogIdIndex::new(&[&requested, &source], ferrocat_po::CompiledKeyStrategy::FerrocatV1)?;
-//! let compiled_ids = index.iter().map(|(id, _)| id.to_owned()).collect::<Vec<_>>();
+//! let compiled_ids = index.iter().map(|(id, _)| id).collect::<Vec<_>>();
 //! let compiled = compile_catalog_artifact_selected(
 //!     &[&requested, &source],
 //!     &index,
@@ -137,18 +137,18 @@ pub use api::{
     ObsoleteInfo, ObsoleteStrategy, OrderBy, ParseCatalogOptions, ParsedCatalog,
     PlaceholderCommentMode, PluralEncoding, PluralSource, RenderOptions, SourceExtractedMessage,
     TranslationShape, UpdateCatalogFileOptions, UpdateCatalogOptions, audit_catalogs,
-    audit_catalogs_with_icu_options, catalog_coverage, catalog_review, combine_catalog_files,
-    combine_catalogs, compile_catalog_artifact, compile_catalog_artifact_report,
-    compile_catalog_artifact_selected, compile_catalog_artifact_selected_with_icu_options,
-    compile_catalog_artifact_with_icu_options, compiled_key, machine_translation_hash,
-    parse_catalog, pseudolocalize_compiled_catalog_artifact,
-    pseudolocalize_compiled_catalog_artifact_with_syntax_policy, update_catalog,
+    audit_catalogs_with_icu_options, combine_catalog_files, combine_catalogs,
+    compile_catalog_artifact, compile_catalog_artifact_report, compile_catalog_artifact_selected,
+    compile_catalog_artifact_selected_with_icu_options, compile_catalog_artifact_with_icu_options,
+    compiled_key, machine_translation_hash, measure_catalog_coverage, parse_catalog,
+    pseudolocalize_compiled_catalog_artifact,
+    pseudolocalize_compiled_catalog_artifact_with_syntax_policy, review_catalogs, update_catalog,
     update_catalog_file,
 };
 pub use borrowed::{
     BorrowedHeader, BorrowedMsgStr, BorrowedPoFile, BorrowedPoItem, parse_po_borrowed,
 };
-pub use merge::{ExtractedMessage as MergeExtractedMessage, merge_catalog};
+pub use merge::{MergeMessageInput, merge_catalog};
 pub use parse::{parse_po, parse_po_bytes};
 pub use serialize::stringify_po;
 pub use text::{escape_string, extract_quoted, extract_quoted_cow, unescape_string};
@@ -519,18 +519,12 @@ impl MsgStr {
 
     /// Returns the first translation value, if present.
     #[must_use]
-    pub fn first(&self) -> Option<&String> {
+    pub fn first(&self) -> Option<&str> {
         match self {
             Self::None => None,
-            Self::Singular(value) => Some(value),
-            Self::Plural(values) => values.first(),
+            Self::Singular(value) => Some(value.as_str()),
+            Self::Plural(values) => values.first().map(String::as_str),
         }
-    }
-
-    /// Returns the first translation value as `&str`, if present.
-    #[must_use]
-    pub fn first_str(&self) -> Option<&str> {
-        self.first().map(String::as_str)
     }
 
     /// Returns the translation at `index` without panicking.
@@ -548,7 +542,7 @@ impl MsgStr {
     pub fn iter(&self) -> MsgStrIter<'_> {
         match self {
             Self::None => MsgStrIter::empty(),
-            Self::Singular(value) => MsgStrIter::single(value),
+            Self::Singular(value) => MsgStrIter::single(value.as_str()),
             Self::Plural(values) => MsgStrIter::many(values.iter()),
         }
     }
@@ -581,7 +575,7 @@ impl From<Vec<String>> for MsgStr {
 }
 
 impl<'a> IntoIterator for &'a MsgStr {
-    type Item = &'a String;
+    type Item = &'a str;
     type IntoIter = MsgStrIter<'a>;
 
     fn into_iter(self) -> Self::IntoIter {
@@ -609,7 +603,7 @@ pub struct MsgStrIter<'a> {
 
 enum MsgStrIterInner<'a> {
     Empty,
-    Single(Option<&'a String>),
+    Single(Option<&'a str>),
     Many(std::slice::Iter<'a, String>),
 }
 
@@ -620,7 +614,7 @@ impl<'a> MsgStrIter<'a> {
         }
     }
 
-    const fn single(value: &'a String) -> Self {
+    const fn single(value: &'a str) -> Self {
         Self {
             inner: MsgStrIterInner::Single(Some(value)),
         }
@@ -634,13 +628,13 @@ impl<'a> MsgStrIter<'a> {
 }
 
 impl<'a> Iterator for MsgStrIter<'a> {
-    type Item = &'a String;
+    type Item = &'a str;
 
     fn next(&mut self) -> Option<Self::Item> {
         match &mut self.inner {
             MsgStrIterInner::Empty => None,
             MsgStrIterInner::Single(value) => value.take(),
-            MsgStrIterInner::Many(iter) => iter.next(),
+            MsgStrIterInner::Many(iter) => iter.next().map(String::as_str),
         }
     }
 }
@@ -829,7 +823,7 @@ mod tests {
         assert_eq!(plural, MsgStr::Plural(values.clone()));
         assert_ne!(plural, MsgStr::from(values.clone()));
         assert_eq!(plural.len(), 1);
-        assert_eq!(plural.first_str(), Some("translation"));
+        assert_eq!(plural.first(), Some("translation"));
         assert_eq!(plural.into_vec(), values);
     }
 
@@ -839,22 +833,20 @@ mod tests {
         assert!(empty.is_empty());
         assert_eq!(empty.len(), 0);
         assert_eq!(empty.first(), None);
-        assert_eq!(empty.first_str(), None);
         assert_eq!(empty.iter().count(), 0);
         assert_eq!(empty.into_vec(), Vec::<String>::new());
 
         let singular = MsgStr::from(vec!["Hallo".to_owned()]);
         assert!(!singular.is_empty());
         assert_eq!(singular.len(), 1);
-        assert_eq!(singular.first().map(String::as_str), Some("Hallo"));
-        assert_eq!(singular.first_str(), Some("Hallo"));
+        assert_eq!(singular.first(), Some("Hallo"));
         assert_eq!((&singular).into_iter().collect::<Vec<_>>(), vec!["Hallo"]);
         assert_eq!(singular[0], "Hallo");
         assert_eq!(singular.into_vec(), vec!["Hallo"]);
 
         let plural = MsgStr::from(vec!["eins".to_owned(), "viele".to_owned()]);
         assert_eq!(plural.len(), 2);
-        assert_eq!(plural.first_str(), Some("eins"));
+        assert_eq!(plural.first(), Some("eins"));
         assert_eq!(plural.iter().collect::<Vec<_>>(), vec!["eins", "viele"]);
         assert_eq!(plural[1], "viele");
         assert_eq!(plural.into_vec(), vec!["eins", "viele"]);

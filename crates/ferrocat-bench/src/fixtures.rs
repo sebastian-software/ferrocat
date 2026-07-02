@@ -4,7 +4,7 @@ use std::fmt::Write as _;
 
 use ferrocat_po::{
     CatalogOrigin, ExtractedMessage, ExtractedPluralMessage, ExtractedSingularMessage,
-    MergeExtractedMessage, PluralSource, parse_po,
+    MergeMessageInput, PluralSource, parse_po,
 };
 
 const TINY_FIXTURE: &str = include_str!("../fixtures/tiny.po");
@@ -47,7 +47,7 @@ pub struct MergeFixture {
     name: Cow<'static, str>,
     kind: &'static str,
     existing_po: Cow<'static, str>,
-    extracted_messages: Vec<MergeExtractedMessage<'static>>,
+    extracted_messages: Vec<MergeMessageInput<'static>>,
     api_extracted_messages: Vec<ExtractedMessage>,
     existing_entries: usize,
 }
@@ -100,7 +100,7 @@ impl MergeFixture {
         self.existing_po.as_ref()
     }
 
-    pub fn extracted_messages(&self) -> &[MergeExtractedMessage<'static>] {
+    pub fn extracted_messages(&self) -> &[MergeMessageInput<'static>] {
         &self.extracted_messages
     }
 
@@ -346,7 +346,7 @@ fn merge_fixture_from_existing(
         let msgid = item.msgid.clone();
         let msgid_plural = item.msgid_plural.clone();
 
-        extracted_messages.push(MergeExtractedMessage {
+        extracted_messages.push(MergeMessageInput {
             msgctxt: msgctxt.as_ref().map(|context| Cow::Owned(context.clone())),
             msgid: Cow::Owned(msgid.clone()),
             msgid_plural: msgid_plural.clone().map(Cow::Owned),
@@ -401,7 +401,7 @@ fn merge_fixture_from_existing(
         let extracted_comment =
             is_multiple_of(message_index, 6).then(|| "newly extracted".to_owned());
 
-        extracted_messages.push(MergeExtractedMessage {
+        extracted_messages.push(MergeMessageInput {
             msgctxt: msgctxt.as_ref().map(|context| Cow::Owned(context.clone())),
             msgid: Cow::Owned(msgid.clone()),
             msgid_plural: msgid_plural.clone().map(Cow::Owned),
@@ -1253,12 +1253,7 @@ fn build_catalog_icu_entry(
     comments: Vec<String>,
     origin: Vec<CatalogOrigin>,
     reference: String,
-) -> (
-    String,
-    String,
-    ExtractedMessage,
-    MergeExtractedMessage<'static>,
-) {
+) -> (String, String, ExtractedMessage, MergeMessageInput<'static>) {
     let merge_comments = comments.iter().cloned().map(Cow::Owned).collect::<Vec<_>>();
     let merge_reference = vec![Cow::Owned(reference)];
     match flavor {
@@ -1272,7 +1267,7 @@ fn build_catalog_icu_entry(
                 origin,
                 placeholders: BTreeMap::default(),
             });
-            let merge = MergeExtractedMessage {
+            let merge = MergeMessageInput {
                 msgctxt: msgctxt.map(Cow::Owned),
                 msgid: Cow::Owned(msgid.clone()),
                 msgid_plural: None,
@@ -1293,7 +1288,7 @@ fn build_catalog_icu_entry(
                 origin,
                 placeholders,
             });
-            let merge = MergeExtractedMessage {
+            let merge = MergeMessageInput {
                 msgctxt: msgctxt.map(Cow::Owned),
                 msgid: Cow::Owned(msgid.clone()),
                 msgid_plural: None,
@@ -1319,7 +1314,7 @@ fn build_catalog_icu_entry(
                 origin,
                 placeholders,
             });
-            let merge = MergeExtractedMessage {
+            let merge = MergeMessageInput {
                 msgctxt: msgctxt.map(Cow::Owned),
                 msgid: Cow::Owned(msgid.clone()),
                 msgid_plural: None,
@@ -1343,7 +1338,7 @@ fn build_catalog_icu_entry(
                 origin,
                 placeholders,
             });
-            let merge = MergeExtractedMessage {
+            let merge = MergeMessageInput {
                 msgctxt: msgctxt.map(Cow::Owned),
                 msgid: Cow::Owned(msgid.clone()),
                 msgid_plural: None,
@@ -1415,7 +1410,7 @@ fn build_catalog_icu_entry(
                 origin,
                 placeholders,
             });
-            let merge = MergeExtractedMessage {
+            let merge = MergeMessageInput {
                 msgctxt: msgctxt.map(Cow::Owned),
                 msgid: Cow::Owned(msgid.clone()),
                 msgid_plural: None,
@@ -1438,7 +1433,7 @@ fn build_catalog_icu_entry(
                 origin,
                 placeholders,
             });
-            let merge = MergeExtractedMessage {
+            let merge = MergeMessageInput {
                 msgctxt: msgctxt.map(Cow::Owned),
                 msgid: Cow::Owned(msgid.clone()),
                 msgid_plural: None,
@@ -1461,7 +1456,7 @@ fn build_catalog_icu_entry(
                 origin,
                 placeholders,
             });
-            let merge = MergeExtractedMessage {
+            let merge = MergeMessageInput {
                 msgctxt: msgctxt.map(Cow::Owned),
                 msgid: Cow::Owned(msgid.clone()),
                 msgid_plural: None,
@@ -1483,7 +1478,7 @@ fn build_catalog_icu_entry(
                 origin,
                 placeholders,
             });
-            let merge = MergeExtractedMessage {
+            let merge = MergeMessageInput {
                 msgctxt: msgctxt.map(Cow::Owned),
                 msgid: Cow::Owned(msgid.clone()),
                 msgid_plural: None,
@@ -1504,7 +1499,7 @@ fn build_catalog_icu_entry(
                 origin,
                 placeholders,
             });
-            let merge = MergeExtractedMessage {
+            let merge = MergeMessageInput {
                 msgctxt: msgctxt.map(Cow::Owned),
                 msgid: Cow::Owned(msgid.clone()),
                 msgid_plural: None,

@@ -48,7 +48,7 @@ pub fn has_select(message: &IcuMessage) -> bool {
 
 /// Returns `true` when the message contains an ordinal plural expression.
 #[must_use]
-pub fn has_selectordinal(message: &IcuMessage) -> bool {
+pub fn has_select_ordinal(message: &IcuMessage) -> bool {
     any_nodes(&message.nodes, &|node| {
         matches!(
             node,
@@ -111,7 +111,9 @@ fn any_nodes(nodes: &[IcuNode], predicate: &impl Fn(&IcuNode) -> bool) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use crate::{extract_variables, has_plural, has_select, has_selectordinal, has_tag, parse_icu};
+    use crate::{
+        extract_variables, has_plural, has_select, has_select_ordinal, has_tag, parse_icu,
+    };
 
     #[test]
     fn extracts_variables_in_first_seen_order() {
@@ -135,7 +137,7 @@ mod tests {
 
         assert!(has_select(&message));
         assert!(has_plural(&message));
-        assert!(has_selectordinal(&message));
+        assert!(has_select_ordinal(&message));
         assert!(has_tag(&message));
     }
 
@@ -145,7 +147,7 @@ mod tests {
         assert_eq!(extract_variables(&message), vec!["name"]);
         assert!(!has_plural(&message));
         assert!(!has_select(&message));
-        assert!(!has_selectordinal(&message));
+        assert!(!has_select_ordinal(&message));
         assert!(!has_tag(&message));
     }
 }

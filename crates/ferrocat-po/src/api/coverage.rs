@@ -121,7 +121,7 @@ pub struct CatalogCoverageMessage {
 ///
 /// ```rust
 /// use ferrocat_po::{
-///     CatalogCoverageOptions, CatalogMessageStatus, ParseCatalogOptions, catalog_coverage,
+///     CatalogCoverageOptions, CatalogMessageStatus, ParseCatalogOptions, measure_catalog_coverage,
 ///     parse_catalog,
 /// };
 ///
@@ -136,7 +136,7 @@ pub struct CatalogCoverageMessage {
 /// .into_normalized_view()?;
 ///
 /// let options = CatalogCoverageOptions::new("en").with_details(true);
-/// let report = catalog_coverage(&[&source, &target], &options)?;
+/// let report = measure_catalog_coverage(&[&source, &target], &options)?;
 ///
 /// assert_eq!(report.source_messages, 1);
 /// assert_eq!(report.locales[0].locale, "de");
@@ -149,18 +149,18 @@ pub struct CatalogCoverageMessage {
 ///
 /// Returns [`ApiError::InvalidArguments`] when locales are missing, empty,
 /// duplicated, or when a requested target locale is absent from the catalog set.
-pub fn catalog_coverage(
+pub fn measure_catalog_coverage(
     catalogs: &[&NormalizedParsedCatalog],
     options: &CatalogCoverageOptions<'_>,
 ) -> Result<CatalogCoverageReport, ApiError> {
     validate_source_locale(options.source_locale)?;
-    let catalog_index = index_catalogs(catalogs, "catalog_coverage")?;
+    let catalog_index = index_catalogs(catalogs, "measure_catalog_coverage")?;
     let source_catalog = catalog_index
         .get(options.source_locale)
         .copied()
         .ok_or_else(|| {
             ApiError::InvalidArguments(format!(
-                "catalog_coverage did not receive source locale {:?}",
+                "measure_catalog_coverage did not receive source locale {:?}",
                 options.source_locale
             ))
         })?;
@@ -169,7 +169,7 @@ pub fn catalog_coverage(
         &catalog_index,
         options.source_locale,
         options.locales,
-        "catalog_coverage",
+        "measure_catalog_coverage",
     )?;
     let mut locale_reports = Vec::with_capacity(target_locales.len());
 

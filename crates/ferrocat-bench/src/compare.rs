@@ -13,7 +13,7 @@ use std::time::Instant;
 use ferrocat_icu::{IcuMessage, IcuNode, IcuOption, IcuPluralKind, parse_icu};
 use ferrocat_po::{
     BorrowedMsgStr, BorrowedPoFile, CatalogMessage, CatalogMode, CatalogOrigin, ExtractedMessage,
-    MergeExtractedMessage, MsgStr, ParseCatalogOptions, ParsedCatalog, PoFile, SerializeOptions,
+    MergeMessageInput, MsgStr, ParseCatalogOptions, ParsedCatalog, PoFile, SerializeOptions,
     TranslationShape, UpdateCatalogOptions, merge_catalog, parse_catalog, parse_po,
     parse_po_borrowed, stringify_po, update_catalog,
 };
@@ -1251,10 +1251,10 @@ impl PreparedScenario {
             // instead of handing ferrocat pre-structured messages.
             let template = parse_po(&fixture.template_pot)
                 .map_err(|error| format!("merge template parse failed: {error}"))?;
-            let extracted: Vec<MergeExtractedMessage<'_>> = template
+            let extracted: Vec<MergeMessageInput<'_>> = template
                 .items
                 .iter()
-                .map(|item| MergeExtractedMessage {
+                .map(|item| MergeMessageInput {
                     msgctxt: item.msgctxt.as_deref().map(Cow::Borrowed),
                     msgid: Cow::Borrowed(item.msgid.as_str()),
                     msgid_plural: item.msgid_plural.as_deref().map(Cow::Borrowed),

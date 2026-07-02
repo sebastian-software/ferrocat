@@ -51,7 +51,7 @@ fn estimate_capacity(file: &PoFile) -> usize {
             item.msgid.len()
                 + item.msgctxt.as_ref().map_or(0, String::len)
                 + item.msgid_plural.as_ref().map_or(0, String::len)
-                + item.msgstr.iter().map(String::len).sum::<usize>()
+                + item.msgstr.iter().map(str::len).sum::<usize>()
                 + item.comments.iter().map(String::len).sum::<usize>()
                 + item
                     .extracted_comments

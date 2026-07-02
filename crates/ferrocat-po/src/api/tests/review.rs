@@ -1,6 +1,6 @@
 use super::{
-    CatalogReviewOptions, EffectiveTranslationRef, PluralEncoding, catalog_review,
-    machine_translation_hash, normalized_catalog,
+    CatalogReviewOptions, EffectiveTranslationRef, PluralEncoding, machine_translation_hash,
+    normalized_catalog, review_catalogs,
 };
 
 #[test]
@@ -29,7 +29,7 @@ fn review_report_exposes_public_summary_and_detail_api() {
         PluralEncoding::Icu,
     );
 
-    let report = catalog_review(
+    let report = review_catalogs(
         &[&previous_source, &previous_target],
         &[&current_source, &current_target],
         &CatalogReviewOptions::new("en").with_details(true),

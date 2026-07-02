@@ -1,6 +1,6 @@
 use std::borrow::Cow;
 
-use ferrocat_po::{MergeExtractedMessage, PoFile, merge_catalog, parse_po, parse_po_borrowed};
+use ferrocat_po::{MergeMessageInput, PoFile, merge_catalog, parse_po, parse_po_borrowed};
 
 const CASES: &[(&str, &str)] = &[
     (
@@ -101,11 +101,11 @@ fn merge_parser_preserves_matching_crlf_and_bare_cr_messages() {
     }
 }
 
-fn extracted_messages_from(file: &PoFile) -> Vec<MergeExtractedMessage<'_>> {
+fn extracted_messages_from(file: &PoFile) -> Vec<MergeMessageInput<'_>> {
     file.items
         .iter()
         .filter(|item| !item.obsolete)
-        .map(|item| MergeExtractedMessage {
+        .map(|item| MergeMessageInput {
             msgctxt: item.msgctxt.as_deref().map(Cow::Borrowed),
             msgid: Cow::Borrowed(item.msgid.as_str()),
             msgid_plural: item.msgid_plural.as_deref().map(Cow::Borrowed),

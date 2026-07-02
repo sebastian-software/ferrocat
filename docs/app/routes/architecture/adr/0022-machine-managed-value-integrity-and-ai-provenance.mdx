@@ -19,7 +19,7 @@ separate `mt.model` / `mt.conf` / `mt.hash` tags. Practice since then surfaced
 three problems:
 
 - **Only two of the four fields carry weight inside Ferrocat.** The only module
-  that reasons about machine translation, `catalog_review`, looks at exactly:
+  that reasons about machine translation, `review_catalogs`, looks at exactly:
   presence (is the value machine-set?) and the hash (does it still match the
   current translation, i.e. current vs stale). `model`, `confidence`, and
   `modified` are never read by Ferrocat logic — they are provenance passed
@@ -112,7 +112,7 @@ Positive:
   machine-managed value (AI, TMS, scripts)
 - the AI vocabulary is engine-neutral, which supports Ferrocat as an AI-native
   foundation for producers beyond Palamedes while staying host-neutral
-- `catalog_review` simplifies: current/stale/absent keys on `lock`, and any
+- `review_catalogs` simplifies: current/stale/absent keys on `lock`, and any
   AI-specific reporting (for example a confidence gate) keys on `ai`
 
 Negative:

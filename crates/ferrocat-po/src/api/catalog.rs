@@ -846,12 +846,7 @@ fn import_message_from_po(
             translation_by_category: plural_profile
                 .categories()
                 .iter()
-                .zip(
-                    item.msgstr
-                        .iter()
-                        .map(String::as_str)
-                        .chain(std::iter::repeat("")),
-                )
+                .zip(item.msgstr.iter().chain(std::iter::repeat("")))
                 .map(|(category, value)| (category.clone(), value.to_owned()))
                 .collect(),
             variable: "count".to_owned(),
@@ -995,7 +990,7 @@ pub(super) fn format_origin(origin: &CatalogOrigin) -> String {
 }
 
 /// Moves the first available translation string out of a [`MsgStr`], matching
-/// the `first_str().unwrap_or_default()` semantics without copying.
+/// the `first().unwrap_or_default()` semantics without copying.
 fn take_first_msgstr(msgstr: MsgStr) -> String {
     match msgstr {
         MsgStr::Singular(value) => value,

@@ -124,10 +124,7 @@ msgstr "world"
     let index =
         CompiledCatalogIdIndex::new(&[&normalized, &source], CompiledKeyStrategy::FerrocatV1)
             .expect("compiled id index");
-    let compiled_ids = index
-        .iter()
-        .map(|(id, _)| id.to_owned())
-        .collect::<Vec<_>>();
+    let compiled_ids = index.iter().map(|(id, _)| id).collect::<Vec<_>>();
     let selected_artifact = compile_catalog_artifact_selected(
         &[&normalized, &source],
         &index,

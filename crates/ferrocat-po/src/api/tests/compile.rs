@@ -352,7 +352,7 @@ fn compile_catalog_artifact_uses_fallback_chain_before_source_locale() {
     let artifact = compile_catalog_artifact(
         &[&requested, &first_fallback, &second_fallback, &source],
         &CompileCatalogArtifactOptions {
-            fallback_chain: &["fr".to_owned(), "it".to_owned()],
+            fallback_chain: &["fr", "it"],
             source_fallback: true,
             ..CompileCatalogArtifactOptions::new("de", "en")
         },
@@ -466,7 +466,7 @@ fn compile_catalog_artifact_report_records_resolution_provenance() {
         Some("fr"),
         PluralEncoding::Icu,
     );
-    let fallback_chain = vec!["fr".to_owned()];
+    let fallback_chain = ["fr"];
     let mut options = CompileCatalogArtifactReportOptions::new("de", "en");
     options.options.fallback_chain = &fallback_chain;
     options.options.source_fallback = true;
@@ -482,7 +482,7 @@ fn compile_catalog_artifact_report_records_resolution_provenance() {
 
     assert_eq!(report.provenance.requested_locale, "de");
     assert_eq!(report.provenance.source_locale, "en");
-    assert_eq!(report.provenance.fallback_chain, fallback_chain);
+    assert_eq!(report.provenance.fallback_chain, vec!["fr".to_owned()]);
     assert_eq!(report.provenance.messages.len(), 4);
     assert_eq!(
         provenance_by_msgid["Requested"].kind,
@@ -554,7 +554,7 @@ fn compile_catalog_artifact_report_can_select_compiled_ids() {
             .expect("compiled id index");
     let hello_id = compiled_key("Hello", None);
     let bye_id = compiled_key("Bye", None);
-    let selected_ids = vec![hello_id.clone(), hello_id.clone()];
+    let selected_ids = [hello_id.as_str(), hello_id.as_str()];
     let options = CompileCatalogArtifactReportOptions::selected("de", "en", &index, &selected_ids);
 
     let report = compile_catalog_artifact_report(&[&requested, &source], &options)
@@ -589,7 +589,7 @@ fn compile_catalog_artifact_report_rejects_unknown_selected_ids() {
     let index =
         CompiledCatalogIdIndex::new(&[&requested, &source], CompiledKeyStrategy::FerrocatV1)
             .expect("compiled id index");
-    let selected_ids = vec!["missing-id".to_owned()];
+    let selected_ids = ["missing-id"];
     let options = CompileCatalogArtifactReportOptions::selected("de", "en", &index, &selected_ids);
 
     let error = compile_catalog_artifact_report(&[&requested, &source], &options)
@@ -770,28 +770,28 @@ fn compile_catalog_artifact_rejects_invalid_locale_sets_and_fallback_chains() {
         (
             vec![&requested, &source],
             CompileCatalogArtifactOptions {
-                fallback_chain: &["de".to_owned()],
+                fallback_chain: &["de"],
                 ..CompileCatalogArtifactOptions::new("de", "en")
             },
         ),
         (
             vec![&requested, &source],
             CompileCatalogArtifactOptions {
-                fallback_chain: &["en".to_owned()],
+                fallback_chain: &["en"],
                 ..CompileCatalogArtifactOptions::new("de", "en")
             },
         ),
         (
             vec![&requested, &source, &fallback],
             CompileCatalogArtifactOptions {
-                fallback_chain: &["de-AT".to_owned(), "de-AT".to_owned()],
+                fallback_chain: &["de-AT", "de-AT"],
                 ..CompileCatalogArtifactOptions::new("de", "en")
             },
         ),
         (
             vec![&requested, &source],
             CompileCatalogArtifactOptions {
-                fallback_chain: &["fr".to_owned()],
+                fallback_chain: &["fr"],
                 ..CompileCatalogArtifactOptions::new("de", "en")
             },
         ),
@@ -905,10 +905,7 @@ fn compile_catalog_artifact_selected_uses_runtime_literal_apostrophes_policy() {
     let index =
         CompiledCatalogIdIndex::new(&[&requested, &source], CompiledKeyStrategy::FerrocatV1)
             .expect("index");
-    let compiled_ids = index
-        .iter()
-        .map(|(id, _)| id.to_owned())
-        .collect::<Vec<_>>();
+    let compiled_ids = index.iter().map(|(id, _)| id).collect::<Vec<_>>();
 
     let artifact = compile_catalog_artifact_selected_with_icu_options(
         &[&requested, &source],
@@ -1075,10 +1072,7 @@ fn compile_catalog_artifact_selected_uses_formatter_support_diagnostics() {
     let index =
         CompiledCatalogIdIndex::new(&[&requested, &source], CompiledKeyStrategy::FerrocatV1)
             .expect("index");
-    let compiled_ids = index
-        .iter()
-        .map(|(id, _)| id.to_owned())
-        .collect::<Vec<_>>();
+    let compiled_ids = index.iter().map(|(id, _)| id).collect::<Vec<_>>();
 
     let artifact = compile_catalog_artifact_selected_with_icu_options(
         &[&requested, &source],
@@ -1203,10 +1197,7 @@ fn compile_catalog_artifact_selected_uses_icu_compatibility_diagnostics() {
     let index =
         CompiledCatalogIdIndex::new(&[&requested, &source], CompiledKeyStrategy::FerrocatV1)
             .expect("index");
-    let compiled_ids = index
-        .iter()
-        .map(|(id, _)| id.to_owned())
-        .collect::<Vec<_>>();
+    let compiled_ids = index.iter().map(|(id, _)| id).collect::<Vec<_>>();
 
     let artifact = compile_catalog_artifact_selected(
         &[&requested, &source],
@@ -1379,7 +1370,7 @@ fn compiled_catalog_id_index_describes_known_ids() {
     );
 
     let report = index
-        .describe_compiled_ids(&[&requested, &source], std::slice::from_ref(&hello_id))
+        .describe_compiled_ids(&[&requested, &source], &[hello_id.as_str()])
         .expect("describe compiled ids");
 
     assert!(report.unknown_compiled_ids.is_empty());
@@ -1433,11 +1424,7 @@ fn compiled_catalog_id_index_describes_unknown_and_unavailable_ids() {
     let report = index
         .describe_compiled_ids(
             &[&requested],
-            &[
-                hello_id.clone(),
-                source_only_id.clone(),
-                "missing-id".to_owned(),
-            ],
+            &[hello_id.as_str(), source_only_id.as_str(), "missing-id"],
         )
         .expect("describe compiled ids");
 
@@ -1496,7 +1483,7 @@ fn compile_catalog_artifact_selected_returns_only_requested_ids() {
         &CompileSelectedCatalogArtifactOptions::new(
             "de",
             "en",
-            &[hello_id.clone(), hello_id.clone()],
+            &[hello_id.as_str(), hello_id.as_str()],
         ),
     )
     .expect("compile selected artifact");
@@ -1529,7 +1516,7 @@ fn compile_catalog_artifact_selected_reports_unknown_compiled_ids() {
     let error = compile_catalog_artifact_selected(
         &[&requested, &source],
         &index,
-        &CompileSelectedCatalogArtifactOptions::new("de", "en", &["missing-id".to_owned()]),
+        &CompileSelectedCatalogArtifactOptions::new("de", "en", &["missing-id"]),
     )
     .expect_err("unknown compiled id");
 
@@ -1560,7 +1547,7 @@ fn compile_catalog_artifact_selected_rejects_ids_absent_from_catalog_set() {
     let error = compile_catalog_artifact_selected(
         &[&requested, &source],
         &index,
-        &CompileSelectedCatalogArtifactOptions::new("de", "en", &[hello_id]),
+        &CompileSelectedCatalogArtifactOptions::new("de", "en", &[hello_id.as_str()]),
     )
     .expect_err("compiled id absent from provided catalogs");
 
@@ -1608,7 +1595,7 @@ fn compile_catalog_artifact_selected_preserves_fallback_and_validation_semantics
         &[&requested, &source],
         &index,
         &CompileSelectedCatalogArtifactOptions {
-            compiled_ids: &[hello_id.clone(), broken_id.clone()],
+            compiled_ids: &[hello_id.as_str(), broken_id.as_str()],
             options: CompileCatalogArtifactOptions {
                 source_fallback: true,
                 semantics: CatalogSemantics::GettextCompat,
