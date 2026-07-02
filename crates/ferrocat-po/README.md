@@ -20,6 +20,8 @@ At the catalog layer, it supports three explicit modes:
 
 `FCL + gettext-compatible plurals` is intentionally unsupported.
 
+See the repository's [FCL format specification](../../docs/fcl-format.md) for the line format and escaping rules behind ICU-native FCL storage.
+
 Use this crate when you want that surface directly:
 
 - `parse_po` / `parse_po_borrowed` for raw PO parsing

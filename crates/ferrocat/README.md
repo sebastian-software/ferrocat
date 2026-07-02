@@ -7,8 +7,6 @@ Public umbrella crate for the `ferrocat` workspace.
 
 Ferrocat is a Rust-native translation catalog engine. It gives applications and host-language adapters one place to parse, update, audit, validate, and compile translation catalogs into runtime-ready data.
 
-Patch releases may also carry workspace dependency and release-maintenance refreshes that keep the published crate set reproducible.
-
 Add it with:
 
 ```bash
@@ -33,6 +31,8 @@ At the catalog layer, `ferrocat` supports three explicit modes:
 - ICU-native FCL catalog mode: FCL (Ferrocat Catalog Lines) storage + ICU MessageFormat
 
 `FCL + gettext-compatible plurals` is intentionally unsupported.
+
+See the repository's [FCL format specification](../../docs/fcl-format.md) for the line format and escaping rules behind ICU-native FCL storage.
 
 Repository, docs, and contribution guidelines:
 
