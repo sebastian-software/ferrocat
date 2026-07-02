@@ -490,6 +490,17 @@ pub enum MsgStr {
 }
 
 impl MsgStr {
+    /// Creates a plural translation payload without normalizing by slot count.
+    ///
+    /// Use this when the plural shape matters even if the value vector has one
+    /// slot, such as gettext catalogs for one-form locales. `From<Vec<String>>`
+    /// normalizes empty vectors to [`MsgStr::None`] and single-value vectors to
+    /// [`MsgStr::Singular`].
+    #[must_use]
+    pub fn plural(values: Vec<String>) -> Self {
+        Self::Plural(values)
+    }
+
     /// Returns `true` when no translation values are present.
     #[must_use]
     pub const fn is_empty(&self) -> bool {
@@ -808,6 +819,18 @@ mod tests {
         assert_eq!(msgstr.get(0), Some("eins"));
         assert_eq!(msgstr.get(1), Some("viele"));
         assert_eq!(msgstr.get(2), None);
+    }
+
+    #[test]
+    fn msgstr_plural_constructor_preserves_single_slot_shape() {
+        let values = vec!["translation".to_owned()];
+        let plural = MsgStr::plural(values.clone());
+
+        assert_eq!(plural, MsgStr::Plural(values.clone()));
+        assert_ne!(plural, MsgStr::from(values.clone()));
+        assert_eq!(plural.len(), 1);
+        assert_eq!(plural.first_str(), Some("translation"));
+        assert_eq!(plural.into_vec(), values);
     }
 
     #[test]

@@ -66,6 +66,13 @@ Serializable public output includes:
 - compiled runtime catalog and compiled-ID report records
 - `CompiledCatalogArtifact`
 
+`MsgStr::from(Vec<String>)` keeps the historical low-level normalization: empty
+vectors become `MsgStr::None`, and one-value vectors become
+`MsgStr::Singular`. Use `MsgStr::plural(...)` when the plural shape itself must
+survive, including one-slot plural profiles. For catalog identity helpers,
+`CatalogMessageKey::with_context(msgid, msgctxt)` avoids forcing callers to
+write `Some("context".to_owned())` at every contextual lookup site.
+
 `CompiledCatalogArtifact` is the host-facing runtime payload and has a versioned
 JSON contract. Serialized artifacts include `schema_version: 1`, `messages`,
 `missing`, and `diagnostics`. Deserialization rejects unknown artifact schema
