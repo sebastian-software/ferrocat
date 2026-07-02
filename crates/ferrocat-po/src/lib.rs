@@ -1,9 +1,30 @@
+#![cfg_attr(docsrs, feature(doc_cfg))]
 #![warn(missing_docs, rustdoc::broken_intra_doc_links)]
 //! Performance-first PO parsing and serialization.
 //!
 //! The crate exposes both owned and borrowed parsers for gettext PO files,
 //! a byte-oriented UTF-8 parser entry point, plus helpers for serialization
 //! and higher-level catalog update workflows.
+//!
+//! # Feature flags
+//!
+//! The default feature set is `full`, which currently enables the `catalog`
+//! workflow layer.
+//!
+//! - `catalog` exposes high-level catalog parsing, updates, combining, audits,
+//!   machine-translation metadata, plural handling, FCL storage, and runtime
+//!   artifact compilation. It also enables the catalog-layer dependencies used
+//!   for hashing, atomic file updates, serde JSON output, ICU diagnostics, and
+//!   CLDR plural data.
+//! - `serde` enables serde implementations for low-level PO document types and
+//!   is also enabled by `catalog` for catalog-layer JSON/report shapes.
+//! - `compile`, `mt`, and `plurals` are reserved subsystem aliases. Today they
+//!   imply `catalog`; they do not reduce or split the catalog API surface.
+//!
+//! Use `default-features = false` for the low-level PO parser, borrowed parser,
+//! serializer, string helpers, and lightweight `merge_catalog` helper without
+//! catalog-layer dependencies. Enabling `compile`, `mt`, or `plurals` currently
+//! has the same dependency effect as enabling `catalog`.
 //!
 //! # Examples
 //!
@@ -77,6 +98,7 @@
 //! ```
 
 #[cfg(feature = "catalog")]
+#[cfg_attr(docsrs, doc(cfg(feature = "catalog")))]
 mod api;
 mod borrowed;
 pub mod diagnostic_codes;
@@ -89,6 +111,7 @@ mod text;
 mod utf8;
 
 #[cfg(feature = "catalog")]
+#[cfg_attr(docsrs, doc(cfg(feature = "catalog")))]
 pub use api::{
     AiProvenance, ApiError, COMPILED_CATALOG_ARTIFACT_SCHEMA_VERSION, CatalogAuditChecks,
     CatalogAuditDiagnostic, CatalogAuditIcuOptions, CatalogAuditMessageRef, CatalogAuditOptions,

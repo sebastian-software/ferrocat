@@ -37,14 +37,18 @@ profiles instead of moving it to a separate crate.
 
 The named feature profiles are:
 
-- `full`: the default profile with the complete current API surface
+- `default`: enables `full` on `ferrocat` and `ferrocat-po`
+- `full`: the default profile with the complete current API surface; on
+  `ferrocat`, this means `catalog` plus `serde`, while on `ferrocat-po` it means
+  `catalog`
 - `catalog`: high-level catalog update, parse, combine, audit, metadata, FCL,
   plural, and runtime compile support
 - `serde`: serde implementations used by schema, cache, and tooling-oriented
   consumers; it can be enabled without the full catalog profile for low-level PO
   document types
-- `compile`, `mt`, `fcl`, and `plurals`: named subsystem profiles reserved for
-  callers that want to declare intent explicitly
+- `compile`, `mt`, and `plurals`: reserved subsystem aliases that currently imply
+  `catalog`; they let callers declare intent explicitly, but they do not reduce
+  or split the catalog API surface yet
 
 `docs.rs` builds with all features enabled so the rendered reference shows the
 full API surface.

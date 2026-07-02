@@ -1,9 +1,27 @@
+#![cfg_attr(docsrs, feature(doc_cfg))]
 #![warn(missing_docs, rustdoc::broken_intra_doc_links)]
 //! Public Rust entry point for the `ferrocat` workspace.
 //!
 //! This crate re-exports the primary API surface from the lower-level
 //! `ferrocat-po` and `ferrocat-icu` crates so application code can depend on a
 //! single package.
+//!
+//! # Feature flags
+//!
+//! The default feature set is `full`, which enables the complete current API
+//! surface through `catalog` and `serde`.
+//!
+//! - `catalog` exposes high-level catalog parsing, updates, combining, audits,
+//!   machine-translation metadata, plural handling, FCL storage, and runtime
+//!   artifact compilation.
+//! - `serde` enables serde support in the re-exported `ferrocat-po` and
+//!   `ferrocat-icu` types.
+//! - `compile`, `mt`, and `plurals` are reserved subsystem aliases. Today they
+//!   imply `catalog`; they do not reduce or split the catalog API surface.
+//!
+//! Use `default-features = false` for low-level PO and ICU parsing without the
+//! catalog layer. Enabling `compile`, `mt`, or `plurals` currently has the same
+//! dependency effect as enabling `catalog`.
 //!
 //! # Examples
 //!
@@ -69,6 +87,7 @@
 
 /// High-level catalog maintenance, audit, and runtime artifact APIs.
 #[cfg(feature = "catalog")]
+#[cfg_attr(docsrs, doc(cfg(feature = "catalog")))]
 pub mod catalog {
     pub use ferrocat_po::diagnostic_codes;
     pub use ferrocat_po::{
@@ -166,6 +185,7 @@ pub use ferrocat_icu::{
 };
 
 #[cfg(feature = "catalog")]
+#[cfg_attr(docsrs, doc(cfg(feature = "catalog")))]
 /// JSON schema version emitted by [`CompiledCatalogArtifact`] serialization.
 pub const COMPILED_CATALOG_ARTIFACT_SCHEMA_VERSION: u16 =
     ferrocat_po::COMPILED_CATALOG_ARTIFACT_SCHEMA_VERSION;
@@ -176,6 +196,7 @@ pub const COMPILED_CATALOG_ARTIFACT_SCHEMA_VERSION: u16 =
 )]
 pub use ferrocat_po::MergeExtractedMessage;
 #[cfg(feature = "catalog")]
+#[cfg_attr(docsrs, doc(cfg(feature = "catalog")))]
 pub use ferrocat_po::{
     AiProvenance, ApiError, CatalogAuditChecks, CatalogAuditDiagnostic, CatalogAuditIcuOptions,
     CatalogAuditMessageRef, CatalogAuditOptions, CatalogAuditReport, CatalogAuditSummary,

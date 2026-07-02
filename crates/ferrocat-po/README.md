@@ -12,6 +12,24 @@ cargo add ferrocat-po
 
 This crate covers both the low-level PO surface and the higher-level catalog layer. For PO-only dependency profiles, disable default features.
 
+## Feature flags
+
+`ferrocat-po` enables `full` by default. `full` currently means `catalog`, so the
+default build exposes the complete current PO and catalog API surface.
+
+- `catalog`: high-level catalog parse, update, combine, audit, metadata, FCL,
+  plural, and runtime compile APIs, plus their hashing, tempfile, serde JSON,
+  ICU, and CLDR plural-data dependencies
+- `serde`: serde support for low-level PO document types; `catalog` also enables
+  it for catalog-layer JSON/report shapes
+- `compile`, `mt`, and `plurals`: reserved subsystem aliases that currently
+  imply `catalog`; they do not reduce or split the catalog API surface yet
+
+Use `default-features = false` for the low-level PO parser, borrowed parser,
+serializer, string helpers, and lightweight `merge_catalog` helper without
+catalog-layer dependencies. Enabling `compile`, `mt`, or `plurals` currently has
+the same dependency effect as enabling `catalog`.
+
 At the catalog layer, it supports three explicit modes:
 
 - classic Gettext catalog mode: Gettext PO + gettext-compatible plurals

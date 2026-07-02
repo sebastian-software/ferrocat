@@ -15,6 +15,22 @@ cargo add ferrocat
 
 It re-exports the stable Rust API from `ferrocat-po` and `ferrocat-icu`.
 
+## Feature flags
+
+`ferrocat` enables `full` by default. `full` currently means `catalog` plus
+`serde`, so the default build exposes the complete current API surface.
+
+- `catalog`: high-level catalog parse, update, combine, audit, metadata, FCL,
+  plural, and runtime compile APIs
+- `serde`: serde support in the re-exported `ferrocat-po` and `ferrocat-icu`
+  types
+- `compile`, `mt`, and `plurals`: reserved subsystem aliases that currently
+  imply `catalog`; they do not reduce or split the catalog API surface yet
+
+Use `default-features = false` for low-level PO and ICU parsing without the
+catalog layer. Enabling `compile`, `mt`, or `plurals` currently has the same
+dependency effect as enabling `catalog`.
+
 Use the umbrella crate when you want one dependency for the full catalog workflow:
 
 - translator-friendly catalog parsing and serialization

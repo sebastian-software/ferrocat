@@ -30,6 +30,7 @@ ferrocat-po = { version = "2.0.0", path = "../ferrocat-po", default-features = f
 
 [package.metadata.docs.rs]
 all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
 
 [lints]
 workspace = true
