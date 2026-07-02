@@ -8,13 +8,12 @@
 
 use std::borrow::Cow;
 use std::cmp::Ordering;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use super::catalog::{
-    CanonicalMessage, CanonicalTranslation, Catalog, format_origin, parse_origin_owned,
-    split_placeholder_comments,
+    CanonicalMessage, CanonicalTranslation, Catalog, parse_origin_owned, split_placeholder_comments,
 };
-use super::export::{append_placeholder_comments, plural_source_branches};
+use super::export::{for_each_placeholder_comment, plural_source_branches};
 use super::mt::{
     MachineMetadata, format_ai_descriptor, machine_translation_hash, parse_ai_descriptor,
     validate_machine_metadata,
@@ -146,29 +145,36 @@ fn write_entry(out: &mut String, message: &CanonicalMessage, render: &RenderOpti
     if render.include_origins {
         // References are file-only; sort for determinism and drop duplicates that
         // distinct origins can now collapse to.
-        let mut refs = message
+        let refs = message
             .origins
             .iter()
-            .map(format_origin)
-            .collect::<Vec<_>>();
-        refs.sort_unstable();
-        refs.dedup();
-        for reference in &refs {
-            write_tag(out, "r", reference);
+            .map(|origin| (origin.file.as_str(), origin.scope.as_deref()))
+            .collect::<BTreeSet<_>>();
+        let mut reference = String::new();
+        for (file, scope) in refs {
+            reference.clear();
+            reference.push_str(file);
+            if let Some(scope) = scope {
+                reference.push('#');
+                reference.push_str(scope);
+            }
+            write_tag(out, "r", &reference);
         }
     }
 
     // Extracted comments plus the placeholder comments folded back in, matching
     // the catalog's comment round-trip.
-    let mut comments = message.comments.clone();
-    append_placeholder_comments(
-        &mut comments,
-        &message.placeholders,
-        &render.print_placeholders_in_comments,
-    );
-    for comment in &comments {
+    for comment in &message.comments {
         write_tag(out, "c", comment);
     }
+    for_each_placeholder_comment(
+        &message.comments,
+        &message.placeholders,
+        &render.print_placeholders_in_comments,
+        |comment| {
+            write_tag(out, "c", comment);
+        },
+    );
 
     if let Some(info) = &message.obsolete {
         match &info.since {
@@ -619,6 +625,49 @@ mod tests {
         let text = format!("{FCL_MAGIC}\tsource=en\nid\t\tv\tr=src/a.rs\tr=src/a.rs\n");
         let rendered = roundtrip(&text);
         assert_eq!(rendered.matches("\tr=src/a.rs").count(), 1);
+    }
+
+    #[test]
+    fn serializes_scoped_references_and_generated_placeholder_comments() {
+        let message = super::CanonicalMessage {
+            msgid: "Hello {0}".to_owned(),
+            msgctxt: None,
+            translation: super::CanonicalTranslation::Singular {
+                value: "Hallo {0}".to_owned(),
+            },
+            comments: vec!["Translator note".to_owned()],
+            origins: vec![
+                super::CatalogOrigin {
+                    file: "src/app.rs".to_owned(),
+                    scope: Some("Greeting".to_owned()),
+                },
+                super::CatalogOrigin {
+                    file: "src/app.rs".to_owned(),
+                    scope: Some("Greeting".to_owned()),
+                },
+            ]
+            .into(),
+            placeholders: std::collections::BTreeMap::from([(
+                "0".to_owned(),
+                vec!["user\nname".to_owned()],
+            )]),
+            obsolete: None,
+            machine: None,
+        };
+        let catalog = super::Catalog {
+            locale: Some("de".to_owned()),
+            headers: std::collections::BTreeMap::new(),
+            file_comments: Vec::new(),
+            file_extracted_comments: Vec::new(),
+            messages: vec![message],
+            diagnostics: Vec::new(),
+        };
+
+        let text = stringify_catalog_fcl(&catalog, Some("de"), "en", &RenderOptions::default());
+
+        assert_eq!(text.matches("\tr=src/app.rs#Greeting").count(), 1);
+        assert!(text.contains("\tc=Translator note"));
+        assert!(text.contains("\tc=placeholder {0}: user name"));
     }
 
     #[test]

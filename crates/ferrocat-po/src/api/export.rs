@@ -323,32 +323,9 @@ fn write_placeholder_comments(
     placeholders: &BTreeMap<String, Vec<String>>,
     mode: &PlaceholderCommentMode,
 ) {
-    let limit = match mode {
-        PlaceholderCommentMode::Disabled => return,
-        PlaceholderCommentMode::Enabled { limit } => *limit,
-    };
-
-    let mut generated_comments = Vec::<String>::new();
-    for (name, values) in placeholders {
-        if !name.chars().all(|ch| ch.is_ascii_digit()) {
-            continue;
-        }
-        for value in values.iter().take(limit) {
-            let comment = format!(
-                "placeholder {{{name}}}: {}",
-                normalize_placeholder_value(value)
-            );
-            if comments.iter().any(|existing| existing == &comment)
-                || generated_comments
-                    .iter()
-                    .any(|existing| existing == &comment)
-            {
-                continue;
-            }
-            write_prefixed_line(out, obsolete_prefix, "#.", &comment);
-            generated_comments.push(comment);
-        }
-    }
+    for_each_placeholder_comment(comments, placeholders, mode, |comment| {
+        write_prefixed_line(out, obsolete_prefix, "#.", comment);
+    });
 }
 
 fn write_plural_msgstr(
@@ -424,10 +401,11 @@ pub(super) fn plural_source_branches(source: &PluralSource) -> BTreeMap<String, 
     map
 }
 
-pub(super) fn append_placeholder_comments(
-    comments: &mut Vec<String>,
+pub(super) fn for_each_placeholder_comment(
+    comments: &[String],
     placeholders: &BTreeMap<String, Vec<String>>,
     mode: &PlaceholderCommentMode,
+    mut visit: impl FnMut(&str),
 ) {
     let limit = match mode {
         PlaceholderCommentMode::Disabled => return,
@@ -446,7 +424,7 @@ pub(super) fn append_placeholder_comments(
                 normalize_placeholder_value(value)
             );
             if seen.insert(comment.clone()) {
-                comments.push(comment);
+                visit(&comment);
             }
         }
     }
@@ -698,7 +676,7 @@ mod tests {
     }
 
     #[test]
-    fn append_placeholder_comments_respects_mode_limit_and_duplicates() {
+    fn placeholder_comment_generator_respects_mode_limit_and_duplicates() {
         let mut comments = vec!["placeholder {0}: known value".to_owned()];
         let placeholders = BTreeMap::from([
             (
@@ -708,11 +686,24 @@ mod tests {
             ("name".to_owned(), vec!["ignored".to_owned()]),
         ]);
 
-        append_placeholder_comments(
-            &mut comments,
-            &placeholders,
-            &PlaceholderCommentMode::Enabled { limit: 2 },
-        );
+        let mut generated = Vec::new();
+        {
+            let mut collect = |comment: &str| generated.push(comment.to_owned());
+            for_each_placeholder_comment(
+                &comments,
+                &placeholders,
+                &PlaceholderCommentMode::Enabled { limit: 2 },
+                &mut collect,
+            );
+
+            for_each_placeholder_comment(
+                &comments,
+                &placeholders,
+                &PlaceholderCommentMode::Disabled,
+                &mut collect,
+            );
+        }
+        comments.extend(generated);
 
         assert_eq!(
             comments,
@@ -720,12 +711,6 @@ mod tests {
                 "placeholder {0}: known value".to_owned(),
                 "placeholder {0}: next value".to_owned(),
             ]
-        );
-
-        append_placeholder_comments(
-            &mut comments,
-            &placeholders,
-            &PlaceholderCommentMode::Disabled,
         );
 
         assert_eq!(
