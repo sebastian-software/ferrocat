@@ -1,5 +1,7 @@
-use std::collections::BTreeMap;
+use std::collections::hash_map::DefaultHasher;
+use std::collections::{BTreeMap, HashMap, btree_map};
 use std::fmt;
+use std::hash::{Hash, Hasher};
 use std::path::{Path, PathBuf};
 
 use crate::{ParseError, PoVec};
@@ -617,28 +619,38 @@ impl ParsedCatalog {
 pub struct NormalizedParsedCatalog {
     pub(super) catalog: ParsedCatalog,
     pub(super) key_index: BTreeMap<CatalogMessageKey, usize>,
-    msgid_index: BTreeMap<String, Vec<usize>>,
+    msgid_hash_index: HashMap<u64, Vec<usize>>,
 }
 
 impl NormalizedParsedCatalog {
     /// Builds the lookup index once and rejects duplicate gettext identities up front.
     pub(super) fn new(catalog: ParsedCatalog) -> Result<Self, ApiError> {
         let mut key_index = BTreeMap::new();
-        let mut msgid_index = BTreeMap::<String, Vec<usize>>::new();
+        let mut msgid_hash_index =
+            HashMap::<u64, Vec<usize>>::with_capacity(catalog.messages.len());
         for (index, message) in catalog.messages.iter().enumerate() {
             let key = message.key();
-            if key_index.insert(key.clone(), index).is_some() {
-                return Err(ApiError::Conflict(format!(
-                    "duplicate parsed catalog message for msgid {:?} and context {:?}",
-                    key.msgid, key.msgctxt
-                )));
+            match key_index.entry(key) {
+                btree_map::Entry::Vacant(entry) => {
+                    entry.insert(index);
+                }
+                btree_map::Entry::Occupied(entry) => {
+                    let key = entry.key();
+                    return Err(ApiError::Conflict(format!(
+                        "duplicate parsed catalog message for msgid {:?} and context {:?}",
+                        key.msgid, key.msgctxt
+                    )));
+                }
             }
-            msgid_index.entry(key.msgid).or_default().push(index);
+            msgid_hash_index
+                .entry(message_id_hash(&message.msgid))
+                .or_default()
+                .push(index);
         }
         Ok(Self {
             catalog,
             key_index,
-            msgid_index,
+            msgid_hash_index,
         })
     }
 
@@ -668,10 +680,14 @@ impl NormalizedParsedCatalog {
     /// already have borrowed source identity fields.
     #[must_use]
     pub fn get_by_parts(&self, msgid: &str, msgctxt: Option<&str>) -> Option<&CatalogMessage> {
-        self.msgid_index.get(msgid)?.iter().find_map(|index| {
-            let message = &self.catalog.messages[*index];
-            (message.msgctxt.as_deref() == msgctxt).then_some(message)
-        })
+        self.msgid_hash_index
+            .get(&message_id_hash(msgid))?
+            .iter()
+            .find_map(|index| {
+                let message = &self.catalog.messages[*index];
+                (message.msgid.as_str() == msgid && message.msgctxt.as_deref() == msgctxt)
+                    .then_some(message)
+            })
     }
 
     /// Returns `true` if a message for `key` exists.
@@ -742,7 +758,7 @@ impl NormalizedParsedCatalog {
         Some(self.effective_translation_for_message(message, source_locale))
     }
 
-    fn effective_translation_for_message(
+    pub(super) fn effective_translation_for_message(
         &self,
         message: &CatalogMessage,
         source_locale: &str,
@@ -758,6 +774,12 @@ impl NormalizedParsedCatalog {
             message.effective_translation_owned()
         }
     }
+}
+
+fn message_id_hash(msgid: &str) -> u64 {
+    let mut hasher = DefaultHasher::new();
+    msgid.hash(&mut hasher);
+    hasher.finish()
 }
 
 /// Encoding used for plural messages in PO files.

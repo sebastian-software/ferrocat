@@ -88,10 +88,7 @@ impl NormalizedParsedCatalog {
         for (source_key, message) in self.iter() {
             let effective = source_locale.map_or_else(
                 || message.effective_translation_owned(),
-                |source_locale| {
-                    self.effective_translation_with_source_fallback(source_key, source_locale)
-                        .expect("normalized catalog lookup")
-                },
+                |source_locale| self.effective_translation_for_message(message, source_locale),
             );
             let translation = compiled_translation_for_message(
                 message,
@@ -839,21 +836,24 @@ fn resolve_compiled_catalog_artifact_message(
     source_key: &CatalogMessageKey,
     options: &CompileCatalogArtifactOptions<'_>,
 ) -> Option<ResolvedArtifactMessage> {
+    let msgid = source_key.msgid.as_str();
+    let msgctxt = source_key.msgctxt.as_deref();
+
     for locale in std::iter::once(options.requested_locale)
         .chain(options.fallback_chain.iter().map(String::as_str))
     {
         let Some(catalog) = catalogs.get(locale) else {
             continue;
         };
-        let Some(message) = catalog.get(source_key) else {
+        let Some(message) = catalog.get_by_parts(msgid, msgctxt) else {
             continue;
         };
         if message.obsolete.is_some() || !message_has_runtime_translation(message) {
             continue;
         }
-        return rendered_compiled_catalog_artifact_message(
+        return rendered_compiled_catalog_artifact_message_for_message(
             catalog,
-            source_key,
+            message,
             options.source_locale,
             false,
         )
@@ -870,16 +870,21 @@ fn resolve_compiled_catalog_artifact_message(
     }
 
     let catalog = catalogs.get(options.source_locale)?;
-    let message = catalog.get(source_key)?;
+    let message = catalog.get_by_parts(msgid, msgctxt)?;
     if message.obsolete.is_some() {
         return None;
     }
 
-    rendered_compiled_catalog_artifact_message(catalog, source_key, options.source_locale, true)
-        .map(|message| ResolvedArtifactMessage {
-            locale: options.source_locale.to_owned(),
-            message,
-        })
+    rendered_compiled_catalog_artifact_message_for_message(
+        catalog,
+        message,
+        options.source_locale,
+        true,
+    )
+    .map(|message| ResolvedArtifactMessage {
+        locale: options.source_locale.to_owned(),
+        message,
+    })
 }
 
 /// Renders the final runtime string for one message after translation fallback
@@ -893,9 +898,23 @@ fn rendered_compiled_catalog_artifact_message(
     source_locale: &str,
     use_source_fallback: bool,
 ) -> Option<String> {
-    let message = catalog.get(source_key)?;
+    let message = catalog.get_by_parts(source_key.msgid.as_str(), source_key.msgctxt.as_deref())?;
+    rendered_compiled_catalog_artifact_message_for_message(
+        catalog,
+        message,
+        source_locale,
+        use_source_fallback,
+    )
+}
+
+fn rendered_compiled_catalog_artifact_message_for_message(
+    catalog: &NormalizedParsedCatalog,
+    message: &CatalogMessage,
+    source_locale: &str,
+    use_source_fallback: bool,
+) -> Option<String> {
     let effective = if use_source_fallback {
-        catalog.effective_translation_with_source_fallback(source_key, source_locale)?
+        catalog.effective_translation_for_message(message, source_locale)
     } else {
         message.effective_translation_owned()
     };
