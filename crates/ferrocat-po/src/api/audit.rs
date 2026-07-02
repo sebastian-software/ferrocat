@@ -20,6 +20,7 @@ use super::{
 
 /// Options controlling catalog audit checks.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[non_exhaustive]
 pub struct CatalogAuditOptions<'a> {
     /// Source locale used as the expected message set.
     pub source_locale: &'a str,
@@ -88,6 +89,7 @@ impl CatalogAuditIcuOptions {
 
 /// Enables or disables individual catalog audit checks.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct CatalogAuditChecks {
     /// Check that target locales cover active source messages.
     pub completeness: bool,

@@ -7,13 +7,10 @@ fn catalog(
     content: &str,
     locale: &str,
 ) -> Result<NormalizedParsedCatalog, Box<dyn std::error::Error>> {
-    Ok(parse_catalog(ParseCatalogOptions {
-        content,
-        locale: Some(locale),
-        source_locale: "en",
-        ..ParseCatalogOptions::new("", "en")
-    })?
-    .into_normalized_view()?)
+    Ok(
+        parse_catalog(ParseCatalogOptions::new(content, "en").with_locale(locale))?
+            .into_normalized_view()?,
+    )
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -23,10 +20,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     )?;
     let german = catalog("msgid \"Checkout\"\nmsgstr \"Zur Kasse\"\n", "de")?;
 
-    let options = CompileCatalogArtifactOptions {
-        source_fallback: true,
-        ..CompileCatalogArtifactOptions::new("de", "en")
-    };
+    let options = CompileCatalogArtifactOptions::new("de", "en").with_source_fallback(true);
     let artifact = compile_catalog_artifact(&[&source, &german], &options)?;
 
     assert_eq!(artifact.messages.len(), 2);

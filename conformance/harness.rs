@@ -148,10 +148,9 @@ fn evaluate_po_roundtrip(case: &ConformanceCase) -> Result<String, String> {
         .ok_or_else(|| format!("roundtrip case {} is missing expected fixture", case.id))?;
     let expected = read_fixture_text(expected_path).map_err(|error| error.to_string())?;
     let parsed = parse_po(&input).map_err(|error| format!("parse failed unexpectedly: {error}"))?;
-    let options = SerializeOptions {
-        fold_length: case.fold_length.unwrap_or(80),
-        compact_multiline: case.compact_multiline.unwrap_or(true),
-    };
+    let options = SerializeOptions::default()
+        .with_fold_length(case.fold_length.unwrap_or(80))
+        .with_compact_multiline(case.compact_multiline.unwrap_or(true));
     let rendered = stringify_po(&parsed, &options);
     if equivalent_text(&rendered, &expected) {
         Ok(String::new())
@@ -285,13 +284,11 @@ fn evaluate_po_plural_header(case: &ConformanceCase) -> Result<String, String> {
             .source_locale
             .clone()
             .unwrap_or_else(|| "en".to_owned());
-        parse_catalog(ParseCatalogOptions {
-            content: &input,
-            locale: Some(locale),
-            source_locale: &source_locale,
-            mode: ferrocat_po::CatalogMode::GettextPo,
-            strict: false,
-        })
+        parse_catalog(
+            ParseCatalogOptions::new(&input, &source_locale)
+                .with_locale(locale)
+                .with_mode(ferrocat_po::CatalogMode::GettextPo),
+        )
         .map_err(|error| format!("parse_catalog failed unexpectedly: {error:?}"))?;
     }
 

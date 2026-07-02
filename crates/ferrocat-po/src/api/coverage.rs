@@ -9,6 +9,7 @@ use super::{ApiError, CatalogMessageKey, NormalizedParsedCatalog, validate_sourc
 
 /// Options controlling catalog coverage reports.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[non_exhaustive]
 pub struct CatalogCoverageOptions<'a> {
     /// Source locale whose active message identities define expected coverage.
     pub source_locale: &'a str,

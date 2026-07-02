@@ -848,14 +848,14 @@ impl PreparedScenario {
                 let po_content = fixture.content().to_owned();
                 // Render an equivalent FCL catalog so the storage-format comparison
                 // can parse the same logical catalog as both PO and FCL.
-                let parsed = parse_catalog(ParseCatalogOptions {
-                    content: &po_content,
-                    locale: fixture_locale(&first.fixture).as_deref(),
-                    source_locale: "en",
-                    mode: CatalogMode::IcuPo,
-                    strict: false,
-                })
-                .map_err(|error| format!("failed to parse catalog fixture: {error}"))?;
+                let mut options =
+                    ParseCatalogOptions::new(&po_content, "en").with_mode(CatalogMode::IcuPo);
+                let fixture_locale = fixture_locale(&first.fixture);
+                if let Some(locale) = fixture_locale.as_deref() {
+                    options = options.with_locale(locale);
+                }
+                let parsed = parse_catalog(options)
+                    .map_err(|error| format!("failed to parse catalog fixture: {error}"))?;
                 let fcl_content = crate::render_fcl_catalog(&parsed);
                 Ok(Self {
                     operation: first.operation.clone(),
@@ -1165,15 +1165,12 @@ impl PreparedScenario {
         let mut last_parsed = None;
         let start = Instant::now();
         for _ in 0..iterations {
+            let mut options = ParseCatalogOptions::new(content, "en").with_mode(mode);
+            if let Some(locale) = locale.as_deref() {
+                options = options.with_locale(locale);
+            }
             last_parsed = Some(
-                parse_catalog(ParseCatalogOptions {
-                    content,
-                    locale: locale.as_deref(),
-                    source_locale: "en",
-                    mode,
-                    strict: false,
-                })
-                .map_err(|error| format!("parse_catalog failed: {error}"))?,
+                parse_catalog(options).map_err(|error| format!("parse_catalog failed: {error}"))?,
             );
         }
         let elapsed = start.elapsed();
@@ -1323,13 +1320,14 @@ impl PreparedScenario {
         let locale = fixture_locale(&self.fixture);
         let mode = fixture_catalog_mode(&self.fixture);
         for _ in 0..iterations {
-            let updated = update_catalog(UpdateCatalogOptions {
-                locale: locale.as_deref(),
-                mode,
-                existing: Some(fixture.existing_po.as_str()),
-                ..UpdateCatalogOptions::new("en", fixture.api_messages.clone())
-            })
-            .map_err(|error| format!("update_catalog failed: {error}"))?;
+            let mut options = UpdateCatalogOptions::new("en", fixture.api_messages.clone())
+                .with_mode(mode)
+                .with_existing(fixture.existing_po.as_str());
+            if let Some(locale) = locale.as_deref() {
+                options = options.with_locale(locale);
+            }
+            let updated = update_catalog(options)
+                .map_err(|error| format!("update_catalog failed: {error}"))?;
             bytes_processed += updated.content.len();
             last_rendered = Some(updated.content);
         }

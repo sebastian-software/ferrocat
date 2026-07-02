@@ -3,6 +3,7 @@ use crate::error::IcuParseError;
 
 /// Options controlling ICU parsing behavior.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct IcuParserOptions {
     /// When `true`, rich-text style tags are treated as plain text.
     pub ignore_tag: bool,

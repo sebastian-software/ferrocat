@@ -68,21 +68,16 @@ msgstr "world"
     }]);
 
     // Every catalog mode must be selectable through umbrella re-exports alone.
-    parse_catalog(ParseCatalogOptions {
-        content: "msgid \"hello\"\nmsgstr \"world\"\n",
-        locale: Some("de"),
-        source_locale: "en",
-        mode: CatalogMode::GettextPo,
-        ..ParseCatalogOptions::new("", "en")
-    })
+    parse_catalog(
+        ParseCatalogOptions::new("msgid \"hello\"\nmsgstr \"world\"\n", "en")
+            .with_locale("de")
+            .with_mode(CatalogMode::GettextPo),
+    )
     .expect("parse gettext-compat catalog");
 
-    let parsed_catalog = parse_catalog(ParseCatalogOptions {
-        content: "msgid \"hello\"\nmsgstr \"world\"\n",
-        locale: Some("de"),
-        source_locale: "en",
-        ..ParseCatalogOptions::new("", "en")
-    })
+    let parsed_catalog = parse_catalog(
+        ParseCatalogOptions::new("msgid \"hello\"\nmsgstr \"world\"\n", "en").with_locale("de"),
+    )
     .expect("parse catalog");
     let normalized = parsed_catalog
         .into_normalized_view()
@@ -97,12 +92,9 @@ msgstr "world"
         Some(EffectiveTranslation::Singular("world".to_owned()))
     );
 
-    let source = parse_catalog(ParseCatalogOptions {
-        content: "msgid \"hello\"\nmsgstr \"hello\"\n",
-        locale: Some("en"),
-        source_locale: "en",
-        ..ParseCatalogOptions::new("", "en")
-    })
+    let source = parse_catalog(
+        ParseCatalogOptions::new("msgid \"hello\"\nmsgstr \"hello\"\n", "en").with_locale("en"),
+    )
     .expect("parse source catalog")
     .into_normalized_view()
     .expect("normalized source catalog");

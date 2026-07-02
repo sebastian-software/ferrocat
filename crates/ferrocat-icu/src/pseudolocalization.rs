@@ -2,6 +2,7 @@ use crate::{IcuMessage, IcuNode, IcuOption, IcuParseError, parse_icu, stringify_
 
 /// Options controlling ICU-aware pseudolocalization.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct IcuPseudolocalizationOptions<'a> {
     /// Literal prefix inserted at the start of the message when absent.
     pub prefix: &'a str,

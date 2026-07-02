@@ -524,6 +524,7 @@ impl CatalogFileFormat {
 
 /// Options for combining catalog files on disk.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct CombineCatalogFilesOptions<'a> {
     /// Input catalog paths in precedence order.
     pub input_paths: &'a [PathBuf],
@@ -571,6 +572,76 @@ impl<'a> CombineCatalogFilesOptions<'a> {
             include_origins: true,
             include_obsolete: false,
         }
+    }
+
+    /// Returns options that use the given input paths.
+    #[must_use]
+    pub fn with_input_paths(mut self, input_paths: &'a [PathBuf]) -> Self {
+        self.input_paths = input_paths;
+        self
+    }
+
+    /// Returns options that atomically replace the given output path.
+    #[must_use]
+    pub fn with_output_path(mut self, output_path: &'a Path) -> Self {
+        self.output_path = output_path;
+        self
+    }
+
+    /// Returns options that use the given explicit file format.
+    #[must_use]
+    pub fn with_format(mut self, format: CatalogFileFormat) -> Self {
+        self.format = Some(format);
+        self
+    }
+
+    /// Returns options that read and render with the given catalog mode.
+    #[must_use]
+    pub fn with_mode(mut self, mode: CatalogMode) -> Self {
+        self.mode = Some(mode);
+        self
+    }
+
+    /// Returns options that use the given combined catalog locale.
+    #[must_use]
+    pub fn with_locale(mut self, locale: &'a str) -> Self {
+        self.locale = Some(locale);
+        self
+    }
+
+    /// Returns options that resolve conflicts with the given strategy.
+    #[must_use]
+    pub fn with_conflict_strategy(mut self, conflict_strategy: CatalogConflictStrategy) -> Self {
+        self.conflict_strategy = conflict_strategy;
+        self
+    }
+
+    /// Returns options that apply the given message selection.
+    #[must_use]
+    pub fn with_selection(mut self, selection: CatalogCombineSelection) -> Self {
+        self.selection = selection;
+        self
+    }
+
+    /// Returns options that render the combined catalog with the given sort order.
+    #[must_use]
+    pub fn with_order_by(mut self, order_by: OrderBy) -> Self {
+        self.order_by = order_by;
+        self
+    }
+
+    /// Returns options that enable or disable rendered source origins.
+    #[must_use]
+    pub fn with_include_origins(mut self, include_origins: bool) -> Self {
+        self.include_origins = include_origins;
+        self
+    }
+
+    /// Returns options that include or skip obsolete definitions.
+    #[must_use]
+    pub fn with_include_obsolete(mut self, include_obsolete: bool) -> Self {
+        self.include_obsolete = include_obsolete;
+        self
     }
 }
 
@@ -960,6 +1031,7 @@ impl Default for PlaceholderCommentMode {
 /// References render the source file only; Ferrocat does not track or emit line
 /// numbers (see [`CatalogOrigin`]).
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct RenderOptions<'a> {
     /// Sort order for the final rendered catalog.
     pub order_by: OrderBy,
@@ -1020,6 +1092,7 @@ impl<'a> RenderOptions<'a> {
 
 /// Options for in-memory catalog updates.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct UpdateCatalogOptions<'a> {
     /// Locale of the catalog being updated. When `None`, Ferrocat infers it from the existing file.
     pub locale: Option<&'a str>,
@@ -1120,6 +1193,7 @@ impl<'a> UpdateCatalogOptions<'a> {
 
 /// Options for updating a catalog file on disk.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct UpdateCatalogFileOptions<'a> {
     /// Path to the catalog file that should be read and conditionally written.
     pub target_path: &'a Path,
@@ -1143,10 +1217,18 @@ impl<'a> UpdateCatalogFileOptions<'a> {
             options: UpdateCatalogOptions::new(source_locale, input),
         }
     }
+
+    /// Returns file update options that use the given in-memory update options.
+    #[must_use]
+    pub fn with_options(mut self, options: UpdateCatalogOptions<'a>) -> Self {
+        self.options = options;
+        self
+    }
 }
 
 /// Options for combining multiple catalogs into one deterministic catalog.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct CombineCatalogOptions<'a> {
     /// Input catalogs in precedence order.
     pub inputs: &'a [CatalogCombineInput<'a>],
@@ -1189,10 +1271,67 @@ impl<'a> CombineCatalogOptions<'a> {
             include_obsolete: false,
         }
     }
+
+    /// Returns options that use the given input catalogs.
+    #[must_use]
+    pub fn with_inputs(mut self, inputs: &'a [CatalogCombineInput<'a>]) -> Self {
+        self.inputs = inputs;
+        self
+    }
+
+    /// Returns options that use the given combined catalog locale.
+    #[must_use]
+    pub fn with_locale(mut self, locale: &'a str) -> Self {
+        self.locale = Some(locale);
+        self
+    }
+
+    /// Returns options that read and render with the given catalog mode.
+    #[must_use]
+    pub fn with_mode(mut self, mode: CatalogMode) -> Self {
+        self.mode = mode;
+        self
+    }
+
+    /// Returns options that resolve conflicts with the given strategy.
+    #[must_use]
+    pub fn with_conflict_strategy(mut self, conflict_strategy: CatalogConflictStrategy) -> Self {
+        self.conflict_strategy = conflict_strategy;
+        self
+    }
+
+    /// Returns options that apply the given message selection.
+    #[must_use]
+    pub fn with_selection(mut self, selection: CatalogCombineSelection) -> Self {
+        self.selection = selection;
+        self
+    }
+
+    /// Returns options that render the combined catalog with the given sort order.
+    #[must_use]
+    pub fn with_order_by(mut self, order_by: OrderBy) -> Self {
+        self.order_by = order_by;
+        self
+    }
+
+    /// Returns options that enable or disable rendered source origins.
+    #[must_use]
+    pub fn with_include_origins(mut self, include_origins: bool) -> Self {
+        self.include_origins = include_origins;
+        self
+    }
+
+    /// Returns options that include or skip obsolete definitions.
+    #[must_use]
+    pub fn with_include_obsolete(mut self, include_obsolete: bool) -> Self {
+        self.include_obsolete = include_obsolete;
+        self
+    }
 }
 
 /// Options for parsing a catalog into the higher-level message model.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct ParseCatalogOptions<'a> {
     /// Catalog content to parse.
     pub content: &'a str,
@@ -1625,6 +1764,67 @@ mod tests {
         assert_eq!(parse.locale, Some("fr"));
         assert_eq!(parse.mode, CatalogMode::IcuFcl);
         assert!(parse.strict);
+
+        let input_paths = [PathBuf::from("base.po"), PathBuf::from("overlay.po")];
+        let output_path = Path::new("messages.fcl");
+        let combine_files = CombineCatalogFilesOptions::new(&[], Path::new("unused.po"), "en")
+            .with_input_paths(&input_paths)
+            .with_output_path(output_path)
+            .with_format(CatalogFileFormat::Fcl)
+            .with_mode(CatalogMode::IcuFcl)
+            .with_locale("de")
+            .with_conflict_strategy(CatalogConflictStrategy::UseLast)
+            .with_selection(CatalogCombineSelection::Unique)
+            .with_order_by(OrderBy::Origin)
+            .with_include_origins(false)
+            .with_include_obsolete(true);
+
+        assert_eq!(combine_files.input_paths, &input_paths);
+        assert_eq!(combine_files.output_path, output_path);
+        assert_eq!(combine_files.format, Some(CatalogFileFormat::Fcl));
+        assert_eq!(combine_files.mode, Some(CatalogMode::IcuFcl));
+        assert_eq!(combine_files.locale, Some("de"));
+        assert_eq!(
+            combine_files.conflict_strategy,
+            CatalogConflictStrategy::UseLast
+        );
+        assert_eq!(combine_files.selection, CatalogCombineSelection::Unique);
+        assert_eq!(combine_files.order_by, OrderBy::Origin);
+        assert!(!combine_files.include_origins);
+        assert!(combine_files.include_obsolete);
+
+        let inputs = [CatalogCombineInput::labeled(
+            "msgid \"Hello\"\nmsgstr \"Hallo\"\n",
+            "base",
+        )];
+        let combine = CombineCatalogOptions::new(&[], "en")
+            .with_inputs(&inputs)
+            .with_locale("de")
+            .with_mode(CatalogMode::GettextPo)
+            .with_conflict_strategy(CatalogConflictStrategy::UseLast)
+            .with_selection(CatalogCombineSelection::Unique)
+            .with_order_by(OrderBy::Origin)
+            .with_include_origins(false)
+            .with_include_obsolete(true);
+
+        assert_eq!(combine.inputs, &inputs);
+        assert_eq!(combine.locale, Some("de"));
+        assert_eq!(combine.mode, CatalogMode::GettextPo);
+        assert_eq!(combine.conflict_strategy, CatalogConflictStrategy::UseLast);
+        assert_eq!(combine.selection, CatalogCombineSelection::Unique);
+        assert_eq!(combine.order_by, OrderBy::Origin);
+        assert!(!combine.include_origins);
+        assert!(combine.include_obsolete);
+
+        let file_update = UpdateCatalogFileOptions::new(
+            Path::new("messages.po"),
+            "en",
+            CatalogUpdateInput::default(),
+        )
+        .with_options(update.clone());
+
+        assert_eq!(file_update.target_path, Path::new("messages.po"));
+        assert_eq!(file_update.options, update);
     }
 
     #[test]
