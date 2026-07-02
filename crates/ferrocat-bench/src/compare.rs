@@ -13,9 +13,10 @@ use std::time::Instant;
 use ferrocat_icu::{IcuMessage, IcuNode, IcuOption, IcuPluralKind, parse_icu};
 use ferrocat_po::{
     BorrowedMsgStr, BorrowedPoFile, CatalogMessage, CatalogMode, CatalogOrigin, ExtractedMessage,
-    MergeMessageInput, MsgStr, ParseCatalogOptions, ParsedCatalog, PoFile, SerializeOptions,
-    TranslationShape, UpdateCatalogOptions, merge_catalog, parse_catalog, parse_po,
-    parse_po_borrowed, stringify_po, update_catalog,
+    ExtractedPluralMessage, ExtractedSingularMessage, MergeMessageInput, MsgStr,
+    ParseCatalogOptions, ParsedCatalog, PluralSource, PoFile, SerializeOptions, TranslationShape,
+    UpdateCatalogOptions, merge_catalog, parse_catalog, parse_po, parse_po_borrowed, stringify_po,
+    update_catalog,
 };
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -25,6 +26,7 @@ use time::format_description::well_known::Rfc3339;
 
 use crate::fixtures::{
     Fixture, IcuFixture, MergeFixture, fixture_by_name, icu_fixture_by_name, merge_fixture_by_name,
+    parse_origin,
 };
 
 const INTERNAL_TOOL_VERSION: &str = concat!("ferrocat@", env!("CARGO_PKG_VERSION"));
@@ -335,6 +337,9 @@ fn execute_scenario(
         "ferrocat-merge" => prepared.run_internal_merge(iterations, capture_artifacts),
         "ferrocat-update-catalog" => {
             prepared.run_internal_update_catalog(iterations, capture_artifacts)
+        }
+        "ferrocat-update-catalog-file" => {
+            prepared.run_internal_update_catalog_file(iterations, capture_artifacts)
         }
         "ferrocat-parse-icu" => prepared.run_internal_parse_icu(iterations, capture_artifacts),
         "pofile"
@@ -884,7 +889,7 @@ impl PreparedScenario {
                 let pot_path = if first.operation == "merge"
                     || scenarios
                         .iter()
-                        .any(|scenario| scenario.implementation == "msgmerge")
+                        .any(|scenario| !scenario.implementation.starts_with("ferrocat-"))
                 {
                     let pot_path = tempdir.path().join("template.pot");
                     let pot = build_merge_pot(&fixture);
@@ -1356,6 +1361,64 @@ impl PreparedScenario {
         })
     }
 
+    fn run_internal_update_catalog_file(
+        &self,
+        iterations: usize,
+        capture_artifacts: bool,
+    ) -> Result<ExecutionResult, String> {
+        let fixture = self
+            .merge_fixture
+            .as_ref()
+            .ok_or_else(|| "internal update-catalog requires merge fixture".to_owned())?;
+        let mut last_rendered = None;
+        let start = Instant::now();
+        let mut bytes_processed = 0usize;
+        let locale = fixture_locale(&self.fixture);
+        let mode = fixture_catalog_mode(&self.fixture);
+        for _ in 0..iterations {
+            // Parse the same template.pot the competitors read and build the
+            // extraction input from it inside the timed loop. This keeps the
+            // catalog-update comparison strictly file-to-file instead of
+            // handing ferrocat pre-structured messages.
+            let template = parse_po(&fixture.template_pot)
+                .map_err(|error| format!("update template parse failed: {error}"))?;
+            let messages = extracted_messages_from_template(&template);
+            let mut options = UpdateCatalogOptions::new("en", messages)
+                .with_mode(mode)
+                .with_existing(fixture.existing_po.as_str());
+            if let Some(locale) = locale.as_deref() {
+                options = options.with_locale(locale);
+            }
+            let updated = update_catalog(options)
+                .map_err(|error| format!("update_catalog failed: {error}"))?;
+            bytes_processed += updated.content.len();
+            last_rendered = Some(updated.content);
+        }
+        let elapsed = start.elapsed();
+        let rendered = last_rendered
+            .ok_or_else(|| "internal update_catalog produced no rendered content".to_owned())?;
+        let summary = {
+            let parsed = parse_po(&rendered)
+                .map_err(|error| format!("update_catalog output did not parse: {error}"))?;
+            PoSemanticSummary::from_po_file(&parsed)
+        };
+        let digest = digest_summary(&summary)?;
+        Ok(ExecutionResult {
+            tool_version: INTERNAL_TOOL_VERSION.to_owned(),
+            reported_digest: digest,
+            elapsed_ns: elapsed.as_nanos(),
+            baseline_elapsed_ns: None,
+            bytes_processed: bytes_processed as u64,
+            items_processed: summary
+                .items
+                .len()
+                .checked_mul(iterations)
+                .map(|value| value as u64),
+            messages_processed: None,
+            artifact: capture_artifacts.then_some(ExecutionArtifact::RenderedPo(rendered)),
+        })
+    }
+
     fn run_internal_parse_icu(
         &self,
         iterations: usize,
@@ -1638,6 +1701,45 @@ impl OwnedMergeFixture {
             template_pot: build_merge_pot(fixture),
         }
     }
+}
+
+/// Builds the catalog-layer extraction input from a freshly parsed template,
+/// mirroring what a host extractor hands to `update_catalog`.
+fn extracted_messages_from_template(template: &PoFile) -> Vec<ExtractedMessage> {
+    template
+        .items
+        .iter()
+        .filter(|item| !item.obsolete)
+        .map(|item| {
+            let comments: Vec<String> = item.extracted_comments.iter().cloned().collect();
+            let origin: Vec<CatalogOrigin> = item
+                .references
+                .iter()
+                .map(|reference| parse_origin(reference))
+                .collect();
+            if let Some(msgid_plural) = item.msgid_plural.as_deref() {
+                ExtractedMessage::Plural(ExtractedPluralMessage {
+                    msgid: item.msgid.clone(),
+                    msgctxt: item.msgctxt.clone(),
+                    source: PluralSource {
+                        one: Some(item.msgid.clone()),
+                        other: msgid_plural.to_owned(),
+                    },
+                    comments,
+                    origin,
+                    placeholders: BTreeMap::default(),
+                })
+            } else {
+                ExtractedMessage::Singular(ExtractedSingularMessage {
+                    msgid: item.msgid.clone(),
+                    msgctxt: item.msgctxt.clone(),
+                    comments,
+                    origin,
+                    placeholders: BTreeMap::default(),
+                })
+            }
+        })
+        .collect()
 }
 
 fn build_merge_pot(fixture: &MergeFixture) -> String {
@@ -3394,6 +3496,17 @@ mod tests {
                 minimum_sample_millis: Some(1),
             },
             BenchmarkScenario {
+                id: "po-update/gettext-ui-de-1000/ferrocat-file".to_owned(),
+                comparison_group: "po-update/gettext-ui-de-1000".to_owned(),
+                workload: "po-merge-update".to_owned(),
+                operation: "update-catalog".to_owned(),
+                fixture: "gettext-ui-de-1000".to_owned(),
+                implementation: "ferrocat-update-catalog-file".to_owned(),
+                warmup_runs: 0,
+                measured_runs: 1,
+                minimum_sample_millis: Some(1),
+            },
+            BenchmarkScenario {
                 id: "po-update/gettext-ui-de-1000/msgmerge".to_owned(),
                 comparison_group: "po-update/gettext-ui-de-1000".to_owned(),
                 workload: "po-merge-update".to_owned(),
@@ -3409,8 +3522,15 @@ mod tests {
         let prepared = PreparedScenario::prepare(&workspace, &scenarios).expect("prepared");
         let internal = execute_scenario(&workspace, &prepared, &scenarios[0], 1, true)
             .expect("internal update");
+        let internal_file = execute_scenario(&workspace, &prepared, &scenarios[1], 1, true)
+            .expect("internal file-based update");
         let external =
-            execute_scenario(&workspace, &prepared, &scenarios[1], 1, true).expect("msgmerge");
+            execute_scenario(&workspace, &prepared, &scenarios[2], 1, true).expect("msgmerge");
+
+        assert_eq!(
+            internal.reported_digest, internal_file.reported_digest,
+            "file-based catalog update must match the pre-structured variant"
+        );
 
         let internal_rendered = match internal.artifact.expect("internal artifact") {
             ExecutionArtifact::RenderedPo(content) => content,
