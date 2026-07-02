@@ -19,6 +19,7 @@ pub enum IcuDiagnosticSeverity {
 
 /// Broad role of an ICU argument in a parsed message.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[non_exhaustive]
 pub enum IcuArgumentKind {
     /// Simple substitution such as `{name}`.
     Argument,
@@ -64,6 +65,7 @@ impl fmt::Display for IcuArgumentKind {
 
 /// Classification of an optional formatter style segment.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum IcuStyleKind {
     /// Formatter has no style segment.
     None,
@@ -99,6 +101,7 @@ pub struct IcuFormatter {
 
 /// Consumer-defined support decision for an ICU formatter.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum IcuFormatterSupport {
     /// The formatter kind and style are supported by the consumer.
     Supported,
@@ -167,6 +170,7 @@ pub struct IcuAnalysis {
 
 /// Options controlling ICU source/translation compatibility checks.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct IcuCompatibilityOptions {
     /// Whether translation-only data arguments should be reported.
     pub report_extra_arguments: bool,

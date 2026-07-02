@@ -4,13 +4,10 @@ fn catalog(
     content: &str,
     locale: &str,
 ) -> Result<NormalizedParsedCatalog, Box<dyn std::error::Error>> {
-    Ok(ferrocat::parse_catalog(ParseCatalogOptions {
-        content,
-        locale: Some(locale),
-        source_locale: "en",
-        ..ParseCatalogOptions::new("", "en")
-    })?
-    .into_normalized_view()?)
+    Ok(
+        ferrocat::parse_catalog(ParseCatalogOptions::new(content, "en").with_locale(locale))?
+            .into_normalized_view()?,
+    )
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {

@@ -82,6 +82,11 @@ compatibility rules around the compiled artifact JSON contract.
 
 Growth-prone public enums are deliberately marked as non-exhaustive where new variants are realistic, so new variants can be added without a breaking change within a normal major line. Downstream code should keep fallback match arms for ICU AST nodes, catalog storage formats, compiled key strategies, and API-level error categories.
 
+Public options structs follow the same growth pattern. Construct options with
+`new()`, `default()`, and `with_*` setters instead of functional record update
+or struct literals; fields stay public for inspection, but external crates
+should not depend on exhaustive field lists.
+
 Semantically closed option enums such as `CatalogSemantics` and `PluralEncoding` remain exhaustive so callers can continue to match every documented mode directly.
 ## Umbrella Crate Namespaces
 

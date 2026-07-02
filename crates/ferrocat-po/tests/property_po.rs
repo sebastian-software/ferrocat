@@ -80,18 +80,15 @@ proptest! {
 
     #[test]
     fn catalog_api_accepts_equivalent_generated_po_and_fcl(entries in entries_strategy()) {
-        let po = parse_catalog(ParseCatalogOptions {
-            content: &render_po(&entries),
-            locale: Some("de"),
-            mode: CatalogMode::IcuPo,
-            ..ParseCatalogOptions::new("", "en")
-        })
+        let po = parse_catalog(
+            ParseCatalogOptions::new(&render_po(&entries), "en")
+                .with_locale("de")
+                .with_mode(CatalogMode::IcuPo),
+        )
         .expect("generated PO catalog should parse");
-        let fcl = parse_catalog(ParseCatalogOptions {
-            content: &render_fcl(&entries),
-            mode: CatalogMode::IcuFcl,
-            ..ParseCatalogOptions::new("", "en")
-        })
+        let fcl = parse_catalog(
+            ParseCatalogOptions::new(&render_fcl(&entries), "en").with_mode(CatalogMode::IcuFcl),
+        )
         .expect("generated FCL catalog should parse");
 
         prop_assert_eq!(po.messages.len(), fcl.messages.len());

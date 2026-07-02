@@ -14,6 +14,7 @@ use super::{
 
 /// Options controlling catalog review reports.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[non_exhaustive]
 pub struct CatalogReviewOptions<'a> {
     /// Source locale whose active identities define the expected current set.
     pub source_locale: &'a str,

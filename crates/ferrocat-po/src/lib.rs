@@ -636,6 +636,7 @@ impl<'a> Iterator for MsgStrIter<'a> {
 
 /// Options controlling PO serialization.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct SerializeOptions {
     /// Preferred soft line-wrap limit for long string literals.
     pub fold_length: usize,

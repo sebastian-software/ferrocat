@@ -58,6 +58,7 @@ pub type IcuFormatterSupportPolicy = fn(&IcuFormatter) -> IcuFormatterSupport;
 
 /// Options controlling runtime catalog compilation.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct CompileCatalogOptions<'a> {
     /// Built-in strategy used to derive stable runtime keys.
     pub key_strategy: CompiledKeyStrategy,
@@ -118,6 +119,7 @@ impl<'a> CompileCatalogOptions<'a> {
 
 /// Options controlling high-level compiled catalog artifact generation.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct CompileCatalogArtifactOptions<'a> {
     /// Locale for which the runtime artifact should be produced.
     pub requested_locale: &'a str,
@@ -248,6 +250,7 @@ impl CompileCatalogArtifactIcuOptions {
 
 /// Options controlling selected-subset compiled catalog artifact generation.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct CompileSelectedCatalogArtifactOptions<'a> {
     /// Requested compiled runtime IDs to include in the artifact.
     pub compiled_ids: &'a [String],
@@ -303,6 +306,7 @@ pub enum CompileCatalogArtifactReportSelection<'a> {
 
 /// Options controlling compiled artifact generation with a sibling provenance report.
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub struct CompileCatalogArtifactReportOptions<'a> {
     /// Shared artifact compile options applied to the generated artifact.
     pub options: CompileCatalogArtifactOptions<'a>,

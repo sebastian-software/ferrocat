@@ -10,16 +10,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         hash = hash
     );
 
-    let result = update_catalog(UpdateCatalogOptions {
-        locale: Some("de"),
-        mode: CatalogMode::IcuFcl,
-        existing: Some(&existing),
-        input: CatalogUpdateInput::SourceFirst(vec![SourceExtractedMessage {
-            msgid: "Hello".to_owned(),
-            ..SourceExtractedMessage::default()
-        }]),
-        ..UpdateCatalogOptions::new("en", CatalogUpdateInput::default())
-    })?;
+    let input = CatalogUpdateInput::SourceFirst(vec![SourceExtractedMessage {
+        msgid: "Hello".to_owned(),
+        ..SourceExtractedMessage::default()
+    }]);
+    let result = update_catalog(
+        UpdateCatalogOptions::new("en", input)
+            .with_locale("de")
+            .with_mode(CatalogMode::IcuFcl)
+            .with_existing(&existing),
+    )?;
 
     assert!(result.content.starts_with("%FCL1"));
     assert!(result.content.contains("ai=example/mt:0.92"));

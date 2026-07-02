@@ -24,6 +24,7 @@ pub struct IcuPosition {
 
 /// Error returned when parsing ICU messages fails.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct IcuParseError {
     /// High-level failure kind.
     pub kind: IcuErrorKind,

@@ -346,14 +346,11 @@ fn run_alloc_stats(fixture: &Fixture) -> Result<(), String> {
 
     ALLOCS.store(0, Ordering::SeqCst);
     BYTES.store(0, Ordering::SeqCst);
-    let catalog = parse_catalog(ParseCatalogOptions {
-        content,
-        locale: inferred_fixture_locale(fixture.name()),
-        source_locale: "en",
-        mode: CatalogMode::IcuPo,
-        strict: false,
-    })
-    .map_err(|error| error.to_string())?;
+    let mut catalog_options = ParseCatalogOptions::new(content, "en").with_mode(CatalogMode::IcuPo);
+    if let Some(locale) = inferred_fixture_locale(fixture.name()) {
+        catalog_options = catalog_options.with_locale(locale);
+    }
+    let catalog = parse_catalog(catalog_options).map_err(|error| error.to_string())?;
     let catalog_allocs = ALLOCS.load(Ordering::SeqCst);
     let catalog_bytes = BYTES.load(Ordering::SeqCst);
     let catalog_items = catalog.messages.len();
@@ -363,26 +360,21 @@ fn run_alloc_stats(fixture: &Fixture) -> Result<(), String> {
     // Render the same catalog as FCL once outside the measured window, then
     // measure the FCL parse so its allocation profile is comparable to PO.
     let fcl_content = {
-        let parsed = parse_catalog(ParseCatalogOptions {
-            content,
-            locale: inferred_fixture_locale(fixture.name()),
-            source_locale: "en",
-            mode: CatalogMode::IcuPo,
-            strict: false,
-        })
-        .map_err(|error| error.to_string())?;
+        let mut options = ParseCatalogOptions::new(content, "en").with_mode(CatalogMode::IcuPo);
+        if let Some(locale) = inferred_fixture_locale(fixture.name()) {
+            options = options.with_locale(locale);
+        }
+        let parsed = parse_catalog(options).map_err(|error| error.to_string())?;
         render_fcl_catalog(&parsed)
     };
     ALLOCS.store(0, Ordering::SeqCst);
     BYTES.store(0, Ordering::SeqCst);
-    let fcl_catalog = parse_catalog(ParseCatalogOptions {
-        content: &fcl_content,
-        locale: inferred_fixture_locale(fixture.name()),
-        source_locale: "en",
-        mode: CatalogMode::IcuFcl,
-        strict: false,
-    })
-    .map_err(|error| error.to_string())?;
+    let mut fcl_options =
+        ParseCatalogOptions::new(&fcl_content, "en").with_mode(CatalogMode::IcuFcl);
+    if let Some(locale) = inferred_fixture_locale(fixture.name()) {
+        fcl_options = fcl_options.with_locale(locale);
+    }
+    let fcl_catalog = parse_catalog(fcl_options).map_err(|error| error.to_string())?;
     let fcl_allocs = ALLOCS.load(Ordering::SeqCst);
     let fcl_bytes = BYTES.load(Ordering::SeqCst);
     let fcl_items = fcl_catalog.messages.len();
@@ -561,14 +553,12 @@ fn bench_parse_catalog_po(fixture: &Fixture, config: BenchConfig) -> Result<(), 
     let samples = run_bench(config, || {
         let start = Instant::now();
         for _ in 0..config.iterations {
-            let parsed = parse_catalog(ParseCatalogOptions {
-                content: fixture.content(),
-                locale: inferred_fixture_locale(fixture.name()),
-                source_locale: "en",
-                mode: CatalogMode::IcuPo,
-                strict: false,
-            })
-            .map_err(|error| error.to_string())?;
+            let mut options =
+                ParseCatalogOptions::new(fixture.content(), "en").with_mode(CatalogMode::IcuPo);
+            if let Some(locale) = inferred_fixture_locale(fixture.name()) {
+                options = options.with_locale(locale);
+            }
+            let parsed = parse_catalog(options).map_err(|error| error.to_string())?;
             parsed_items = parsed.messages.len();
             std::hint::black_box(parsed);
         }
@@ -594,14 +584,12 @@ fn bench_parse_catalog_fcl(fixture: &Fixture, config: BenchConfig) -> Result<(),
     let samples = run_bench(config, || {
         let start = Instant::now();
         for _ in 0..config.iterations {
-            let parsed = parse_catalog(ParseCatalogOptions {
-                content: &content,
-                locale,
-                source_locale: "en",
-                mode: CatalogMode::IcuFcl,
-                strict: false,
-            })
-            .map_err(|error| error.to_string())?;
+            let mut options =
+                ParseCatalogOptions::new(&content, "en").with_mode(CatalogMode::IcuFcl);
+            if let Some(locale) = locale {
+                options = options.with_locale(locale);
+            }
+            let parsed = parse_catalog(options).map_err(|error| error.to_string())?;
             parsed_items = parsed.messages.len();
             std::hint::black_box(parsed);
         }
@@ -747,13 +735,11 @@ fn bench_update_catalog_fcl(fixture: &MergeFixture, config: BenchConfig) -> Resu
     // Convert the fixture's existing PO catalog to FCL once so the timed loop runs
     // the FCL write path (parse + merge + `stringify_catalog_fcl`) — the only
     // public way to exercise the library's FCL serializer.
-    let parsed = parse_catalog(ParseCatalogOptions {
-        content: fixture.existing_po(),
-        locale: Some("de"),
-        source_locale: "en",
-        mode: CatalogMode::IcuPo,
-        strict: false,
-    })
+    let parsed = parse_catalog(
+        ParseCatalogOptions::new(fixture.existing_po(), "en")
+            .with_locale("de")
+            .with_mode(CatalogMode::IcuPo),
+    )
     .map_err(|error| error.to_string())?;
     let existing_fcl = render_fcl_catalog(&parsed);
 
@@ -762,12 +748,12 @@ fn bench_update_catalog_fcl(fixture: &MergeFixture, config: BenchConfig) -> Resu
         let start = Instant::now();
         let mut bytes = 0usize;
         for _ in 0..config.iterations {
-            let rendered = update_catalog(UpdateCatalogOptions {
-                locale: Some("de"),
-                mode: CatalogMode::IcuFcl,
-                existing: Some(&existing_fcl),
-                ..UpdateCatalogOptions::new("en", fixture.api_extracted_messages().to_vec())
-            })
+            let rendered = update_catalog(
+                UpdateCatalogOptions::new("en", fixture.api_extracted_messages().to_vec())
+                    .with_locale("de")
+                    .with_mode(CatalogMode::IcuFcl)
+                    .with_existing(&existing_fcl),
+            )
             .map_err(|error| error.to_string())?;
             bytes += rendered.content.len();
             std::hint::black_box(rendered);
@@ -817,11 +803,11 @@ fn bench_update_catalog(fixture: &MergeFixture, config: BenchConfig) -> Result<(
         let start = Instant::now();
         let mut bytes = 0usize;
         for _ in 0..config.iterations {
-            let rendered = update_catalog(UpdateCatalogOptions {
-                locale: Some("de"),
-                existing: Some(fixture.existing_po()),
-                ..UpdateCatalogOptions::new("en", fixture.api_extracted_messages().to_vec())
-            })
+            let rendered = update_catalog(
+                UpdateCatalogOptions::new("en", fixture.api_extracted_messages().to_vec())
+                    .with_locale("de")
+                    .with_existing(fixture.existing_po()),
+            )
             .map_err(|error| error.to_string())?;
             bytes += rendered.content.len();
             std::hint::black_box(rendered);
@@ -857,13 +843,17 @@ fn bench_update_catalog_file(fixture: &MergeFixture, config: BenchConfig) -> Res
         let mut bytes = 0usize;
         for _ in 0..config.iterations {
             fs::write(&path, fixture.existing_po()).map_err(|error| error.to_string())?;
-            let rendered = update_catalog_file(UpdateCatalogFileOptions {
-                target_path: &path,
-                options: UpdateCatalogOptions {
-                    locale: Some("de"),
-                    ..UpdateCatalogOptions::new("en", fixture.api_extracted_messages().to_vec())
-                },
-            })
+            let options =
+                UpdateCatalogOptions::new("en", fixture.api_extracted_messages().to_vec())
+                    .with_locale("de");
+            let rendered = update_catalog_file(
+                UpdateCatalogFileOptions::new(
+                    &path,
+                    "en",
+                    fixture.api_extracted_messages().to_vec(),
+                )
+                .with_options(options),
+            )
             .map_err(|error| error.to_string())?;
             bytes += rendered.content.len();
             std::hint::black_box(rendered);
@@ -899,13 +889,11 @@ fn bench_combine_catalogs(fixture: &MergeFixture, config: BenchConfig) -> Result
         let start = Instant::now();
         let mut bytes = 0usize;
         for _ in 0..config.iterations {
-            let rendered = combine_catalogs(CombineCatalogOptions {
-                inputs: &inputs,
-                locale: Some("de"),
-                source_locale: "en",
-                mode: CatalogMode::IcuPo,
-                ..CombineCatalogOptions::new(&[], "en")
-            })
+            let rendered = combine_catalogs(
+                CombineCatalogOptions::new(&inputs, "en")
+                    .with_locale("de")
+                    .with_mode(CatalogMode::IcuPo),
+            )
             .map_err(|error| error.to_string())?;
             bytes += rendered.content.len();
             std::hint::black_box(rendered);
@@ -1263,14 +1251,12 @@ fn fcl_escape_into(out: &mut String, value: &str) {
     }
 }
 fn fixture_parsed_catalog(fixture: &Fixture) -> Result<ParsedCatalog, String> {
-    parse_catalog(ParseCatalogOptions {
-        content: fixture.content(),
-        locale: inferred_fixture_locale(fixture.name()),
-        source_locale: "en",
-        mode: CatalogMode::IcuPo,
-        strict: false,
-    })
-    .map_err(|error| error.to_string())
+    let mut options =
+        ParseCatalogOptions::new(fixture.content(), "en").with_mode(CatalogMode::IcuPo);
+    if let Some(locale) = inferred_fixture_locale(fixture.name()) {
+        options = options.with_locale(locale);
+    }
+    parse_catalog(options).map_err(|error| error.to_string())
 }
 
 fn render_po_catalog(parsed: &ParsedCatalog) -> String {
@@ -1446,13 +1432,11 @@ mod tests {
         let fixture = fixture_by_name("catalog-modern-de-1000").expect("fixture exists");
         let parsed = fixture_parsed_catalog(&fixture).expect("parse PO catalog");
         let rendered = render_po_catalog(&parsed);
-        let reparsed = parse_catalog(ParseCatalogOptions {
-            content: &rendered,
-            locale: Some("de"),
-            source_locale: "en",
-            mode: CatalogMode::IcuPo,
-            strict: false,
-        })
+        let reparsed = parse_catalog(
+            ParseCatalogOptions::new(&rendered, "en")
+                .with_locale("de")
+                .with_mode(CatalogMode::IcuPo),
+        )
         .expect("reparse rendered PO");
 
         assert_eq!(parsed.locale, reparsed.locale);
@@ -1464,13 +1448,11 @@ mod tests {
         let fixture = fixture_by_name("catalog-modern-de-1000").expect("fixture exists");
         let po_parsed = fixture_parsed_catalog(&fixture).expect("parse PO catalog");
         let rendered = render_fcl_catalog(&po_parsed);
-        let fcl_parsed = parse_catalog(ParseCatalogOptions {
-            content: &rendered,
-            locale: Some("de"),
-            source_locale: "en",
-            mode: CatalogMode::IcuFcl,
-            strict: false,
-        })
+        let fcl_parsed = parse_catalog(
+            ParseCatalogOptions::new(&rendered, "en")
+                .with_locale("de")
+                .with_mode(CatalogMode::IcuFcl),
+        )
         .expect("parse rendered FCL");
 
         assert_eq!(po_parsed.locale, fcl_parsed.locale);

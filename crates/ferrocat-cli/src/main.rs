@@ -371,11 +371,7 @@ impl AuditConfig {
             .iter()
             .map(String::as_str)
             .collect::<Vec<_>>();
-        let options = CatalogAuditOptions {
-            source_locale: &self.source_locale,
-            locales: &locale_filters,
-            ..CatalogAuditOptions::default()
-        };
+        let options = CatalogAuditOptions::new(&self.source_locale).with_locales(&locale_filters);
 
         audit_catalogs(&catalog_refs, &options)
             .map_err(|error| CliError::runtime(format!("catalog audit failed: {error}")))
@@ -391,13 +387,11 @@ fn load_catalog(
     let content = fs::read_to_string(path).map_err(|error| {
         CliError::runtime(format!("failed to read {}: {error}", path.display()))
     })?;
-    parse_catalog(ParseCatalogOptions {
-        content: &content,
-        locale: Some(locale),
-        source_locale,
-        mode: storage_format.catalog_mode(),
-        ..ParseCatalogOptions::new(&content, source_locale)
-    })
+    parse_catalog(
+        ParseCatalogOptions::new(&content, source_locale)
+            .with_locale(locale)
+            .with_mode(storage_format.catalog_mode()),
+    )
     .and_then(ferrocat_po::ParsedCatalog::into_normalized_view)
     .map_err(|error| CliError::runtime(format!("failed to parse {}: {error}", path.display())))
 }

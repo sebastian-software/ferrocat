@@ -1908,13 +1908,11 @@ mod tests {
     #[test]
     fn catalog_modern_fixture_is_parseable_as_icu_catalog() {
         let fixture = fixture_by_name("catalog-modern-de-1000").expect("fixture exists");
-        let parsed = parse_catalog(ParseCatalogOptions {
-            content: fixture.content(),
-            locale: Some("de"),
-            source_locale: "en",
-            mode: CatalogMode::IcuPo,
-            strict: false,
-        })
+        let parsed = parse_catalog(
+            ParseCatalogOptions::new(fixture.content(), "en")
+                .with_locale("de")
+                .with_mode(CatalogMode::IcuPo),
+        )
         .expect("parse catalog");
 
         assert_eq!(parsed.messages.len(), 1000);
@@ -1939,11 +1937,11 @@ mod tests {
     #[test]
     fn update_catalog_accepts_projectable_icu_fixture() {
         let fixture = merge_fixture_by_name("catalog-icu-projectable").expect("fixture exists");
-        let result = update_catalog(UpdateCatalogOptions {
-            locale: Some("de"),
-            existing: Some(fixture.existing_po()),
-            ..UpdateCatalogOptions::new("en", fixture.api_extracted_messages().to_vec())
-        })
+        let result = update_catalog(
+            UpdateCatalogOptions::new("en", fixture.api_extracted_messages().to_vec())
+                .with_locale("de")
+                .with_existing(fixture.existing_po()),
+        )
         .expect("update catalog");
 
         assert!(result.content.contains("plural"));
@@ -1953,11 +1951,11 @@ mod tests {
     #[test]
     fn update_catalog_keeps_unsupported_icu_fixture_raw_in_native_mode() {
         let fixture = merge_fixture_by_name("catalog-icu-unsupported").expect("fixture exists");
-        let result = update_catalog(UpdateCatalogOptions {
-            locale: Some("de"),
-            existing: Some(fixture.existing_po()),
-            ..UpdateCatalogOptions::new("en", fixture.api_extracted_messages().to_vec())
-        })
+        let result = update_catalog(
+            UpdateCatalogOptions::new("en", fixture.api_extracted_messages().to_vec())
+                .with_locale("de")
+                .with_existing(fixture.existing_po()),
+        )
         .expect("update catalog");
 
         assert!(result.diagnostics.is_empty());
