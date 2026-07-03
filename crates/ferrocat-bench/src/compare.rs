@@ -3663,6 +3663,12 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "manual compatibility probe for external adapters"]
+    fn debug_babel_gettext_ui_de_update_workflow_compatibility() {
+        debug_external_workflow_compatibility("update-catalog", "babel");
+    }
+
+    #[test]
     fn canonical_po_summary_ignores_item_order() {
         let first = PoSemanticSummary::from_po_file(&PoFile {
             headers: vec![ferrocat_po::Header {

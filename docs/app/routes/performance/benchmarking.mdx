@@ -242,6 +242,7 @@ That profile compares `merge_catalog` (`po-merge` groups) and the full `update_c
 - `pofile`
 - `pofile-ts`
 - `polib`
+- `babel` in the `po-update` groups, using Babel's real `Catalog.update`
 
 Every tool runs the same file-to-file pipeline (parse `existing.po`, parse `template.pot`, merge, serialize), so the catalog-update numbers stay strictly apples-to-apples. The `msgmerge` path runs with `--no-fuzzy-matching`, which keeps the comparison close to `ferrocat`'s exact-match merge model instead of pitting it against heuristic fuzzy recovery.
 
@@ -274,9 +275,10 @@ External baselines currently wired:
 
 Workflow-only baselines currently wired:
 
-- `pofile`, `pofile-ts`, and `polib` on `gettext-workflows-ecosystem-v1`
+- `pofile`, `pofile-ts`, `polib`, and Babel's `Catalog.update` on `gettext-workflows-ecosystem-v1`
 - each measured as parse -> merge -> serialize pipelines on `gettext-ui-de-1000` and `gettext-ui-de-10000`
 - `gettext-parser` is intentionally excluded from workflow benchmarking for now because its PO compile/parse path does not preserve obsolete entries in a way that is semantically fair for `msgmerge`-style workflows
+- Lingui is intentionally excluded from workflow benchmarking for now because its catalog merge is coupled to its extraction/config pipeline. Add it only when the task can feed pre-extracted messages and measure just catalog update + write without charging unrelated extraction or project-discovery work.
 - `update_catalog` is measured file-to-file in the `po-update` groups: Ferrocat parses the shared `template.pot` inside the timed loop, builds the extraction input from it, and runs the complete catalog update, so it is charged for strictly more work than the plain merge pipelines it is compared against. A compatibility probe asserts the output stays semantically identical to the `msgmerge` result on these corpora
 
 This is intentional. The official profile answers the small, understandable benchmark question first. The broader `gettext-compat-v1` profile is available when you want more detail, and the advanced `mixed-*` / ICU-heavy corpora remain separate from the official Gettext comparison track.
