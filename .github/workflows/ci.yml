@@ -51,6 +51,9 @@ jobs:
         working-directory: docs
         run: pnpm build
 
+      - name: Check published benchmark numbers
+        run: node scripts/check-published-numbers.mjs
+
   rust-lint:
     name: Rust lint
     runs-on: ubuntu-24.04
@@ -144,6 +147,26 @@ jobs:
         with:
           package: ${{ matrix.crate }}
           feature-group: all-features
+
+  public-api:
+    name: Public API snapshot
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust build artifacts
+        uses: Swatinem/rust-cache@v2
+
+      - name: Install cargo-public-api
+        run: cargo install cargo-public-api --version 0.52.0 --locked
+
+      - name: Check public API snapshots
+        run: bash scripts/check-public-api-snapshots.sh
 
   msrv:
     name: Rust MSRV

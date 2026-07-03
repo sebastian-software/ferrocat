@@ -1,0 +1,852 @@
+pub mod ferrocat_po
+pub use ferrocat_po::IcuPseudolocalizationOptions
+pub mod ferrocat_po::diagnostic_codes
+pub mod ferrocat_po::diagnostic_codes::catalog
+pub const ferrocat_po::diagnostic_codes::catalog::ALL: &[&str]
+pub const ferrocat_po::diagnostic_codes::catalog::DUPLICATE_METADATA: &str
+pub const ferrocat_po::diagnostic_codes::catalog::EMPTY_TRANSLATION: &str
+pub const ferrocat_po::diagnostic_codes::catalog::EXTRA_TRANSLATION: &str
+pub const ferrocat_po::diagnostic_codes::catalog::METADATA_UNKNOWN_MESSAGE: &str
+pub const ferrocat_po::diagnostic_codes::catalog::MISSING_LOCALE: &str
+pub const ferrocat_po::diagnostic_codes::catalog::MISSING_SOURCE_LOCALE: &str
+pub const ferrocat_po::diagnostic_codes::catalog::MISSING_TRANSLATION: &str
+pub const ferrocat_po::diagnostic_codes::catalog::OBSOLETE_ENTRY: &str
+pub mod ferrocat_po::diagnostic_codes::combine
+pub const ferrocat_po::diagnostic_codes::combine::ALL: &[&str]
+pub const ferrocat_po::diagnostic_codes::combine::CONFLICT_RESOLVED: &str
+pub mod ferrocat_po::diagnostic_codes::compile
+pub const ferrocat_po::diagnostic_codes::compile::ALL: &[&str]
+pub const ferrocat_po::diagnostic_codes::compile::INVALID_ICU_MESSAGE: &str
+pub mod ferrocat_po::diagnostic_codes::icu
+pub const ferrocat_po::diagnostic_codes::icu::ALL: &[&str]
+pub const ferrocat_po::diagnostic_codes::icu::ARGUMENT_KIND_CHANGED: &str
+pub const ferrocat_po::diagnostic_codes::icu::EXTRA_ARGUMENT: &str
+pub const ferrocat_po::diagnostic_codes::icu::EXTRA_SELECT_SELECTOR: &str
+pub const ferrocat_po::diagnostic_codes::icu::EXTRA_TAG: &str
+pub const ferrocat_po::diagnostic_codes::icu::FORMATTER_STYLE_CHANGED: &str
+pub const ferrocat_po::diagnostic_codes::icu::INVALID_SYNTAX: &str
+pub const ferrocat_po::diagnostic_codes::icu::MISSING_ARGUMENT: &str
+pub const ferrocat_po::diagnostic_codes::icu::MISSING_PLURAL_SELECTOR: &str
+pub const ferrocat_po::diagnostic_codes::icu::MISSING_SELECT_SELECTOR: &str
+pub const ferrocat_po::diagnostic_codes::icu::MISSING_TAG: &str
+pub const ferrocat_po::diagnostic_codes::icu::PATTERN_STYLE_DISCOURAGED: &str
+pub const ferrocat_po::diagnostic_codes::icu::PLURAL_OFFSET_CHANGED: &str
+pub const ferrocat_po::diagnostic_codes::icu::UNSUPPORTED_FORMATTER_KIND: &str
+pub const ferrocat_po::diagnostic_codes::icu::UNSUPPORTED_FORMATTER_STYLE: &str
+pub mod ferrocat_po::diagnostic_codes::metadata
+pub const ferrocat_po::diagnostic_codes::metadata::ALL: &[&str]
+pub const ferrocat_po::diagnostic_codes::metadata::ARGUMENT_KIND_MISMATCH: &str
+pub const ferrocat_po::diagnostic_codes::metadata::EXTRA_ARGUMENT: &str
+pub const ferrocat_po::diagnostic_codes::metadata::EXTRA_SELECTOR: &str
+pub const ferrocat_po::diagnostic_codes::metadata::EXTRA_SELECTOR_CASE: &str
+pub const ferrocat_po::diagnostic_codes::metadata::EXTRA_TAG: &str
+pub const ferrocat_po::diagnostic_codes::metadata::INVALID_MSGID: &str
+pub const ferrocat_po::diagnostic_codes::metadata::MISSING_ARGUMENT: &str
+pub const ferrocat_po::diagnostic_codes::metadata::MISSING_SELECTOR: &str
+pub const ferrocat_po::diagnostic_codes::metadata::MISSING_SELECTOR_CASE: &str
+pub const ferrocat_po::diagnostic_codes::metadata::MISSING_TAG: &str
+pub const ferrocat_po::diagnostic_codes::metadata::SELECTOR_KIND_MISMATCH: &str
+pub const ferrocat_po::diagnostic_codes::metadata::SELECTOR_OFFSET_MISMATCH: &str
+pub mod ferrocat_po::diagnostic_codes::parse
+pub const ferrocat_po::diagnostic_codes::parse::ALL: &[&str]
+pub const ferrocat_po::diagnostic_codes::parse::INVALID_PLURAL_FORMS_HEADER: &str
+pub mod ferrocat_po::diagnostic_codes::plural
+pub const ferrocat_po::diagnostic_codes::plural::ALL: &[&str]
+pub const ferrocat_po::diagnostic_codes::plural::ASSUMED_VARIABLE: &str
+pub const ferrocat_po::diagnostic_codes::plural::COMPLETED_PLURAL_FORMS_HEADER: &str
+pub const ferrocat_po::diagnostic_codes::plural::MISSING_PLURAL_EXPRESSION: &str
+pub const ferrocat_po::diagnostic_codes::plural::MISSING_PLURAL_FORMS_HEADER: &str
+pub const ferrocat_po::diagnostic_codes::plural::NPLURALS_LOCALE_MISMATCH: &str
+pub const ferrocat_po::diagnostic_codes::plural::UNSUPPORTED_GETTEXT_EXPORT: &str
+#[non_exhaustive] pub enum ferrocat_po::ApiError
+pub ferrocat_po::ApiError::Conflict(alloc::string::String)
+pub ferrocat_po::ApiError::InvalidArguments(alloc::string::String)
+pub ferrocat_po::ApiError::Io(std::io::error::Error)
+pub ferrocat_po::ApiError::Parse(ferrocat_po::ParseError)
+pub ferrocat_po::ApiError::Unsupported(alloc::string::String)
+impl ferrocat_po::ApiError
+pub fn ferrocat_po::ApiError::io_with_path(impl core::convert::Into<std::path::PathBuf>, std::io::error::Error) -> Self
+pub fn ferrocat_po::ApiError::path(&self) -> core::option::Option<&std::path::Path>
+impl core::convert::From<ferrocat_po::ParseError> for ferrocat_po::ApiError
+pub fn ferrocat_po::ApiError::from(ferrocat_po::ParseError) -> Self
+impl core::convert::From<std::io::error::Error> for ferrocat_po::ApiError
+pub fn ferrocat_po::ApiError::from(std::io::error::Error) -> Self
+impl core::error::Error for ferrocat_po::ApiError
+pub fn ferrocat_po::ApiError::source(&self) -> core::option::Option<&(dyn core::error::Error + 'static)>
+impl core::fmt::Display for ferrocat_po::ApiError
+pub fn ferrocat_po::ApiError::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+pub enum ferrocat_po::BorrowedMsgStr<'a>
+pub ferrocat_po::BorrowedMsgStr::None
+pub ferrocat_po::BorrowedMsgStr::Plural(alloc::vec::Vec<alloc::borrow::Cow<'a, str>>)
+pub ferrocat_po::BorrowedMsgStr::Singular(alloc::borrow::Cow<'a, str>)
+impl<'a> ferrocat_po::BorrowedMsgStr<'a>
+pub fn ferrocat_po::BorrowedMsgStr<'a>::into_owned(self) -> ferrocat_po::MsgStr
+pub enum ferrocat_po::CatalogCombineSelection
+pub ferrocat_po::CatalogCombineSelection::All
+pub ferrocat_po::CatalogCombineSelection::LessThan(usize)
+pub ferrocat_po::CatalogCombineSelection::MoreThan(usize)
+pub ferrocat_po::CatalogCombineSelection::Unique
+pub enum ferrocat_po::CatalogConflictStrategy
+pub ferrocat_po::CatalogConflictStrategy::Error
+pub ferrocat_po::CatalogConflictStrategy::UseFirst
+pub ferrocat_po::CatalogConflictStrategy::UseLast
+#[non_exhaustive] pub enum ferrocat_po::CatalogFileFormat
+pub ferrocat_po::CatalogFileFormat::Fcl
+pub ferrocat_po::CatalogFileFormat::Po
+impl ferrocat_po::CatalogFileFormat
+pub fn ferrocat_po::CatalogFileFormat::infer_from_path(&std::path::Path) -> core::result::Result<Self, ferrocat_po::ApiError>
+#[non_exhaustive] pub enum ferrocat_po::CatalogMachineTranslationStatus
+pub ferrocat_po::CatalogMachineTranslationStatus::Absent
+pub ferrocat_po::CatalogMachineTranslationStatus::Current
+pub ferrocat_po::CatalogMachineTranslationStatus::Invalid
+pub ferrocat_po::CatalogMachineTranslationStatus::Stale
+#[non_exhaustive] pub enum ferrocat_po::CatalogMessageStatus
+pub ferrocat_po::CatalogMessageStatus::Empty
+pub ferrocat_po::CatalogMessageStatus::Extra
+pub ferrocat_po::CatalogMessageStatus::Missing
+pub ferrocat_po::CatalogMessageStatus::Obsolete
+pub ferrocat_po::CatalogMessageStatus::Translated
+#[non_exhaustive] pub enum ferrocat_po::CatalogMode
+pub ferrocat_po::CatalogMode::GettextPo
+pub ferrocat_po::CatalogMode::IcuFcl
+pub ferrocat_po::CatalogMode::IcuPo
+impl ferrocat_po::CatalogMode
+pub const fn ferrocat_po::CatalogMode::from_parts(ferrocat_po::CatalogStorageFormat, ferrocat_po::CatalogSemantics, ferrocat_po::PluralEncoding) -> core::option::Option<Self>
+pub const fn ferrocat_po::CatalogMode::plural_encoding(self) -> ferrocat_po::PluralEncoding
+pub const fn ferrocat_po::CatalogMode::semantics(self) -> ferrocat_po::CatalogSemantics
+pub const fn ferrocat_po::CatalogMode::storage_format(self) -> ferrocat_po::CatalogStorageFormat
+pub enum ferrocat_po::CatalogReviewTranslation
+pub ferrocat_po::CatalogReviewTranslation::Plural(alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>)
+pub ferrocat_po::CatalogReviewTranslation::Singular(alloc::string::String)
+pub enum ferrocat_po::CatalogSemantics
+pub ferrocat_po::CatalogSemantics::GettextCompat
+pub ferrocat_po::CatalogSemantics::IcuNative
+#[non_exhaustive] pub enum ferrocat_po::CatalogSourceChangeKind
+pub ferrocat_po::CatalogSourceChangeKind::Added
+pub ferrocat_po::CatalogSourceChangeKind::Removed
+#[non_exhaustive] pub enum ferrocat_po::CatalogStorageFormat
+pub ferrocat_po::CatalogStorageFormat::Fcl
+pub ferrocat_po::CatalogStorageFormat::Po
+pub enum ferrocat_po::CatalogUpdateInput
+pub ferrocat_po::CatalogUpdateInput::SourceFirst(alloc::vec::Vec<ferrocat_po::SourceExtractedMessage>)
+pub ferrocat_po::CatalogUpdateInput::Structured(alloc::vec::Vec<ferrocat_po::ExtractedMessage>)
+impl core::convert::From<alloc::vec::Vec<ferrocat_po::ExtractedMessage>> for ferrocat_po::CatalogUpdateInput
+pub fn ferrocat_po::CatalogUpdateInput::from(alloc::vec::Vec<ferrocat_po::ExtractedMessage>) -> Self
+impl core::convert::From<alloc::vec::Vec<ferrocat_po::SourceExtractedMessage>> for ferrocat_po::CatalogUpdateInput
+pub fn ferrocat_po::CatalogUpdateInput::from(alloc::vec::Vec<ferrocat_po::SourceExtractedMessage>) -> Self
+impl core::default::Default for ferrocat_po::CatalogUpdateInput
+pub fn ferrocat_po::CatalogUpdateInput::default() -> Self
+pub enum ferrocat_po::CompileCatalogArtifactReportSelection<'a>
+pub ferrocat_po::CompileCatalogArtifactReportSelection::All
+pub ferrocat_po::CompileCatalogArtifactReportSelection::Selected
+pub ferrocat_po::CompileCatalogArtifactReportSelection::Selected::compiled_ids: &'a [&'a str]
+pub ferrocat_po::CompileCatalogArtifactReportSelection::Selected::index: &'a ferrocat_po::CompiledCatalogIdIndex
+#[non_exhaustive] pub enum ferrocat_po::CompiledCatalogResolutionKind
+pub ferrocat_po::CompiledCatalogResolutionKind::Fallback
+pub ferrocat_po::CompiledCatalogResolutionKind::Requested
+pub ferrocat_po::CompiledCatalogResolutionKind::SourceFallback
+pub ferrocat_po::CompiledCatalogResolutionKind::Unresolved
+pub enum ferrocat_po::CompiledCatalogTranslationKind
+pub ferrocat_po::CompiledCatalogTranslationKind::Plural
+pub ferrocat_po::CompiledCatalogTranslationKind::Singular
+#[non_exhaustive] pub enum ferrocat_po::CompiledKeyStrategy
+pub ferrocat_po::CompiledKeyStrategy::FerrocatV1
+pub enum ferrocat_po::CompiledTranslation
+pub ferrocat_po::CompiledTranslation::Plural(alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>)
+pub ferrocat_po::CompiledTranslation::Singular(alloc::string::String)
+pub enum ferrocat_po::DiagnosticSeverity
+pub ferrocat_po::DiagnosticSeverity::Error
+pub ferrocat_po::DiagnosticSeverity::Info
+pub ferrocat_po::DiagnosticSeverity::Warning
+pub enum ferrocat_po::EffectiveTranslation
+pub ferrocat_po::EffectiveTranslation::Plural(alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>)
+pub ferrocat_po::EffectiveTranslation::Singular(alloc::string::String)
+pub enum ferrocat_po::EffectiveTranslationRef<'a>
+pub ferrocat_po::EffectiveTranslationRef::Plural(&'a alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>)
+pub ferrocat_po::EffectiveTranslationRef::Singular(&'a str)
+pub enum ferrocat_po::ExtractedMessage
+pub ferrocat_po::ExtractedMessage::Plural(ferrocat_po::ExtractedPluralMessage)
+pub ferrocat_po::ExtractedMessage::Singular(ferrocat_po::ExtractedSingularMessage)
+#[non_exhaustive] pub enum ferrocat_po::IcuSyntaxPolicy
+pub ferrocat_po::IcuSyntaxPolicy::RuntimeLiteralApostrophes
+pub ferrocat_po::IcuSyntaxPolicy::Strict
+pub enum ferrocat_po::MsgStr
+pub ferrocat_po::MsgStr::None
+pub ferrocat_po::MsgStr::Plural(alloc::vec::Vec<alloc::string::String>)
+pub ferrocat_po::MsgStr::Singular(alloc::string::String)
+impl ferrocat_po::MsgStr
+pub fn ferrocat_po::MsgStr::first(&self) -> core::option::Option<&str>
+pub fn ferrocat_po::MsgStr::get(&self, usize) -> core::option::Option<&str>
+pub fn ferrocat_po::MsgStr::into_vec(self) -> alloc::vec::Vec<alloc::string::String>
+pub const fn ferrocat_po::MsgStr::is_empty(&self) -> bool
+pub fn ferrocat_po::MsgStr::iter(&self) -> ferrocat_po::MsgStrIter<'_>
+pub fn ferrocat_po::MsgStr::len(&self) -> usize
+pub fn ferrocat_po::MsgStr::plural(alloc::vec::Vec<alloc::string::String>) -> Self
+impl core::convert::From<alloc::string::String> for ferrocat_po::MsgStr
+pub fn ferrocat_po::MsgStr::from(alloc::string::String) -> Self
+impl core::convert::From<alloc::vec::Vec<alloc::string::String>> for ferrocat_po::MsgStr
+pub fn ferrocat_po::MsgStr::from(alloc::vec::Vec<alloc::string::String>) -> Self
+impl core::ops::index::Index<usize> for ferrocat_po::MsgStr
+pub type ferrocat_po::MsgStr::Output = alloc::string::String
+pub fn ferrocat_po::MsgStr::index(&self, usize) -> &Self::Output
+impl<'a> core::iter::traits::collect::IntoIterator for &'a ferrocat_po::MsgStr
+pub type &'a ferrocat_po::MsgStr::IntoIter = ferrocat_po::MsgStrIter<'a>
+pub type &'a ferrocat_po::MsgStr::Item = &'a str
+pub fn &'a ferrocat_po::MsgStr::into_iter(self) -> Self::IntoIter
+pub enum ferrocat_po::ObsoleteStrategy
+pub ferrocat_po::ObsoleteStrategy::Delete
+pub ferrocat_po::ObsoleteStrategy::DropObsoleteBefore(alloc::string::String)
+pub ferrocat_po::ObsoleteStrategy::Keep
+pub ferrocat_po::ObsoleteStrategy::Mark
+pub enum ferrocat_po::OrderBy
+pub ferrocat_po::OrderBy::Msgid
+pub ferrocat_po::OrderBy::Origin
+pub enum ferrocat_po::PlaceholderCommentMode
+pub ferrocat_po::PlaceholderCommentMode::Disabled
+pub ferrocat_po::PlaceholderCommentMode::Enabled
+pub ferrocat_po::PlaceholderCommentMode::Enabled::limit: usize
+impl core::default::Default for ferrocat_po::PlaceholderCommentMode
+pub fn ferrocat_po::PlaceholderCommentMode::default() -> Self
+pub enum ferrocat_po::PluralEncoding
+pub ferrocat_po::PluralEncoding::Gettext
+pub ferrocat_po::PluralEncoding::Icu
+pub enum ferrocat_po::TranslationShape
+pub ferrocat_po::TranslationShape::Plural
+pub ferrocat_po::TranslationShape::Plural::source: ferrocat_po::PluralSource
+pub ferrocat_po::TranslationShape::Plural::translation: alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>
+pub ferrocat_po::TranslationShape::Plural::variable: alloc::string::String
+pub ferrocat_po::TranslationShape::Singular
+pub ferrocat_po::TranslationShape::Singular::value: alloc::string::String
+pub struct ferrocat_po::AiProvenance
+pub ferrocat_po::AiProvenance::confidence: core::option::Option<f32>
+pub ferrocat_po::AiProvenance::model: alloc::string::String
+pub struct ferrocat_po::BorrowedHeader<'a>
+pub ferrocat_po::BorrowedHeader::key: alloc::borrow::Cow<'a, str>
+pub ferrocat_po::BorrowedHeader::value: alloc::borrow::Cow<'a, str>
+impl ferrocat_po::BorrowedHeader<'_>
+pub fn ferrocat_po::BorrowedHeader<'_>::into_owned(self) -> ferrocat_po::Header
+pub struct ferrocat_po::BorrowedPoFile<'a>
+pub ferrocat_po::BorrowedPoFile::comments: alloc::vec::Vec<alloc::borrow::Cow<'a, str>>
+pub ferrocat_po::BorrowedPoFile::extracted_comments: alloc::vec::Vec<alloc::borrow::Cow<'a, str>>
+pub ferrocat_po::BorrowedPoFile::headers: alloc::vec::Vec<ferrocat_po::BorrowedHeader<'a>>
+pub ferrocat_po::BorrowedPoFile::items: alloc::vec::Vec<ferrocat_po::BorrowedPoItem<'a>>
+impl ferrocat_po::BorrowedPoFile<'_>
+pub fn ferrocat_po::BorrowedPoFile<'_>::into_owned(self) -> ferrocat_po::PoFile
+pub struct ferrocat_po::BorrowedPoItem<'a>
+pub ferrocat_po::BorrowedPoItem::comments: ferrocat_po::PoVec<alloc::borrow::Cow<'a, str>>
+pub ferrocat_po::BorrowedPoItem::extracted_comments: ferrocat_po::PoVec<alloc::borrow::Cow<'a, str>>
+pub ferrocat_po::BorrowedPoItem::flags: ferrocat_po::PoVec<alloc::borrow::Cow<'a, str>>
+pub ferrocat_po::BorrowedPoItem::metadata: ferrocat_po::PoVec<(alloc::borrow::Cow<'a, str>, alloc::borrow::Cow<'a, str>)>
+pub ferrocat_po::BorrowedPoItem::msgctxt: core::option::Option<alloc::borrow::Cow<'a, str>>
+pub ferrocat_po::BorrowedPoItem::msgid: alloc::borrow::Cow<'a, str>
+pub ferrocat_po::BorrowedPoItem::msgid_plural: core::option::Option<alloc::borrow::Cow<'a, str>>
+pub ferrocat_po::BorrowedPoItem::msgstr: ferrocat_po::BorrowedMsgStr<'a>
+pub ferrocat_po::BorrowedPoItem::nplurals: usize
+pub ferrocat_po::BorrowedPoItem::obsolete: bool
+pub ferrocat_po::BorrowedPoItem::references: ferrocat_po::PoVec<alloc::borrow::Cow<'a, str>>
+impl ferrocat_po::BorrowedPoItem<'_>
+pub fn ferrocat_po::BorrowedPoItem<'_>::into_owned(self) -> ferrocat_po::PoItem
+#[non_exhaustive] pub struct ferrocat_po::CatalogAuditChecks
+pub ferrocat_po::CatalogAuditChecks::completeness: bool
+pub ferrocat_po::CatalogAuditChecks::extra_messages: bool
+pub ferrocat_po::CatalogAuditChecks::icu_compatibility: bool
+pub ferrocat_po::CatalogAuditChecks::icu_syntax: bool
+pub ferrocat_po::CatalogAuditChecks::obsolete_entries: bool
+pub ferrocat_po::CatalogAuditChecks::semantic_metadata: bool
+impl ferrocat_po::CatalogAuditChecks
+pub fn ferrocat_po::CatalogAuditChecks::with_completeness(self, bool) -> Self
+pub fn ferrocat_po::CatalogAuditChecks::with_extra_messages(self, bool) -> Self
+pub fn ferrocat_po::CatalogAuditChecks::with_icu_compatibility(self, bool) -> Self
+pub fn ferrocat_po::CatalogAuditChecks::with_icu_syntax(self, bool) -> Self
+pub fn ferrocat_po::CatalogAuditChecks::with_obsolete_entries(self, bool) -> Self
+pub fn ferrocat_po::CatalogAuditChecks::with_semantic_metadata(self, bool) -> Self
+impl core::default::Default for ferrocat_po::CatalogAuditChecks
+pub fn ferrocat_po::CatalogAuditChecks::default() -> Self
+pub struct ferrocat_po::CatalogAuditDiagnostic
+pub ferrocat_po::CatalogAuditDiagnostic::code: alloc::string::String
+pub ferrocat_po::CatalogAuditDiagnostic::message: alloc::string::String
+pub ferrocat_po::CatalogAuditDiagnostic::name: core::option::Option<alloc::string::String>
+pub ferrocat_po::CatalogAuditDiagnostic::severity: ferrocat_po::DiagnosticSeverity
+pub ferrocat_po::CatalogAuditDiagnostic::source_key: core::option::Option<ferrocat_po::CatalogAuditMessageRef>
+#[non_exhaustive] pub struct ferrocat_po::CatalogAuditIcuOptions
+pub ferrocat_po::CatalogAuditIcuOptions::syntax_policy: ferrocat_po::IcuSyntaxPolicy
+impl ferrocat_po::CatalogAuditIcuOptions
+pub fn ferrocat_po::CatalogAuditIcuOptions::new() -> Self
+pub fn ferrocat_po::CatalogAuditIcuOptions::with_syntax_policy(self, ferrocat_po::IcuSyntaxPolicy) -> Self
+pub struct ferrocat_po::CatalogAuditMessageRef
+pub ferrocat_po::CatalogAuditMessageRef::locale: core::option::Option<alloc::string::String>
+pub ferrocat_po::CatalogAuditMessageRef::msgctxt: core::option::Option<alloc::string::String>
+pub ferrocat_po::CatalogAuditMessageRef::msgid: alloc::string::String
+#[non_exhaustive] pub struct ferrocat_po::CatalogAuditOptions<'a>
+pub ferrocat_po::CatalogAuditOptions::checks: ferrocat_po::CatalogAuditChecks
+pub ferrocat_po::CatalogAuditOptions::locales: &'a [&'a str]
+pub ferrocat_po::CatalogAuditOptions::metadata: &'a [ferrocat_icu::metadata::MessageMetadataInput]
+pub ferrocat_po::CatalogAuditOptions::source_locale: &'a str
+impl<'a> ferrocat_po::CatalogAuditOptions<'a>
+pub fn ferrocat_po::CatalogAuditOptions<'a>::new(&'a str) -> Self
+pub fn ferrocat_po::CatalogAuditOptions<'a>::with_checks(self, ferrocat_po::CatalogAuditChecks) -> Self
+pub fn ferrocat_po::CatalogAuditOptions<'a>::with_locales(self, &'a [&'a str]) -> Self
+pub fn ferrocat_po::CatalogAuditOptions<'a>::with_metadata(self, &'a [ferrocat_icu::metadata::MessageMetadataInput]) -> Self
+pub struct ferrocat_po::CatalogAuditReport
+pub ferrocat_po::CatalogAuditReport::diagnostics: alloc::vec::Vec<ferrocat_po::CatalogAuditDiagnostic>
+pub ferrocat_po::CatalogAuditReport::summary: ferrocat_po::CatalogAuditSummary
+impl ferrocat_po::CatalogAuditReport
+pub fn ferrocat_po::CatalogAuditReport::has_errors(&self) -> bool
+pub struct ferrocat_po::CatalogAuditSummary
+pub ferrocat_po::CatalogAuditSummary::diagnostics: usize
+pub ferrocat_po::CatalogAuditSummary::errors: usize
+pub ferrocat_po::CatalogAuditSummary::infos: usize
+pub ferrocat_po::CatalogAuditSummary::source_messages: usize
+pub ferrocat_po::CatalogAuditSummary::target_locales: usize
+pub ferrocat_po::CatalogAuditSummary::warnings: usize
+pub struct ferrocat_po::CatalogCombineInput<'a>
+pub ferrocat_po::CatalogCombineInput::content: &'a str
+pub ferrocat_po::CatalogCombineInput::label: core::option::Option<&'a str>
+impl<'a> ferrocat_po::CatalogCombineInput<'a>
+pub const fn ferrocat_po::CatalogCombineInput<'a>::labeled(&'a str, &'a str) -> Self
+pub const fn ferrocat_po::CatalogCombineInput<'a>::new(&'a str) -> Self
+pub struct ferrocat_po::CatalogCombineResult
+pub ferrocat_po::CatalogCombineResult::content: alloc::string::String
+pub ferrocat_po::CatalogCombineResult::diagnostics: alloc::vec::Vec<ferrocat_po::Diagnostic>
+pub ferrocat_po::CatalogCombineResult::stats: ferrocat_po::CatalogCombineStats
+pub struct ferrocat_po::CatalogCombineStats
+pub ferrocat_po::CatalogCombineStats::conflicts_resolved: usize
+pub ferrocat_po::CatalogCombineStats::definitions: usize
+pub ferrocat_po::CatalogCombineStats::inputs: usize
+pub ferrocat_po::CatalogCombineStats::selected: usize
+pub ferrocat_po::CatalogCombineStats::skipped: usize
+pub ferrocat_po::CatalogCombineStats::total: usize
+pub struct ferrocat_po::CatalogCoverageMessage
+pub ferrocat_po::CatalogCoverageMessage::locale: alloc::string::String
+pub ferrocat_po::CatalogCoverageMessage::source_key: ferrocat_po::CatalogMessageKey
+pub ferrocat_po::CatalogCoverageMessage::status: ferrocat_po::CatalogMessageStatus
+#[non_exhaustive] pub struct ferrocat_po::CatalogCoverageOptions<'a>
+pub ferrocat_po::CatalogCoverageOptions::include_details: bool
+pub ferrocat_po::CatalogCoverageOptions::locales: &'a [&'a str]
+pub ferrocat_po::CatalogCoverageOptions::source_locale: &'a str
+impl<'a> ferrocat_po::CatalogCoverageOptions<'a>
+pub fn ferrocat_po::CatalogCoverageOptions<'a>::new(&'a str) -> Self
+pub const fn ferrocat_po::CatalogCoverageOptions<'a>::with_details(self, bool) -> Self
+pub struct ferrocat_po::CatalogCoverageReport
+pub ferrocat_po::CatalogCoverageReport::locales: alloc::vec::Vec<ferrocat_po::CatalogLocaleCoverage>
+pub ferrocat_po::CatalogCoverageReport::source_messages: usize
+pub ferrocat_po::CatalogCoverageReport::target_locales: usize
+pub struct ferrocat_po::CatalogFileCombineResult
+pub ferrocat_po::CatalogFileCombineResult::diagnostics: alloc::vec::Vec<ferrocat_po::Diagnostic>
+pub ferrocat_po::CatalogFileCombineResult::format: ferrocat_po::CatalogFileFormat
+pub ferrocat_po::CatalogFileCombineResult::output_path: std::path::PathBuf
+pub ferrocat_po::CatalogFileCombineResult::stats: ferrocat_po::CatalogCombineStats
+pub struct ferrocat_po::CatalogLocaleCoverage
+pub ferrocat_po::CatalogLocaleCoverage::details: alloc::vec::Vec<ferrocat_po::CatalogCoverageMessage>
+pub ferrocat_po::CatalogLocaleCoverage::empty: usize
+pub ferrocat_po::CatalogLocaleCoverage::extra: usize
+pub ferrocat_po::CatalogLocaleCoverage::locale: alloc::string::String
+pub ferrocat_po::CatalogLocaleCoverage::missing: usize
+pub ferrocat_po::CatalogLocaleCoverage::obsolete: usize
+pub ferrocat_po::CatalogLocaleCoverage::total: usize
+pub ferrocat_po::CatalogLocaleCoverage::translated: usize
+impl ferrocat_po::CatalogLocaleCoverage
+pub fn ferrocat_po::CatalogLocaleCoverage::completion_percent(&self) -> f64
+pub fn ferrocat_po::CatalogLocaleCoverage::completion_ratio(&self) -> f64
+pub const fn ferrocat_po::CatalogLocaleCoverage::incomplete(&self) -> usize
+pub struct ferrocat_po::CatalogLocaleReview
+pub ferrocat_po::CatalogLocaleReview::coverage: ferrocat_po::CatalogLocaleCoverage
+pub ferrocat_po::CatalogLocaleReview::locale: alloc::string::String
+pub ferrocat_po::CatalogLocaleReview::machine_translation: ferrocat_po::CatalogMachineTranslationReview
+pub ferrocat_po::CatalogLocaleReview::translations: ferrocat_po::CatalogTranslationChangeReport
+pub struct ferrocat_po::CatalogMachineTranslationMessage
+pub ferrocat_po::CatalogMachineTranslationMessage::locale: alloc::string::String
+pub ferrocat_po::CatalogMachineTranslationMessage::source_key: ferrocat_po::CatalogMessageKey
+pub ferrocat_po::CatalogMachineTranslationMessage::status: ferrocat_po::CatalogMachineTranslationStatus
+pub struct ferrocat_po::CatalogMachineTranslationReview
+pub ferrocat_po::CatalogMachineTranslationReview::absent: usize
+pub ferrocat_po::CatalogMachineTranslationReview::current: usize
+pub ferrocat_po::CatalogMachineTranslationReview::details: alloc::vec::Vec<ferrocat_po::CatalogMachineTranslationMessage>
+pub ferrocat_po::CatalogMachineTranslationReview::invalid: usize
+pub ferrocat_po::CatalogMachineTranslationReview::stale: usize
+pub struct ferrocat_po::CatalogMessage
+pub ferrocat_po::CatalogMessage::comments: alloc::vec::Vec<alloc::string::String>
+pub ferrocat_po::CatalogMessage::machine: core::option::Option<ferrocat_po::MachineMetadata>
+pub ferrocat_po::CatalogMessage::msgctxt: core::option::Option<alloc::string::String>
+pub ferrocat_po::CatalogMessage::msgid: alloc::string::String
+pub ferrocat_po::CatalogMessage::obsolete: core::option::Option<ferrocat_po::ObsoleteInfo>
+pub ferrocat_po::CatalogMessage::origin: ferrocat_po::PoVec<ferrocat_po::CatalogOrigin>
+pub ferrocat_po::CatalogMessage::translation: ferrocat_po::TranslationShape
+impl ferrocat_po::CatalogMessage
+pub fn ferrocat_po::CatalogMessage::effective_translation(&self) -> ferrocat_po::EffectiveTranslationRef<'_>
+pub fn ferrocat_po::CatalogMessage::key(&self) -> ferrocat_po::CatalogMessageKey
+pub struct ferrocat_po::CatalogMessageKey
+pub ferrocat_po::CatalogMessageKey::msgctxt: core::option::Option<alloc::string::String>
+pub ferrocat_po::CatalogMessageKey::msgid: alloc::string::String
+impl ferrocat_po::CatalogMessageKey
+pub fn ferrocat_po::CatalogMessageKey::new(impl core::convert::Into<alloc::string::String>, core::option::Option<alloc::string::String>) -> Self
+pub fn ferrocat_po::CatalogMessageKey::with_context(impl core::convert::Into<alloc::string::String>, impl core::convert::Into<alloc::string::String>) -> Self
+pub struct ferrocat_po::CatalogOrigin
+pub ferrocat_po::CatalogOrigin::file: alloc::string::String
+pub ferrocat_po::CatalogOrigin::scope: core::option::Option<alloc::string::String>
+#[non_exhaustive] pub struct ferrocat_po::CatalogReviewOptions<'a>
+pub ferrocat_po::CatalogReviewOptions::include_details: bool
+pub ferrocat_po::CatalogReviewOptions::locales: &'a [&'a str]
+pub ferrocat_po::CatalogReviewOptions::source_locale: &'a str
+impl<'a> ferrocat_po::CatalogReviewOptions<'a>
+pub fn ferrocat_po::CatalogReviewOptions<'a>::new(&'a str) -> Self
+pub const fn ferrocat_po::CatalogReviewOptions<'a>::with_details(self, bool) -> Self
+pub struct ferrocat_po::CatalogReviewReport
+pub ferrocat_po::CatalogReviewReport::locales: alloc::vec::Vec<ferrocat_po::CatalogLocaleReview>
+pub ferrocat_po::CatalogReviewReport::source_changes: ferrocat_po::CatalogSourceChangeReport
+pub ferrocat_po::CatalogReviewReport::summary: ferrocat_po::CatalogReviewSummary
+pub struct ferrocat_po::CatalogReviewSummary
+pub ferrocat_po::CatalogReviewSummary::machine_translation_absent: usize
+pub ferrocat_po::CatalogReviewSummary::machine_translation_current: usize
+pub ferrocat_po::CatalogReviewSummary::machine_translation_invalid: usize
+pub ferrocat_po::CatalogReviewSummary::machine_translation_stale: usize
+pub ferrocat_po::CatalogReviewSummary::source_added: usize
+pub ferrocat_po::CatalogReviewSummary::source_removed: usize
+pub ferrocat_po::CatalogReviewSummary::target_locales: usize
+pub ferrocat_po::CatalogReviewSummary::translation_changed: usize
+pub struct ferrocat_po::CatalogSourceChange
+pub ferrocat_po::CatalogSourceChange::kind: ferrocat_po::CatalogSourceChangeKind
+pub ferrocat_po::CatalogSourceChange::source_key: ferrocat_po::CatalogMessageKey
+pub struct ferrocat_po::CatalogSourceChangeReport
+pub ferrocat_po::CatalogSourceChangeReport::added: usize
+pub ferrocat_po::CatalogSourceChangeReport::details: alloc::vec::Vec<ferrocat_po::CatalogSourceChange>
+pub ferrocat_po::CatalogSourceChangeReport::removed: usize
+pub struct ferrocat_po::CatalogStats
+pub ferrocat_po::CatalogStats::added: usize
+pub ferrocat_po::CatalogStats::changed: usize
+pub ferrocat_po::CatalogStats::obsolete_marked: usize
+pub ferrocat_po::CatalogStats::obsolete_removed: usize
+pub ferrocat_po::CatalogStats::total: usize
+pub ferrocat_po::CatalogStats::unchanged: usize
+pub struct ferrocat_po::CatalogTranslationChange
+pub ferrocat_po::CatalogTranslationChange::current: ferrocat_po::CatalogReviewTranslation
+pub ferrocat_po::CatalogTranslationChange::locale: alloc::string::String
+pub ferrocat_po::CatalogTranslationChange::previous: ferrocat_po::CatalogReviewTranslation
+pub ferrocat_po::CatalogTranslationChange::source_key: ferrocat_po::CatalogMessageKey
+pub struct ferrocat_po::CatalogTranslationChangeReport
+pub ferrocat_po::CatalogTranslationChangeReport::changed: usize
+pub ferrocat_po::CatalogTranslationChangeReport::details: alloc::vec::Vec<ferrocat_po::CatalogTranslationChange>
+pub struct ferrocat_po::CatalogUpdateResult
+pub ferrocat_po::CatalogUpdateResult::content: alloc::string::String
+pub ferrocat_po::CatalogUpdateResult::created: bool
+pub ferrocat_po::CatalogUpdateResult::diagnostics: alloc::vec::Vec<ferrocat_po::Diagnostic>
+pub ferrocat_po::CatalogUpdateResult::stats: ferrocat_po::CatalogStats
+pub ferrocat_po::CatalogUpdateResult::updated: bool
+#[non_exhaustive] pub struct ferrocat_po::CombineCatalogFilesOptions<'a>
+pub ferrocat_po::CombineCatalogFilesOptions::conflict_strategy: ferrocat_po::CatalogConflictStrategy
+pub ferrocat_po::CombineCatalogFilesOptions::format: core::option::Option<ferrocat_po::CatalogFileFormat>
+pub ferrocat_po::CombineCatalogFilesOptions::include_obsolete: bool
+pub ferrocat_po::CombineCatalogFilesOptions::include_origins: bool
+pub ferrocat_po::CombineCatalogFilesOptions::input_paths: &'a [std::path::PathBuf]
+pub ferrocat_po::CombineCatalogFilesOptions::locale: core::option::Option<&'a str>
+pub ferrocat_po::CombineCatalogFilesOptions::mode: core::option::Option<ferrocat_po::CatalogMode>
+pub ferrocat_po::CombineCatalogFilesOptions::order_by: ferrocat_po::OrderBy
+pub ferrocat_po::CombineCatalogFilesOptions::output_path: &'a std::path::Path
+pub ferrocat_po::CombineCatalogFilesOptions::selection: ferrocat_po::CatalogCombineSelection
+pub ferrocat_po::CombineCatalogFilesOptions::source_locale: &'a str
+impl<'a> ferrocat_po::CombineCatalogFilesOptions<'a>
+pub fn ferrocat_po::CombineCatalogFilesOptions<'a>::new(&'a [std::path::PathBuf], &'a std::path::Path, &'a str) -> Self
+pub fn ferrocat_po::CombineCatalogFilesOptions<'a>::with_conflict_strategy(self, ferrocat_po::CatalogConflictStrategy) -> Self
+pub fn ferrocat_po::CombineCatalogFilesOptions<'a>::with_format(self, ferrocat_po::CatalogFileFormat) -> Self
+pub fn ferrocat_po::CombineCatalogFilesOptions<'a>::with_include_obsolete(self, bool) -> Self
+pub fn ferrocat_po::CombineCatalogFilesOptions<'a>::with_include_origins(self, bool) -> Self
+pub fn ferrocat_po::CombineCatalogFilesOptions<'a>::with_input_paths(self, &'a [std::path::PathBuf]) -> Self
+pub fn ferrocat_po::CombineCatalogFilesOptions<'a>::with_locale(self, &'a str) -> Self
+pub fn ferrocat_po::CombineCatalogFilesOptions<'a>::with_mode(self, ferrocat_po::CatalogMode) -> Self
+pub fn ferrocat_po::CombineCatalogFilesOptions<'a>::with_order_by(self, ferrocat_po::OrderBy) -> Self
+pub fn ferrocat_po::CombineCatalogFilesOptions<'a>::with_output_path(self, &'a std::path::Path) -> Self
+pub fn ferrocat_po::CombineCatalogFilesOptions<'a>::with_selection(self, ferrocat_po::CatalogCombineSelection) -> Self
+#[non_exhaustive] pub struct ferrocat_po::CombineCatalogOptions<'a>
+pub ferrocat_po::CombineCatalogOptions::conflict_strategy: ferrocat_po::CatalogConflictStrategy
+pub ferrocat_po::CombineCatalogOptions::include_obsolete: bool
+pub ferrocat_po::CombineCatalogOptions::include_origins: bool
+pub ferrocat_po::CombineCatalogOptions::inputs: &'a [ferrocat_po::CatalogCombineInput<'a>]
+pub ferrocat_po::CombineCatalogOptions::locale: core::option::Option<&'a str>
+pub ferrocat_po::CombineCatalogOptions::mode: ferrocat_po::CatalogMode
+pub ferrocat_po::CombineCatalogOptions::order_by: ferrocat_po::OrderBy
+pub ferrocat_po::CombineCatalogOptions::selection: ferrocat_po::CatalogCombineSelection
+pub ferrocat_po::CombineCatalogOptions::source_locale: &'a str
+impl<'a> ferrocat_po::CombineCatalogOptions<'a>
+pub fn ferrocat_po::CombineCatalogOptions<'a>::new(&'a [ferrocat_po::CatalogCombineInput<'a>], &'a str) -> Self
+pub fn ferrocat_po::CombineCatalogOptions<'a>::with_conflict_strategy(self, ferrocat_po::CatalogConflictStrategy) -> Self
+pub fn ferrocat_po::CombineCatalogOptions<'a>::with_include_obsolete(self, bool) -> Self
+pub fn ferrocat_po::CombineCatalogOptions<'a>::with_include_origins(self, bool) -> Self
+pub fn ferrocat_po::CombineCatalogOptions<'a>::with_inputs(self, &'a [ferrocat_po::CatalogCombineInput<'a>]) -> Self
+pub fn ferrocat_po::CombineCatalogOptions<'a>::with_locale(self, &'a str) -> Self
+pub fn ferrocat_po::CombineCatalogOptions<'a>::with_mode(self, ferrocat_po::CatalogMode) -> Self
+pub fn ferrocat_po::CombineCatalogOptions<'a>::with_order_by(self, ferrocat_po::OrderBy) -> Self
+pub fn ferrocat_po::CombineCatalogOptions<'a>::with_selection(self, ferrocat_po::CatalogCombineSelection) -> Self
+#[non_exhaustive] pub struct ferrocat_po::CompileCatalogArtifactIcuOptions
+pub ferrocat_po::CompileCatalogArtifactIcuOptions::formatter_support: core::option::Option<ferrocat_po::IcuFormatterSupportPolicy>
+pub ferrocat_po::CompileCatalogArtifactIcuOptions::syntax_policy: ferrocat_po::IcuSyntaxPolicy
+impl ferrocat_po::CompileCatalogArtifactIcuOptions
+pub fn ferrocat_po::CompileCatalogArtifactIcuOptions::new() -> Self
+pub fn ferrocat_po::CompileCatalogArtifactIcuOptions::with_formatter_support(self, ferrocat_po::IcuFormatterSupportPolicy) -> Self
+pub fn ferrocat_po::CompileCatalogArtifactIcuOptions::with_syntax_policy(self, ferrocat_po::IcuSyntaxPolicy) -> Self
+#[non_exhaustive] pub struct ferrocat_po::CompileCatalogArtifactOptions<'a>
+pub ferrocat_po::CompileCatalogArtifactOptions::fallback_chain: &'a [&'a str]
+pub ferrocat_po::CompileCatalogArtifactOptions::icu_compatibility: bool
+pub ferrocat_po::CompileCatalogArtifactOptions::key_strategy: ferrocat_po::CompiledKeyStrategy
+pub ferrocat_po::CompileCatalogArtifactOptions::requested_locale: &'a str
+pub ferrocat_po::CompileCatalogArtifactOptions::semantics: ferrocat_po::CatalogSemantics
+pub ferrocat_po::CompileCatalogArtifactOptions::source_fallback: bool
+pub ferrocat_po::CompileCatalogArtifactOptions::source_locale: &'a str
+pub ferrocat_po::CompileCatalogArtifactOptions::strict_icu: bool
+impl<'a> ferrocat_po::CompileCatalogArtifactOptions<'a>
+pub fn ferrocat_po::CompileCatalogArtifactOptions<'a>::new(&'a str, &'a str) -> Self
+pub fn ferrocat_po::CompileCatalogArtifactOptions<'a>::with_fallback_chain(self, &'a [&'a str]) -> Self
+pub fn ferrocat_po::CompileCatalogArtifactOptions<'a>::with_icu_compatibility(self, bool) -> Self
+pub fn ferrocat_po::CompileCatalogArtifactOptions<'a>::with_key_strategy(self, ferrocat_po::CompiledKeyStrategy) -> Self
+pub fn ferrocat_po::CompileCatalogArtifactOptions<'a>::with_requested_locale(self, &'a str) -> Self
+pub fn ferrocat_po::CompileCatalogArtifactOptions<'a>::with_semantics(self, ferrocat_po::CatalogSemantics) -> Self
+pub fn ferrocat_po::CompileCatalogArtifactOptions<'a>::with_source_fallback(self, bool) -> Self
+pub fn ferrocat_po::CompileCatalogArtifactOptions<'a>::with_source_locale(self, &'a str) -> Self
+pub fn ferrocat_po::CompileCatalogArtifactOptions<'a>::with_strict_icu(self, bool) -> Self
+#[non_exhaustive] pub struct ferrocat_po::CompileCatalogArtifactReportOptions<'a>
+pub ferrocat_po::CompileCatalogArtifactReportOptions::icu_options: ferrocat_po::CompileCatalogArtifactIcuOptions
+pub ferrocat_po::CompileCatalogArtifactReportOptions::options: ferrocat_po::CompileCatalogArtifactOptions<'a>
+pub ferrocat_po::CompileCatalogArtifactReportOptions::selection: ferrocat_po::CompileCatalogArtifactReportSelection<'a>
+impl<'a> ferrocat_po::CompileCatalogArtifactReportOptions<'a>
+pub fn ferrocat_po::CompileCatalogArtifactReportOptions<'a>::new(&'a str, &'a str) -> Self
+pub fn ferrocat_po::CompileCatalogArtifactReportOptions<'a>::selected(&'a str, &'a str, &'a ferrocat_po::CompiledCatalogIdIndex, &'a [&'a str]) -> Self
+pub fn ferrocat_po::CompileCatalogArtifactReportOptions<'a>::with_icu_options(self, ferrocat_po::CompileCatalogArtifactIcuOptions) -> Self
+pub fn ferrocat_po::CompileCatalogArtifactReportOptions<'a>::with_options(self, ferrocat_po::CompileCatalogArtifactOptions<'a>) -> Self
+pub fn ferrocat_po::CompileCatalogArtifactReportOptions<'a>::with_selection(self, ferrocat_po::CompileCatalogArtifactReportSelection<'a>) -> Self
+#[non_exhaustive] pub struct ferrocat_po::CompileCatalogOptions<'a>
+pub ferrocat_po::CompileCatalogOptions::key_strategy: ferrocat_po::CompiledKeyStrategy
+pub ferrocat_po::CompileCatalogOptions::semantics: ferrocat_po::CatalogSemantics
+pub ferrocat_po::CompileCatalogOptions::source_fallback: bool
+pub ferrocat_po::CompileCatalogOptions::source_locale: core::option::Option<&'a str>
+impl<'a> ferrocat_po::CompileCatalogOptions<'a>
+pub fn ferrocat_po::CompileCatalogOptions<'a>::new() -> Self
+pub fn ferrocat_po::CompileCatalogOptions<'a>::with_key_strategy(self, ferrocat_po::CompiledKeyStrategy) -> Self
+pub fn ferrocat_po::CompileCatalogOptions<'a>::with_semantics(self, ferrocat_po::CatalogSemantics) -> Self
+pub fn ferrocat_po::CompileCatalogOptions<'a>::with_source_fallback(self, bool) -> Self
+pub fn ferrocat_po::CompileCatalogOptions<'a>::with_source_locale(self, &'a str) -> Self
+impl core::default::Default for ferrocat_po::CompileCatalogOptions<'_>
+pub fn ferrocat_po::CompileCatalogOptions<'_>::default() -> Self
+#[non_exhaustive] pub struct ferrocat_po::CompileSelectedCatalogArtifactOptions<'a>
+pub ferrocat_po::CompileSelectedCatalogArtifactOptions::compiled_ids: &'a [&'a str]
+pub ferrocat_po::CompileSelectedCatalogArtifactOptions::options: ferrocat_po::CompileCatalogArtifactOptions<'a>
+impl<'a> ferrocat_po::CompileSelectedCatalogArtifactOptions<'a>
+pub fn ferrocat_po::CompileSelectedCatalogArtifactOptions<'a>::new(&'a str, &'a str, &'a [&'a str]) -> Self
+pub fn ferrocat_po::CompileSelectedCatalogArtifactOptions<'a>::with_compiled_ids(self, &'a [&'a str]) -> Self
+pub fn ferrocat_po::CompileSelectedCatalogArtifactOptions<'a>::with_options(self, ferrocat_po::CompileCatalogArtifactOptions<'a>) -> Self
+pub struct ferrocat_po::CompiledCatalog
+impl ferrocat_po::CompiledCatalog
+pub fn ferrocat_po::CompiledCatalog::get(&self, &str) -> core::option::Option<&ferrocat_po::CompiledMessage>
+pub fn ferrocat_po::CompiledCatalog::is_empty(&self) -> bool
+pub fn ferrocat_po::CompiledCatalog::iter(&self) -> impl core::iter::traits::iterator::Iterator<Item = (&str, &ferrocat_po::CompiledMessage)> + '_
+pub fn ferrocat_po::CompiledCatalog::len(&self) -> usize
+pub struct ferrocat_po::CompiledCatalogArtifact
+pub ferrocat_po::CompiledCatalogArtifact::diagnostics: alloc::vec::Vec<ferrocat_po::CompiledCatalogDiagnostic>
+pub ferrocat_po::CompiledCatalogArtifact::messages: alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>
+pub ferrocat_po::CompiledCatalogArtifact::missing: alloc::vec::Vec<ferrocat_po::CompiledCatalogMissingMessage>
+impl serde_core::ser::Serialize for ferrocat_po::CompiledCatalogArtifact
+pub fn ferrocat_po::CompiledCatalogArtifact::serialize<S>(&self, S) -> core::result::Result<<S as serde_core::ser::Serializer>::Ok, <S as serde_core::ser::Serializer>::Error> where S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for ferrocat_po::CompiledCatalogArtifact
+pub fn ferrocat_po::CompiledCatalogArtifact::deserialize<D>(D) -> core::result::Result<Self, <D as serde_core::de::Deserializer>::Error> where D: serde_core::de::Deserializer<'de>
+pub struct ferrocat_po::CompiledCatalogArtifactReport
+pub ferrocat_po::CompiledCatalogArtifactReport::artifact: ferrocat_po::CompiledCatalogArtifact
+pub ferrocat_po::CompiledCatalogArtifactReport::provenance: ferrocat_po::CompiledCatalogProvenanceReport
+pub struct ferrocat_po::CompiledCatalogDiagnostic
+pub ferrocat_po::CompiledCatalogDiagnostic::code: alloc::string::String
+pub ferrocat_po::CompiledCatalogDiagnostic::key: alloc::string::String
+pub ferrocat_po::CompiledCatalogDiagnostic::locale: alloc::string::String
+pub ferrocat_po::CompiledCatalogDiagnostic::message: alloc::string::String
+pub ferrocat_po::CompiledCatalogDiagnostic::msgctxt: core::option::Option<alloc::string::String>
+pub ferrocat_po::CompiledCatalogDiagnostic::msgid: alloc::string::String
+pub ferrocat_po::CompiledCatalogDiagnostic::severity: ferrocat_po::DiagnosticSeverity
+pub struct ferrocat_po::CompiledCatalogIdDescription
+pub ferrocat_po::CompiledCatalogIdDescription::available_locales: alloc::vec::Vec<alloc::string::String>
+pub ferrocat_po::CompiledCatalogIdDescription::compiled_id: alloc::string::String
+pub ferrocat_po::CompiledCatalogIdDescription::source_key: ferrocat_po::CatalogMessageKey
+pub ferrocat_po::CompiledCatalogIdDescription::translation_kind: ferrocat_po::CompiledCatalogTranslationKind
+pub struct ferrocat_po::CompiledCatalogIdIndex
+impl ferrocat_po::CompiledCatalogIdIndex
+pub fn ferrocat_po::CompiledCatalogIdIndex::as_btreemap(&self) -> &alloc::collections::btree::map::BTreeMap<alloc::string::String, ferrocat_po::CatalogMessageKey>
+pub fn ferrocat_po::CompiledCatalogIdIndex::contains_id(&self, &str) -> bool
+pub fn ferrocat_po::CompiledCatalogIdIndex::describe_compiled_ids(&self, &[&ferrocat_po::NormalizedParsedCatalog], &[&str]) -> core::result::Result<ferrocat_po::DescribeCompiledIdsReport, ferrocat_po::ApiError>
+pub fn ferrocat_po::CompiledCatalogIdIndex::get(&self, &str) -> core::option::Option<&ferrocat_po::CatalogMessageKey>
+pub fn ferrocat_po::CompiledCatalogIdIndex::into_btreemap(self) -> alloc::collections::btree::map::BTreeMap<alloc::string::String, ferrocat_po::CatalogMessageKey>
+pub fn ferrocat_po::CompiledCatalogIdIndex::is_empty(&self) -> bool
+pub fn ferrocat_po::CompiledCatalogIdIndex::iter(&self) -> impl core::iter::traits::iterator::Iterator<Item = (&str, &ferrocat_po::CatalogMessageKey)> + '_
+pub fn ferrocat_po::CompiledCatalogIdIndex::len(&self) -> usize
+pub fn ferrocat_po::CompiledCatalogIdIndex::new(&[&ferrocat_po::NormalizedParsedCatalog], ferrocat_po::CompiledKeyStrategy) -> core::result::Result<Self, ferrocat_po::ApiError>
+pub struct ferrocat_po::CompiledCatalogMissingMessage
+pub ferrocat_po::CompiledCatalogMissingMessage::key: alloc::string::String
+pub ferrocat_po::CompiledCatalogMissingMessage::requested_locale: alloc::string::String
+pub ferrocat_po::CompiledCatalogMissingMessage::resolved_locale: core::option::Option<alloc::string::String>
+pub ferrocat_po::CompiledCatalogMissingMessage::source_key: ferrocat_po::CatalogMessageKey
+pub struct ferrocat_po::CompiledCatalogProvenanceReport
+pub ferrocat_po::CompiledCatalogProvenanceReport::fallback_chain: alloc::vec::Vec<alloc::string::String>
+pub ferrocat_po::CompiledCatalogProvenanceReport::messages: alloc::vec::Vec<ferrocat_po::CompiledCatalogResolution>
+pub ferrocat_po::CompiledCatalogProvenanceReport::requested_locale: alloc::string::String
+pub ferrocat_po::CompiledCatalogProvenanceReport::source_locale: alloc::string::String
+pub struct ferrocat_po::CompiledCatalogResolution
+pub ferrocat_po::CompiledCatalogResolution::key: alloc::string::String
+pub ferrocat_po::CompiledCatalogResolution::kind: ferrocat_po::CompiledCatalogResolutionKind
+pub ferrocat_po::CompiledCatalogResolution::resolved_locale: core::option::Option<alloc::string::String>
+pub ferrocat_po::CompiledCatalogResolution::source_key: ferrocat_po::CatalogMessageKey
+pub struct ferrocat_po::CompiledCatalogUnavailableId
+pub ferrocat_po::CompiledCatalogUnavailableId::compiled_id: alloc::string::String
+pub ferrocat_po::CompiledCatalogUnavailableId::source_key: ferrocat_po::CatalogMessageKey
+pub struct ferrocat_po::CompiledMessage
+pub ferrocat_po::CompiledMessage::key: alloc::string::String
+pub ferrocat_po::CompiledMessage::source_key: ferrocat_po::CatalogMessageKey
+pub ferrocat_po::CompiledMessage::translation: ferrocat_po::CompiledTranslation
+pub struct ferrocat_po::DescribeCompiledIdsReport
+pub ferrocat_po::DescribeCompiledIdsReport::described: alloc::vec::Vec<ferrocat_po::CompiledCatalogIdDescription>
+pub ferrocat_po::DescribeCompiledIdsReport::unavailable_compiled_ids: alloc::vec::Vec<ferrocat_po::CompiledCatalogUnavailableId>
+pub ferrocat_po::DescribeCompiledIdsReport::unknown_compiled_ids: alloc::vec::Vec<alloc::string::String>
+pub struct ferrocat_po::Diagnostic
+pub ferrocat_po::Diagnostic::code: alloc::string::String
+pub ferrocat_po::Diagnostic::message: alloc::string::String
+pub ferrocat_po::Diagnostic::msgctxt: core::option::Option<alloc::string::String>
+pub ferrocat_po::Diagnostic::msgid: core::option::Option<alloc::string::String>
+pub ferrocat_po::Diagnostic::severity: ferrocat_po::DiagnosticSeverity
+pub struct ferrocat_po::ExtractedPluralMessage
+pub ferrocat_po::ExtractedPluralMessage::comments: alloc::vec::Vec<alloc::string::String>
+pub ferrocat_po::ExtractedPluralMessage::msgctxt: core::option::Option<alloc::string::String>
+pub ferrocat_po::ExtractedPluralMessage::msgid: alloc::string::String
+pub ferrocat_po::ExtractedPluralMessage::origin: alloc::vec::Vec<ferrocat_po::CatalogOrigin>
+pub ferrocat_po::ExtractedPluralMessage::placeholders: alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::vec::Vec<alloc::string::String>>
+pub ferrocat_po::ExtractedPluralMessage::source: ferrocat_po::PluralSource
+pub struct ferrocat_po::ExtractedSingularMessage
+pub ferrocat_po::ExtractedSingularMessage::comments: alloc::vec::Vec<alloc::string::String>
+pub ferrocat_po::ExtractedSingularMessage::msgctxt: core::option::Option<alloc::string::String>
+pub ferrocat_po::ExtractedSingularMessage::msgid: alloc::string::String
+pub ferrocat_po::ExtractedSingularMessage::origin: alloc::vec::Vec<ferrocat_po::CatalogOrigin>
+pub ferrocat_po::ExtractedSingularMessage::placeholders: alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::vec::Vec<alloc::string::String>>
+pub struct ferrocat_po::Header
+pub ferrocat_po::Header::key: alloc::string::String
+pub ferrocat_po::Header::value: alloc::string::String
+pub struct ferrocat_po::MachineMetadata
+pub ferrocat_po::MachineMetadata::ai: core::option::Option<ferrocat_po::AiProvenance>
+pub ferrocat_po::MachineMetadata::lock: alloc::string::String
+pub struct ferrocat_po::MergeMessageInput<'a>
+pub ferrocat_po::MergeMessageInput::extracted_comments: alloc::vec::Vec<alloc::borrow::Cow<'a, str>>
+pub ferrocat_po::MergeMessageInput::flags: alloc::vec::Vec<alloc::borrow::Cow<'a, str>>
+pub ferrocat_po::MergeMessageInput::msgctxt: core::option::Option<alloc::borrow::Cow<'a, str>>
+pub ferrocat_po::MergeMessageInput::msgid: alloc::borrow::Cow<'a, str>
+pub ferrocat_po::MergeMessageInput::msgid_plural: core::option::Option<alloc::borrow::Cow<'a, str>>
+pub ferrocat_po::MergeMessageInput::references: alloc::vec::Vec<alloc::borrow::Cow<'a, str>>
+pub struct ferrocat_po::MsgStrIter<'a>
+impl<'a> core::iter::traits::iterator::Iterator for ferrocat_po::MsgStrIter<'a>
+pub type ferrocat_po::MsgStrIter<'a>::Item = &'a str
+pub fn ferrocat_po::MsgStrIter<'a>::next(&mut self) -> core::option::Option<Self::Item>
+pub struct ferrocat_po::NormalizedParsedCatalog
+impl ferrocat_po::NormalizedParsedCatalog
+pub fn ferrocat_po::NormalizedParsedCatalog::compile(&self, &ferrocat_po::CompileCatalogOptions<'_>) -> core::result::Result<ferrocat_po::CompiledCatalog, ferrocat_po::ApiError>
+impl ferrocat_po::NormalizedParsedCatalog
+pub fn ferrocat_po::NormalizedParsedCatalog::contains_key(&self, &ferrocat_po::CatalogMessageKey) -> bool
+pub fn ferrocat_po::NormalizedParsedCatalog::contains_parts(&self, &str, core::option::Option<&str>) -> bool
+pub fn ferrocat_po::NormalizedParsedCatalog::effective_translation(&self, &ferrocat_po::CatalogMessageKey) -> core::option::Option<ferrocat_po::EffectiveTranslationRef<'_>>
+pub fn ferrocat_po::NormalizedParsedCatalog::effective_translation_by_parts(&self, &str, core::option::Option<&str>) -> core::option::Option<ferrocat_po::EffectiveTranslationRef<'_>>
+pub fn ferrocat_po::NormalizedParsedCatalog::effective_translation_with_source_fallback(&self, &ferrocat_po::CatalogMessageKey, &str) -> core::option::Option<ferrocat_po::EffectiveTranslation>
+pub fn ferrocat_po::NormalizedParsedCatalog::effective_translation_with_source_fallback_by_parts(&self, &str, core::option::Option<&str>, &str) -> core::option::Option<ferrocat_po::EffectiveTranslation>
+pub fn ferrocat_po::NormalizedParsedCatalog::get(&self, &ferrocat_po::CatalogMessageKey) -> core::option::Option<&ferrocat_po::CatalogMessage>
+pub fn ferrocat_po::NormalizedParsedCatalog::get_by_parts(&self, &str, core::option::Option<&str>) -> core::option::Option<&ferrocat_po::CatalogMessage>
+pub fn ferrocat_po::NormalizedParsedCatalog::into_parsed_catalog(self) -> ferrocat_po::ParsedCatalog
+pub fn ferrocat_po::NormalizedParsedCatalog::iter(&self) -> impl core::iter::traits::iterator::Iterator<Item = (&ferrocat_po::CatalogMessageKey, &ferrocat_po::CatalogMessage)> + '_
+pub fn ferrocat_po::NormalizedParsedCatalog::message_count(&self) -> usize
+pub const fn ferrocat_po::NormalizedParsedCatalog::parsed_catalog(&self) -> &ferrocat_po::ParsedCatalog
+pub struct ferrocat_po::ObsoleteInfo
+pub ferrocat_po::ObsoleteInfo::since: core::option::Option<alloc::string::String>
+#[non_exhaustive] pub struct ferrocat_po::ParseCatalogOptions<'a>
+pub ferrocat_po::ParseCatalogOptions::content: &'a str
+pub ferrocat_po::ParseCatalogOptions::locale: core::option::Option<&'a str>
+pub ferrocat_po::ParseCatalogOptions::mode: ferrocat_po::CatalogMode
+pub ferrocat_po::ParseCatalogOptions::source_locale: &'a str
+pub ferrocat_po::ParseCatalogOptions::strict: bool
+impl<'a> ferrocat_po::ParseCatalogOptions<'a>
+pub fn ferrocat_po::ParseCatalogOptions<'a>::new(&'a str, &'a str) -> Self
+pub fn ferrocat_po::ParseCatalogOptions<'a>::with_locale(self, &'a str) -> Self
+pub fn ferrocat_po::ParseCatalogOptions<'a>::with_mode(self, ferrocat_po::CatalogMode) -> Self
+pub fn ferrocat_po::ParseCatalogOptions<'a>::with_strict(self, bool) -> Self
+pub struct ferrocat_po::ParseError
+impl ferrocat_po::ParseError
+pub fn ferrocat_po::ParseError::message(&self) -> &str
+pub fn ferrocat_po::ParseError::new(impl core::convert::Into<alloc::string::String>) -> Self
+pub const fn ferrocat_po::ParseError::position(&self) -> core::option::Option<ferrocat_po::ParsePosition>
+pub fn ferrocat_po::ParseError::with_position(impl core::convert::Into<alloc::string::String>, ferrocat_po::ParsePosition) -> Self
+impl core::convert::From<ferrocat_po::ParseError> for ferrocat_po::ApiError
+pub fn ferrocat_po::ApiError::from(ferrocat_po::ParseError) -> Self
+impl core::error::Error for ferrocat_po::ParseError
+impl core::fmt::Display for ferrocat_po::ParseError
+pub fn ferrocat_po::ParseError::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+pub struct ferrocat_po::ParsePosition
+impl ferrocat_po::ParsePosition
+pub const fn ferrocat_po::ParsePosition::column(self) -> usize
+pub const fn ferrocat_po::ParsePosition::line(self) -> usize
+pub const fn ferrocat_po::ParsePosition::new(usize, usize, usize) -> Self
+pub const fn ferrocat_po::ParsePosition::offset(self) -> usize
+pub struct ferrocat_po::ParsedCatalog
+pub ferrocat_po::ParsedCatalog::diagnostics: alloc::vec::Vec<ferrocat_po::Diagnostic>
+pub ferrocat_po::ParsedCatalog::headers: alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>
+pub ferrocat_po::ParsedCatalog::locale: core::option::Option<alloc::string::String>
+pub ferrocat_po::ParsedCatalog::messages: alloc::vec::Vec<ferrocat_po::CatalogMessage>
+pub ferrocat_po::ParsedCatalog::semantics: ferrocat_po::CatalogSemantics
+impl ferrocat_po::ParsedCatalog
+pub fn ferrocat_po::ParsedCatalog::into_normalized_view(self) -> core::result::Result<ferrocat_po::NormalizedParsedCatalog, ferrocat_po::ApiError>
+pub struct ferrocat_po::PluralSource
+pub ferrocat_po::PluralSource::one: core::option::Option<alloc::string::String>
+pub ferrocat_po::PluralSource::other: alloc::string::String
+pub struct ferrocat_po::PoFile
+pub ferrocat_po::PoFile::comments: alloc::vec::Vec<alloc::string::String>
+pub ferrocat_po::PoFile::extracted_comments: alloc::vec::Vec<alloc::string::String>
+pub ferrocat_po::PoFile::headers: alloc::vec::Vec<ferrocat_po::Header>
+pub ferrocat_po::PoFile::items: alloc::vec::Vec<ferrocat_po::PoItem>
+pub struct ferrocat_po::PoItem
+pub ferrocat_po::PoItem::comments: ferrocat_po::PoVec<alloc::string::String>
+pub ferrocat_po::PoItem::extracted_comments: ferrocat_po::PoVec<alloc::string::String>
+pub ferrocat_po::PoItem::flags: ferrocat_po::PoVec<alloc::string::String>
+pub ferrocat_po::PoItem::metadata: ferrocat_po::PoVec<(alloc::string::String, alloc::string::String)>
+pub ferrocat_po::PoItem::msgctxt: core::option::Option<alloc::string::String>
+pub ferrocat_po::PoItem::msgid: alloc::string::String
+pub ferrocat_po::PoItem::msgid_plural: core::option::Option<alloc::string::String>
+pub ferrocat_po::PoItem::msgstr: ferrocat_po::MsgStr
+pub ferrocat_po::PoItem::nplurals: usize
+pub ferrocat_po::PoItem::obsolete: bool
+pub ferrocat_po::PoItem::references: ferrocat_po::PoVec<alloc::string::String>
+impl ferrocat_po::PoItem
+pub fn ferrocat_po::PoItem::new(usize) -> Self
+pub struct ferrocat_po::PoVec<T>(_)
+impl<T> ferrocat_po::PoVec<T>
+pub fn ferrocat_po::PoVec<T>::as_mut_slice(&mut self) -> &mut [T]
+pub fn ferrocat_po::PoVec<T>::as_slice(&self) -> &[T]
+pub fn ferrocat_po::PoVec<T>::clear(&mut self)
+pub fn ferrocat_po::PoVec<T>::into_vec(self) -> alloc::vec::Vec<T>
+pub fn ferrocat_po::PoVec<T>::is_empty(&self) -> bool
+pub fn ferrocat_po::PoVec<T>::iter(&self) -> core::slice::iter::Iter<'_, T>
+pub fn ferrocat_po::PoVec<T>::iter_mut(&mut self) -> core::slice::iter::IterMut<'_, T>
+pub fn ferrocat_po::PoVec<T>::len(&self) -> usize
+pub fn ferrocat_po::PoVec<T>::new() -> Self
+pub fn ferrocat_po::PoVec<T>::push(&mut self, T)
+pub fn ferrocat_po::PoVec<T>::with_capacity(usize) -> Self
+impl<'a, T> core::iter::traits::collect::IntoIterator for &'a ferrocat_po::PoVec<T>
+pub type &'a ferrocat_po::PoVec<T>::IntoIter = core::slice::iter::Iter<'a, T>
+pub type &'a ferrocat_po::PoVec<T>::Item = &'a T
+pub fn &'a ferrocat_po::PoVec<T>::into_iter(self) -> Self::IntoIter
+impl<'a, T> core::iter::traits::collect::IntoIterator for &'a mut ferrocat_po::PoVec<T>
+pub type &'a mut ferrocat_po::PoVec<T>::IntoIter = core::slice::iter::IterMut<'a, T>
+pub type &'a mut ferrocat_po::PoVec<T>::Item = &'a mut T
+pub fn &'a mut ferrocat_po::PoVec<T>::into_iter(self) -> Self::IntoIter
+impl<T, U> core::cmp::PartialEq<&[U]> for ferrocat_po::PoVec<T> where T: core::cmp::PartialEq<U>
+pub fn ferrocat_po::PoVec<T>::eq(&self, &&[U]) -> bool
+impl<T, U> core::cmp::PartialEq<[U]> for ferrocat_po::PoVec<T> where T: core::cmp::PartialEq<U>
+pub fn ferrocat_po::PoVec<T>::eq(&self, &[U]) -> bool
+impl<T, U> core::cmp::PartialEq<alloc::vec::Vec<U>> for ferrocat_po::PoVec<T> where T: core::cmp::PartialEq<U>
+pub fn ferrocat_po::PoVec<T>::eq(&self, &alloc::vec::Vec<U>) -> bool
+impl<T, const N: usize> core::convert::From<[T; N]> for ferrocat_po::PoVec<T>
+pub fn ferrocat_po::PoVec<T>::from([T; N]) -> Self
+impl<T> core::convert::AsMut<[T]> for ferrocat_po::PoVec<T>
+pub fn ferrocat_po::PoVec<T>::as_mut(&mut self) -> &mut [T]
+impl<T> core::convert::AsRef<[T]> for ferrocat_po::PoVec<T>
+pub fn ferrocat_po::PoVec<T>::as_ref(&self) -> &[T]
+impl<T> core::convert::From<alloc::vec::Vec<T>> for ferrocat_po::PoVec<T>
+pub fn ferrocat_po::PoVec<T>::from(alloc::vec::Vec<T>) -> Self
+impl<T> core::convert::From<ferrocat_po::PoVec<T>> for alloc::vec::Vec<T>
+pub fn alloc::vec::Vec<T>::from(ferrocat_po::PoVec<T>) -> Self
+impl<T> core::iter::traits::collect::Extend<T> for ferrocat_po::PoVec<T>
+pub fn ferrocat_po::PoVec<T>::extend<I>(&mut self, I) where I: core::iter::traits::collect::IntoIterator<Item = T>
+impl<T> core::iter::traits::collect::FromIterator<T> for ferrocat_po::PoVec<T>
+pub fn ferrocat_po::PoVec<T>::from_iter<I>(I) -> Self where I: core::iter::traits::collect::IntoIterator<Item = T>
+impl<T> core::iter::traits::collect::IntoIterator for ferrocat_po::PoVec<T>
+pub type ferrocat_po::PoVec<T>::IntoIter = ferrocat_po::PoVecIntoIter<T>
+pub type ferrocat_po::PoVec<T>::Item = T
+pub fn ferrocat_po::PoVec<T>::into_iter(self) -> Self::IntoIter
+impl<T> core::ops::deref::Deref for ferrocat_po::PoVec<T>
+pub type ferrocat_po::PoVec<T>::Target = [T]
+pub fn ferrocat_po::PoVec<T>::deref(&self) -> &Self::Target
+impl<T> core::ops::deref::DerefMut for ferrocat_po::PoVec<T>
+pub fn ferrocat_po::PoVec<T>::deref_mut(&mut self) -> &mut Self::Target
+pub struct ferrocat_po::PoVecIntoIter<T>
+impl<T> core::iter::traits::double_ended::DoubleEndedIterator for ferrocat_po::PoVecIntoIter<T>
+pub fn ferrocat_po::PoVecIntoIter<T>::next_back(&mut self) -> core::option::Option<Self::Item>
+impl<T> core::iter::traits::exact_size::ExactSizeIterator for ferrocat_po::PoVecIntoIter<T>
+impl<T> core::iter::traits::iterator::Iterator for ferrocat_po::PoVecIntoIter<T>
+pub type ferrocat_po::PoVecIntoIter<T>::Item = T
+pub fn ferrocat_po::PoVecIntoIter<T>::next(&mut self) -> core::option::Option<Self::Item>
+pub fn ferrocat_po::PoVecIntoIter<T>::size_hint(&self) -> (usize, core::option::Option<usize>)
+impl<T> core::iter::traits::marker::FusedIterator for ferrocat_po::PoVecIntoIter<T>
+#[non_exhaustive] pub struct ferrocat_po::RenderOptions<'a>
+pub ferrocat_po::RenderOptions::custom_header_attributes: core::option::Option<&'a alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>>
+pub ferrocat_po::RenderOptions::include_origins: bool
+pub ferrocat_po::RenderOptions::order_by: ferrocat_po::OrderBy
+pub ferrocat_po::RenderOptions::print_placeholders_in_comments: ferrocat_po::PlaceholderCommentMode
+impl<'a> ferrocat_po::RenderOptions<'a>
+pub fn ferrocat_po::RenderOptions<'a>::with_custom_header_attributes(self, &'a alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>) -> Self
+pub fn ferrocat_po::RenderOptions<'a>::with_include_origins(self, bool) -> Self
+pub fn ferrocat_po::RenderOptions<'a>::with_order_by(self, ferrocat_po::OrderBy) -> Self
+pub fn ferrocat_po::RenderOptions<'a>::with_placeholder_comments(self, ferrocat_po::PlaceholderCommentMode) -> Self
+impl core::default::Default for ferrocat_po::RenderOptions<'_>
+pub fn ferrocat_po::RenderOptions<'_>::default() -> Self
+#[non_exhaustive] pub struct ferrocat_po::SerializeOptions
+pub ferrocat_po::SerializeOptions::compact_multiline: bool
+pub ferrocat_po::SerializeOptions::fold_length: usize
+impl ferrocat_po::SerializeOptions
+pub fn ferrocat_po::SerializeOptions::with_compact_multiline(self, bool) -> Self
+pub fn ferrocat_po::SerializeOptions::with_fold_length(self, usize) -> Self
+impl core::default::Default for ferrocat_po::SerializeOptions
+pub fn ferrocat_po::SerializeOptions::default() -> Self
+pub struct ferrocat_po::SourceExtractedMessage
+pub ferrocat_po::SourceExtractedMessage::comments: alloc::vec::Vec<alloc::string::String>
+pub ferrocat_po::SourceExtractedMessage::msgctxt: core::option::Option<alloc::string::String>
+pub ferrocat_po::SourceExtractedMessage::msgid: alloc::string::String
+pub ferrocat_po::SourceExtractedMessage::origin: alloc::vec::Vec<ferrocat_po::CatalogOrigin>
+pub ferrocat_po::SourceExtractedMessage::placeholders: alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::vec::Vec<alloc::string::String>>
+#[non_exhaustive] pub struct ferrocat_po::UpdateCatalogFileOptions<'a>
+pub ferrocat_po::UpdateCatalogFileOptions::options: ferrocat_po::UpdateCatalogOptions<'a>
+pub ferrocat_po::UpdateCatalogFileOptions::target_path: &'a std::path::Path
+impl<'a> ferrocat_po::UpdateCatalogFileOptions<'a>
+pub fn ferrocat_po::UpdateCatalogFileOptions<'a>::new(&'a std::path::Path, &'a str, impl core::convert::Into<ferrocat_po::CatalogUpdateInput>) -> Self
+pub fn ferrocat_po::UpdateCatalogFileOptions<'a>::with_options(self, ferrocat_po::UpdateCatalogOptions<'a>) -> Self
+#[non_exhaustive] pub struct ferrocat_po::UpdateCatalogOptions<'a>
+pub ferrocat_po::UpdateCatalogOptions::existing: core::option::Option<&'a str>
+pub ferrocat_po::UpdateCatalogOptions::input: ferrocat_po::CatalogUpdateInput
+pub ferrocat_po::UpdateCatalogOptions::locale: core::option::Option<&'a str>
+pub ferrocat_po::UpdateCatalogOptions::mode: ferrocat_po::CatalogMode
+pub ferrocat_po::UpdateCatalogOptions::now: core::option::Option<&'a str>
+pub ferrocat_po::UpdateCatalogOptions::obsolete_strategy: ferrocat_po::ObsoleteStrategy
+pub ferrocat_po::UpdateCatalogOptions::overwrite_source_translations: bool
+pub ferrocat_po::UpdateCatalogOptions::render: ferrocat_po::RenderOptions<'a>
+pub ferrocat_po::UpdateCatalogOptions::source_locale: &'a str
+impl<'a> ferrocat_po::UpdateCatalogOptions<'a>
+pub fn ferrocat_po::UpdateCatalogOptions<'a>::new(&'a str, impl core::convert::Into<ferrocat_po::CatalogUpdateInput>) -> Self
+pub fn ferrocat_po::UpdateCatalogOptions<'a>::with_existing(self, &'a str) -> Self
+pub fn ferrocat_po::UpdateCatalogOptions<'a>::with_locale(self, &'a str) -> Self
+pub fn ferrocat_po::UpdateCatalogOptions<'a>::with_mode(self, ferrocat_po::CatalogMode) -> Self
+pub fn ferrocat_po::UpdateCatalogOptions<'a>::with_now(self, &'a str) -> Self
+pub fn ferrocat_po::UpdateCatalogOptions<'a>::with_obsolete_strategy(self, ferrocat_po::ObsoleteStrategy) -> Self
+pub fn ferrocat_po::UpdateCatalogOptions<'a>::with_overwrite_source_translations(self, bool) -> Self
+pub fn ferrocat_po::UpdateCatalogOptions<'a>::with_render(self, ferrocat_po::RenderOptions<'a>) -> Self
+pub const ferrocat_po::COMPILED_CATALOG_ARTIFACT_SCHEMA_VERSION: u16
+pub fn ferrocat_po::audit_catalogs(&[&ferrocat_po::NormalizedParsedCatalog], &ferrocat_po::CatalogAuditOptions<'_>) -> core::result::Result<ferrocat_po::CatalogAuditReport, ferrocat_po::ApiError>
+pub fn ferrocat_po::audit_catalogs_with_icu_options(&[&ferrocat_po::NormalizedParsedCatalog], &ferrocat_po::CatalogAuditOptions<'_>, &ferrocat_po::CatalogAuditIcuOptions) -> core::result::Result<ferrocat_po::CatalogAuditReport, ferrocat_po::ApiError>
+pub fn ferrocat_po::combine_catalog_files(ferrocat_po::CombineCatalogFilesOptions<'_>) -> core::result::Result<ferrocat_po::CatalogFileCombineResult, ferrocat_po::ApiError>
+pub fn ferrocat_po::combine_catalogs(ferrocat_po::CombineCatalogOptions<'_>) -> core::result::Result<ferrocat_po::CatalogCombineResult, ferrocat_po::ApiError>
+pub fn ferrocat_po::compile_catalog_artifact(&[&ferrocat_po::NormalizedParsedCatalog], &ferrocat_po::CompileCatalogArtifactOptions<'_>) -> core::result::Result<ferrocat_po::CompiledCatalogArtifact, ferrocat_po::ApiError>
+pub fn ferrocat_po::compile_catalog_artifact_report(&[&ferrocat_po::NormalizedParsedCatalog], &ferrocat_po::CompileCatalogArtifactReportOptions<'_>) -> core::result::Result<ferrocat_po::CompiledCatalogArtifactReport, ferrocat_po::ApiError>
+pub fn ferrocat_po::compile_catalog_artifact_selected(&[&ferrocat_po::NormalizedParsedCatalog], &ferrocat_po::CompiledCatalogIdIndex, &ferrocat_po::CompileSelectedCatalogArtifactOptions<'_>) -> core::result::Result<ferrocat_po::CompiledCatalogArtifact, ferrocat_po::ApiError>
+pub fn ferrocat_po::compile_catalog_artifact_selected_with_icu_options(&[&ferrocat_po::NormalizedParsedCatalog], &ferrocat_po::CompiledCatalogIdIndex, &ferrocat_po::CompileSelectedCatalogArtifactOptions<'_>, &ferrocat_po::CompileCatalogArtifactIcuOptions) -> core::result::Result<ferrocat_po::CompiledCatalogArtifact, ferrocat_po::ApiError>
+pub fn ferrocat_po::compile_catalog_artifact_with_icu_options(&[&ferrocat_po::NormalizedParsedCatalog], &ferrocat_po::CompileCatalogArtifactOptions<'_>, &ferrocat_po::CompileCatalogArtifactIcuOptions) -> core::result::Result<ferrocat_po::CompiledCatalogArtifact, ferrocat_po::ApiError>
+pub fn ferrocat_po::compiled_key(&str, core::option::Option<&str>) -> alloc::string::String
+pub fn ferrocat_po::escape_string(&str) -> alloc::string::String
+pub fn ferrocat_po::extract_quoted(&str) -> core::result::Result<alloc::string::String, ferrocat_po::ParseError>
+pub fn ferrocat_po::extract_quoted_cow(&str) -> core::result::Result<alloc::borrow::Cow<'_, str>, ferrocat_po::ParseError>
+pub fn ferrocat_po::machine_translation_hash(ferrocat_po::EffectiveTranslationRef<'_>) -> alloc::string::String
+pub fn ferrocat_po::measure_catalog_coverage(&[&ferrocat_po::NormalizedParsedCatalog], &ferrocat_po::CatalogCoverageOptions<'_>) -> core::result::Result<ferrocat_po::CatalogCoverageReport, ferrocat_po::ApiError>
+pub fn ferrocat_po::merge_catalog<'a>(&'a str, &[ferrocat_po::MergeMessageInput<'a>]) -> core::result::Result<alloc::string::String, ferrocat_po::ParseError>
+pub fn ferrocat_po::parse_catalog(ferrocat_po::ParseCatalogOptions<'_>) -> core::result::Result<ferrocat_po::ParsedCatalog, ferrocat_po::ApiError>
+pub fn ferrocat_po::parse_po(&str) -> core::result::Result<ferrocat_po::PoFile, ferrocat_po::ParseError>
+pub fn ferrocat_po::parse_po_borrowed(&str) -> core::result::Result<ferrocat_po::BorrowedPoFile<'_>, ferrocat_po::ParseError>
+pub fn ferrocat_po::parse_po_bytes(&[u8]) -> core::result::Result<ferrocat_po::PoFile, ferrocat_po::ParseError>
+pub fn ferrocat_po::pseudolocalize_compiled_catalog_artifact(&ferrocat_po::CompiledCatalogArtifact, &ferrocat_icu::pseudolocalization::IcuPseudolocalizationOptions<'_>) -> core::result::Result<ferrocat_po::CompiledCatalogArtifact, ferrocat_po::ApiError>
+pub fn ferrocat_po::pseudolocalize_compiled_catalog_artifact_with_syntax_policy(&ferrocat_po::CompiledCatalogArtifact, &ferrocat_icu::pseudolocalization::IcuPseudolocalizationOptions<'_>, ferrocat_po::IcuSyntaxPolicy) -> core::result::Result<ferrocat_po::CompiledCatalogArtifact, ferrocat_po::ApiError>
+pub fn ferrocat_po::review_catalogs(&[&ferrocat_po::NormalizedParsedCatalog], &[&ferrocat_po::NormalizedParsedCatalog], &ferrocat_po::CatalogReviewOptions<'_>) -> core::result::Result<ferrocat_po::CatalogReviewReport, ferrocat_po::ApiError>
+pub fn ferrocat_po::stringify_po(&ferrocat_po::PoFile, &ferrocat_po::SerializeOptions) -> alloc::string::String
+pub fn ferrocat_po::unescape_string(&str) -> core::result::Result<alloc::string::String, ferrocat_po::ParseError>
+pub fn ferrocat_po::update_catalog(ferrocat_po::UpdateCatalogOptions<'_>) -> core::result::Result<ferrocat_po::CatalogUpdateResult, ferrocat_po::ApiError>
+pub fn ferrocat_po::update_catalog_file(ferrocat_po::UpdateCatalogFileOptions<'_>) -> core::result::Result<ferrocat_po::CatalogUpdateResult, ferrocat_po::ApiError>
+pub type ferrocat_po::IcuFormatterSupportPolicy = fn(&ferrocat_icu::analysis::IcuFormatter) -> ferrocat_icu::analysis::IcuFormatterSupport

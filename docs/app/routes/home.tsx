@@ -204,8 +204,7 @@ const positioning = [
 ]
 
 const proof = [
-  { value: "60", label: "conformance cases", detail: "derived from upstream gettext" },
-  { value: "454", label: "assertions", detail: "checked by the harness" },
+  { value: "60+", label: "conformance cases", detail: "derived from upstream gettext" },
   { value: "95%+", label: "library coverage gate", detail: "for the main catalog crates" },
 ]
 
@@ -464,7 +463,7 @@ export default function HomePage() {
           still leads it ~3x; the unforked original sits about 220x back. The
           parse chart uses
           borrowed, zero-copy parsing; reading into a fully owned model still
-          reaches 362 MiB/s. Serialization runs at about 1.16 GiB/s on the same
+          reaches about 360 MiB/s. Serialization runs at about 1.2 GiB/s on the same
           corpus. Median throughput on an Apple M1 Ultra, every tool reading
           the same files (pofile-ts 4.0.3, gettext-parser 9.0.2, polib 1.2.0,
           gettext/gettext 5.7.3, GNU gettext 1.0).{" "}
