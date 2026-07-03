@@ -168,7 +168,7 @@ find a stable named container, emit the file alone and leave `scope` empty.
 | Compile a normalized catalog into runtime lookup entries | `NormalizedParsedCatalog::compile` |
 | Compile a requested-locale runtime artifact with fallbacks and missing reports | `compile_catalog_artifact` |
 | Compile only a selected subset of compiled runtime IDs | `compile_catalog_artifact_selected` |
-| Pseudolocalize final runtime artifacts for UI/layout QA | `pseudolocalize_compiled_catalog_artifact`, `pseudolocalize_compiled_catalog_artifact_with_syntax_policy` |
+| Pseudolocalize final runtime artifacts for UI/layout QA | `pseudolocalize_compiled_catalog_artifact` |
 | Compile a runtime artifact with a sibling resolution-provenance report | `compile_catalog_artifact_report` |
 | Perform a full in-memory catalog update | `update_catalog` |
 | Perform a full catalog update and write the result to disk only when changed | `update_catalog_file` |
@@ -412,8 +412,8 @@ Default checks cover:
 - semantic metadata duplication, unknown source keys, and source conflicts
 
 ICU syntax checks use `IcuSyntaxPolicy::Strict` by default. Hosts whose runtime
-accepts ordinary literal apostrophes in messages can call
-`audit_catalogs_with_icu_options` with `CatalogAuditIcuOptions` set to
+accepts ordinary literal apostrophes in messages can set
+`CatalogAuditOptions::with_icu_options` with `CatalogAuditIcuOptions` set to
 `IcuSyntaxPolicy::RuntimeLiteralApostrophes`; this keeps real ICU syntax errors
 visible while accepting runtime-valid strings such as `you're available`.
 
@@ -485,7 +485,10 @@ I/O, parse, or serialization failures. Use `--format json` to write the
 structured `CatalogAuditReport`.
 
 Use `ferrocat_po::diagnostic_codes` when CI, editor integrations, or release
-gates need canonical code strings without hard-coding literals:
+gates need canonical code strings without hard-coding literals. Diagnostic
+report fields use the `DiagnosticCode` newtype, but JSON reports still encode
+codes as plain strings and Rust callers can compare codes directly to canonical
+string constants:
 
 ```rust
 use ferrocat_po::{CatalogAuditOptions, audit_catalogs, diagnostic_codes};
@@ -672,8 +675,7 @@ Important semantics:
 - invalid final ICU strings become diagnostics by default and can become hard errors in strict mode
 - source/translation ICU compatibility diagnostics are opt-in with `icu_compatibility`
 - final ICU syntax and compatibility parsing use `IcuSyntaxPolicy::Strict` by
-  default; use `compile_catalog_artifact_with_icu_options` or
-  `compile_catalog_artifact_selected_with_icu_options` with
+  default; set `CompileCatalogArtifactOptions::with_icu_options` with
   `CompileCatalogArtifactIcuOptions` set to
   `IcuSyntaxPolicy::RuntimeLiteralApostrophes` when the runtime accepts ordinary
   literal apostrophes
@@ -687,7 +689,7 @@ Use `pseudolocalize_compiled_catalog_artifact` when a host wants a pseudo-locale
 variant of the final runtime artifact. It transforms only ICU literal text in
 the artifact `messages` map and preserves placeholders, formatter syntax,
 plural selectors, `#`, tag names, missing-message records, and diagnostics.
-Use `pseudolocalize_compiled_catalog_artifact_with_syntax_policy` when the
+Use `CompiledCatalogPseudolocalizationOptions::with_syntax_policy` when the
 artifact was compiled with a non-default ICU syntax policy such as
 `IcuSyntaxPolicy::RuntimeLiteralApostrophes`; pass the same policy so
 pseudolocalization accepts the same final runtime strings as compilation.
@@ -956,6 +958,9 @@ collect the same diagnostics while compiling the final locale artifact.
 The `ferrocat_icu::diagnostic_codes::icu` constants expose the canonical code
 strings for direct ICU checks, while `ferrocat_po::diagnostic_codes::icu`
 contains the same compatibility strings plus catalog-level ICU syntax codes.
+Both crates expose a `DiagnosticCode` newtype for report fields; serialized
+reports continue to use the canonical string spellings so existing JSON
+consumers do not need a schema change.
 
 ### `validate_icu_formatter_support`
 

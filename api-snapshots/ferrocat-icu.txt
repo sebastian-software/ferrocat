@@ -29,6 +29,25 @@ pub const ferrocat_icu::diagnostic_codes::metadata::MISSING_SELECTOR_CASE: &str
 pub const ferrocat_icu::diagnostic_codes::metadata::MISSING_TAG: &str
 pub const ferrocat_icu::diagnostic_codes::metadata::SELECTOR_KIND_MISMATCH: &str
 pub const ferrocat_icu::diagnostic_codes::metadata::SELECTOR_OFFSET_MISMATCH: &str
+pub struct ferrocat_icu::diagnostic_codes::DiagnosticCode(_)
+impl ferrocat_icu::diagnostic_codes::DiagnosticCode
+pub fn ferrocat_icu::diagnostic_codes::DiagnosticCode::as_str(&self) -> &str
+pub fn ferrocat_icu::diagnostic_codes::DiagnosticCode::new(impl core::convert::Into<alloc::string::String>) -> Self
+impl core::cmp::PartialEq<&str> for ferrocat_icu::diagnostic_codes::DiagnosticCode
+pub fn ferrocat_icu::diagnostic_codes::DiagnosticCode::eq(&self, &&str) -> bool
+impl core::cmp::PartialEq<ferrocat_icu::diagnostic_codes::DiagnosticCode> for &str
+pub fn &str::eq(&self, &ferrocat_icu::diagnostic_codes::DiagnosticCode) -> bool
+impl core::convert::AsRef<str> for ferrocat_icu::diagnostic_codes::DiagnosticCode
+pub fn ferrocat_icu::diagnostic_codes::DiagnosticCode::as_ref(&self) -> &str
+impl core::convert::From<&str> for ferrocat_icu::diagnostic_codes::DiagnosticCode
+pub fn ferrocat_icu::diagnostic_codes::DiagnosticCode::from(&str) -> Self
+impl core::convert::From<alloc::string::String> for ferrocat_icu::diagnostic_codes::DiagnosticCode
+pub fn ferrocat_icu::diagnostic_codes::DiagnosticCode::from(alloc::string::String) -> Self
+impl core::fmt::Display for ferrocat_icu::diagnostic_codes::DiagnosticCode
+pub fn ferrocat_icu::diagnostic_codes::DiagnosticCode::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::ops::deref::Deref for ferrocat_icu::diagnostic_codes::DiagnosticCode
+pub type ferrocat_icu::diagnostic_codes::DiagnosticCode::Target = str
+pub fn ferrocat_icu::diagnostic_codes::DiagnosticCode::deref(&self) -> &Self::Target
 #[non_exhaustive] pub enum ferrocat_icu::IcuArgumentKind
 pub ferrocat_icu::IcuArgumentKind::Ago
 pub ferrocat_icu::IcuArgumentKind::Argument
@@ -131,6 +150,25 @@ pub enum ferrocat_icu::MessageSelectorKind
 pub ferrocat_icu::MessageSelectorKind::Plural
 pub ferrocat_icu::MessageSelectorKind::Select
 pub ferrocat_icu::MessageSelectorKind::SelectOrdinal
+pub struct ferrocat_icu::DiagnosticCode(_)
+impl ferrocat_icu::diagnostic_codes::DiagnosticCode
+pub fn ferrocat_icu::diagnostic_codes::DiagnosticCode::as_str(&self) -> &str
+pub fn ferrocat_icu::diagnostic_codes::DiagnosticCode::new(impl core::convert::Into<alloc::string::String>) -> Self
+impl core::cmp::PartialEq<&str> for ferrocat_icu::diagnostic_codes::DiagnosticCode
+pub fn ferrocat_icu::diagnostic_codes::DiagnosticCode::eq(&self, &&str) -> bool
+impl core::cmp::PartialEq<ferrocat_icu::diagnostic_codes::DiagnosticCode> for &str
+pub fn &str::eq(&self, &ferrocat_icu::diagnostic_codes::DiagnosticCode) -> bool
+impl core::convert::AsRef<str> for ferrocat_icu::diagnostic_codes::DiagnosticCode
+pub fn ferrocat_icu::diagnostic_codes::DiagnosticCode::as_ref(&self) -> &str
+impl core::convert::From<&str> for ferrocat_icu::diagnostic_codes::DiagnosticCode
+pub fn ferrocat_icu::diagnostic_codes::DiagnosticCode::from(&str) -> Self
+impl core::convert::From<alloc::string::String> for ferrocat_icu::diagnostic_codes::DiagnosticCode
+pub fn ferrocat_icu::diagnostic_codes::DiagnosticCode::from(alloc::string::String) -> Self
+impl core::fmt::Display for ferrocat_icu::diagnostic_codes::DiagnosticCode
+pub fn ferrocat_icu::diagnostic_codes::DiagnosticCode::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::ops::deref::Deref for ferrocat_icu::diagnostic_codes::DiagnosticCode
+pub type ferrocat_icu::diagnostic_codes::DiagnosticCode::Target = str
+pub fn ferrocat_icu::diagnostic_codes::DiagnosticCode::deref(&self) -> &Self::Target
 pub struct ferrocat_icu::IcuAnalysis
 pub ferrocat_icu::IcuAnalysis::arguments: alloc::vec::Vec<ferrocat_icu::IcuArgument>
 pub ferrocat_icu::IcuAnalysis::formatters: alloc::vec::Vec<ferrocat_icu::IcuFormatter>
@@ -157,7 +195,7 @@ pub ferrocat_icu::IcuCompatibilityReport::diagnostics: alloc::vec::Vec<ferrocat_
 impl ferrocat_icu::IcuCompatibilityReport
 pub fn ferrocat_icu::IcuCompatibilityReport::has_errors(&self) -> bool
 pub struct ferrocat_icu::IcuDiagnostic
-pub ferrocat_icu::IcuDiagnostic::code: alloc::string::String
+pub ferrocat_icu::IcuDiagnostic::code: ferrocat_icu::diagnostic_codes::DiagnosticCode
 pub ferrocat_icu::IcuDiagnostic::message: alloc::string::String
 pub ferrocat_icu::IcuDiagnostic::name: core::option::Option<alloc::string::String>
 pub ferrocat_icu::IcuDiagnostic::severity: ferrocat_icu::IcuDiagnosticSeverity
@@ -235,7 +273,7 @@ pub ferrocat_icu::MessageMetadata::origin: alloc::vec::Vec<ferrocat_icu::Message
 pub ferrocat_icu::MessageMetadata::selectors: alloc::collections::btree::map::BTreeMap<alloc::string::String, ferrocat_icu::MessageSelectorMetadata>
 pub ferrocat_icu::MessageMetadata::tags: alloc::vec::Vec<alloc::string::String>
 pub struct ferrocat_icu::MessageMetadataDiagnostic
-pub ferrocat_icu::MessageMetadataDiagnostic::code: alloc::string::String
+pub ferrocat_icu::MessageMetadataDiagnostic::code: ferrocat_icu::diagnostic_codes::DiagnosticCode
 pub ferrocat_icu::MessageMetadataDiagnostic::message: alloc::string::String
 pub ferrocat_icu::MessageMetadataDiagnostic::name: core::option::Option<alloc::string::String>
 pub ferrocat_icu::MessageMetadataDiagnostic::severity: ferrocat_icu::IcuDiagnosticSeverity

@@ -4,7 +4,7 @@ use std::fmt;
 use std::hash::{Hash, Hasher};
 use std::path::{Path, PathBuf};
 
-use crate::{ParseError, PoVec};
+use crate::{ParseError, PoVec, diagnostic_codes::DiagnosticCode};
 
 use super::mt::MachineMetadata;
 use super::plural::PluralProfile;
@@ -327,7 +327,7 @@ pub struct Diagnostic {
     /// Severity level for the diagnostic.
     pub severity: DiagnosticSeverity,
     /// Stable machine-readable code for the diagnostic.
-    pub code: String,
+    pub code: DiagnosticCode,
     /// Human-readable explanation of the condition.
     pub message: String,
     /// Source `msgid`, when the diagnostic can be tied to one message.
@@ -339,7 +339,7 @@ pub struct Diagnostic {
 impl Diagnostic {
     pub(super) fn new(
         severity: DiagnosticSeverity,
-        code: impl Into<String>,
+        code: impl Into<DiagnosticCode>,
         message: impl Into<String>,
     ) -> Self {
         Self {

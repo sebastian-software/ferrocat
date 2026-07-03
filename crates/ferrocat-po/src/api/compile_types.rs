@@ -1,6 +1,9 @@
 use std::collections::BTreeMap;
+use std::ptr;
 
 use ferrocat_icu::{IcuFormatter, IcuFormatterSupport};
+
+use crate::diagnostic_codes::DiagnosticCode;
 
 use super::{
     ApiError, CatalogMessageKey, CatalogSemantics, IcuSyntaxPolicy, NormalizedParsedCatalog,
@@ -137,6 +140,8 @@ pub struct CompileCatalogArtifactOptions<'a> {
     pub icu_compatibility: bool,
     /// High-level semantics used by the input catalog set.
     pub semantics: CatalogSemantics,
+    /// ICU-specific options used while validating final runtime messages.
+    pub icu_options: CompileCatalogArtifactIcuOptions,
 }
 
 impl<'a> CompileCatalogArtifactOptions<'a> {
@@ -156,6 +161,7 @@ impl<'a> CompileCatalogArtifactOptions<'a> {
             strict_icu: false,
             icu_compatibility: false,
             semantics: CatalogSemantics::IcuNative,
+            icu_options: CompileCatalogArtifactIcuOptions::new(),
         }
     }
 
@@ -214,6 +220,13 @@ impl<'a> CompileCatalogArtifactOptions<'a> {
         self.semantics = semantics;
         self
     }
+
+    /// Returns options that use the given ICU parser and formatter-support settings.
+    #[must_use]
+    pub fn with_icu_options(mut self, icu_options: CompileCatalogArtifactIcuOptions) -> Self {
+        self.icu_options = icu_options;
+        self
+    }
 }
 
 /// ICU-specific options used while compiling catalog artifacts.
@@ -225,6 +238,19 @@ pub struct CompileCatalogArtifactIcuOptions {
     /// Optional runtime support policy for ICU formatter kinds and styles.
     pub formatter_support: Option<IcuFormatterSupportPolicy>,
 }
+
+impl PartialEq for CompileCatalogArtifactIcuOptions {
+    fn eq(&self, other: &Self) -> bool {
+        self.syntax_policy == other.syntax_policy
+            && match (self.formatter_support, other.formatter_support) {
+                (Some(left), Some(right)) => ptr::fn_addr_eq(left, right),
+                (None, None) => true,
+                _ => false,
+            }
+    }
+}
+
+impl Eq for CompileCatalogArtifactIcuOptions {}
 
 impl CompileCatalogArtifactIcuOptions {
     /// Creates artifact ICU options with default strict parser behavior.
@@ -791,7 +817,7 @@ pub struct CompiledCatalogDiagnostic {
     /// Severity for the collected diagnostic.
     pub severity: super::DiagnosticSeverity,
     /// Stable machine-readable diagnostic code.
-    pub code: String,
+    pub code: DiagnosticCode,
     /// Human-readable explanation of the problem.
     pub message: String,
     /// Stable runtime key derived from the source identity.
@@ -927,7 +953,7 @@ mod tests {
             }],
             diagnostics: vec![CompiledCatalogDiagnostic {
                 severity: DiagnosticSeverity::Warning,
-                code: "icu.syntax".to_owned(),
+                code: "icu.syntax".into(),
                 message: "invalid ICU message".to_owned(),
                 key: "runtime-key".to_owned(),
                 msgid: "Hello".to_owned(),

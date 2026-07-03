@@ -5,7 +5,9 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     IcuAnalysis, IcuArgumentKind, IcuDiagnosticSeverity, IcuParseError, IcuPluralKind,
-    IcuStyleKind, analyze_icu, diagnostic_codes, parse_icu,
+    IcuStyleKind, analyze_icu,
+    diagnostic_codes::{self, DiagnosticCode},
+    parse_icu,
 };
 
 /// Authoring input for semantic message metadata.
@@ -330,7 +332,7 @@ pub struct MessageMetadataDiagnostic {
     /// Severity for the diagnostic.
     pub severity: IcuDiagnosticSeverity,
     /// Stable machine-readable diagnostic code.
-    pub code: String,
+    pub code: DiagnosticCode,
     /// Human-readable explanation of the condition.
     pub message: String,
     /// Argument, selector, tag, or field name associated with the diagnostic.
@@ -340,13 +342,13 @@ pub struct MessageMetadataDiagnostic {
 impl MessageMetadataDiagnostic {
     fn new(
         severity: IcuDiagnosticSeverity,
-        code: &'static str,
+        code: impl Into<DiagnosticCode>,
         message: impl Into<String>,
         name: impl Into<Option<String>>,
     ) -> Self {
         Self {
             severity,
-            code: code.to_owned(),
+            code: code.into(),
             message: message.into(),
             name: name.into(),
         }

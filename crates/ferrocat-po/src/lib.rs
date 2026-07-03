@@ -128,26 +128,24 @@ pub use api::{
     CompileCatalogOptions, CompileSelectedCatalogArtifactOptions, CompiledCatalog,
     CompiledCatalogArtifact, CompiledCatalogArtifactReport, CompiledCatalogDiagnostic,
     CompiledCatalogIdDescription, CompiledCatalogIdIndex, CompiledCatalogMissingMessage,
-    CompiledCatalogProvenanceReport, CompiledCatalogResolution, CompiledCatalogResolutionKind,
-    CompiledCatalogTranslationKind, CompiledCatalogUnavailableId, CompiledKeyStrategy,
-    CompiledMessage, CompiledTranslation, DescribeCompiledIdsReport, Diagnostic,
-    DiagnosticSeverity, EffectiveTranslation, EffectiveTranslationRef, ExtractedMessage,
-    ExtractedPluralMessage, ExtractedSingularMessage, IcuFormatterSupportPolicy,
-    IcuPseudolocalizationOptions, IcuSyntaxPolicy, MachineMetadata, NormalizedParsedCatalog,
-    ObsoleteInfo, ObsoleteStrategy, OrderBy, ParseCatalogOptions, ParsedCatalog,
-    PlaceholderCommentMode, PluralEncoding, PluralSource, RenderOptions, SourceExtractedMessage,
-    TranslationShape, UpdateCatalogFileOptions, UpdateCatalogOptions, audit_catalogs,
-    audit_catalogs_with_icu_options, combine_catalog_files, combine_catalogs,
-    compile_catalog_artifact, compile_catalog_artifact_report, compile_catalog_artifact_selected,
-    compile_catalog_artifact_selected_with_icu_options, compile_catalog_artifact_with_icu_options,
-    compiled_key, machine_translation_hash, measure_catalog_coverage, parse_catalog,
-    pseudolocalize_compiled_catalog_artifact,
-    pseudolocalize_compiled_catalog_artifact_with_syntax_policy, review_catalogs, update_catalog,
-    update_catalog_file,
+    CompiledCatalogProvenanceReport, CompiledCatalogPseudolocalizationOptions,
+    CompiledCatalogResolution, CompiledCatalogResolutionKind, CompiledCatalogTranslationKind,
+    CompiledCatalogUnavailableId, CompiledKeyStrategy, CompiledMessage, CompiledTranslation,
+    DescribeCompiledIdsReport, Diagnostic, DiagnosticSeverity, EffectiveTranslation,
+    EffectiveTranslationRef, ExtractedMessage, ExtractedPluralMessage, ExtractedSingularMessage,
+    IcuFormatterSupportPolicy, IcuPseudolocalizationOptions, IcuSyntaxPolicy, MachineMetadata,
+    NormalizedParsedCatalog, ObsoleteInfo, ObsoleteStrategy, OrderBy, ParseCatalogOptions,
+    ParsedCatalog, PlaceholderCommentMode, PluralEncoding, PluralSource, RenderOptions,
+    SourceExtractedMessage, TranslationShape, UpdateCatalogFileOptions, UpdateCatalogOptions,
+    audit_catalogs, combine_catalog_files, combine_catalogs, compile_catalog_artifact,
+    compile_catalog_artifact_report, compile_catalog_artifact_selected, compiled_key,
+    machine_translation_hash, measure_catalog_coverage, parse_catalog,
+    pseudolocalize_compiled_catalog_artifact, review_catalogs, update_catalog, update_catalog_file,
 };
 pub use borrowed::{
     BorrowedHeader, BorrowedMsgStr, BorrowedPoFile, BorrowedPoItem, parse_po_borrowed,
 };
+pub use diagnostic_codes::DiagnosticCode;
 pub use merge::{MergeMessageInput, merge_catalog};
 pub use parse::{parse_po, parse_po_bytes};
 pub use serialize::stringify_po;
