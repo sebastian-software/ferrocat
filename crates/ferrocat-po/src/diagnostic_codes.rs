@@ -258,3 +258,20 @@ pub mod metadata {
         SELECTOR_OFFSET_MISMATCH,
     ];
 }
+
+#[cfg(test)]
+mod tests {
+    use super::DiagnosticCode;
+
+    #[test]
+    fn diagnostic_code_preserves_canonical_string_access() {
+        let code = DiagnosticCode::from(String::from("catalog.missing_translation"));
+
+        assert_eq!(code.as_str(), "catalog.missing_translation");
+        assert_eq!(code.as_ref(), "catalog.missing_translation");
+        assert_eq!(&*code, "catalog.missing_translation");
+        assert_eq!(code.to_string(), "catalog.missing_translation");
+        assert_eq!(code, "catalog.missing_translation");
+        assert_eq!("catalog.missing_translation", code);
+    }
+}
