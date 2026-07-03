@@ -55,32 +55,32 @@
       "published": 20,
       "tolerance": 2,
       "locations": [
-        { "file": "README.md", "contains": "| Parse | **455 MiB/s** | 145 | 49 | 20" },
+        { "file": "README.md", "contains": "| Parse | **455 MiB/s** | 145 | 49 | - | 20" },
         { "file": "docs/app/routes/home.tsx", "contains": "rate: 20" }
       ]
     },
     {
       "id": "readme.update.ferrocat",
-      "report": "benchmark/results/gettext-workflows-ecosystem-v1-8a7dd9c.json",
+      "report": "benchmark/results/gettext-workflows-ecosystem-v1-255727f.json",
       "scenario": "po-merge/gettext-ui-de-10000/ferrocat",
       "metric": "statistics.median_mib_per_sec",
-      "published": 245,
-      "tolerance": 2,
+      "published": 265,
+      "tolerance": 3,
       "locations": [
-        { "file": "README.md", "contains": "| Update with new strings | **245 MiB/s**" },
-        { "file": "docs/app/routes/home.tsx", "contains": "rate: 245" }
+        { "file": "README.md", "contains": "| Update with new strings | **265 MiB/s**" },
+        { "file": "docs/app/routes/home.tsx", "contains": "rate: 265" }
       ]
     },
     {
       "id": "readme.update.pofile-ts",
-      "report": "benchmark/results/gettext-workflows-ecosystem-v1-8a7dd9c.json",
+      "report": "benchmark/results/gettext-workflows-ecosystem-v1-255727f.json",
       "scenario": "po-merge/gettext-ui-de-10000/pofile-ts",
       "metric": "statistics.median_mib_per_sec",
-      "published": 39,
+      "published": 43,
       "tolerance": 2,
       "locations": [
-        { "file": "README.md", "contains": "| Update with new strings | **245 MiB/s** | 39" },
-        { "file": "docs/app/routes/home.tsx", "contains": "rate: 39" }
+        { "file": "README.md", "contains": "| Update with new strings | **265 MiB/s** | 43" },
+        { "file": "docs/app/routes/home.tsx", "contains": "rate: 43" }
       ]
     },
     {
@@ -91,44 +91,89 @@
       "published": 16,
       "tolerance": 2,
       "locations": [
-        { "file": "README.md", "contains": "| Update with new strings | **245 MiB/s** | 39 | 16" },
+        { "file": "README.md", "contains": "| Update with new strings | **265 MiB/s** | 43 | 16" },
         { "file": "docs/app/routes/home.tsx", "contains": "rate: 16" }
       ]
     },
     {
       "id": "readme.update.polib",
-      "report": "benchmark/results/gettext-workflows-ecosystem-v1-8a7dd9c.json",
+      "report": "benchmark/results/gettext-workflows-ecosystem-v1-255727f.json",
       "scenario": "po-merge/gettext-ui-de-10000/polib",
       "metric": "statistics.median_mib_per_sec",
-      "published": 7,
-      "tolerance": 1,
+      "published": 7.2,
+      "tolerance": 0.4,
       "locations": [
-        { "file": "README.md", "contains": "| Update with new strings | **245 MiB/s** | 39 | 16 | 7" },
-        { "file": "docs/app/routes/home.tsx", "contains": "rate: 7" }
+        { "file": "README.md", "contains": "| Update with new strings | **265 MiB/s** | 43 | 16 | - | 7.2" },
+        { "file": "docs/app/routes/home.tsx", "contains": "rate: 7.2" }
       ]
     },
     {
       "id": "readme.update.msgmerge",
-      "report": "benchmark/results/gettext-workflows-ecosystem-v1-8a7dd9c.json",
+      "report": "benchmark/results/gettext-workflows-ecosystem-v1-255727f.json",
       "scenario": "po-merge/gettext-ui-de-10000/msgmerge",
       "metric": "statistics.median_adjusted_mib_per_sec",
-      "published": 4.5,
+      "published": 4.7,
       "tolerance": 0.2,
       "locations": [
-        { "file": "README.md", "contains": "| Update with new strings | **245 MiB/s** | 39 | 16 | 7 | 4.5 |" },
-        { "file": "docs/app/routes/home.tsx", "contains": "rate: 4.5" }
+        { "file": "README.md", "contains": "| Update with new strings | **265 MiB/s** | 43 | 16 | - | 7.2 | 4.7 |" },
+        { "file": "docs/app/routes/home.tsx", "contains": "rate: 4.7" }
       ]
     },
     {
       "id": "readme.full-update.ferrocat",
-      "report": "benchmark/results/gettext-workflows-ecosystem-v1-8a7dd9c.json",
+      "report": "benchmark/results/gettext-workflows-ecosystem-v1-255727f.json",
       "scenario": "po-update/gettext-ui-de-10000/ferrocat",
       "metric": "statistics.median_mib_per_sec",
-      "published": 88,
+      "published": 108,
+      "tolerance": 3,
+      "locations": [
+        { "file": "README.md", "contains": "| Full catalog update | **108 MiB/s**" },
+        { "file": "docs/app/routes/home.tsx", "contains": "rate: 108" }
+      ]
+    },
+    {
+      "id": "readme.full-update.pofile-ts",
+      "report": "benchmark/results/gettext-workflows-ecosystem-v1-255727f.json",
+      "scenario": "po-update/gettext-ui-de-10000/pofile-ts",
+      "metric": "statistics.median_mib_per_sec",
+      "published": 42,
       "tolerance": 2,
       "locations": [
-        { "file": "README.md", "contains": "| Full catalog update | **88 MiB/s**" },
-        { "file": "docs/app/routes/home.tsx", "contains": "rate: 88" }
+        { "file": "README.md", "contains": "| Full catalog update | **108 MiB/s** | 42" }
+      ]
+    },
+    {
+      "id": "readme.full-update.babel",
+      "report": "benchmark/results/gettext-workflows-ecosystem-v1-255727f.json",
+      "scenario": "po-update/gettext-ui-de-10000/babel",
+      "metric": "statistics.median_mib_per_sec",
+      "published": 8.0,
+      "tolerance": 0.4,
+      "locations": [
+        { "file": "README.md", "contains": "| Full catalog update | **108 MiB/s** | 42 | - | 8.0" },
+        { "file": "docs/app/routes/home.tsx", "contains": "rate: 8" }
+      ]
+    },
+    {
+      "id": "readme.full-update.polib",
+      "report": "benchmark/results/gettext-workflows-ecosystem-v1-255727f.json",
+      "scenario": "po-update/gettext-ui-de-10000/polib",
+      "metric": "statistics.median_mib_per_sec",
+      "published": 7.2,
+      "tolerance": 0.4,
+      "locations": [
+        { "file": "README.md", "contains": "| Full catalog update | **108 MiB/s** | 42 | - | 8.0 | 7.2" }
+      ]
+    },
+    {
+      "id": "readme.full-update.msgmerge",
+      "report": "benchmark/results/gettext-workflows-ecosystem-v1-255727f.json",
+      "scenario": "po-update/gettext-ui-de-10000/msgmerge",
+      "metric": "statistics.median_adjusted_mib_per_sec",
+      "published": 4.6,
+      "tolerance": 0.2,
+      "locations": [
+        { "file": "README.md", "contains": "| Full catalog update | **108 MiB/s** | 42 | - | 8.0 | 7.2 | 4.6 |" }
       ]
     }
   ],
