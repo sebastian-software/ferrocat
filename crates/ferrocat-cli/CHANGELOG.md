@@ -1,5 +1,19 @@
 # Changelog
 
+## [2.1.1](https://github.com/sebastian-software/ferrocat/compare/ferrocat-cli-v2.1.0...ferrocat-cli-v2.1.1) (2026-07-03)
+
+
+### Miscellaneous Chores
+
+* **ferrocat-cli:** Synchronize ferrocat versions
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * ferrocat-po bumped from 2.1.0 to 2.1.1
+
 ## [2.1.0](https://github.com/sebastian-software/ferrocat/compare/ferrocat-cli-v2.0.0...ferrocat-cli-v2.1.0) (2026-07-02)
 
 

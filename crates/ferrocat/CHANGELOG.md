@@ -1,5 +1,20 @@
 # Changelog
 
+## [2.1.1](https://github.com/sebastian-software/ferrocat/compare/ferrocat-v2.1.0...ferrocat-v2.1.1) (2026-07-03)
+
+
+### Bug Fixes
+
+* **api:** address consolidation review feedback ([bc183e3](https://github.com/sebastian-software/ferrocat/commit/bc183e3379422b5193b32dc717919b5208679cc8))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * ferrocat-icu bumped from 2.1.0 to 2.1.1
+    * ferrocat-po bumped from 2.1.0 to 2.1.1
+
 ## [2.1.0](https://github.com/sebastian-software/ferrocat/compare/ferrocat-v2.0.0...ferrocat-v2.1.0) (2026-07-02)
 
 ### ⚠ BREAKING CLEANUPS
