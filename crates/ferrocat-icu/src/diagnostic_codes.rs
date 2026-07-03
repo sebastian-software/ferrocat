@@ -5,6 +5,9 @@
 //! CI, editor integrations, and build tooling can match these constants instead
 //! of parsing human-readable diagnostic messages.
 
+// This block has a feature-gated fallback copy in
+// crates/ferrocat-po/src/diagnostic_codes.rs; a test there keeps both in sync.
+// sync(diagnostic-code-type): begin
 use std::fmt;
 use std::ops::Deref;
 
@@ -78,6 +81,7 @@ impl PartialEq<DiagnosticCode> for &str {
         *self == other.as_str()
     }
 }
+// sync(diagnostic-code-type): end
 
 /// ICU compatibility diagnostic codes.
 pub mod icu {
