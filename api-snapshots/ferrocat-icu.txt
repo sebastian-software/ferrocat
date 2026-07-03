@@ -1,0 +1,284 @@
+pub mod ferrocat_icu
+pub mod ferrocat_icu::diagnostic_codes
+pub mod ferrocat_icu::diagnostic_codes::icu
+pub const ferrocat_icu::diagnostic_codes::icu::ALL: &[&str]
+pub const ferrocat_icu::diagnostic_codes::icu::ARGUMENT_KIND_CHANGED: &str
+pub const ferrocat_icu::diagnostic_codes::icu::EXTRA_ARGUMENT: &str
+pub const ferrocat_icu::diagnostic_codes::icu::EXTRA_SELECT_SELECTOR: &str
+pub const ferrocat_icu::diagnostic_codes::icu::EXTRA_TAG: &str
+pub const ferrocat_icu::diagnostic_codes::icu::FORMATTER_STYLE_CHANGED: &str
+pub const ferrocat_icu::diagnostic_codes::icu::MISSING_ARGUMENT: &str
+pub const ferrocat_icu::diagnostic_codes::icu::MISSING_PLURAL_SELECTOR: &str
+pub const ferrocat_icu::diagnostic_codes::icu::MISSING_SELECT_SELECTOR: &str
+pub const ferrocat_icu::diagnostic_codes::icu::MISSING_TAG: &str
+pub const ferrocat_icu::diagnostic_codes::icu::PATTERN_STYLE_DISCOURAGED: &str
+pub const ferrocat_icu::diagnostic_codes::icu::PLURAL_OFFSET_CHANGED: &str
+pub const ferrocat_icu::diagnostic_codes::icu::UNSUPPORTED_FORMATTER_KIND: &str
+pub const ferrocat_icu::diagnostic_codes::icu::UNSUPPORTED_FORMATTER_STYLE: &str
+pub mod ferrocat_icu::diagnostic_codes::metadata
+pub const ferrocat_icu::diagnostic_codes::metadata::ALL: &[&str]
+pub const ferrocat_icu::diagnostic_codes::metadata::ARGUMENT_KIND_MISMATCH: &str
+pub const ferrocat_icu::diagnostic_codes::metadata::EXTRA_ARGUMENT: &str
+pub const ferrocat_icu::diagnostic_codes::metadata::EXTRA_SELECTOR: &str
+pub const ferrocat_icu::diagnostic_codes::metadata::EXTRA_SELECTOR_CASE: &str
+pub const ferrocat_icu::diagnostic_codes::metadata::EXTRA_TAG: &str
+pub const ferrocat_icu::diagnostic_codes::metadata::INVALID_MSGID: &str
+pub const ferrocat_icu::diagnostic_codes::metadata::MISSING_ARGUMENT: &str
+pub const ferrocat_icu::diagnostic_codes::metadata::MISSING_SELECTOR: &str
+pub const ferrocat_icu::diagnostic_codes::metadata::MISSING_SELECTOR_CASE: &str
+pub const ferrocat_icu::diagnostic_codes::metadata::MISSING_TAG: &str
+pub const ferrocat_icu::diagnostic_codes::metadata::SELECTOR_KIND_MISMATCH: &str
+pub const ferrocat_icu::diagnostic_codes::metadata::SELECTOR_OFFSET_MISMATCH: &str
+#[non_exhaustive] pub enum ferrocat_icu::IcuArgumentKind
+pub ferrocat_icu::IcuArgumentKind::Ago
+pub ferrocat_icu::IcuArgumentKind::Argument
+pub ferrocat_icu::IcuArgumentKind::Date
+pub ferrocat_icu::IcuArgumentKind::Duration
+pub ferrocat_icu::IcuArgumentKind::List
+pub ferrocat_icu::IcuArgumentKind::Name
+pub ferrocat_icu::IcuArgumentKind::Number
+pub ferrocat_icu::IcuArgumentKind::Plural
+pub ferrocat_icu::IcuArgumentKind::Select
+pub ferrocat_icu::IcuArgumentKind::SelectOrdinal
+pub ferrocat_icu::IcuArgumentKind::Time
+impl core::fmt::Display for ferrocat_icu::IcuArgumentKind
+pub fn ferrocat_icu::IcuArgumentKind::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+pub enum ferrocat_icu::IcuDiagnosticSeverity
+pub ferrocat_icu::IcuDiagnosticSeverity::Error
+pub ferrocat_icu::IcuDiagnosticSeverity::Info
+pub ferrocat_icu::IcuDiagnosticSeverity::Warning
+#[non_exhaustive] pub enum ferrocat_icu::IcuErrorKind
+pub ferrocat_icu::IcuErrorKind::SyntaxError
+#[non_exhaustive] pub enum ferrocat_icu::IcuFormatterSupport
+pub ferrocat_icu::IcuFormatterSupport::Supported
+pub ferrocat_icu::IcuFormatterSupport::UnsupportedKind
+pub ferrocat_icu::IcuFormatterSupport::UnsupportedKind::severity: ferrocat_icu::IcuDiagnosticSeverity
+pub ferrocat_icu::IcuFormatterSupport::UnsupportedStyle
+pub ferrocat_icu::IcuFormatterSupport::UnsupportedStyle::severity: ferrocat_icu::IcuDiagnosticSeverity
+#[non_exhaustive] pub enum ferrocat_icu::IcuNode
+pub ferrocat_icu::IcuNode::Ago
+pub ferrocat_icu::IcuNode::Ago::name: alloc::string::String
+pub ferrocat_icu::IcuNode::Ago::style: core::option::Option<alloc::string::String>
+pub ferrocat_icu::IcuNode::Argument
+pub ferrocat_icu::IcuNode::Argument::name: alloc::string::String
+pub ferrocat_icu::IcuNode::Date
+pub ferrocat_icu::IcuNode::Date::name: alloc::string::String
+pub ferrocat_icu::IcuNode::Date::style: core::option::Option<alloc::string::String>
+pub ferrocat_icu::IcuNode::Duration
+pub ferrocat_icu::IcuNode::Duration::name: alloc::string::String
+pub ferrocat_icu::IcuNode::Duration::style: core::option::Option<alloc::string::String>
+pub ferrocat_icu::IcuNode::List
+pub ferrocat_icu::IcuNode::List::name: alloc::string::String
+pub ferrocat_icu::IcuNode::List::style: core::option::Option<alloc::string::String>
+pub ferrocat_icu::IcuNode::Literal(alloc::string::String)
+pub ferrocat_icu::IcuNode::Name
+pub ferrocat_icu::IcuNode::Name::name: alloc::string::String
+pub ferrocat_icu::IcuNode::Name::style: core::option::Option<alloc::string::String>
+pub ferrocat_icu::IcuNode::Number
+pub ferrocat_icu::IcuNode::Number::name: alloc::string::String
+pub ferrocat_icu::IcuNode::Number::style: core::option::Option<alloc::string::String>
+pub ferrocat_icu::IcuNode::Plural
+pub ferrocat_icu::IcuNode::Plural::kind: ferrocat_icu::IcuPluralKind
+pub ferrocat_icu::IcuNode::Plural::name: alloc::string::String
+pub ferrocat_icu::IcuNode::Plural::offset: u32
+pub ferrocat_icu::IcuNode::Plural::options: alloc::vec::Vec<ferrocat_icu::IcuOption>
+pub ferrocat_icu::IcuNode::Pound
+pub ferrocat_icu::IcuNode::Select
+pub ferrocat_icu::IcuNode::Select::name: alloc::string::String
+pub ferrocat_icu::IcuNode::Select::options: alloc::vec::Vec<ferrocat_icu::IcuOption>
+pub ferrocat_icu::IcuNode::Tag
+pub ferrocat_icu::IcuNode::Tag::children: alloc::vec::Vec<Self>
+pub ferrocat_icu::IcuNode::Tag::name: alloc::string::String
+pub ferrocat_icu::IcuNode::Time
+pub ferrocat_icu::IcuNode::Time::name: alloc::string::String
+pub ferrocat_icu::IcuNode::Time::style: core::option::Option<alloc::string::String>
+pub enum ferrocat_icu::IcuPluralKind
+pub ferrocat_icu::IcuPluralKind::Cardinal
+pub ferrocat_icu::IcuPluralKind::Ordinal
+#[non_exhaustive] pub enum ferrocat_icu::IcuStyleKind
+pub ferrocat_icu::IcuStyleKind::None
+pub ferrocat_icu::IcuStyleKind::Pattern
+pub ferrocat_icu::IcuStyleKind::Predefined
+pub ferrocat_icu::IcuStyleKind::Skeleton
+pub enum ferrocat_icu::MessageArgumentKind
+pub ferrocat_icu::MessageArgumentKind::Boolean
+pub ferrocat_icu::MessageArgumentKind::Date
+pub ferrocat_icu::MessageArgumentKind::Datetime
+pub ferrocat_icu::MessageArgumentKind::Duration
+pub ferrocat_icu::MessageArgumentKind::Enum
+pub ferrocat_icu::MessageArgumentKind::List
+pub ferrocat_icu::MessageArgumentKind::Name
+pub ferrocat_icu::MessageArgumentKind::Number
+pub ferrocat_icu::MessageArgumentKind::RelativeTime
+pub ferrocat_icu::MessageArgumentKind::String
+pub ferrocat_icu::MessageArgumentKind::Time
+pub ferrocat_icu::MessageArgumentKind::Unknown
+impl core::convert::From<ferrocat_icu::MessageArgumentKind> for ferrocat_icu::MessageArgumentMetadataInput
+pub fn ferrocat_icu::MessageArgumentMetadataInput::from(ferrocat_icu::MessageArgumentKind) -> Self
+pub enum ferrocat_icu::MessageArgumentMetadataInput
+pub ferrocat_icu::MessageArgumentMetadataInput::Details(ferrocat_icu::MessageArgumentMetadata)
+pub ferrocat_icu::MessageArgumentMetadataInput::Kind(ferrocat_icu::MessageArgumentKind)
+impl core::convert::From<ferrocat_icu::MessageArgumentKind> for ferrocat_icu::MessageArgumentMetadataInput
+pub fn ferrocat_icu::MessageArgumentMetadataInput::from(ferrocat_icu::MessageArgumentKind) -> Self
+impl core::convert::From<ferrocat_icu::MessageArgumentMetadata> for ferrocat_icu::MessageArgumentMetadataInput
+pub fn ferrocat_icu::MessageArgumentMetadataInput::from(ferrocat_icu::MessageArgumentMetadata) -> Self
+pub enum ferrocat_icu::MessageFormatStyleKind
+pub ferrocat_icu::MessageFormatStyleKind::None
+pub ferrocat_icu::MessageFormatStyleKind::Pattern
+pub ferrocat_icu::MessageFormatStyleKind::Predefined
+pub ferrocat_icu::MessageFormatStyleKind::Skeleton
+pub enum ferrocat_icu::MessageSelectorKind
+pub ferrocat_icu::MessageSelectorKind::Plural
+pub ferrocat_icu::MessageSelectorKind::Select
+pub ferrocat_icu::MessageSelectorKind::SelectOrdinal
+pub struct ferrocat_icu::IcuAnalysis
+pub ferrocat_icu::IcuAnalysis::arguments: alloc::vec::Vec<ferrocat_icu::IcuArgument>
+pub ferrocat_icu::IcuAnalysis::formatters: alloc::vec::Vec<ferrocat_icu::IcuFormatter>
+pub ferrocat_icu::IcuAnalysis::plurals: alloc::vec::Vec<ferrocat_icu::IcuPluralSummary>
+pub ferrocat_icu::IcuAnalysis::selects: alloc::vec::Vec<ferrocat_icu::IcuSelectSummary>
+pub ferrocat_icu::IcuAnalysis::tags: alloc::vec::Vec<ferrocat_icu::IcuTagSummary>
+pub struct ferrocat_icu::IcuArgument
+pub ferrocat_icu::IcuArgument::kind: ferrocat_icu::IcuArgumentKind
+pub ferrocat_icu::IcuArgument::name: alloc::string::String
+#[non_exhaustive] pub struct ferrocat_icu::IcuCompatibilityOptions
+pub ferrocat_icu::IcuCompatibilityOptions::report_extra_arguments: bool
+pub ferrocat_icu::IcuCompatibilityOptions::report_extra_selectors: bool
+pub ferrocat_icu::IcuCompatibilityOptions::report_extra_tags: bool
+pub ferrocat_icu::IcuCompatibilityOptions::report_pattern_styles: bool
+impl ferrocat_icu::IcuCompatibilityOptions
+pub fn ferrocat_icu::IcuCompatibilityOptions::with_report_extra_arguments(self, bool) -> Self
+pub fn ferrocat_icu::IcuCompatibilityOptions::with_report_extra_selectors(self, bool) -> Self
+pub fn ferrocat_icu::IcuCompatibilityOptions::with_report_extra_tags(self, bool) -> Self
+pub fn ferrocat_icu::IcuCompatibilityOptions::with_report_pattern_styles(self, bool) -> Self
+impl core::default::Default for ferrocat_icu::IcuCompatibilityOptions
+pub fn ferrocat_icu::IcuCompatibilityOptions::default() -> Self
+pub struct ferrocat_icu::IcuCompatibilityReport
+pub ferrocat_icu::IcuCompatibilityReport::diagnostics: alloc::vec::Vec<ferrocat_icu::IcuDiagnostic>
+impl ferrocat_icu::IcuCompatibilityReport
+pub fn ferrocat_icu::IcuCompatibilityReport::has_errors(&self) -> bool
+pub struct ferrocat_icu::IcuDiagnostic
+pub ferrocat_icu::IcuDiagnostic::code: alloc::string::String
+pub ferrocat_icu::IcuDiagnostic::message: alloc::string::String
+pub ferrocat_icu::IcuDiagnostic::name: core::option::Option<alloc::string::String>
+pub ferrocat_icu::IcuDiagnostic::severity: ferrocat_icu::IcuDiagnosticSeverity
+pub struct ferrocat_icu::IcuFormatter
+pub ferrocat_icu::IcuFormatter::kind: ferrocat_icu::IcuArgumentKind
+pub ferrocat_icu::IcuFormatter::name: alloc::string::String
+pub ferrocat_icu::IcuFormatter::style: core::option::Option<alloc::string::String>
+pub ferrocat_icu::IcuFormatter::style_kind: ferrocat_icu::IcuStyleKind
+pub struct ferrocat_icu::IcuMessage
+pub ferrocat_icu::IcuMessage::nodes: alloc::vec::Vec<ferrocat_icu::IcuNode>
+pub struct ferrocat_icu::IcuOption
+pub ferrocat_icu::IcuOption::selector: alloc::string::String
+pub ferrocat_icu::IcuOption::value: alloc::vec::Vec<ferrocat_icu::IcuNode>
+#[non_exhaustive] pub struct ferrocat_icu::IcuParseError
+pub ferrocat_icu::IcuParseError::kind: ferrocat_icu::IcuErrorKind
+pub ferrocat_icu::IcuParseError::message: alloc::string::String
+pub ferrocat_icu::IcuParseError::position: ferrocat_icu::IcuPosition
+impl ferrocat_icu::IcuParseError
+pub fn ferrocat_icu::IcuParseError::syntax(impl core::convert::Into<alloc::string::String>, &str, usize) -> Self
+impl core::error::Error for ferrocat_icu::IcuParseError
+impl core::fmt::Display for ferrocat_icu::IcuParseError
+pub fn ferrocat_icu::IcuParseError::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+#[non_exhaustive] pub struct ferrocat_icu::IcuParserOptions
+pub ferrocat_icu::IcuParserOptions::ignore_tag: bool
+pub ferrocat_icu::IcuParserOptions::requires_other_clause: bool
+impl ferrocat_icu::IcuParserOptions
+pub fn ferrocat_icu::IcuParserOptions::with_ignore_tag(self, bool) -> Self
+pub fn ferrocat_icu::IcuParserOptions::with_requires_other_clause(self, bool) -> Self
+impl core::default::Default for ferrocat_icu::IcuParserOptions
+pub fn ferrocat_icu::IcuParserOptions::default() -> Self
+pub struct ferrocat_icu::IcuPluralSummary
+pub ferrocat_icu::IcuPluralSummary::kind: ferrocat_icu::IcuPluralKind
+pub ferrocat_icu::IcuPluralSummary::name: alloc::string::String
+pub ferrocat_icu::IcuPluralSummary::offset: u32
+pub ferrocat_icu::IcuPluralSummary::selectors: alloc::vec::Vec<alloc::string::String>
+pub struct ferrocat_icu::IcuPosition
+pub ferrocat_icu::IcuPosition::column: usize
+pub ferrocat_icu::IcuPosition::line: usize
+pub ferrocat_icu::IcuPosition::offset: usize
+#[non_exhaustive] pub struct ferrocat_icu::IcuPseudolocalizationOptions<'a>
+pub ferrocat_icu::IcuPseudolocalizationOptions::expansion_char: char
+pub ferrocat_icu::IcuPseudolocalizationOptions::expansion_percent: u8
+pub ferrocat_icu::IcuPseudolocalizationOptions::prefix: &'a str
+pub ferrocat_icu::IcuPseudolocalizationOptions::suffix: &'a str
+impl<'a> ferrocat_icu::IcuPseudolocalizationOptions<'a>
+pub fn ferrocat_icu::IcuPseudolocalizationOptions<'a>::new() -> Self
+pub const fn ferrocat_icu::IcuPseudolocalizationOptions<'a>::with_expansion_char(self, char) -> Self
+pub const fn ferrocat_icu::IcuPseudolocalizationOptions<'a>::with_expansion_percent(self, u8) -> Self
+pub const fn ferrocat_icu::IcuPseudolocalizationOptions<'a>::with_wrapper(self, &'a str, &'a str) -> Self
+impl core::default::Default for ferrocat_icu::IcuPseudolocalizationOptions<'_>
+pub fn ferrocat_icu::IcuPseudolocalizationOptions<'_>::default() -> Self
+pub struct ferrocat_icu::IcuSelectSummary
+pub ferrocat_icu::IcuSelectSummary::name: alloc::string::String
+pub ferrocat_icu::IcuSelectSummary::selectors: alloc::vec::Vec<alloc::string::String>
+pub struct ferrocat_icu::IcuTagSummary
+pub ferrocat_icu::IcuTagSummary::name: alloc::string::String
+pub struct ferrocat_icu::MessageArgumentFormatMetadata
+pub ferrocat_icu::MessageArgumentFormatMetadata::style: core::option::Option<alloc::string::String>
+pub ferrocat_icu::MessageArgumentFormatMetadata::style_kind: core::option::Option<ferrocat_icu::MessageFormatStyleKind>
+pub struct ferrocat_icu::MessageArgumentMetadata
+pub ferrocat_icu::MessageArgumentMetadata::format: core::option::Option<ferrocat_icu::MessageArgumentFormatMetadata>
+pub ferrocat_icu::MessageArgumentMetadata::kind: ferrocat_icu::MessageArgumentKind
+pub ferrocat_icu::MessageArgumentMetadata::role: core::option::Option<alloc::string::String>
+pub ferrocat_icu::MessageArgumentMetadata::values: alloc::vec::Vec<alloc::string::String>
+impl core::convert::From<ferrocat_icu::MessageArgumentMetadata> for ferrocat_icu::MessageArgumentMetadataInput
+pub fn ferrocat_icu::MessageArgumentMetadataInput::from(ferrocat_icu::MessageArgumentMetadata) -> Self
+impl core::default::Default for ferrocat_icu::MessageArgumentMetadata
+pub fn ferrocat_icu::MessageArgumentMetadata::default() -> Self
+pub struct ferrocat_icu::MessageMetadata
+pub ferrocat_icu::MessageMetadata::args: alloc::collections::btree::map::BTreeMap<alloc::string::String, ferrocat_icu::MessageArgumentMetadata>
+pub ferrocat_icu::MessageMetadata::description: core::option::Option<alloc::string::String>
+pub ferrocat_icu::MessageMetadata::msgctxt: core::option::Option<alloc::string::String>
+pub ferrocat_icu::MessageMetadata::msgid: alloc::string::String
+pub ferrocat_icu::MessageMetadata::origin: alloc::vec::Vec<ferrocat_icu::MessageOriginMetadata>
+pub ferrocat_icu::MessageMetadata::selectors: alloc::collections::btree::map::BTreeMap<alloc::string::String, ferrocat_icu::MessageSelectorMetadata>
+pub ferrocat_icu::MessageMetadata::tags: alloc::vec::Vec<alloc::string::String>
+pub struct ferrocat_icu::MessageMetadataDiagnostic
+pub ferrocat_icu::MessageMetadataDiagnostic::code: alloc::string::String
+pub ferrocat_icu::MessageMetadataDiagnostic::message: alloc::string::String
+pub ferrocat_icu::MessageMetadataDiagnostic::name: core::option::Option<alloc::string::String>
+pub ferrocat_icu::MessageMetadataDiagnostic::severity: ferrocat_icu::IcuDiagnosticSeverity
+pub struct ferrocat_icu::MessageMetadataInput
+pub ferrocat_icu::MessageMetadataInput::args: core::option::Option<alloc::collections::btree::map::BTreeMap<alloc::string::String, ferrocat_icu::MessageArgumentMetadataInput>>
+pub ferrocat_icu::MessageMetadataInput::description: core::option::Option<alloc::string::String>
+pub ferrocat_icu::MessageMetadataInput::msgctxt: core::option::Option<alloc::string::String>
+pub ferrocat_icu::MessageMetadataInput::msgid: alloc::string::String
+pub ferrocat_icu::MessageMetadataInput::origin: alloc::vec::Vec<ferrocat_icu::MessageOriginMetadata>
+pub ferrocat_icu::MessageMetadataInput::selectors: core::option::Option<alloc::collections::btree::map::BTreeMap<alloc::string::String, ferrocat_icu::MessageSelectorMetadata>>
+pub ferrocat_icu::MessageMetadataInput::tags: core::option::Option<alloc::vec::Vec<alloc::string::String>>
+impl ferrocat_icu::MessageMetadataInput
+pub fn ferrocat_icu::MessageMetadataInput::new(impl core::convert::Into<alloc::string::String>) -> Self
+pub struct ferrocat_icu::MessageMetadataValidationReport
+pub ferrocat_icu::MessageMetadataValidationReport::diagnostics: alloc::vec::Vec<ferrocat_icu::MessageMetadataDiagnostic>
+impl ferrocat_icu::MessageMetadataValidationReport
+pub fn ferrocat_icu::MessageMetadataValidationReport::has_errors(&self) -> bool
+pub struct ferrocat_icu::MessageOriginMetadata
+pub ferrocat_icu::MessageOriginMetadata::component: core::option::Option<alloc::string::String>
+pub ferrocat_icu::MessageOriginMetadata::file: core::option::Option<alloc::string::String>
+pub ferrocat_icu::MessageOriginMetadata::line: core::option::Option<u32>
+pub ferrocat_icu::MessageOriginMetadata::route: core::option::Option<alloc::string::String>
+pub struct ferrocat_icu::MessageSelectorMetadata
+pub ferrocat_icu::MessageSelectorMetadata::cases: alloc::vec::Vec<alloc::string::String>
+pub ferrocat_icu::MessageSelectorMetadata::kind: ferrocat_icu::MessageSelectorKind
+pub ferrocat_icu::MessageSelectorMetadata::offset: core::option::Option<u32>
+pub fn ferrocat_icu::analyze_icu(&ferrocat_icu::IcuMessage) -> ferrocat_icu::IcuAnalysis
+pub fn ferrocat_icu::compare_icu_messages(&ferrocat_icu::IcuMessage, &ferrocat_icu::IcuMessage, &ferrocat_icu::IcuCompatibilityOptions) -> ferrocat_icu::IcuCompatibilityReport
+pub fn ferrocat_icu::derive_message_metadata_from_icu(&str, core::option::Option<&str>) -> core::result::Result<ferrocat_icu::MessageMetadata, ferrocat_icu::IcuParseError>
+pub fn ferrocat_icu::extract_argument_names(&ferrocat_icu::IcuMessage) -> alloc::vec::Vec<alloc::string::String>
+pub fn ferrocat_icu::extract_tag_names(&ferrocat_icu::IcuMessage) -> alloc::vec::Vec<alloc::string::String>
+pub fn ferrocat_icu::extract_variables(&ferrocat_icu::IcuMessage) -> alloc::vec::Vec<alloc::string::String>
+pub fn ferrocat_icu::has_plural(&ferrocat_icu::IcuMessage) -> bool
+pub fn ferrocat_icu::has_select(&ferrocat_icu::IcuMessage) -> bool
+pub fn ferrocat_icu::has_select_ordinal(&ferrocat_icu::IcuMessage) -> bool
+pub fn ferrocat_icu::has_tag(&ferrocat_icu::IcuMessage) -> bool
+pub fn ferrocat_icu::normalize_message_metadata(ferrocat_icu::MessageMetadataInput) -> core::result::Result<ferrocat_icu::MessageMetadata, ferrocat_icu::IcuParseError>
+pub fn ferrocat_icu::parse_icu(&str) -> core::result::Result<ferrocat_icu::IcuMessage, ferrocat_icu::IcuParseError>
+pub fn ferrocat_icu::parse_icu_with_options(&str, &ferrocat_icu::IcuParserOptions) -> core::result::Result<ferrocat_icu::IcuMessage, ferrocat_icu::IcuParseError>
+pub fn ferrocat_icu::pseudolocalize_icu(&str, &ferrocat_icu::IcuPseudolocalizationOptions<'_>) -> core::result::Result<alloc::string::String, ferrocat_icu::IcuParseError>
+pub fn ferrocat_icu::pseudolocalize_icu_message(&ferrocat_icu::IcuMessage, &ferrocat_icu::IcuPseudolocalizationOptions<'_>) -> ferrocat_icu::IcuMessage
+pub fn ferrocat_icu::stringify_icu(&ferrocat_icu::IcuMessage) -> alloc::string::String
+pub fn ferrocat_icu::validate_icu(&str) -> core::result::Result<(), ferrocat_icu::IcuParseError>
+pub fn ferrocat_icu::validate_icu_formatter_support(&ferrocat_icu::IcuMessage, impl core::ops::function::FnMut(&ferrocat_icu::IcuFormatter) -> ferrocat_icu::IcuFormatterSupport) -> ferrocat_icu::IcuCompatibilityReport
+pub fn ferrocat_icu::validate_icu_formatter_support_from_analysis(&ferrocat_icu::IcuAnalysis, impl core::ops::function::FnMut(&ferrocat_icu::IcuFormatter) -> ferrocat_icu::IcuFormatterSupport) -> ferrocat_icu::IcuCompatibilityReport
+pub fn ferrocat_icu::validate_message_metadata(&ferrocat_icu::MessageMetadataInput) -> ferrocat_icu::MessageMetadataValidationReport

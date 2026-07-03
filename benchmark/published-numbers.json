@@ -1,0 +1,157 @@
+{
+  "entries": [
+    {
+      "id": "readme.parse.ferrocat",
+      "report": "benchmark/results/gettext-official-v1-8cecc40.json",
+      "scenario": "po-parse/gettext-ui-de-10000/ferrocat-borrowed",
+      "metric": "statistics.median_mib_per_sec",
+      "published": 455,
+      "tolerance": 4,
+      "locations": [
+        { "file": "README.md", "contains": "| Parse | **455 MiB/s**" },
+        { "file": "docs/app/routes/home.tsx", "contains": "rate: 455" }
+      ]
+    },
+    {
+      "id": "readme.parse.pofile-ts",
+      "report": "benchmark/results/gettext-official-v1-8cecc40.json",
+      "scenario": "po-parse/gettext-ui-de-10000/pofile-ts",
+      "metric": "statistics.median_mib_per_sec",
+      "published": 145,
+      "tolerance": 4,
+      "locations": [
+        { "file": "README.md", "contains": "| Parse | **455 MiB/s** | 145" },
+        { "file": "docs/app/routes/home.tsx", "contains": "rate: 145" }
+      ]
+    },
+    {
+      "id": "readme.parse.php-gettext",
+      "report": "benchmark/results/gettext-official-v1-8cecc40.json",
+      "scenario": "po-parse/gettext-ui-de-10000/php-gettext",
+      "metric": "statistics.median_mib_per_sec",
+      "published": 49,
+      "tolerance": 2,
+      "locations": [
+        { "file": "README.md", "contains": "| Parse | **455 MiB/s** | 145 | 49" },
+        { "file": "docs/app/routes/home.tsx", "contains": "rate: 49" }
+      ]
+    },
+    {
+      "id": "readme.parse.gettext-parser",
+      "report": "benchmark/results/gettext-official-v1-8cecc40.json",
+      "scenario": "po-parse/gettext-ui-de-10000/gettext-parser",
+      "metric": "statistics.median_mib_per_sec",
+      "published": 20,
+      "tolerance": 2,
+      "locations": [
+        { "file": "docs/app/routes/home.tsx", "contains": "rate: 20" }
+      ]
+    },
+    {
+      "id": "readme.parse.polib",
+      "report": "benchmark/results/gettext-official-v1-8cecc40.json",
+      "scenario": "po-parse/gettext-ui-de-10000/polib",
+      "metric": "statistics.median_mib_per_sec",
+      "published": 20,
+      "tolerance": 2,
+      "locations": [
+        { "file": "README.md", "contains": "| Parse | **455 MiB/s** | 145 | 49 | 20" },
+        { "file": "docs/app/routes/home.tsx", "contains": "rate: 20" }
+      ]
+    },
+    {
+      "id": "readme.update.ferrocat",
+      "report": "benchmark/results/gettext-workflows-ecosystem-v1-8a7dd9c.json",
+      "scenario": "po-merge/gettext-ui-de-10000/ferrocat",
+      "metric": "statistics.median_mib_per_sec",
+      "published": 245,
+      "tolerance": 2,
+      "locations": [
+        { "file": "README.md", "contains": "| Update with new strings | **245 MiB/s**" },
+        { "file": "docs/app/routes/home.tsx", "contains": "rate: 245" }
+      ]
+    },
+    {
+      "id": "readme.update.pofile-ts",
+      "report": "benchmark/results/gettext-workflows-ecosystem-v1-8a7dd9c.json",
+      "scenario": "po-merge/gettext-ui-de-10000/pofile-ts",
+      "metric": "statistics.median_mib_per_sec",
+      "published": 39,
+      "tolerance": 2,
+      "locations": [
+        { "file": "README.md", "contains": "| Update with new strings | **245 MiB/s** | 39" },
+        { "file": "docs/app/routes/home.tsx", "contains": "rate: 39" }
+      ]
+    },
+    {
+      "id": "readme.update.php-gettext",
+      "report": "benchmark/results/gettext-official-v1-8cecc40.json",
+      "scenario": "po-merge/gettext-ui-de-10000/php-gettext",
+      "metric": "statistics.median_mib_per_sec",
+      "published": 16,
+      "tolerance": 2,
+      "locations": [
+        { "file": "README.md", "contains": "| Update with new strings | **245 MiB/s** | 39 | 16" },
+        { "file": "docs/app/routes/home.tsx", "contains": "rate: 16" }
+      ]
+    },
+    {
+      "id": "readme.update.polib",
+      "report": "benchmark/results/gettext-workflows-ecosystem-v1-8a7dd9c.json",
+      "scenario": "po-merge/gettext-ui-de-10000/polib",
+      "metric": "statistics.median_mib_per_sec",
+      "published": 7,
+      "tolerance": 1,
+      "locations": [
+        { "file": "README.md", "contains": "| Update with new strings | **245 MiB/s** | 39 | 16 | 7" },
+        { "file": "docs/app/routes/home.tsx", "contains": "rate: 7" }
+      ]
+    },
+    {
+      "id": "readme.update.msgmerge",
+      "report": "benchmark/results/gettext-workflows-ecosystem-v1-8a7dd9c.json",
+      "scenario": "po-merge/gettext-ui-de-10000/msgmerge",
+      "metric": "statistics.median_adjusted_mib_per_sec",
+      "published": 4.5,
+      "tolerance": 0.2,
+      "locations": [
+        { "file": "README.md", "contains": "| Update with new strings | **245 MiB/s** | 39 | 16 | 7 | 4.5 |" },
+        { "file": "docs/app/routes/home.tsx", "contains": "rate: 4.5" }
+      ]
+    },
+    {
+      "id": "readme.full-update.ferrocat",
+      "report": "benchmark/results/gettext-workflows-ecosystem-v1-8a7dd9c.json",
+      "scenario": "po-update/gettext-ui-de-10000/ferrocat",
+      "metric": "statistics.median_mib_per_sec",
+      "published": 88,
+      "tolerance": 2,
+      "locations": [
+        { "file": "README.md", "contains": "| Full catalog update | **88 MiB/s**" },
+        { "file": "docs/app/routes/home.tsx", "contains": "rate: 88" }
+      ]
+    }
+  ],
+  "textAssertions": [
+    {
+      "id": "home.proof.rounded-conformance-cases",
+      "file": "docs/app/routes/home.tsx",
+      "contains": "{ value: \"60+\", label: \"conformance cases\""
+    },
+    {
+      "id": "home.proof.no-assertion-count",
+      "file": "docs/app/routes/home.tsx",
+      "notContains": "454"
+    },
+    {
+      "id": "home.footnote.rounded-owned-parse",
+      "file": "docs/app/routes/home.tsx",
+      "contains": "about 360 MiB/s"
+    },
+    {
+      "id": "home.footnote.rounded-serialization",
+      "file": "docs/app/routes/home.tsx",
+      "contains": "about 1.2 GiB/s"
+    }
+  ]
+}
