@@ -1,5 +1,37 @@
 # Changelog
 
+## [2.1.0](https://github.com/sebastian-software/ferrocat/compare/ferrocat-v2.0.0...ferrocat-v2.1.0) (2026-07-02)
+
+### ⚠ BREAKING CLEANUPS
+
+See the [2.0 to 2.1 migration guide](https://ferrocat.dev/guide/upgrading#upgrading-to-210) for old-to-new names and construction examples.
+
+* **api:** `catalog_review` is now `review_catalogs`, `catalog_coverage` is now `measure_catalog_coverage`, and `has_selectordinal` is now `has_select_ordinal`.
+* **po:** `MergeExtractedMessage` is removed; use `MergeMessageInput`.
+* **po:** `MsgStr::first()` now returns `Option<&str>`, `MsgStr::first_str()` is removed, and `MsgStr` iterator items are `&str`.
+* **po:** `PoVec` is an opaque newtype. Read access remains slice-like, but constructing affected fields from `Vec<T>` now needs `From<Vec<T>>` or `.into()`.
+* **api:** public options structs are `#[non_exhaustive]`; downstream code should use `Options::new().with_*()` builders instead of functional-record-update syntax.
+
+### Features
+
+* **api:** add option builder setters ([#208](https://github.com/sebastian-software/ferrocat/issues/208)) ([8b4c279](https://github.com/sebastian-software/ferrocat/commit/8b4c2793a74871b435c74b405bb965ad88e6d4bd))
+* **api:** align public cleanup names ([80924ea](https://github.com/sebastian-software/ferrocat/commit/80924eac840d9445f36bf5f5f23b7153e1a12eca))
+* **api:** make options extensible ([#213](https://github.com/sebastian-software/ferrocat/issues/213)) ([b8c9a6a](https://github.com/sebastian-software/ferrocat/commit/b8c9a6adea3b6d063599964e6ae66e997458f0f1))
+* **po:** make PoVec opaque ([#212](https://github.com/sebastian-software/ferrocat/issues/212)) ([2098808](https://github.com/sebastian-software/ferrocat/commit/20988081242d791723abe59337dbbc5e8bc729a9))
+
+
+### Bug Fixes
+
+* **api:** repair umbrella crate re-exports ([#198](https://github.com/sebastian-software/ferrocat/issues/198)) ([13a279a](https://github.com/sebastian-software/ferrocat/commit/13a279a460bf754d03541a541bd9c6e48715b067))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * ferrocat-icu bumped from 2.0.0 to 2.1.0
+    * ferrocat-po bumped from 2.0.0 to 2.1.0
+
 ## [2.0.0](https://github.com/sebastian-software/ferrocat/compare/ferrocat-v1.3.2...ferrocat-v2.0.0) (2026-06-30)
 
 

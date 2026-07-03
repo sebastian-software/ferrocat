@@ -1,5 +1,25 @@
 # Changelog
 
+## [2.1.0](https://github.com/sebastian-software/ferrocat/compare/ferrocat-icu-v2.0.0...ferrocat-icu-v2.1.0) (2026-07-02)
+
+### ⚠ BREAKING CLEANUPS
+
+See the [2.0 to 2.1 migration guide](https://ferrocat.dev/guide/upgrading#upgrading-to-210) for old-to-new names and construction examples.
+
+* **api:** `has_selectordinal` is now `has_select_ordinal`.
+* **api:** public options structs are `#[non_exhaustive]`; downstream code should use `Options::new().with_*()` builders instead of functional-record-update syntax.
+
+### Features
+
+* **api:** add option builder setters ([#208](https://github.com/sebastian-software/ferrocat/issues/208)) ([8b4c279](https://github.com/sebastian-software/ferrocat/commit/8b4c2793a74871b435c74b405bb965ad88e6d4bd))
+* **api:** align public cleanup names ([80924ea](https://github.com/sebastian-software/ferrocat/commit/80924eac840d9445f36bf5f5f23b7153e1a12eca))
+* **api:** make options extensible ([#213](https://github.com/sebastian-software/ferrocat/issues/213)) ([b8c9a6a](https://github.com/sebastian-software/ferrocat/commit/b8c9a6adea3b6d063599964e6ae66e997458f0f1))
+
+
+### Performance Improvements
+
+* **po:** reduce parser and serializer allocations ([#197](https://github.com/sebastian-software/ferrocat/issues/197)) ([20ca38e](https://github.com/sebastian-software/ferrocat/commit/20ca38ea8fcbe90578badc8a455c828556448cd8))
+
 ## [2.0.0](https://github.com/sebastian-software/ferrocat/compare/ferrocat-icu-v1.3.2...ferrocat-icu-v2.0.0) (2026-06-30)
 
 
