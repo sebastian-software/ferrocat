@@ -6,6 +6,12 @@
 //! build tooling can match these constants instead of parsing human-readable
 //! diagnostic messages.
 
+// With `catalog` enabled, `ferrocat-icu` is in the dependency tree and both
+// crates share one `DiagnosticCode` type. Without it, the fallback copy below
+// keeps this crate's diagnostic surface intact — at the cost that the type
+// *identity* of `ferrocat_po::DiagnosticCode` differs between the two builds,
+// so downstream code must not rely on it being distinct from (or equal to)
+// `ferrocat_icu::DiagnosticCode` across feature configurations.
 #[cfg(feature = "catalog")]
 pub use ferrocat_icu::DiagnosticCode;
 
