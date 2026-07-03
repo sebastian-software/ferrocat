@@ -6,79 +6,88 @@
 //! build tooling can match these constants instead of parsing human-readable
 //! diagnostic messages.
 
-use std::fmt;
-use std::ops::Deref;
+#[cfg(feature = "catalog")]
+pub use ferrocat_icu::DiagnosticCode;
 
-#[cfg(feature = "serde")]
-use serde::{Deserialize, Serialize};
+#[cfg(not(feature = "catalog"))]
+mod code_type {
+    use std::fmt;
+    use std::ops::Deref;
 
-/// Stable machine-readable diagnostic code.
-///
-/// The wire format remains the plain code string. This wrapper makes diagnostic
-/// code fields distinct from arbitrary human-readable strings while preserving
-/// string comparisons through [`Self::as_str`], [`AsRef<str>`], and `PartialEq<&str>`.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "serde", serde(transparent))]
-pub struct DiagnosticCode(String);
+    #[cfg(feature = "serde")]
+    use serde::{Deserialize, Serialize};
 
-impl DiagnosticCode {
-    /// Creates a diagnostic code from its canonical string spelling.
-    #[must_use]
-    pub fn new(code: impl Into<String>) -> Self {
-        Self(code.into())
+    /// Stable machine-readable diagnostic code.
+    ///
+    /// The wire format remains the plain code string. This wrapper makes diagnostic
+    /// code fields distinct from arbitrary human-readable strings while preserving
+    /// string comparisons through [`Self::as_str`], [`AsRef<str>`], and `PartialEq<&str>`.
+    #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+    #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+    #[cfg_attr(feature = "serde", serde(transparent))]
+    pub struct DiagnosticCode(String);
+
+    impl DiagnosticCode {
+        /// Creates a diagnostic code from its canonical string spelling.
+        #[must_use]
+        pub fn new(code: impl Into<String>) -> Self {
+            Self(code.into())
+        }
+
+        /// Returns the canonical string spelling.
+        #[must_use]
+        pub fn as_str(&self) -> &str {
+            &self.0
+        }
     }
 
-    /// Returns the canonical string spelling.
-    #[must_use]
-    pub fn as_str(&self) -> &str {
-        &self.0
+    impl fmt::Display for DiagnosticCode {
+        fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+            formatter.write_str(self.as_str())
+        }
+    }
+
+    impl AsRef<str> for DiagnosticCode {
+        fn as_ref(&self) -> &str {
+            self.as_str()
+        }
+    }
+
+    impl Deref for DiagnosticCode {
+        type Target = str;
+
+        fn deref(&self) -> &Self::Target {
+            self.as_str()
+        }
+    }
+
+    impl From<&str> for DiagnosticCode {
+        fn from(code: &str) -> Self {
+            Self::new(code)
+        }
+    }
+
+    impl From<String> for DiagnosticCode {
+        fn from(code: String) -> Self {
+            Self::new(code)
+        }
+    }
+
+    impl PartialEq<&str> for DiagnosticCode {
+        fn eq(&self, other: &&str) -> bool {
+            self.as_str() == *other
+        }
+    }
+
+    impl PartialEq<DiagnosticCode> for &str {
+        fn eq(&self, other: &DiagnosticCode) -> bool {
+            *self == other.as_str()
+        }
     }
 }
 
-impl fmt::Display for DiagnosticCode {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter.write_str(self.as_str())
-    }
-}
-
-impl AsRef<str> for DiagnosticCode {
-    fn as_ref(&self) -> &str {
-        self.as_str()
-    }
-}
-
-impl Deref for DiagnosticCode {
-    type Target = str;
-
-    fn deref(&self) -> &Self::Target {
-        self.as_str()
-    }
-}
-
-impl From<&str> for DiagnosticCode {
-    fn from(code: &str) -> Self {
-        Self::new(code)
-    }
-}
-
-impl From<String> for DiagnosticCode {
-    fn from(code: String) -> Self {
-        Self::new(code)
-    }
-}
-
-impl PartialEq<&str> for DiagnosticCode {
-    fn eq(&self, other: &&str) -> bool {
-        self.as_str() == *other
-    }
-}
-
-impl PartialEq<DiagnosticCode> for &str {
-    fn eq(&self, other: &DiagnosticCode) -> bool {
-        *self == other.as_str()
-    }
-}
+#[cfg(not(feature = "catalog"))]
+pub use code_type::DiagnosticCode;
 
 /// Catalog audit diagnostic codes.
 pub mod catalog {

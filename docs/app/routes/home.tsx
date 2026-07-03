@@ -233,7 +233,7 @@ const updateCompare: Bar[] = [
   },
   { name: "pofile-ts", lang: "Node", rate: 43 },
   { name: "gettext/gettext", lang: "PHP", rate: 16 },
-  { name: "Babel", lang: "Python", rate: 8 },
+  { name: "Babel", lang: "Python, Catalog.update", rate: 8 },
   { name: "polib", lang: "Python", rate: 7.2 },
   { name: "msgmerge", lang: "GNU gettext", rate: 4.7 },
 ]
@@ -453,6 +453,7 @@ export default function HomePage() {
           the high-level catalog update on the same files: on top of the plain
           update it analyzes ICU message structure, tracks placeholders, and
           produces deterministic output. None of the compared tools has an
+          equivalent layer&mdash;their update <em>is</em> the plain bar. The
           broader benchmark now includes Babel&rsquo;s real Python
           <code>Catalog.update</code> path, and a compatibility probe asserts
           the output stays semantically identical to msgmerge&rsquo;s on this

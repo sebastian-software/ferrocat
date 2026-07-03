@@ -780,7 +780,7 @@ fn push_icu_diagnostics_for_compiled_message(
     for diagnostic in diagnostics {
         artifact.diagnostics.push(CompiledCatalogDiagnostic {
             severity: icu_diagnostic_severity(diagnostic.severity),
-            code: diagnostic.code.as_str().into(),
+            code: diagnostic.code,
             message: diagnostic.message,
             key: target.compiled_key.to_owned(),
             msgid: target.source_key.msgid.clone(),

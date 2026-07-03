@@ -172,8 +172,11 @@ jobs:
           crate_version_exists() {
             local crate="$1"
             local version="$2"
+            local index_path
 
-            cargo search "$crate" --limit 20 | grep -F "${crate} = \"${version}\"" > /dev/null
+            index_path="${crate:0:2}/${crate:2:2}/${crate}"
+            curl -fsSL "https://index.crates.io/${index_path}" 2>/dev/null \
+              | grep -F "\"vers\":\"${version}\"" > /dev/null
           }
 
           publish_with_retry() {

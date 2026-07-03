@@ -3,6 +3,7 @@ set -euo pipefail
 
 tmpdir="$(mktemp -d)"
 trap 'rm -rf "$tmpdir"' EXIT
+toolchain="${PUBLIC_API_TOOLCHAIN:-nightly}"
 
 packages=(
   ferrocat
@@ -15,7 +16,7 @@ for package in "${packages[@]}"; do
   expected="${tmpdir}/${package}.expected.txt"
   generated="${tmpdir}/${package}.txt"
 
-  cargo +nightly public-api -p "$package" --all-features -sss --color=never \
+  cargo "+${toolchain}" public-api -p "$package" --all-features -sss --color=never \
     | sed 's/core::io::error::Error/std::io::error::Error/g' \
     > "$generated"
   LC_ALL=C sort "$snapshot" > "$expected"

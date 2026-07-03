@@ -579,7 +579,7 @@ fn audit_icu_compatibility(
         for diagnostic in compatibility.diagnostics {
             report.diagnostics.push(CatalogAuditDiagnostic::new(
                 severity_from_icu(diagnostic.severity),
-                diagnostic.code.as_str(),
+                diagnostic.code,
                 diagnostic.message,
                 Some(CatalogAuditMessageRef::new(Some(target_locale), key)),
                 diagnostic.name,
@@ -629,7 +629,7 @@ fn audit_metadata(
         for diagnostic in metadata_report.diagnostics {
             report.diagnostics.push(CatalogAuditDiagnostic::new(
                 severity_from_icu(diagnostic.severity),
-                diagnostic.code.as_str(),
+                diagnostic.code,
                 diagnostic.message,
                 Some(source_ref.clone()),
                 diagnostic.name,
