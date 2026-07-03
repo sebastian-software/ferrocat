@@ -8,6 +8,8 @@
 use std::fs;
 use std::{collections::BTreeMap, mem};
 
+use rustc_hash::FxHashMap;
+
 use crate::diagnostic_codes;
 
 use super::export::export_catalog_content;
@@ -281,8 +283,7 @@ pub fn parse_catalog(options: ParseCatalogOptions<'_>) -> Result<ParsedCatalog, 
 /// semantics, while also projecting source-first ICU plurals into the same
 /// structured plural representation used by `CatalogUpdateInput::Structured`.
 fn normalize_update_input(input: CatalogUpdateInput) -> Result<Vec<NormalizedMessage>, ApiError> {
-    let mut index = BTreeMap::<(String, Option<String>), usize>::new();
-    let mut normalized = Vec::<NormalizedMessage>::new();
+    let mut messages = Vec::<NormalizedMessage>::new();
 
     match input {
         CatalogUpdateInput::Structured(extracted) => {
@@ -309,76 +310,94 @@ fn normalize_update_input(input: CatalogUpdateInput) -> Result<Vec<NormalizedMes
                     ),
                 };
 
-                push_normalized_message(
-                    &mut index,
-                    &mut normalized,
-                    NormalizedMessage {
-                        msgid,
-                        msgctxt,
-                        kind,
-                        comments: dedupe_strings(comments),
-                        origins: dedupe_origins(origins),
-                        placeholders: dedupe_placeholders(placeholders),
-                    },
-                )?;
+                messages.push(NormalizedMessage {
+                    msgid,
+                    msgctxt,
+                    kind,
+                    comments: dedupe_strings(comments),
+                    origins: dedupe_origins(origins),
+                    placeholders: dedupe_placeholders(placeholders),
+                });
             }
         }
-        CatalogUpdateInput::SourceFirst(messages) => {
-            for message in messages {
-                push_normalized_message(
-                    &mut index,
-                    &mut normalized,
-                    NormalizedMessage {
-                        msgid: message.msgid,
-                        msgctxt: message.msgctxt,
-                        kind: NormalizedKind::Singular,
-                        comments: dedupe_strings(message.comments),
-                        origins: dedupe_origins(message.origin),
-                        placeholders: dedupe_placeholders(message.placeholders),
-                    },
-                )?;
+        CatalogUpdateInput::SourceFirst(source_messages) => {
+            for message in source_messages {
+                messages.push(NormalizedMessage {
+                    msgid: message.msgid,
+                    msgctxt: message.msgctxt,
+                    kind: NormalizedKind::Singular,
+                    comments: dedupe_strings(message.comments),
+                    origins: dedupe_origins(message.origin),
+                    placeholders: dedupe_placeholders(message.placeholders),
+                });
             }
         }
     }
 
-    Ok(normalized)
+    merge_normalized_messages(messages)
 }
 
-/// Inserts one normalized message, merging duplicate extractor entries that
-/// refer to the same gettext identity.
+/// Merges duplicate extractor entries that refer to the same gettext identity.
 ///
 /// Duplicate singular/plural shape mismatches remain a hard error because they
 /// would otherwise make the final catalog shape ambiguous.
-fn push_normalized_message(
-    index: &mut BTreeMap<(String, Option<String>), usize>,
-    normalized: &mut Vec<NormalizedMessage>,
-    message: NormalizedMessage,
-) -> Result<(), ApiError> {
-    let msgid = message.msgid.clone();
-    let msgctxt = message.msgctxt.clone();
-    if msgid.is_empty() {
-        return Err(ApiError::InvalidArguments(
-            "extracted msgid must not be empty".to_owned(),
-        ));
-    }
+fn merge_normalized_messages(
+    messages: Vec<NormalizedMessage>,
+) -> Result<Vec<NormalizedMessage>, ApiError> {
+    let mut index = FxHashMap::<(&str, Option<&str>), usize>::with_capacity_and_hasher(
+        messages.len(),
+        Default::default(),
+    );
+    let mut selected_indexes = Vec::with_capacity(messages.len());
+    let mut duplicate_sources = vec![None; messages.len()];
 
-    let key = (msgid.clone(), msgctxt);
-    if let Some(existing_index) = index.get(&key).copied() {
-        let existing = &mut normalized[existing_index];
-        if existing.kind != message.kind {
-            return Err(ApiError::Conflict(format!(
-                "conflicting duplicate extracted message for msgid {msgid:?}"
-            )));
+    for (message_index, message) in messages.iter().enumerate() {
+        if message.msgid.is_empty() {
+            return Err(ApiError::InvalidArguments(
+                "extracted msgid must not be empty".to_owned(),
+            ));
         }
-        merge_unique_strings(&mut existing.comments, message.comments);
-        merge_unique_origins(&mut existing.origins, message.origins);
-        merge_placeholders(&mut existing.placeholders, message.placeholders);
-    } else {
-        index.insert(key, normalized.len());
-        normalized.push(message);
+
+        let key = (message.msgid.as_str(), message.msgctxt.as_deref());
+        if let Some(existing_index) = index.get(&key).copied() {
+            let existing = &messages[existing_index];
+            if existing.kind != message.kind {
+                return Err(ApiError::Conflict(format!(
+                    "conflicting duplicate extracted message for msgid {:?}",
+                    message.msgid
+                )));
+            }
+            duplicate_sources[message_index] = Some(existing_index);
+        } else {
+            index.insert(key, message_index);
+            selected_indexes.push(message_index);
+        }
     }
 
-    Ok(())
+    let mut output_index_by_input = vec![None; messages.len()];
+    let mut out = Vec::with_capacity(selected_indexes.len());
+    let mut selected_indexes = selected_indexes.into_iter();
+    let mut next_selected = selected_indexes.next();
+
+    for (message_index, message) in messages.into_iter().enumerate() {
+        if next_selected == Some(message_index) {
+            output_index_by_input[message_index] = Some(out.len());
+            out.push(message);
+            next_selected = selected_indexes.next();
+            continue;
+        }
+
+        if let Some(existing_input_index) = duplicate_sources[message_index] {
+            let existing_output_index = output_index_by_input[existing_input_index]
+                .expect("duplicate source should already be emitted");
+            let existing = &mut out[existing_output_index];
+            merge_unique_strings(&mut existing.comments, message.comments);
+            merge_unique_origins(&mut existing.origins, message.origins);
+            merge_placeholders(&mut existing.placeholders, message.placeholders);
+        }
+    }
+
+    Ok(out)
 }
 
 /// Applies extracted messages onto an existing canonical catalog and records the
@@ -406,7 +425,10 @@ fn merge_catalogs(
     };
 
     {
-        let mut existing_index = BTreeMap::<(&str, Option<&str>), usize>::new();
+        let mut existing_index = FxHashMap::<(&str, Option<&str>), usize>::with_capacity_and_hasher(
+            existing.messages.len(),
+            Default::default(),
+        );
         for (index, message) in existing.messages.iter().enumerate() {
             existing_index.insert((message.msgid.as_str(), message.msgctxt.as_deref()), index);
         }

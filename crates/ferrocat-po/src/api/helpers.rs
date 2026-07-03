@@ -63,10 +63,22 @@ pub(super) fn merge_unique_strings(target: &mut Vec<String>, incoming: Vec<Strin
         return;
     }
 
-    let mut seen = target.iter().cloned().collect::<BTreeSet<_>>();
-    for value in incoming {
-        if seen.insert(value.clone()) {
+    let mut selected_indexes = Vec::new();
+    {
+        let mut seen = target.iter().map(String::as_str).collect::<BTreeSet<_>>();
+        for (index, value) in incoming.iter().enumerate() {
+            if seen.insert(value.as_str()) {
+                selected_indexes.push(index);
+            }
+        }
+    }
+
+    let mut selected_indexes = selected_indexes.into_iter();
+    let mut next_selected = selected_indexes.next();
+    for (index, value) in incoming.into_iter().enumerate() {
+        if next_selected == Some(index) {
             target.push(value);
+            next_selected = selected_indexes.next();
         }
     }
 }
@@ -103,13 +115,25 @@ pub(super) fn merge_unique_origins(
         return;
     }
 
-    let mut seen = target
-        .iter()
-        .map(|origin| (origin.file.clone(), origin.scope.clone()))
-        .collect::<BTreeSet<_>>();
-    for value in incoming {
-        if seen.insert((value.file.clone(), value.scope.clone())) {
+    let mut selected_indexes = Vec::new();
+    {
+        let mut seen = target
+            .iter()
+            .map(|origin| (origin.file.as_str(), origin.scope.as_deref()))
+            .collect::<BTreeSet<_>>();
+        for (index, value) in incoming.iter().enumerate() {
+            if seen.insert((value.file.as_str(), value.scope.as_deref())) {
+                selected_indexes.push(index);
+            }
+        }
+    }
+
+    let mut selected_indexes = selected_indexes.into_iter();
+    let mut next_selected = selected_indexes.next();
+    for (index, value) in incoming.into_iter().enumerate() {
+        if next_selected == Some(index) {
             target.push(value);
+            next_selected = selected_indexes.next();
         }
     }
 }

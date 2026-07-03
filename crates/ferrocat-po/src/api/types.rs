@@ -1,8 +1,9 @@
-use std::collections::hash_map::DefaultHasher;
-use std::collections::{BTreeMap, HashMap, btree_map};
+use std::collections::{BTreeMap, btree_map};
 use std::fmt;
 use std::hash::{Hash, Hasher};
 use std::path::{Path, PathBuf};
+
+use rustc_hash::{FxHashMap, FxHasher};
 
 use crate::{ParseError, PoVec, diagnostic_codes::DiagnosticCode};
 
@@ -703,15 +704,17 @@ impl ParsedCatalog {
 pub struct NormalizedParsedCatalog {
     pub(super) catalog: ParsedCatalog,
     pub(super) key_index: BTreeMap<CatalogMessageKey, usize>,
-    msgid_hash_index: HashMap<u64, Vec<usize>>,
+    msgid_hash_index: FxHashMap<u64, Vec<usize>>,
 }
 
 impl NormalizedParsedCatalog {
     /// Builds the lookup index once and rejects duplicate gettext identities up front.
     pub(super) fn new(catalog: ParsedCatalog) -> Result<Self, ApiError> {
         let mut key_index = BTreeMap::new();
-        let mut msgid_hash_index =
-            HashMap::<u64, Vec<usize>>::with_capacity(catalog.messages.len());
+        let mut msgid_hash_index = FxHashMap::<u64, Vec<usize>>::with_capacity_and_hasher(
+            catalog.messages.len(),
+            Default::default(),
+        );
         for (index, message) in catalog.messages.iter().enumerate() {
             let key = message.key();
             match key_index.entry(key) {
@@ -861,7 +864,7 @@ impl NormalizedParsedCatalog {
 }
 
 fn message_id_hash(msgid: &str) -> u64 {
-    let mut hasher = DefaultHasher::new();
+    let mut hasher = FxHasher::default();
     msgid.hash(&mut hasher);
     hasher.finish()
 }
