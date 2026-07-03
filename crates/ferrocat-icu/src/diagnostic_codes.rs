@@ -169,3 +169,20 @@ pub mod metadata {
         SELECTOR_OFFSET_MISMATCH,
     ];
 }
+
+#[cfg(test)]
+mod tests {
+    use super::DiagnosticCode;
+
+    #[test]
+    fn diagnostic_code_preserves_canonical_string_access() {
+        let code = DiagnosticCode::from(String::from("icu.missing_argument"));
+
+        assert_eq!(code.as_str(), "icu.missing_argument");
+        assert_eq!(code.as_ref(), "icu.missing_argument");
+        assert_eq!(&*code, "icu.missing_argument");
+        assert_eq!(code.to_string(), "icu.missing_argument");
+        assert_eq!(code, "icu.missing_argument");
+        assert_eq!("icu.missing_argument", code);
+    }
+}
