@@ -197,7 +197,7 @@ pub use ferrocat_po::{
     CompiledCatalogPseudolocalizationOptions, CompiledCatalogResolution,
     CompiledCatalogResolutionKind, CompiledCatalogTranslationKind, CompiledCatalogUnavailableId,
     CompiledKeyStrategy, CompiledMessage, CompiledTranslation, DescribeCompiledIdsReport,
-    Diagnostic, DiagnosticSeverity, EffectiveTranslation, EffectiveTranslationRef,
+    Diagnostic, DiagnosticCode, DiagnosticSeverity, EffectiveTranslation, EffectiveTranslationRef,
     ExtractedMessage, ExtractedPluralMessage, ExtractedSingularMessage, IcuFormatterSupportPolicy,
     IcuSyntaxPolicy, MachineMetadata, NormalizedParsedCatalog, ObsoleteInfo, ObsoleteStrategy,
     OrderBy, ParseCatalogOptions, ParsedCatalog, PlaceholderCommentMode, PluralEncoding,

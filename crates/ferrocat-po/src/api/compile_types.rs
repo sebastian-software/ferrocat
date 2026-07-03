@@ -243,6 +243,10 @@ impl PartialEq for CompileCatalogArtifactIcuOptions {
     fn eq(&self, other: &Self) -> bool {
         self.syntax_policy == other.syntax_policy
             && match (self.formatter_support, other.formatter_support) {
+                // Function pointer address equality is best-effort: codegen may
+                // make the same callback compare unequal or merge distinct
+                // callbacks. This keeps option equality useful for tests and
+                // diagnostics, but it is not a stable callback identity contract.
                 (Some(left), Some(right)) => ptr::fn_addr_eq(left, right),
                 (None, None) => true,
                 _ => false,
