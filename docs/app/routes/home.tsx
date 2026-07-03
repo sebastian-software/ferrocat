@@ -224,19 +224,20 @@ const parseCompare: Bar[] = [
 const PARSE_MAX = 455
 
 const updateCompare: Bar[] = [
-  { name: "Ferrocat", lang: "Rust, plain update", rate: 245, self: true },
+  { name: "Ferrocat", lang: "Rust, plain update", rate: 265, self: true },
   {
     name: "Ferrocat full catalog update",
     lang: "with ICU checks + placeholder tracking",
-    rate: 88,
+    rate: 108,
     self: true,
   },
-  { name: "pofile-ts", lang: "Node", rate: 39 },
+  { name: "pofile-ts", lang: "Node", rate: 43 },
   { name: "gettext/gettext", lang: "PHP", rate: 16 },
-  { name: "polib", lang: "Python", rate: 7 },
-  { name: "msgmerge", lang: "GNU gettext", rate: 4.5 },
+  { name: "Babel", lang: "Python", rate: 8 },
+  { name: "polib", lang: "Python", rate: 7.2 },
+  { name: "msgmerge", lang: "GNU gettext", rate: 4.7 },
 ]
-const UPDATE_MAX = 245
+const UPDATE_MAX = 265
 
 // ── Other open source from the same studio ──
 
@@ -452,9 +453,10 @@ export default function HomePage() {
           the high-level catalog update on the same files: on top of the plain
           update it analyzes ICU message structure, tracks placeholders, and
           produces deterministic output. None of the compared tools has an
-          equivalent layer&mdash;their update <em>is</em> the plain bar&mdash;
-          and a compatibility probe asserts the output stays semantically
-          identical to msgmerge&rsquo;s on this corpus. The GNU msgmerge bar is not
+          broader benchmark now includes Babel&rsquo;s real Python
+          <code>Catalog.update</code> path, and a compatibility probe asserts
+          the output stays semantically identical to msgmerge&rsquo;s on this
+          corpus. The GNU msgmerge bar is not
           a launch-cost artifact either: the benchmark records an empty-run
           baseline, and its fixed process and I/O overhead is about 2% of the
           measured time on this corpus, so the gap is real work. The Node
@@ -465,8 +467,8 @@ export default function HomePage() {
           borrowed, zero-copy parsing; reading into a fully owned model still
           reaches about 360 MiB/s. Serialization runs at about 1.2 GiB/s on the same
           corpus. Median throughput on an Apple M1 Ultra, every tool reading
-          the same files (pofile-ts 4.0.3, gettext-parser 9.0.2, polib 1.2.0,
-          gettext/gettext 5.7.3, GNU gettext 1.0).{" "}
+          the same files (pofile-ts 4.0.3, gettext-parser 9.0.2, Babel 2.18.0,
+          polib 1.2.0, gettext/gettext 5.7.3, GNU gettext 1.0).{" "}
           <Link to="/performance/benchmarking">Methodology</Link> and{" "}
           <a href="https://github.com/sebastian-software/ferrocat/tree/main/benchmark/results">
             full report
