@@ -841,7 +841,9 @@ mod tests {
         CompileSelectedCatalogArtifactOptions, CompiledCatalogArtifact, CompiledCatalogDiagnostic,
         CompiledCatalogIdIndex, CompiledCatalogMissingMessage, CompiledKeyStrategy,
     };
-    use ferrocat_icu::{IcuDiagnosticSeverity, IcuFormatter, IcuFormatterSupport};
+    use ferrocat_icu::{
+        IcuArgumentKind, IcuDiagnosticSeverity, IcuFormatter, IcuFormatterSupport, IcuStyleKind,
+    };
 
     use crate::api::{CatalogMessageKey, CatalogSemantics, DiagnosticSeverity, IcuSyntaxPolicy};
 
@@ -958,10 +960,23 @@ mod tests {
         let same = CompileCatalogArtifactIcuOptions::new().with_formatter_support(support_all);
         let different =
             CompileCatalogArtifactIcuOptions::new().with_formatter_support(support_none);
+        let formatter = IcuFormatter {
+            name: "count".to_owned(),
+            kind: IcuArgumentKind::Number,
+            style: None,
+            style_kind: IcuStyleKind::None,
+        };
 
         assert_eq!(left, same);
         assert_ne!(left, different);
         assert_ne!(left, CompileCatalogArtifactIcuOptions::new());
+        assert_eq!(support_all(&formatter), IcuFormatterSupport::Supported);
+        assert_eq!(
+            support_none(&formatter),
+            IcuFormatterSupport::UnsupportedKind {
+                severity: IcuDiagnosticSeverity::Warning
+            }
+        );
     }
 
     #[cfg(feature = "serde")]
