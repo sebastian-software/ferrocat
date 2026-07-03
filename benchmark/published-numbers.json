@@ -177,6 +177,18 @@
       ]
     }
   ],
+  "allowedUnregisteredNumbers": [
+    {
+      "file": "docs/app/routes/home.tsx",
+      "value": "309 MiB/s",
+      "reason": "ferromark throughput claim, not a ferrocat benchmark result"
+    },
+    {
+      "file": "docs/app/routes/performance/benchmarking.mdx",
+      "value": "40 MiB/s",
+      "reason": "profiling trigger budget for the slowest Rust-only path, not a published benchmark result"
+    }
+  ],
   "textAssertions": [
     {
       "id": "home.proof.rounded-conformance-cases",
