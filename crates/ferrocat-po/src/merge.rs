@@ -1,5 +1,7 @@
 use std::borrow::Cow;
 
+use rustc_hash::FxHashMap;
+
 use crate::line_state::{PoLineContext, PoLineState};
 use crate::scan::{
     CommentKind, Keyword, LineKind, LineScanner, classify_line, find_byte, find_quoted_bounds,
@@ -154,8 +156,9 @@ pub fn merge_catalog<'a>(
     write_file_preamble(&mut out, &existing);
 
     let mut existing_index =
-        std::collections::HashMap::<&str, Vec<(Option<&str>, usize)>>::with_capacity(
+        FxHashMap::<&str, Vec<(Option<&str>, usize)>>::with_capacity_and_hasher(
             existing.items.len(),
+            Default::default(),
         );
     for (index, item) in existing.items.iter().enumerate() {
         existing_index
@@ -562,7 +565,7 @@ fn merge_quoted_raw(line_bytes: &[u8]) -> Option<&[u8]> {
 }
 
 fn find_existing_index(
-    existing_index: &std::collections::HashMap<&str, Vec<(Option<&str>, usize)>>,
+    existing_index: &FxHashMap<&str, Vec<(Option<&str>, usize)>>,
     msgctxt: Option<&str>,
     msgid: &str,
 ) -> Option<usize> {
@@ -1016,6 +1019,8 @@ fn trimmed_str(bytes: &[u8]) -> &str {
 mod tests {
     use std::borrow::Cow;
 
+    use rustc_hash::FxHashMap;
+
     use super::{
         MergeHeader, MergeMessageInput, estimate_merge_capacity, extract_merge_quoted_cow,
         find_existing_index, header_fragment_is_borrowable, merge_catalog, parse_header_fragment,
@@ -1141,10 +1146,7 @@ mod tests {
         );
         assert_eq!(
             find_existing_index(
-                &std::collections::HashMap::from([(
-                    "hello",
-                    vec![(Some("menu"), 3usize), (None, 1usize)],
-                )]),
+                &FxHashMap::from_iter([("hello", vec![(Some("menu"), 3usize), (None, 1usize)],)]),
                 Some("menu"),
                 "hello",
             ),
