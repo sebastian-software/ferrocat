@@ -169,14 +169,30 @@ jobs:
             echo "${package_id##*#}"
           }
 
+          crate_index_path() {
+            # Sparse index layout: 1/name, 2/name, 3/{first char}/name,
+            # {first two}/{next two}/name for longer names.
+            local crate="$1"
+            case "${#crate}" in
+              1) echo "1/${crate}" ;;
+              2) echo "2/${crate}" ;;
+              3) echo "3/${crate:0:1}/${crate}" ;;
+              *) echo "${crate:0:2}/${crate:2:2}/${crate}" ;;
+            esac
+          }
+
           crate_version_exists() {
             local crate="$1"
             local version="$2"
-            local index_path
+            local index_body
 
-            index_path="${crate:0:2}/${crate:2:2}/${crate}"
-            curl -fsSL "https://index.crates.io/${index_path}" 2>/dev/null \
-              | grep -F "\"vers\":\"${version}\"" > /dev/null
+            # Capture the body instead of piping so a curl failure (network
+            # error, HTTP 5xx) is distinguishable from "version not found".
+            if ! index_body="$(curl -fsSL --retry 3 "https://index.crates.io/$(crate_index_path "$crate")")"; then
+              echo "::warning::crates.io index lookup failed for ${crate}; treating ${version} as unpublished." >&2
+              return 1
+            fi
+            grep -qF "\"vers\":\"${version}\"" <<< "$index_body"
           }
 
           publish_with_retry() {
