@@ -74,3 +74,77 @@ confusing type-mismatch errors.
 When a future release needs a durable migration note — for example a major
 version with breaking changes — this page should link that note from the upgrade
 routine instead of leaving it buried in a PR.
+
+## Upgrading to 2.1.0
+
+Ferrocat 2.1.0 includes a reviewed cleanup window for accidental public API
+coupling left after 2.0.0. These are source-level breaks, but they are small
+renames or construction changes with direct replacements.
+
+### Renamed entry points
+
+| Before | After |
+| --- | --- |
+| `catalog_review` | `review_catalogs` |
+| `catalog_coverage` | `measure_catalog_coverage` |
+| `has_selectordinal` | `has_select_ordinal` |
+| `MergeExtractedMessage` | `MergeMessageInput` |
+
+Search for the old name in compiler errors and replace it with the matching new
+name. The `MergeExtractedMessage` compatibility alias was removed, so direct type
+annotations need to move to `MergeMessageInput`.
+
+### `MsgStr` accessors
+
+`MsgStr::first()` now returns `Option<&str>`, and iterator items are `&str`. Code
+that previously used `first_str()` should call `first()` and handle the empty
+translation case explicitly:
+
+```rust
+let Some(text) = message.msgstr.first() else {
+    return;
+};
+```
+
+Iteration no longer needs an extra string conversion:
+
+```rust
+for variant in message.msgstr.iter() {
+    println!("{variant}");
+}
+```
+
+### `PoVec` construction
+
+`PoVec` is now an opaque inline-vector newtype instead of exposing
+`SmallVec<[T; 1]>` in public signatures. Reading is still slice-like, but
+constructing affected fields from a `Vec` now needs `From<Vec<T>>` or `.into()`:
+
+```rust
+message.origin = vec![CatalogOrigin {
+    file: "app.ftl".into(),
+    scope: "checkout.title".into(),
+}]
+.into();
+```
+
+Direct equality checks against a `Vec` should compare slices instead:
+
+```rust
+assert_eq!(message.origin.as_slice(), expected_origins.as_slice());
+```
+
+### Non-exhaustive options
+
+The public options structs are now `#[non_exhaustive]`. Downstream code can no
+longer use functional-record-update syntax such as `..Options::new()` outside
+the defining crate. Start from `new()` and use the builder methods instead:
+
+```rust
+let options = UpdateCatalogOptions::new()
+    .with_mode(CatalogMode::IcuPo)
+    .with_obsolete_strategy(ObsoleteStrategy::Keep);
+```
+
+This keeps future options additive without forcing another public constructor
+break.

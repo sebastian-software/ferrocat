@@ -2,6 +2,15 @@
 
 ## [2.1.0](https://github.com/sebastian-software/ferrocat/compare/ferrocat-po-v2.0.0...ferrocat-po-v2.1.0) (2026-07-02)
 
+### ⚠ BREAKING CLEANUPS
+
+See the [2.0 to 2.1 migration guide](https://ferrocat.dev/guide/upgrading#upgrading-to-210) for old-to-new names and construction examples.
+
+* **api:** `catalog_review` is now `review_catalogs`, and `catalog_coverage` is now `measure_catalog_coverage`.
+* **po:** `MergeExtractedMessage` is removed; use `MergeMessageInput`.
+* **po:** `MsgStr::first()` now returns `Option<&str>`, `MsgStr::first_str()` is removed, and `MsgStr` iterator items are `&str`.
+* **po:** `PoVec` is an opaque newtype. Read access remains slice-like, but constructing affected fields from `Vec<T>` now needs `From<Vec<T>>` or `.into()`.
+* **api:** public options structs are `#[non_exhaustive]`; downstream code should use `Options::new().with_*()` builders instead of functional-record-update syntax.
 
 ### Features
 

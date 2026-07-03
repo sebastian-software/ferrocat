@@ -2,6 +2,12 @@
 
 ## [2.1.0](https://github.com/sebastian-software/ferrocat/compare/ferrocat-icu-v2.0.0...ferrocat-icu-v2.1.0) (2026-07-02)
 
+### ⚠ BREAKING CLEANUPS
+
+See the [2.0 to 2.1 migration guide](https://ferrocat.dev/guide/upgrading#upgrading-to-210) for old-to-new names and construction examples.
+
+* **api:** `has_selectordinal` is now `has_select_ordinal`.
+* **api:** public options structs are `#[non_exhaustive]`; downstream code should use `Options::new().with_*()` builders instead of functional-record-update syntax.
 
 ### Features
 
