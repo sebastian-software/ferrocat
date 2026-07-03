@@ -12,9 +12,8 @@ pub(super) use super::{
     PlaceholderCommentMode, PluralEncoding, PluralSource, RenderOptions, SourceExtractedMessage,
     TranslationShape, UpdateCatalogFileOptions, UpdateCatalogOptions, audit_catalogs,
     combine_catalog_files, combine_catalogs, compile::compiled_key_for, compile_catalog_artifact,
-    compile_catalog_artifact_report, compile_catalog_artifact_selected,
-    compile_catalog_artifact_selected_with_icu_options, compile_catalog_artifact_with_icu_options,
-    compiled_key, machine_translation_hash, measure_catalog_coverage, parse_catalog,
+    compile_catalog_artifact_report, compile_catalog_artifact_selected, compiled_key,
+    machine_translation_hash, measure_catalog_coverage, parse_catalog,
     plural::cached_icu_plural_categories_for, review_catalogs, update_catalog, update_catalog_file,
 };
 pub(super) use crate::parse_po;

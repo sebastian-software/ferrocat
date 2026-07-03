@@ -879,11 +879,12 @@ fn compile_catalog_artifact_runtime_literal_apostrophes_policy_accepts_runtime_v
         PluralEncoding::Icu,
     );
 
-    let artifact = compile_catalog_artifact_with_icu_options(
+    let artifact = compile_catalog_artifact(
         &[&requested, &source],
-        &CompileCatalogArtifactOptions::new("de", "en"),
-        &CompileCatalogArtifactIcuOptions::new()
-            .with_syntax_policy(IcuSyntaxPolicy::RuntimeLiteralApostrophes),
+        &CompileCatalogArtifactOptions::new("de", "en").with_icu_options(
+            CompileCatalogArtifactIcuOptions::new()
+                .with_syntax_policy(IcuSyntaxPolicy::RuntimeLiteralApostrophes),
+        ),
     )
     .expect("compile artifact");
 
@@ -907,15 +908,16 @@ fn compile_catalog_artifact_selected_uses_runtime_literal_apostrophes_policy() {
             .expect("index");
     let compiled_ids = index.iter().map(|(id, _)| id).collect::<Vec<_>>();
 
-    let artifact = compile_catalog_artifact_selected_with_icu_options(
+    let artifact = compile_catalog_artifact_selected(
         &[&requested, &source],
         &index,
         &CompileSelectedCatalogArtifactOptions {
             compiled_ids: &compiled_ids,
-            options: CompileCatalogArtifactOptions::new("de", "en"),
+            options: CompileCatalogArtifactOptions::new("de", "en").with_icu_options(
+                CompileCatalogArtifactIcuOptions::new()
+                    .with_syntax_policy(IcuSyntaxPolicy::RuntimeLiteralApostrophes),
+            ),
         },
-        &CompileCatalogArtifactIcuOptions::new()
-            .with_syntax_policy(IcuSyntaxPolicy::RuntimeLiteralApostrophes),
     )
     .expect("compile selected artifact");
 
@@ -935,14 +937,14 @@ fn strict_icu_respects_runtime_literal_apostrophes_policy() {
         PluralEncoding::Icu,
     );
 
-    let artifact = compile_catalog_artifact_with_icu_options(
+    let artifact = compile_catalog_artifact(
         &[&requested, &source],
-        &CompileCatalogArtifactOptions {
-            strict_icu: true,
-            ..CompileCatalogArtifactOptions::new("de", "en")
-        },
-        &CompileCatalogArtifactIcuOptions::new()
-            .with_syntax_policy(IcuSyntaxPolicy::RuntimeLiteralApostrophes),
+        &CompileCatalogArtifactOptions::new("de", "en")
+            .with_strict_icu(true)
+            .with_icu_options(
+                CompileCatalogArtifactIcuOptions::new()
+                    .with_syntax_policy(IcuSyntaxPolicy::RuntimeLiteralApostrophes),
+            ),
     )
     .expect("strict runtime-valid artifact");
 
@@ -962,14 +964,14 @@ fn strict_icu_keeps_real_syntax_errors_with_runtime_literal_apostrophes_policy()
         PluralEncoding::Icu,
     );
 
-    let error = compile_catalog_artifact_with_icu_options(
+    let error = compile_catalog_artifact(
         &[&requested, &source],
-        &CompileCatalogArtifactOptions {
-            strict_icu: true,
-            ..CompileCatalogArtifactOptions::new("de", "en")
-        },
-        &CompileCatalogArtifactIcuOptions::new()
-            .with_syntax_policy(IcuSyntaxPolicy::RuntimeLiteralApostrophes),
+        &CompileCatalogArtifactOptions::new("de", "en")
+            .with_strict_icu(true)
+            .with_icu_options(
+                CompileCatalogArtifactIcuOptions::new()
+                    .with_syntax_policy(IcuSyntaxPolicy::RuntimeLiteralApostrophes),
+            ),
     )
     .expect_err("real invalid icu should fail");
 
@@ -1007,10 +1009,12 @@ fn compile_catalog_artifact_formatter_support_accepts_supported_runtime_styles()
         PluralEncoding::Icu,
     );
 
-    let artifact = compile_catalog_artifact_with_icu_options(
+    let artifact = compile_catalog_artifact(
         &[&requested, &source],
-        &CompileCatalogArtifactOptions::new("de", "en"),
-        &CompileCatalogArtifactIcuOptions::new().with_formatter_support(runtime_formatter_support),
+        &CompileCatalogArtifactOptions::new("de", "en").with_icu_options(
+            CompileCatalogArtifactIcuOptions::new()
+                .with_formatter_support(runtime_formatter_support),
+        ),
     )
     .expect("compile artifact");
 
@@ -1036,10 +1040,12 @@ fn compile_catalog_artifact_formatter_support_reports_unsupported_styles_and_kin
         PluralEncoding::Icu,
     );
 
-    let artifact = compile_catalog_artifact_with_icu_options(
+    let artifact = compile_catalog_artifact(
         &[&requested, &source],
-        &CompileCatalogArtifactOptions::new("de", "en"),
-        &CompileCatalogArtifactIcuOptions::new().with_formatter_support(runtime_formatter_support),
+        &CompileCatalogArtifactOptions::new("de", "en").with_icu_options(
+            CompileCatalogArtifactIcuOptions::new()
+                .with_formatter_support(runtime_formatter_support),
+        ),
     )
     .expect("compile artifact");
 
@@ -1074,14 +1080,16 @@ fn compile_catalog_artifact_selected_uses_formatter_support_diagnostics() {
             .expect("index");
     let compiled_ids = index.iter().map(|(id, _)| id).collect::<Vec<_>>();
 
-    let artifact = compile_catalog_artifact_selected_with_icu_options(
+    let artifact = compile_catalog_artifact_selected(
         &[&requested, &source],
         &index,
         &CompileSelectedCatalogArtifactOptions {
             compiled_ids: &compiled_ids,
-            options: CompileCatalogArtifactOptions::new("de", "en"),
+            options: CompileCatalogArtifactOptions::new("de", "en").with_icu_options(
+                CompileCatalogArtifactIcuOptions::new()
+                    .with_formatter_support(runtime_formatter_support),
+            ),
         },
-        &CompileCatalogArtifactIcuOptions::new().with_formatter_support(runtime_formatter_support),
     )
     .expect("compile selected artifact");
 

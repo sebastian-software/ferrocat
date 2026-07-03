@@ -7,7 +7,7 @@ use ferrocat_icu::{
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
-use crate::diagnostic_codes;
+use crate::diagnostic_codes::{self, DiagnosticCode};
 
 use super::icu_syntax::parse_icu_with_syntax_policy;
 use super::message_status::{
@@ -30,6 +30,8 @@ pub struct CatalogAuditOptions<'a> {
     pub metadata: &'a [MessageMetadataInput],
     /// Individual audit checks to run.
     pub checks: CatalogAuditChecks,
+    /// ICU-specific options used by syntax and compatibility checks.
+    pub icu_options: CatalogAuditIcuOptions,
 }
 
 impl<'a> CatalogAuditOptions<'a> {
@@ -60,6 +62,13 @@ impl<'a> CatalogAuditOptions<'a> {
     #[must_use]
     pub fn with_checks(mut self, checks: CatalogAuditChecks) -> Self {
         self.checks = checks;
+        self
+    }
+
+    /// Returns options that use the given ICU parser and compatibility settings.
+    #[must_use]
+    pub fn with_icu_options(mut self, icu_options: CatalogAuditIcuOptions) -> Self {
+        self.icu_options = icu_options;
         self
     }
 }
@@ -212,7 +221,7 @@ pub struct CatalogAuditDiagnostic {
     /// Severity for the diagnostic.
     pub severity: DiagnosticSeverity,
     /// Stable machine-readable diagnostic code.
-    pub code: String,
+    pub code: DiagnosticCode,
     /// Human-readable explanation of the condition.
     pub message: String,
     /// Message identity associated with the diagnostic, when applicable.
@@ -224,7 +233,7 @@ pub struct CatalogAuditDiagnostic {
 impl CatalogAuditDiagnostic {
     fn new(
         severity: DiagnosticSeverity,
-        code: impl Into<String>,
+        code: impl Into<DiagnosticCode>,
         message: impl Into<String>,
         source_key: Option<CatalogAuditMessageRef>,
         name: Option<String>,
@@ -293,24 +302,10 @@ pub fn audit_catalogs(
     catalogs: &[&NormalizedParsedCatalog],
     options: &CatalogAuditOptions<'_>,
 ) -> Result<CatalogAuditReport, ApiError> {
-    audit_catalogs_with_icu_options(catalogs, options, &CatalogAuditIcuOptions::default())
-}
-
-/// Audits normalized catalogs with explicit ICU syntax options.
-///
-/// # Errors
-///
-/// Returns [`ApiError::InvalidArguments`] when `source_locale` is empty or when
-/// catalogs cannot be inspected because their declared locales are missing or
-/// duplicated.
-pub fn audit_catalogs_with_icu_options(
-    catalogs: &[&NormalizedParsedCatalog],
-    options: &CatalogAuditOptions<'_>,
-    icu_options: &CatalogAuditIcuOptions,
-) -> Result<CatalogAuditReport, ApiError> {
     validate_source_locale(options.source_locale)?;
     let catalog_index = index_catalogs(catalogs)?;
     let mut report = CatalogAuditReport::default();
+    let icu_options = &options.icu_options;
 
     let Some(source_catalog) = catalog_index.get(options.source_locale).copied() else {
         report.diagnostics.push(CatalogAuditDiagnostic::new(
@@ -584,7 +579,7 @@ fn audit_icu_compatibility(
         for diagnostic in compatibility.diagnostics {
             report.diagnostics.push(CatalogAuditDiagnostic::new(
                 severity_from_icu(diagnostic.severity),
-                diagnostic.code,
+                diagnostic.code.as_str(),
                 diagnostic.message,
                 Some(CatalogAuditMessageRef::new(Some(target_locale), key)),
                 diagnostic.name,
@@ -634,7 +629,7 @@ fn audit_metadata(
         for diagnostic in metadata_report.diagnostics {
             report.diagnostics.push(CatalogAuditDiagnostic::new(
                 severity_from_icu(diagnostic.severity),
-                diagnostic.code,
+                diagnostic.code.as_str(),
                 diagnostic.message,
                 Some(source_ref.clone()),
                 diagnostic.name,
@@ -758,7 +753,7 @@ mod serde_tests {
             },
             diagnostics: vec![CatalogAuditDiagnostic {
                 severity: DiagnosticSeverity::Error,
-                code: "catalog.missing_translation".to_owned(),
+                code: "catalog.missing_translation".into(),
                 message: "missing target translation".to_owned(),
                 source_key: Some(CatalogAuditMessageRef {
                     locale: Some("de".to_owned()),

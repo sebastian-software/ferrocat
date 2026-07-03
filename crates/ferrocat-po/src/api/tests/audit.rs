@@ -3,7 +3,7 @@ use ferrocat_icu::{
     MessageSelectorMetadata,
 };
 
-use crate::{CatalogAuditIcuOptions, audit_catalogs_with_icu_options};
+use crate::CatalogAuditIcuOptions;
 
 use super::{
     CatalogAuditOptions, CatalogMode, DiagnosticSeverity, IcuSyntaxPolicy, ParseCatalogOptions,
@@ -151,11 +151,12 @@ fn audit_runtime_literal_apostrophes_policy_accepts_runtime_valid_messages() {
         "en",
     );
 
-    let report = audit_catalogs_with_icu_options(
+    let report = audit_catalogs(
         &[&source],
-        &CatalogAuditOptions::new("en"),
-        &CatalogAuditIcuOptions::new()
-            .with_syntax_policy(IcuSyntaxPolicy::RuntimeLiteralApostrophes),
+        &CatalogAuditOptions::new("en").with_icu_options(
+            CatalogAuditIcuOptions::new()
+                .with_syntax_policy(IcuSyntaxPolicy::RuntimeLiteralApostrophes),
+        ),
     )
     .expect("audit");
 
@@ -166,11 +167,12 @@ fn audit_runtime_literal_apostrophes_policy_accepts_runtime_valid_messages() {
 fn audit_runtime_literal_apostrophes_policy_keeps_real_invalid_icu() {
     let source = catalog("msgid \"Hello\"\nmsgstr \"Hello {{name}}\"\n", "en");
 
-    let report = audit_catalogs_with_icu_options(
+    let report = audit_catalogs(
         &[&source],
-        &CatalogAuditOptions::new("en"),
-        &CatalogAuditIcuOptions::new()
-            .with_syntax_policy(IcuSyntaxPolicy::RuntimeLiteralApostrophes),
+        &CatalogAuditOptions::new("en").with_icu_options(
+            CatalogAuditIcuOptions::new()
+                .with_syntax_policy(IcuSyntaxPolicy::RuntimeLiteralApostrophes),
+        ),
     )
     .expect("audit");
 
@@ -188,11 +190,12 @@ fn audit_runtime_literal_apostrophes_policy_still_reports_compatibility_changes(
         "de",
     );
 
-    let report = audit_catalogs_with_icu_options(
+    let report = audit_catalogs(
         &[&source, &target],
-        &CatalogAuditOptions::new("en"),
-        &CatalogAuditIcuOptions::new()
-            .with_syntax_policy(IcuSyntaxPolicy::RuntimeLiteralApostrophes),
+        &CatalogAuditOptions::new("en").with_icu_options(
+            CatalogAuditIcuOptions::new()
+                .with_syntax_policy(IcuSyntaxPolicy::RuntimeLiteralApostrophes),
+        ),
     )
     .expect("audit");
 

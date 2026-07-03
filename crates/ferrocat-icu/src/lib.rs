@@ -74,6 +74,7 @@ pub use analysis::{
     validate_icu_formatter_support_from_analysis,
 };
 pub use ast::{IcuMessage, IcuNode, IcuOption, IcuPluralKind};
+pub use diagnostic_codes::DiagnosticCode;
 pub use error::{IcuErrorKind, IcuParseError, IcuPosition};
 pub use metadata::{
     MessageArgumentFormatMetadata, MessageArgumentKind, MessageArgumentMetadata,

@@ -4,7 +4,7 @@ use std::{
 };
 
 use crate::ast::{IcuMessage, IcuNode, IcuOption, IcuPluralKind};
-use crate::diagnostic_codes;
+use crate::diagnostic_codes::{self, DiagnosticCode};
 
 /// Severity level attached to ICU authoring diagnostics.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -229,7 +229,7 @@ pub struct IcuDiagnostic {
     /// Severity for the diagnostic.
     pub severity: IcuDiagnosticSeverity,
     /// Stable machine-readable diagnostic code.
-    pub code: String,
+    pub code: DiagnosticCode,
     /// Human-readable explanation of the condition.
     pub message: String,
     /// Argument, selector, or tag name associated with the diagnostic.
@@ -239,13 +239,13 @@ pub struct IcuDiagnostic {
 impl IcuDiagnostic {
     fn new(
         severity: IcuDiagnosticSeverity,
-        code: &'static str,
+        code: impl Into<DiagnosticCode>,
         message: impl Into<String>,
         name: impl Into<Option<String>>,
     ) -> Self {
         Self {
             severity,
-            code: code.to_owned(),
+            code: code.into(),
             message: message.into(),
             name: name.into(),
         }

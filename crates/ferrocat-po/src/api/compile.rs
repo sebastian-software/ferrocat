@@ -154,26 +154,6 @@ pub fn compile_catalog_artifact(
     catalogs: &[&NormalizedParsedCatalog],
     options: &CompileCatalogArtifactOptions<'_>,
 ) -> Result<CompiledCatalogArtifact, ApiError> {
-    compile_catalog_artifact_with_icu_options(
-        catalogs,
-        options,
-        &CompileCatalogArtifactIcuOptions::default(),
-    )
-}
-
-/// Compiles one requested-locale runtime artifact with explicit ICU syntax options.
-///
-/// # Errors
-///
-/// Returns [`ApiError::InvalidArguments`] when required locales are missing, duplicated,
-/// or inconsistent with the provided catalog set; [`ApiError::Conflict`] when two source
-/// identities compile to the same derived key; or [`ApiError::Unsupported`] when
-/// `strict_icu` is enabled and a final runtime message fails ICU validation.
-pub fn compile_catalog_artifact_with_icu_options(
-    catalogs: &[&NormalizedParsedCatalog],
-    options: &CompileCatalogArtifactOptions<'_>,
-    icu_options: &CompileCatalogArtifactIcuOptions,
-) -> Result<CompiledCatalogArtifact, ApiError> {
     let locales = prepare_compiled_catalog_artifact_catalogs(
         catalogs,
         options.requested_locale,
@@ -185,7 +165,7 @@ pub fn compile_catalog_artifact_with_icu_options(
         &locales,
         collect_compiled_catalog_artifact_source_keys(&locales),
         options,
-        icu_options,
+        &options.icu_options,
     )
 }
 
@@ -201,28 +181,6 @@ pub fn compile_catalog_artifact_selected(
     catalogs: &[&NormalizedParsedCatalog],
     index: &CompiledCatalogIdIndex,
     options: &CompileSelectedCatalogArtifactOptions<'_>,
-) -> Result<CompiledCatalogArtifact, ApiError> {
-    compile_catalog_artifact_selected_with_icu_options(
-        catalogs,
-        index,
-        options,
-        &CompileCatalogArtifactIcuOptions::default(),
-    )
-}
-
-/// Compiles a selected subset of compiled IDs with explicit ICU syntax options.
-///
-/// # Errors
-///
-/// Returns [`ApiError::InvalidArguments`] when the selected IDs are unknown or the
-/// catalog inputs are inconsistent, [`ApiError::Conflict`] on compiled-key collisions,
-/// or [`ApiError::Unsupported`] when `strict_icu` is enabled and a final runtime
-/// message fails ICU validation.
-pub fn compile_catalog_artifact_selected_with_icu_options(
-    catalogs: &[&NormalizedParsedCatalog],
-    index: &CompiledCatalogIdIndex,
-    options: &CompileSelectedCatalogArtifactOptions<'_>,
-    icu_options: &CompileCatalogArtifactIcuOptions,
 ) -> Result<CompiledCatalogArtifact, ApiError> {
     let artifact_options = &options.options;
     let locales = prepare_compiled_catalog_artifact_catalogs(
@@ -240,7 +198,12 @@ pub fn compile_catalog_artifact_selected_with_icu_options(
         "compile_catalog_artifact_selected",
     )?;
 
-    compile_catalog_artifact_from_source_keys(&locales, source_keys, artifact_options, icu_options)
+    compile_catalog_artifact_from_source_keys(
+        &locales,
+        source_keys,
+        artifact_options,
+        &artifact_options.icu_options,
+    )
 }
 
 /// Compiles one requested-locale runtime artifact with a sibling provenance report.
@@ -706,7 +669,7 @@ where
                 }
                 artifact.diagnostics.push(CompiledCatalogDiagnostic {
                     severity: DiagnosticSeverity::Error,
-                    code: diagnostic_codes::compile::INVALID_ICU_MESSAGE.to_owned(),
+                    code: diagnostic_codes::compile::INVALID_ICU_MESSAGE.into(),
                     message: format!("Final runtime message failed ICU validation: {error}"),
                     key: compiled_key.clone(),
                     msgid: source_key.msgid.clone(),
@@ -817,7 +780,7 @@ fn push_icu_diagnostics_for_compiled_message(
     for diagnostic in diagnostics {
         artifact.diagnostics.push(CompiledCatalogDiagnostic {
             severity: icu_diagnostic_severity(diagnostic.severity),
-            code: diagnostic.code,
+            code: diagnostic.code.as_str().into(),
             message: diagnostic.message,
             key: target.compiled_key.to_owned(),
             msgid: target.source_key.msgid.clone(),

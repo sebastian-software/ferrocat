@@ -5,7 +5,7 @@ use ferrocat::{
         CatalogMode, CatalogUpdateInput, CombineCatalogOptions, CompileCatalogArtifactOptions,
         CompileSelectedCatalogArtifactOptions, CompiledCatalogIdIndex, CompiledKeyStrategy,
         EffectiveTranslation, EffectiveTranslationRef, ParseCatalogOptions, SourceExtractedMessage,
-        audit_catalogs_with_icu_options, combine_catalogs, compile_catalog_artifact,
+        audit_catalogs, combine_catalogs, compile_catalog_artifact,
         compile_catalog_artifact_selected, parse_catalog,
     },
     icu, parse_po_bytes, po,
@@ -98,10 +98,9 @@ msgstr "world"
     .expect("parse source catalog")
     .into_normalized_view()
     .expect("normalized source catalog");
-    let audit = audit_catalogs_with_icu_options(
+    let audit = audit_catalogs(
         &[&source, &normalized],
-        &CatalogAuditOptions::new("en"),
-        &CatalogAuditIcuOptions::default(),
+        &CatalogAuditOptions::new("en").with_icu_options(CatalogAuditIcuOptions::default()),
     )
     .expect("audit catalogs with icu options");
     assert!(!audit.has_errors());
