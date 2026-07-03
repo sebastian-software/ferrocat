@@ -148,3 +148,61 @@ let options = UpdateCatalogOptions::new()
 
 This keeps future options additive without forcing another public constructor
 break.
+
+## Upcoming 2.2 API cleanup
+
+The next cleanup batch removes the remaining cross-product entry points for ICU
+syntax policy and folds those choices into the existing options structs. If your
+code called a `_with_icu_options` or `_with_syntax_policy` function variant,
+move the ICU configuration onto the operation's options value instead.
+
+For catalog audits, build `CatalogAuditOptions` with embedded
+`CatalogAuditIcuOptions`:
+
+```rust
+use ferrocat::{CatalogAuditIcuOptions, CatalogAuditOptions, IcuSyntaxPolicy};
+
+let options = CatalogAuditOptions::new("en").with_icu_options(
+    CatalogAuditIcuOptions::new()
+        .with_syntax_policy(IcuSyntaxPolicy::RuntimeLiteralApostrophes),
+);
+```
+
+For runtime artifact compilation, use `CompileCatalogArtifactOptions`:
+
+```rust
+use ferrocat::{
+    CompileCatalogArtifactIcuOptions, CompileCatalogArtifactOptions,
+    IcuSyntaxPolicy,
+};
+
+let options = CompileCatalogArtifactOptions::new("de", "en").with_icu_options(
+    CompileCatalogArtifactIcuOptions::new()
+        .with_syntax_policy(IcuSyntaxPolicy::RuntimeLiteralApostrophes),
+);
+```
+
+For pseudolocalization of compiled artifacts, pass the syntax policy through
+`CompiledCatalogPseudolocalizationOptions`:
+
+```rust
+use ferrocat::{CompiledCatalogPseudolocalizationOptions, IcuSyntaxPolicy};
+
+let options = CompiledCatalogPseudolocalizationOptions::new()
+    .with_syntax_policy(IcuSyntaxPolicy::RuntimeLiteralApostrophes);
+```
+
+Diagnostic report fields now use the `DiagnosticCode` newtype in Rust instead
+of plain `String`. Existing JSON consumers do not need to change: reports still
+serialize diagnostic codes as the same canonical strings, for example
+`"catalog.missing_translation"`. Rust code that stores or compares codes should
+use `code.as_ref()`, `code.to_string()`, the exported `diagnostic_codes`
+constants, or direct comparison with a string literal:
+
+```rust
+use ferrocat::diagnostic_codes::catalog;
+
+if diagnostic.code == catalog::MISSING_TRANSLATION {
+    // Handle missing translations.
+}
+```
