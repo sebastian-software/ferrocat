@@ -151,6 +151,8 @@ jobs:
   public-api:
     name: Public API snapshot
     runs-on: ubuntu-24.04
+    env:
+      PUBLIC_API_TOOLCHAIN: nightly-2026-06-30
 
     steps:
       - name: Check out repository
@@ -159,7 +161,7 @@ jobs:
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@master
         with:
-          toolchain: nightly-2026-06-30
+          toolchain: ${{ env.PUBLIC_API_TOOLCHAIN }}
 
       - name: Cache Rust build artifacts
         uses: Swatinem/rust-cache@v2
@@ -168,8 +170,6 @@ jobs:
         run: cargo install cargo-public-api --version 0.52.0 --locked
 
       - name: Check public API snapshots
-        env:
-          PUBLIC_API_TOOLCHAIN: nightly-2026-06-30
         run: bash scripts/check-public-api-snapshots.sh
 
   msrv:
