@@ -8,12 +8,6 @@ on:
   push:
     branches:
       - main
-  workflow_dispatch:
-    inputs:
-      yank_version:
-        description: If set, yank this version of all published crates from crates.io (manual maintenance; no release/publish runs).
-        required: false
-        default: ""
 
 concurrency:
   group: publish-${{ github.ref }}
@@ -24,7 +18,6 @@ permissions:
 
 jobs:
   release-please:
-    if: ${{ github.event_name == 'push' }}
     runs-on: ubuntu-24.04
     permissions:
       contents: write
@@ -235,35 +228,3 @@ jobs:
           publish_with_retry ferrocat-po 5 30
           publish_with_retry ferrocat 5 30
           publish_with_retry ferrocat-cli 5 30
-
-  # Manual maintenance: retract a published version from crates.io. Lives in
-  # publish.yml because crates.io Trusted Publishing binds the OIDC token to
-  # this workflow's filename, so a separate workflow cannot authenticate.
-  yank:
-    if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.yank_version != '' }}
-    runs-on: ubuntu-24.04
-    permissions:
-      contents: read
-      id-token: write
-
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@v7
-
-      - name: Set up Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Authenticate to crates.io
-        id: crates-auth
-        uses: rust-lang/crates-io-auth-action@v1
-
-      - name: Yank published crates
-        shell: bash
-        env:
-          CARGO_REGISTRY_TOKEN: ${{ steps.crates-auth.outputs.token }}
-          VERSION: ${{ github.event.inputs.yank_version }}
-        run: |
-          for crate in ferrocat-icu ferrocat-po ferrocat ferrocat-cli; do
-            echo "Yanking ${crate}@${VERSION}"
-            cargo yank --version "$VERSION" "$crate"
-          done
