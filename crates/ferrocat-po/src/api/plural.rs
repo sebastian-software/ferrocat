@@ -829,14 +829,10 @@ fn render_projectable_icu_node(node: &IcuNode, out: &mut String) -> Result<(), &
         IcuNode::Ago { name, style } => render_formatter("ago", name, style.as_deref(), out),
         IcuNode::Name { name, style } => render_formatter("name", name, style.as_deref(), out),
         IcuNode::Pound => out.push('#'),
-        IcuNode::Tag {
-            name,
-            children,
-            self_closing,
-        } => {
+        IcuNode::Tag { name, children } => {
             out.push('<');
             out.push_str(name);
-            if *self_closing {
+            if children.is_empty() {
                 out.push_str("/>");
             } else {
                 out.push('>');

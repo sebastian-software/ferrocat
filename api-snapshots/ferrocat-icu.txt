@@ -108,7 +108,6 @@ pub ferrocat_icu::IcuNode::Select::options: alloc::vec::Vec<ferrocat_icu::IcuOpt
 pub ferrocat_icu::IcuNode::Tag
 pub ferrocat_icu::IcuNode::Tag::children: alloc::vec::Vec<Self>
 pub ferrocat_icu::IcuNode::Tag::name: alloc::string::String
-pub ferrocat_icu::IcuNode::Tag::self_closing: bool
 pub ferrocat_icu::IcuNode::Time
 pub ferrocat_icu::IcuNode::Time::name: alloc::string::String
 pub ferrocat_icu::IcuNode::Time::style: core::option::Option<alloc::string::String>
