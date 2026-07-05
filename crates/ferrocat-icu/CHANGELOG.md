@@ -1,5 +1,16 @@
 # Changelog
 
+## [3.0.0](https://github.com/sebastian-software/ferrocat/compare/ferrocat-icu-v2.1.1...ferrocat-icu-v3.0.0) (2026-07-05)
+
+
+### ⚠ BREAKING CHANGES
+
+* **icu:** `IcuNode::Tag` has a new `self_closing: bool` field. `IcuNode` is not `#[non_exhaustive]`, so exhaustive matches on `IcuNode::Tag { name, children }` must be updated.
+
+### Features
+
+* **icu:** accept self-closing component placeholders `<n/>` ([7d15078](https://github.com/sebastian-software/ferrocat/commit/7d15078c687dc73c205649d624224b0d66133c79)), closes [#227](https://github.com/sebastian-software/ferrocat/issues/227)
+
 ## [2.1.1](https://github.com/sebastian-software/ferrocat/compare/ferrocat-icu-v2.1.0...ferrocat-icu-v2.1.1) (2026-07-03)
 
 
