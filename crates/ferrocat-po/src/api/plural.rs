@@ -1192,6 +1192,23 @@ mod tests {
     }
 
     #[test]
+    fn project_icu_plural_preserves_self_closing_tags() {
+        let projection =
+            project_icu_plural("{count, plural, one {line one<0/>line two} other {# files}}");
+
+        match projection {
+            IcuPluralProjection::Projected(parsed) => {
+                assert_eq!(parsed.variable, "count");
+                assert_eq!(
+                    parsed.branches.get("one").map(String::as_str),
+                    Some("line one<0/>line two")
+                );
+            }
+            _ => panic!("expected projected plural"),
+        }
+    }
+
+    #[test]
     fn project_icu_plural_reports_malformed_and_non_plural_candidates() {
         assert!(matches!(
             project_icu_plural("{count, plural, one {# file} other {# files}"),
