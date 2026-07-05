@@ -2233,7 +2233,7 @@ impl IcuCollector {
                 self.visit_options(options, depth + 1, true);
             }
             IcuNode::Pound => self.pound_count += 1,
-            IcuNode::Tag { name, children } => {
+            IcuNode::Tag { name, children, .. } => {
                 self.tag_names.insert(name.clone());
                 self.visit_nodes(children, depth + 1);
             }

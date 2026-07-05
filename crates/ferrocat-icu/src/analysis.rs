@@ -479,7 +479,7 @@ fn visit_nodes(nodes: &[IcuNode], analysis: &mut IcuAnalysis) {
                 });
                 visit_options(options, analysis);
             }
-            IcuNode::Tag { name, children } => {
+            IcuNode::Tag { name, children, .. } => {
                 analysis.tags.push(IcuTagSummary { name: name.clone() });
                 visit_nodes(children, analysis);
             }
@@ -858,6 +858,15 @@ mod tests {
                 .iter()
                 .any(|argument| argument.kind == IcuArgumentKind::Select)
         );
+    }
+
+    #[test]
+    fn analysis_surfaces_self_closing_tag_names() {
+        let message = parse_icu("line one<0/>line two").expect("parse");
+        let analysis = analyze_icu(&message);
+
+        assert_eq!(extract_tag_names(&message), vec!["0"]);
+        assert_eq!(analysis.tags.len(), 1);
     }
 
     #[test]

@@ -64,14 +64,22 @@ fn render_node(node: &IcuNode, out: &mut String) {
             out.push('}');
         }
         IcuNode::Pound => out.push('#'),
-        IcuNode::Tag { name, children } => {
+        IcuNode::Tag {
+            name,
+            children,
+            self_closing,
+        } => {
             out.push('<');
             out.push_str(name);
-            out.push('>');
-            render_nodes(children, out);
-            out.push_str("</");
-            out.push_str(name);
-            out.push('>');
+            if *self_closing {
+                out.push_str("/>");
+            } else {
+                out.push('>');
+                render_nodes(children, out);
+                out.push_str("</");
+                out.push_str(name);
+                out.push('>');
+            }
         }
     }
 }

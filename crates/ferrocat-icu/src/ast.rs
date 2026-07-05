@@ -112,5 +112,10 @@ pub enum IcuNode {
         name: String,
         /// Nested child nodes inside the tag body.
         children: Vec<Self>,
+        /// Whether the tag used the self-closing form (`<name/>`).
+        ///
+        /// Self-closing tags always have empty `children`; the flag preserves
+        /// the compact `<name/>` shape so serialization round-trips faithfully.
+        self_closing: bool,
     },
 }
