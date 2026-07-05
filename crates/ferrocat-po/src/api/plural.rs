@@ -829,16 +829,24 @@ fn render_projectable_icu_node(node: &IcuNode, out: &mut String) -> Result<(), &
         IcuNode::Ago { name, style } => render_formatter("ago", name, style.as_deref(), out),
         IcuNode::Name { name, style } => render_formatter("name", name, style.as_deref(), out),
         IcuNode::Pound => out.push('#'),
-        IcuNode::Tag { name, children } => {
+        IcuNode::Tag {
+            name,
+            children,
+            self_closing,
+        } => {
             out.push('<');
             out.push_str(name);
-            out.push('>');
-            for child in children {
-                render_projectable_icu_node(child, out)?;
+            if *self_closing {
+                out.push_str("/>");
+            } else {
+                out.push('>');
+                for child in children {
+                    render_projectable_icu_node(child, out)?;
+                }
+                out.push_str("</");
+                out.push_str(name);
+                out.push('>');
             }
-            out.push_str("</");
-            out.push_str(name);
-            out.push('>');
         }
         IcuNode::Select { .. } | IcuNode::Plural { .. } => {
             return Err(
@@ -1162,7 +1170,7 @@ mod tests {
     #[test]
     fn project_icu_plural_renders_supported_nested_leaf_nodes() {
         let projection = project_icu_plural(
-            "{count, plural, one {It''s '{'one'}' <b>{name}</b> {price, number, integer} {created, date, short} {time, time, HH:mm} {items, list, conjunction} {elapsed, duration} {since, ago} {person, name}} other {# files}}",
+            "{count, plural, one {It''s '{'one'}' <b>{name}</b><0/> {price, number, integer} {created, date, short} {time, time, HH:mm} {items, list, conjunction} {elapsed, duration} {since, ago} {person, name}} other {# files}}",
         );
 
         match projection {
@@ -1171,7 +1179,7 @@ mod tests {
                 assert_eq!(
                     parsed.branches.get("one").map(String::as_str),
                     Some(
-                        "It''s '{'one'}' <b>{name}</b> {price, number, integer} {created, date, short} {time, time, HH:mm} {items, list, conjunction} {elapsed, duration} {since, ago} {person, name}"
+                        "It''s '{'one'}' <b>{name}</b><0/> {price, number, integer} {created, date, short} {time, time, HH:mm} {items, list, conjunction} {elapsed, duration} {since, ago} {person, name}"
                     )
                 );
                 assert_eq!(

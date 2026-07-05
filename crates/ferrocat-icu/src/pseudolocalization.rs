@@ -147,9 +147,14 @@ fn pseudolocalize_node(node: &IcuNode, options: &IcuPseudolocalizationOptions<'_
             options: pseudolocalize_options(cases, options),
         },
         IcuNode::Pound => IcuNode::Pound,
-        IcuNode::Tag { name, children } => IcuNode::Tag {
+        IcuNode::Tag {
+            name,
+            children,
+            self_closing,
+        } => IcuNode::Tag {
             name: name.clone(),
             children: pseudolocalize_nodes(children, options),
+            self_closing: *self_closing,
         },
     }
 }

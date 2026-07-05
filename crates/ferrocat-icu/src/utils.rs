@@ -82,7 +82,7 @@ fn visit_nodes(nodes: &[IcuNode], visitor: &mut impl FnMut(&str)) {
                 visitor(name);
                 visit_options(options, visitor);
             }
-            IcuNode::Tag { name, children } => {
+            IcuNode::Tag { name, children, .. } => {
                 visitor(name);
                 visit_nodes(children, visitor);
             }

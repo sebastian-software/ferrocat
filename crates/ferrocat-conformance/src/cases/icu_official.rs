@@ -69,6 +69,21 @@ fn cases() -> Vec<ConformanceCase> {
         ),
 
         parse_case(
+            "icu.tag_self_closing",
+            "icu/tag_self_closing.txt",
+            IcuParseExpected {
+                node_kinds: strings(["literal", "tag", "literal"]),
+                top_level_count: Some(3),
+                first_literal: Some("line one".to_owned()),
+                ..IcuParseExpected::default()
+            },
+        )
+        .source(
+            "https://github.com/sebastian-software/ferrocat/issues/227",
+            "Self-closing component placeholders (<n/>) parse as empty tags",
+        ),
+
+        parse_case(
             "icu.apostrophe_escape",
             "icu/apostrophe_escape.txt",
             IcuParseExpected {
