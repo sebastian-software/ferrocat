@@ -1170,7 +1170,7 @@ mod tests {
     #[test]
     fn project_icu_plural_renders_supported_nested_leaf_nodes() {
         let projection = project_icu_plural(
-            "{count, plural, one {It''s '{'one'}' <b>{name}</b> {price, number, integer} {created, date, short} {time, time, HH:mm} {items, list, conjunction} {elapsed, duration} {since, ago} {person, name}} other {# files}}",
+            "{count, plural, one {It''s '{'one'}' <b>{name}</b><0/> {price, number, integer} {created, date, short} {time, time, HH:mm} {items, list, conjunction} {elapsed, duration} {since, ago} {person, name}} other {# files}}",
         );
 
         match projection {
@@ -1179,29 +1179,12 @@ mod tests {
                 assert_eq!(
                     parsed.branches.get("one").map(String::as_str),
                     Some(
-                        "It''s '{'one'}' <b>{name}</b> {price, number, integer} {created, date, short} {time, time, HH:mm} {items, list, conjunction} {elapsed, duration} {since, ago} {person, name}"
+                        "It''s '{'one'}' <b>{name}</b><0/> {price, number, integer} {created, date, short} {time, time, HH:mm} {items, list, conjunction} {elapsed, duration} {since, ago} {person, name}"
                     )
                 );
                 assert_eq!(
                     parsed.branches.get("other").map(String::as_str),
                     Some("# files")
-                );
-            }
-            _ => panic!("expected projected plural"),
-        }
-    }
-
-    #[test]
-    fn project_icu_plural_preserves_self_closing_tags() {
-        let projection =
-            project_icu_plural("{count, plural, one {line one<0/>line two} other {# files}}");
-
-        match projection {
-            IcuPluralProjection::Projected(parsed) => {
-                assert_eq!(parsed.variable, "count");
-                assert_eq!(
-                    parsed.branches.get("one").map(String::as_str),
-                    Some("line one<0/>line two")
                 );
             }
             _ => panic!("expected projected plural"),
