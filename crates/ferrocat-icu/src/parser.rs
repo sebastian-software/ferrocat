@@ -701,8 +701,7 @@ mod tests {
 
     #[test]
     fn parses_self_closing_tag_inside_plural_branch() {
-        let message =
-            parse_icu("{count, plural, one {a<br/>b} other {items}}").expect("parse");
+        let message = parse_icu("{count, plural, one {a<br/>b} other {items}}").expect("parse");
         assert_eq!(
             crate::stringify_icu(&message),
             "{count, plural, one {a<br/>b} other {items}}"
