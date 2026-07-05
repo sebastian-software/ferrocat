@@ -1,5 +1,20 @@
 # Changelog
 
+## [2.2.0](https://github.com/sebastian-software/ferrocat/compare/ferrocat-po-v3.0.0...ferrocat-po-v2.2.0) (2026-07-05)
+
+
+### Features
+
+* **icu:** accept self-closing component placeholders `<n/>` without API change ([f2307a8](https://github.com/sebastian-software/ferrocat/commit/f2307a87d9af83b819e434d9e5dfa11075a6151e)), closes [#227](https://github.com/sebastian-software/ferrocat/issues/227)
+* **icu:** self-closing tags without breaking API + yank 3.0.0 (2.2.0) ([c684c24](https://github.com/sebastian-software/ferrocat/commit/c684c240640e221e0c6b62861ad08caa19d7e6c6))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * ferrocat-icu bumped from 3.0.0 to 2.2.0
+
 ## [3.0.0](https://github.com/sebastian-software/ferrocat/compare/ferrocat-po-v2.1.1...ferrocat-po-v3.0.0) (2026-07-05)
 
 
