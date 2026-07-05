@@ -283,7 +283,6 @@ impl<'a> Parser<'a> {
             return Ok(IcuNode::Tag {
                 name,
                 children: Vec::new(),
-                self_closing: true,
             });
         }
         self.expect_char('>')?;
@@ -294,11 +293,7 @@ impl<'a> Parser<'a> {
             return Err(self.error("Mismatched closing tag"));
         }
         self.expect_char('>')?;
-        Ok(IcuNode::Tag {
-            name,
-            children,
-            self_closing: false,
-        })
+        Ok(IcuNode::Tag { name, children })
     }
 
     fn parse_apostrophe_literal(&mut self) -> Result<String, IcuParseError> {
@@ -678,8 +673,8 @@ mod tests {
             parse_icu("<0>{count, plural, one {<b>#</b>} other {items}}</0>").expect("parse");
         assert!(matches!(
             &message.nodes[0],
-            IcuNode::Tag { name, children, self_closing }
-                if name == "0" && !children.is_empty() && !self_closing
+            IcuNode::Tag { name, children }
+                if name == "0" && !children.is_empty()
         ));
     }
 
@@ -688,8 +683,8 @@ mod tests {
         let message = parse_icu("Foo <0/> bar").expect("parse");
         assert!(matches!(
             &message.nodes[1],
-            IcuNode::Tag { name, children, self_closing }
-                if name == "0" && children.is_empty() && *self_closing
+            IcuNode::Tag { name, children }
+                if name == "0" && children.is_empty()
         ));
     }
 
@@ -709,10 +704,12 @@ mod tests {
     }
 
     #[test]
-    fn paired_and_self_closing_tags_serialize_distinctly() {
+    fn empty_tags_serialize_self_closing() {
+        // `<n/>` and the empty paired form `<n></n>` both parse to a tag with
+        // empty children and are serialized in the compact self-closing shape.
         let paired = parse_icu("<0></0>").expect("parse paired");
         let self_closing = parse_icu("<0/>").expect("parse self-closing");
-        assert_eq!(crate::stringify_icu(&paired), "<0></0>");
+        assert_eq!(crate::stringify_icu(&paired), "<0/>");
         assert_eq!(crate::stringify_icu(&self_closing), "<0/>");
     }
 
