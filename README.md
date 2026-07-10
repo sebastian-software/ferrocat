@@ -177,3 +177,21 @@ If you already know what kind of question you have, these are the fastest entry 
 - [Contributing guide](https://github.com/sebastian-software/ferrocat/blob/main/CONTRIBUTING.md)
 - [Security policy](https://github.com/sebastian-software/ferrocat/blob/main/SECURITY.md)
 - [Code of Conduct](https://github.com/sebastian-software/ferrocat/blob/main/CODE_OF_CONDUCT.md)
+
+<!-- ferramenta-family:start -->
+## The Ferramenta family
+
+This project is part of [Ferramenta](https://ferramenta.dev) — the family of Rust-native developer tools by [Sebastian Software](https://oss.sebastian-software.com) that keep the APIs the ecosystem already knows:
+
+| Tool | Job |
+| --- | --- |
+| [ferroni](https://github.com/sebastian-software/ferroni) | Oniguruma-compatible regex engine |
+| [ferriki](https://github.com/sebastian-software/ferriki) | Shiki-compatible syntax highlighting |
+| [ferromark](https://github.com/sebastian-software/ferromark) | CommonMark/GFM Markdown to HTML |
+| [ferrovia](https://github.com/sebastian-software/ferrovia) | SVGO-compatible SVG optimizer |
+| **[ferrocat](https://github.com/sebastian-software/ferrocat)** | Translation catalog engine |
+| [ferrolex](https://github.com/sebastian-software/ferrolex) | Spell, dictionary, and brand validation |
+| [ferrugo](https://github.com/sebastian-software/ferrugo) | Rust-native PDF previews |
+
+ferrocat and ferrolex are also the Rust foundation of [Palamedes](https://github.com/sebastian-software/palamedes), i18n tooling for JavaScript and TypeScript teams that want one translation model to survive framework changes.
+<!-- ferramenta-family:end -->
