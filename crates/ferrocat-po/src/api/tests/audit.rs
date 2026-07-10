@@ -3,7 +3,7 @@ use ferrocat_icu::{
     MessageSelectorMetadata,
 };
 
-use crate::CatalogAuditIcuOptions;
+use crate::{CatalogAuditChecks, CatalogAuditIcuOptions};
 
 use super::super::icu_syntax::{icu_parse_count, reset_icu_parse_count};
 use super::{
@@ -54,6 +54,50 @@ fn default_audit_parses_each_compatibility_message_once() {
 
     assert!(report.diagnostics.is_empty());
     assert_eq!(icu_parse_count(), 6);
+}
+
+#[test]
+fn syntax_only_audit_reports_invalid_messages_without_populating_caches() {
+    let source = catalog("msgid \"Broken {\"\nmsgstr \"Broken {\"\n", "en");
+    let checks = CatalogAuditChecks::default().with_icu_compatibility(false);
+
+    let report = audit_catalogs(
+        &[&source],
+        &CatalogAuditOptions::new("en").with_checks(checks),
+    )
+    .expect("audit");
+
+    assert!(diagnostic_codes(&report).contains(&"icu.invalid_syntax"));
+}
+
+#[test]
+fn compatibility_only_audit_parses_uncached_target_messages() {
+    let source = catalog("msgid \"Hello {name}\"\nmsgstr \"Hello {name}\"\n", "en");
+    let target = catalog("msgid \"Hello {name}\"\nmsgstr \"Hallo {other}\"\n", "de");
+    let checks = CatalogAuditChecks::default().with_icu_syntax(false);
+
+    let report = audit_catalogs(
+        &[&source, &target],
+        &CatalogAuditOptions::new("en").with_checks(checks),
+    )
+    .expect("audit");
+
+    assert!(diagnostic_codes(&report).contains(&"icu.missing_argument"));
+}
+
+#[test]
+fn compatibility_only_audit_skips_uncached_invalid_target_messages() {
+    let source = catalog("msgid \"Hello {name}\"\nmsgstr \"Hello {name}\"\n", "en");
+    let target = catalog("msgid \"Hello {name}\"\nmsgstr \"Broken {\"\n", "de");
+    let checks = CatalogAuditChecks::default().with_icu_syntax(false);
+
+    let report = audit_catalogs(
+        &[&source, &target],
+        &CatalogAuditOptions::new("en").with_checks(checks),
+    )
+    .expect("audit");
+
+    assert!(!diagnostic_codes(&report).contains(&"icu.invalid_syntax"));
 }
 
 #[test]
