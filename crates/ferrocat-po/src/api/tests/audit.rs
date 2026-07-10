@@ -5,6 +5,7 @@ use ferrocat_icu::{
 
 use crate::CatalogAuditIcuOptions;
 
+use super::super::icu_syntax::{icu_parse_count, reset_icu_parse_count};
 use super::{
     CatalogAuditOptions, CatalogMode, DiagnosticSeverity, IcuSyntaxPolicy, ParseCatalogOptions,
     audit_catalogs, parse_catalog,
@@ -27,6 +28,32 @@ fn diagnostic_codes(report: &super::super::CatalogAuditReport) -> Vec<&str> {
         .iter()
         .map(|diagnostic| diagnostic.code.as_str())
         .collect()
+}
+
+#[test]
+fn default_audit_parses_each_compatibility_message_once() {
+    let source = catalog(
+        "msgid \"Hello {name}\"\nmsgstr \"Hello {name}\"\n\nmsgid \"Total {count, number}\"\nmsgstr \"Total {count, number}\"\n",
+        "en",
+    );
+    let german = catalog(
+        "msgid \"Hello {name}\"\nmsgstr \"Hallo {name}\"\n\nmsgid \"Total {count, number}\"\nmsgstr \"Summe {count, number}\"\n",
+        "de",
+    );
+    let french = catalog(
+        "msgid \"Hello {name}\"\nmsgstr \"Bonjour {name}\"\n\nmsgid \"Total {count, number}\"\nmsgstr \"Total {count, number}\"\n",
+        "fr",
+    );
+    reset_icu_parse_count();
+
+    let report = audit_catalogs(
+        &[&source, &german, &french],
+        &CatalogAuditOptions::new("en"),
+    )
+    .expect("audit");
+
+    assert!(report.diagnostics.is_empty());
+    assert_eq!(icu_parse_count(), 6);
 }
 
 #[test]
