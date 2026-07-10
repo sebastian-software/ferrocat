@@ -53,6 +53,7 @@ impl PreparedScenario {
                     po_file: Some(po_file),
                     merge_fixture: None,
                     icu_messages: None,
+                    catalog_workflow: None,
                 })
             }
             "parse-catalog" => {
@@ -89,6 +90,7 @@ impl PreparedScenario {
                     po_file: None,
                     merge_fixture: None,
                     icu_messages: None,
+                    catalog_workflow: None,
                 })
             }
             "merge" | "update-catalog" => {
@@ -130,6 +132,7 @@ impl PreparedScenario {
                     po_file: None,
                     merge_fixture: Some(OwnedMergeFixture::from_fixture(&fixture)),
                     icu_messages: None,
+                    catalog_workflow: None,
                 })
             }
             "parse-icu" => {
@@ -157,6 +160,30 @@ impl PreparedScenario {
                     po_file: None,
                     merge_fixture: None,
                     icu_messages: Some(messages),
+                    catalog_workflow: None,
+                })
+            }
+            "combine-catalogs"
+            | "audit-catalogs"
+            | "measure-catalog-coverage"
+            | "review-catalogs"
+            | "compile-catalog-artifact" => {
+                let fixture = load_fixture(&first.fixture)?;
+                let catalog_workflow = CatalogWorkflowFixture::from_fixture(&fixture)?;
+                Ok(Self {
+                    operation: first.operation.clone(),
+                    fixture: first.fixture.clone(),
+                    tempdir,
+                    po_input_path: None,
+                    icu_messages_path: None,
+                    existing_po_path: None,
+                    pot_path: None,
+                    po_content: None,
+                    catalog_fcl_content: None,
+                    po_file: None,
+                    merge_fixture: None,
+                    icu_messages: None,
+                    catalog_workflow: Some(catalog_workflow),
                 })
             }
             other => Err(format!("unsupported benchmark operation: {other}")),
@@ -197,6 +224,7 @@ impl PreparedScenario {
                         po_file: None,
                         merge_fixture: None,
                         icu_messages: None,
+                        catalog_workflow: None,
                     },
                 }))
             }
@@ -240,6 +268,7 @@ impl PreparedScenario {
                         po_file: None,
                         merge_fixture: None,
                         icu_messages: None,
+                        catalog_workflow: None,
                     },
                 }))
             }
@@ -289,6 +318,32 @@ impl PreparedScenario {
                     .map_err(|error| format!("rendered output did not parse as PO: {error}"))?;
                 digest_summary(&PoSemanticSummary::from_po_file(&parsed))?
             }
+            "combine-catalogs" => {
+                let content = match result.artifact.as_ref() {
+                    Some(ExecutionArtifact::RenderedPo(content)) => content,
+                    _ => {
+                        return Err(format!(
+                            "scenario {} expected combined PO artifact",
+                            self.fixture
+                        ));
+                    }
+                };
+                let parsed = parse_po(content)
+                    .map_err(|error| format!("combined output did not parse as PO: {error}"))?;
+                digest_summary(&PoSemanticSummary::from_po_file(&parsed))?
+            }
+            "audit-catalogs"
+            | "measure-catalog-coverage"
+            | "review-catalogs"
+            | "compile-catalog-artifact" => match result.artifact.as_ref() {
+                Some(ExecutionArtifact::JsonSummary(summary)) => digest_summary(summary)?,
+                _ => {
+                    return Err(format!(
+                        "scenario {} expected JSON summary artifact for {}",
+                        self.fixture, self.operation
+                    ));
+                }
+            },
             "parse-icu" => match result.artifact.as_ref() {
                 Some(ExecutionArtifact::IcuSummary(summary)) => digest_summary(summary)?,
                 _ => {
@@ -682,6 +737,156 @@ impl PreparedScenario {
         })
     }
 
+    pub(super) fn run_internal_combine_catalogs(
+        &self,
+        iterations: usize,
+        capture_artifacts: bool,
+    ) -> Result<ExecutionResult, String> {
+        let workflow = self.catalog_workflow()?;
+        let inputs = [
+            CatalogCombineInput::labeled(&workflow.content, "catalog-a.po"),
+            CatalogCombineInput::labeled(&workflow.content, "catalog-b.po"),
+        ];
+        let mut last = None;
+        let start = Instant::now();
+        for _ in 0..iterations {
+            last = Some(
+                combine_catalogs(CombineCatalogOptions::new(&inputs, "en"))
+                    .map_err(|error| format!("combine_catalogs failed: {error}"))?,
+            );
+        }
+        let elapsed = start.elapsed();
+        let result = last.ok_or_else(|| "combine_catalogs produced no result".to_owned())?;
+        let parsed = parse_po(&result.content)
+            .map_err(|error| format!("combined output did not parse as PO: {error}"))?;
+        let digest = digest_summary(&PoSemanticSummary::from_po_file(&parsed))?;
+        Ok(ExecutionResult {
+            tool_version: INTERNAL_TOOL_VERSION.to_owned(),
+            reported_digest: digest,
+            elapsed_ns: elapsed.as_nanos(),
+            baseline_elapsed_ns: None,
+            bytes_processed: (workflow.content.len() * 2 * iterations) as u64,
+            items_processed: None,
+            messages_processed: Some((workflow.message_count() * 2 * iterations) as u64),
+            artifact: capture_artifacts.then_some(ExecutionArtifact::RenderedPo(result.content)),
+        })
+    }
+
+    pub(super) fn run_internal_audit_catalogs(
+        &self,
+        iterations: usize,
+        capture_artifacts: bool,
+    ) -> Result<ExecutionResult, String> {
+        let workflow = self.catalog_workflow()?;
+        let catalogs = workflow.catalog_refs();
+        let options = CatalogAuditOptions::new("en");
+        let mut last = None;
+        let start = Instant::now();
+        for _ in 0..iterations {
+            last = Some(
+                audit_catalogs(&catalogs, &options)
+                    .map_err(|error| format!("audit_catalogs failed: {error}"))?,
+            );
+        }
+        let elapsed = start.elapsed();
+        let report = last.ok_or_else(|| "audit_catalogs produced no result".to_owned())?;
+        self.catalog_json_result(report, elapsed, iterations, capture_artifacts)
+    }
+
+    pub(super) fn run_internal_catalog_coverage(
+        &self,
+        iterations: usize,
+        capture_artifacts: bool,
+    ) -> Result<ExecutionResult, String> {
+        let workflow = self.catalog_workflow()?;
+        let catalogs = workflow.catalog_refs();
+        let options = CatalogCoverageOptions::new("en");
+        let mut last = None;
+        let start = Instant::now();
+        for _ in 0..iterations {
+            last = Some(
+                measure_catalog_coverage(&catalogs, &options)
+                    .map_err(|error| format!("measure_catalog_coverage failed: {error}"))?,
+            );
+        }
+        let elapsed = start.elapsed();
+        let report =
+            last.ok_or_else(|| "measure_catalog_coverage produced no result".to_owned())?;
+        self.catalog_json_result(report, elapsed, iterations, capture_artifacts)
+    }
+
+    pub(super) fn run_internal_review_catalogs(
+        &self,
+        iterations: usize,
+        capture_artifacts: bool,
+    ) -> Result<ExecutionResult, String> {
+        let workflow = self.catalog_workflow()?;
+        let catalogs = workflow.catalog_refs();
+        let options = CatalogReviewOptions::new("en");
+        let mut last = None;
+        let start = Instant::now();
+        for _ in 0..iterations {
+            last = Some(
+                review_catalogs(&catalogs, &catalogs, &options)
+                    .map_err(|error| format!("review_catalogs failed: {error}"))?,
+            );
+        }
+        let elapsed = start.elapsed();
+        let report = last.ok_or_else(|| "review_catalogs produced no result".to_owned())?;
+        self.catalog_json_result(report, elapsed, iterations, capture_artifacts)
+    }
+
+    pub(super) fn run_internal_compile_catalog_artifact(
+        &self,
+        iterations: usize,
+        capture_artifacts: bool,
+    ) -> Result<ExecutionResult, String> {
+        let workflow = self.catalog_workflow()?;
+        let catalogs = workflow.catalog_refs();
+        let options = CompileCatalogArtifactOptions::new("de", "en");
+        let mut last = None;
+        let start = Instant::now();
+        for _ in 0..iterations {
+            last = Some(
+                compile_catalog_artifact(&catalogs, &options)
+                    .map_err(|error| format!("compile_catalog_artifact failed: {error}"))?,
+            );
+        }
+        let elapsed = start.elapsed();
+        let artifact =
+            last.ok_or_else(|| "compile_catalog_artifact produced no result".to_owned())?;
+        self.catalog_json_result(artifact, elapsed, iterations, capture_artifacts)
+    }
+
+    fn catalog_workflow(&self) -> Result<&CatalogWorkflowFixture, String> {
+        self.catalog_workflow
+            .as_ref()
+            .ok_or_else(|| format!("{} requires catalog workflow fixtures", self.operation))
+    }
+
+    fn catalog_json_result(
+        &self,
+        value: impl Serialize,
+        elapsed: std::time::Duration,
+        iterations: usize,
+        capture_artifacts: bool,
+    ) -> Result<ExecutionResult, String> {
+        let workflow = self.catalog_workflow()?;
+        let summary = serde_json::to_value(value)
+            .map_err(|error| format!("failed to serialize catalog workflow result: {error}"))?;
+        let digest = digest_summary(&summary)?;
+        Ok(ExecutionResult {
+            tool_version: INTERNAL_TOOL_VERSION.to_owned(),
+            reported_digest: digest,
+            elapsed_ns: elapsed.as_nanos(),
+            baseline_elapsed_ns: None,
+            bytes_processed: (workflow.input_bytes() * iterations) as u64,
+            items_processed: None,
+            messages_processed: Some((workflow.message_visits() * iterations) as u64),
+            artifact: capture_artifacts.then_some(ExecutionArtifact::JsonSummary(summary)),
+        })
+    }
+
     pub(super) fn run_node_adapter(
         &self,
         workspace: &Path,
@@ -901,6 +1106,55 @@ impl PreparedScenario {
                     .into_owned()
             }),
         }
+    }
+}
+
+#[derive(Debug)]
+pub(super) struct CatalogWorkflowFixture {
+    content: String,
+    catalogs: Vec<NormalizedParsedCatalog>,
+}
+
+impl CatalogWorkflowFixture {
+    fn from_fixture(fixture: &Fixture) -> Result<Self, String> {
+        let parsed = parse_catalog(
+            ParseCatalogOptions::new(fixture.content(), "en")
+                .with_locale("en")
+                .with_mode(CatalogMode::IcuPo),
+        )
+        .map_err(|error| format!("failed to parse catalog workflow fixture: {error}"))?;
+        let catalogs = ["en", "de", "fr", "es", "it", "pl"]
+            .into_iter()
+            .map(|locale| {
+                let mut catalog = parsed.clone();
+                catalog.locale = Some(locale.to_owned());
+                catalog.into_normalized_view().map_err(|error| {
+                    format!("failed to normalize catalog workflow fixture: {error}")
+                })
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(Self {
+            content: fixture.content().to_owned(),
+            catalogs,
+        })
+    }
+
+    fn catalog_refs(&self) -> Vec<&NormalizedParsedCatalog> {
+        self.catalogs.iter().collect()
+    }
+
+    fn message_count(&self) -> usize {
+        self.catalogs
+            .first()
+            .map_or(0, |catalog| catalog.parsed_catalog().messages.len())
+    }
+
+    fn message_visits(&self) -> usize {
+        self.message_count() * self.catalogs.len()
+    }
+
+    fn input_bytes(&self) -> usize {
+        self.content.len() * self.catalogs.len()
     }
 }
 

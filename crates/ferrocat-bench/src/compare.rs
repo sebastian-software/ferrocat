@@ -28,11 +28,14 @@ use std::time::Instant;
 
 use ferrocat_icu::{IcuMessage, IcuNode, IcuOption, IcuPluralKind, parse_icu};
 use ferrocat_po::{
-    BorrowedMsgStr, BorrowedPoFile, CatalogMessage, CatalogMode, CatalogOrigin, ExtractedMessage,
-    ExtractedPluralMessage, ExtractedSingularMessage, MergeMessageInput, MsgStr,
+    BorrowedMsgStr, BorrowedPoFile, CatalogAuditOptions, CatalogCombineInput,
+    CatalogCoverageOptions, CatalogMessage, CatalogMode, CatalogOrigin, CatalogReviewOptions,
+    CombineCatalogOptions, CompileCatalogArtifactOptions, ExtractedMessage, ExtractedPluralMessage,
+    ExtractedSingularMessage, MergeMessageInput, MsgStr, NormalizedParsedCatalog,
     ParseCatalogOptions, ParsedCatalog, PluralSource, PoFile, SerializeOptions, TranslationShape,
-    UpdateCatalogOptions, merge_catalog, parse_catalog, parse_po, parse_po_borrowed, stringify_po,
-    update_catalog,
+    UpdateCatalogOptions, audit_catalogs, combine_catalogs, compile_catalog_artifact,
+    measure_catalog_coverage, merge_catalog, parse_catalog, parse_po, parse_po_borrowed,
+    review_catalogs, stringify_po, update_catalog,
 };
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -358,6 +361,21 @@ fn execute_scenario(
             prepared.run_internal_update_catalog_file(iterations, capture_artifacts)
         }
         "ferrocat-parse-icu" => prepared.run_internal_parse_icu(iterations, capture_artifacts),
+        "ferrocat-combine-catalogs" => {
+            prepared.run_internal_combine_catalogs(iterations, capture_artifacts)
+        }
+        "ferrocat-audit-catalogs" => {
+            prepared.run_internal_audit_catalogs(iterations, capture_artifacts)
+        }
+        "ferrocat-measure-catalog-coverage" => {
+            prepared.run_internal_catalog_coverage(iterations, capture_artifacts)
+        }
+        "ferrocat-review-catalogs" => {
+            prepared.run_internal_review_catalogs(iterations, capture_artifacts)
+        }
+        "ferrocat-compile-catalog-artifact" => {
+            prepared.run_internal_compile_catalog_artifact(iterations, capture_artifacts)
+        }
         "pofile"
         | "pofile-ts"
         | "gettext-parser"

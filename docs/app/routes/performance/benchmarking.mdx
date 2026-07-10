@@ -83,9 +83,13 @@ cargo run --release -p ferrocat-bench -- regression-check \
 
 ## Regression Budgets
 
-The `rust-scheduled-v1` profile is the PR-visible regression guard. Its budget
-is intentionally relative to a same-run baseline rather than a fixed hosted
-runner throughput number:
+The `rust-scheduled-v1` profile is the PR-visible regression guard. It covers
+the core PO and ICU parser paths plus catalog combine,
+multi-locale audit, coverage, review, and runtime artifact compilation on the
+10,000-message catalog fixture.
+
+Its budget is intentionally relative to a same-run baseline rather than a fixed
+hosted runner throughput number:
 
 - fail matching, non-noisy scenarios above `20%` median elapsed regression
 - skip noisy scenarios and surface them in the job summary

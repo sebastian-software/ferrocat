@@ -70,7 +70,7 @@ Beyond the basics, Ferrocat exposes byte-oriented and allocation-light borrowed 
 - **Pseudo-locale QA.** Generate ICU-aware pseudolocalized messages and runtime artifacts without damaging placeholders, plural selectors, rich-text tags, or formatter syntax.
 - **Storage that survives a merge.** Use PO when translator tooling reads the file directly, or FCL when several people and jobs touch the same locale: one canonical entry per line keeps ordinary git merges from losing untouched translations.
 - **Room for host frameworks.** Palamedes can own JS/TS extraction, bindings, and framework integration while Ferrocat owns the catalog behavior that should stay consistent underneath.
-- **Measured behavior.** Parser, serializer, merge, combine, audit, and runtime paths are covered by fixtures, upstream-derived conformance cases, coverage gates, and PR-visible benchmark regression checks.
+- **Measured behavior.** PR-visible regression scenarios cover parsing, serialization, merge, combine, audit, coverage/review, and runtime artifact compilation, backed by fixtures, upstream-derived conformance cases, and coverage gates.
 
 Ferrocat is part of the [Palamedes](https://github.com/sebastian-software/palamedes) ecosystem. Palamedes is the OSS i18n framework for JavaScript and TypeScript apps; Ferrocat supplies the shared catalog engine underneath it. JavaScript and TypeScript access is a Palamedes concern, including the `palamedes-node` N-API bridge in that repository; this repository stays the pure-Rust catalog engine.
 
