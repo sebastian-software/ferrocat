@@ -7,11 +7,11 @@ order: 45
 # Releases And Upgrading
 
 Ferrocat follows semantic versioning from `1.0` onward: breaking API changes
-normally ship in a new major version, while minor and patch releases stay
-backward compatible. The planned `2.1.0` cleanup window is a small, reviewed
-exception for API cleanups that remove accidental public coupling while the user
-base is still small. Start every upgrade from the changelog and keep the
-workspace crate versions aligned.
+ship in a new major version, while minor and patch releases stay backward
+compatible. The `2.1.0` release was a reviewed, one-time exception for removing
+accidental public coupling while the user base was still small. That cleanup
+window is closed. Start every upgrade from the changelog and keep the workspace
+crate versions aligned.
 
 ## Where release notes live
 
@@ -25,8 +25,8 @@ workspace crate versions aligned.
 Release Please generates these changelogs from Conventional Commits. Breaking
 changes normally use a major-release marker such as `feat!:` or a
 `BREAKING CHANGE` note so they are visible in release notes and changelog
-sections. Reviewed `2.1.0` cleanup exceptions are documented in the matching
-release notes without using a major-release marker.
+sections. The historical `2.1.0` cleanup exceptions are documented in that
+release's notes without a major-release marker.
 
 MSRV bumps follow the same release-note rule. Ferrocat aligns its declared MSRV
 with OXC when practical while avoiding churn from tracking only the newest
@@ -41,7 +41,7 @@ umbrella crate:
 
 ```toml
 [dependencies]
-ferrocat = "1"
+ferrocat = "2"
 ```
 
 If you depend on lower-level crates directly, keep every Ferrocat crate on the
@@ -50,16 +50,21 @@ together:
 
 ```toml
 [dependencies]
-ferrocat-po = "1"
-ferrocat-icu = "1"
+ferrocat-po = "2"
+ferrocat-icu = "2"
 ```
 
 Within a normal major line, minor and patch releases stay backward compatible, so
-Cargo resolves a shared `"1"` requirement to a single, latest-compatible
+Cargo resolves a shared `"2"` requirement to a single, latest-compatible
 version. Avoid pinning the umbrella crate and a direct sub-crate to different
-exact versions, for example `ferrocat = "=1.2.0"` with `ferrocat-po = "=1.0.0"`:
+exact versions, for example `ferrocat = "=2.2.0"` with `ferrocat-po = "=2.1.1"`:
 that can pull two copies of the Ferrocat types into the build and fail with
 confusing type-mismatch errors.
+
+The 2.2 release history includes a temporary `3.0.0` publication from when the
+self-closing-tag change was first classified as breaking. Those packages were
+yanked and the compatible change shipped as `2.2.0`. Use the 2.2 line rather
+than selecting `3.0.0` from the historical changelog entries.
 
 ## Upgrade routine
 
@@ -149,12 +154,13 @@ let options = UpdateCatalogOptions::new()
 This keeps future options additive without forcing another public constructor
 break.
 
-## Upcoming 2.2 API cleanup
+## API cleanup shipped in 2.1.1
 
-The next cleanup batch removes the remaining cross-product entry points for ICU
-syntax policy and folds those choices into the existing options structs. If your
-code called a `_with_icu_options` or `_with_syntax_policy` function variant,
-move the ICU configuration onto the operation's options value instead.
+Ferrocat 2.1.1 removed the remaining cross-product entry points for ICU syntax
+policy and folded those choices into the existing options structs. The same API
+is part of the current 2.2 line. If your code called a `_with_icu_options` or
+`_with_syntax_policy` function variant, move the ICU configuration onto the
+operation's options value instead.
 
 For catalog audits, build `CatalogAuditOptions` with embedded
 `CatalogAuditIcuOptions`:
