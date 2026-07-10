@@ -94,6 +94,7 @@ pub(super) struct PreparedScenario {
     pub(super) po_file: Option<PoFile>,
     pub(super) merge_fixture: Option<OwnedMergeFixture>,
     pub(super) icu_messages: Option<Vec<String>>,
+    pub(super) catalog_workflow: Option<CatalogWorkflowFixture>,
 }
 
 #[derive(Debug)]

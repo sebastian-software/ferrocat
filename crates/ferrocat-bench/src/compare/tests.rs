@@ -664,6 +664,63 @@ mod tests {
         assert_eq!(profile.name, "rust-scheduled-v1");
         assert!(!profile.scenarios.is_empty());
         assert_eq!(profile.tool_requirement(), ToolRequirement::RustOnly);
+        let operations = profile
+            .scenarios
+            .iter()
+            .map(|scenario| scenario.operation.as_str())
+            .collect::<BTreeSet<_>>();
+        let expected = [
+            "combine-catalogs",
+            "audit-catalogs",
+            "measure-catalog-coverage",
+            "review-catalogs",
+            "compile-catalog-artifact",
+        ];
+        let missing = expected
+            .into_iter()
+            .filter(|operation| !operations.contains(operation))
+            .collect::<Vec<_>>();
+        assert!(missing.is_empty(), "missing PR workflow operations: {missing:?}");
+    }
+
+    #[test]
+    fn catalog_workflow_operations_produce_validated_artifacts() {
+        let workspace = workspace_root().expect("workspace");
+        let operations = [
+            ("combine-catalogs", "ferrocat-combine-catalogs"),
+            ("audit-catalogs", "ferrocat-audit-catalogs"),
+            (
+                "measure-catalog-coverage",
+                "ferrocat-measure-catalog-coverage",
+            ),
+            ("review-catalogs", "ferrocat-review-catalogs"),
+            (
+                "compile-catalog-artifact",
+                "ferrocat-compile-catalog-artifact",
+            ),
+        ];
+
+        for (operation, implementation) in operations {
+            let scenario = BenchmarkScenario {
+                id: format!("test/{operation}"),
+                comparison_group: format!("test/{operation}"),
+                workload: operation.to_owned(),
+                operation: operation.to_owned(),
+                fixture: "catalog-modern-de-1000".to_owned(),
+                implementation: implementation.to_owned(),
+                warmup_runs: 0,
+                measured_runs: 1,
+                minimum_sample_millis: Some(1),
+            };
+            let prepared =
+                PreparedScenario::prepare(&workspace, std::slice::from_ref(&scenario))
+                    .expect("prepare catalog workflow");
+            let result = execute_scenario(&workspace, &prepared, &scenario, 1, true)
+                .expect("run catalog workflow");
+            let validated = prepared.validate(&result).expect("validate catalog workflow");
+
+            assert_eq!(result.reported_digest, validated, "operation {operation}");
+        }
     }
 
     #[test]

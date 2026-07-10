@@ -331,6 +331,7 @@ pub(super) enum ExecutionArtifact {
     PoSummary(PoSemanticSummary),
     CatalogSummary(CatalogSemanticSummary),
     IcuSummary(IcuFixtureSummary),
+    JsonSummary(serde_json::Value),
     RenderedPo(String),
     RenderedPoPath(PathBuf),
 }
