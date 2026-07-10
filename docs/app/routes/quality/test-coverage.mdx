@@ -30,19 +30,18 @@ That keeps the report focused on the public and internal library crates that mat
 
 ## Current Gate
 
-Measured locally on `2026-06-23` with the CI coverage commands, a JSON summary export, and the crate-aware gate script:
-
-- `ferrocat-cli`: `87.32%` line coverage
-- `ferrocat-po`: `96.82%` line coverage
-- `ferrocat-icu`: `96.98%` line coverage
-- `ferrocat`: `N/A` in `llvm-cov` today because the umbrella crate is almost entirely re-exports and does not currently surface measurable executable lines in the report
-
-The CI coverage job enforces these crate-level thresholds:
+The CI coverage job measures the current percentages on every run, exports the
+machine-readable summary, and enforces these crate-level thresholds:
 
 - `ferrocat-cli >= 85%`
 - `ferrocat-po >= 95%`
 - `ferrocat-icu >= 95%`
 - `ferrocat` is still reported, but not percentage-gated until `llvm-cov` has measurable lines for the crate
+
+Exact percentages are intentionally read from the current CI artifact instead
+of being copied into this page. They move whenever covered lines or tests
+change, while the thresholds above are the stable policy this documentation
+tracks.
 
 The next high-yield test targets are:
 
