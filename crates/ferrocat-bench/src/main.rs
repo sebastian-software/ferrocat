@@ -1424,9 +1424,59 @@ const fn f64_from_usize(value: usize) -> f64 {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::BTreeMap;
+    use std::fs;
+
     use ferrocat_po::{CatalogMessage, CatalogMode, ParseCatalogOptions, parse_catalog};
 
-    use super::{fixture_by_name, fixture_parsed_catalog, render_fcl_catalog, render_po_catalog};
+    use super::{
+        evaluate_all_cases, fixture_by_name, fixture_parsed_catalog, load_assertion_counts,
+        render_fcl_catalog, render_po_catalog, summarize_evaluations,
+    };
+
+    #[test]
+    fn quality_docs_match_conformance_snapshot() {
+        let evaluations = evaluate_all_cases().expect("evaluate conformance cases");
+        let assertion_counts = load_assertion_counts().expect("load assertion counts");
+        let summary = summarize_evaluations(&evaluations);
+        let total_assertions = evaluations
+            .iter()
+            .map(|evaluation| *assertion_counts.get(&evaluation.case_id).unwrap_or(&1))
+            .sum::<usize>();
+        let mut suites = BTreeMap::<&str, (usize, usize)>::new();
+        for evaluation in &evaluations {
+            let counts = suites.entry(&evaluation.suite).or_default();
+            counts.0 += 1;
+            counts.1 += *assertion_counts.get(&evaluation.case_id).unwrap_or(&1);
+        }
+
+        let docs_path = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../docs/app/routes/quality/conformance.mdx"
+        );
+        let docs = fs::read_to_string(docs_path).expect("read conformance docs");
+        let mut expected = vec![
+            format!("- `{}` source-attributed conformance cases", summary.total),
+            format!("- `{total_assertions}` concrete assertions checked by the harness"),
+            format!("- `{}` expected passes", summary.pass),
+            format!("- `{}` expected rejects", summary.reject),
+            format!("- `{}` documented `known_gap` cases", summary.known_gap),
+        ];
+        expected.extend(suites.into_iter().map(|(suite, (cases, assertions))| {
+            format!("- `{suite}`: `{cases}` cases / `{assertions}` assertions")
+        }));
+        let missing = expected
+            .into_iter()
+            .filter(|line| !docs.contains(line))
+            .collect::<Vec<_>>();
+
+        assert!(
+            missing.is_empty(),
+            "docs/app/routes/quality/conformance.mdx is stale; update these lines:\n{}",
+            missing.join("\n")
+        );
+    }
+
     #[test]
     fn benchmark_po_catalog_renderer_roundtrips_modern_fixture() {
         let fixture = fixture_by_name("catalog-modern-de-1000").expect("fixture exists");
