@@ -1,8 +1,8 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use ferrocat_icu::{
-    IcuCompatibilityOptions, IcuDiagnosticSeverity, MessageMetadataInput, compare_icu_messages,
-    normalize_message_metadata, validate_message_metadata,
+    IcuCompatibilityOptions, IcuDiagnosticSeverity, IcuMessage, MessageMetadataInput,
+    compare_icu_messages, normalize_message_metadata, validate_message_metadata,
 };
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
@@ -17,6 +17,13 @@ use super::{
     ApiError, CatalogMessage, CatalogMessageKey, DiagnosticSeverity, EffectiveTranslationRef,
     IcuSyntaxPolicy, NormalizedParsedCatalog, validate_source_locale,
 };
+
+type ParsedIcuCache = BTreeMap<CatalogMessageKey, Option<IcuMessage>>;
+
+struct AuditIcuCaches<'a> {
+    source: &'a ParsedIcuCache,
+    target: &'a mut ParsedIcuCache,
+}
 
 /// Options controlling catalog audit checks.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -325,6 +332,7 @@ pub fn audit_catalogs(
     let source_keys = active_message_keys(source_catalog);
     let target_locales = select_target_locales(&catalog_index, options, &mut report);
     let source_locale = source_catalog.parsed_catalog().locale.as_deref();
+    let mut source_icu_cache = ParsedIcuCache::new();
 
     if options.checks.obsolete_entries || options.checks.icu_syntax {
         audit_catalog_entries(
@@ -333,31 +341,52 @@ pub fn audit_catalogs(
             true,
             options,
             icu_options,
+            options
+                .checks
+                .icu_compatibility
+                .then_some(&mut source_icu_cache),
             &mut report,
         );
     }
     if options.checks.semantic_metadata {
         audit_metadata(options.metadata, &source_keys, &mut report);
     }
+    if options.checks.icu_compatibility {
+        cache_source_icu_messages(
+            &source_keys,
+            icu_options.syntax_policy,
+            &mut source_icu_cache,
+        );
+    }
 
     for target_locale in &target_locales {
         let Some(target_catalog) = catalog_index.get(target_locale.as_str()).copied() else {
             continue;
         };
+        let mut target_icu_cache = ParsedIcuCache::new();
         audit_catalog_entries(
             target_catalog,
             Some(target_locale),
             false,
             options,
             icu_options,
+            options
+                .checks
+                .icu_compatibility
+                .then_some(&mut target_icu_cache),
             &mut report,
         );
+        let mut icu_caches = AuditIcuCaches {
+            source: &source_icu_cache,
+            target: &mut target_icu_cache,
+        };
         audit_target_catalog(
             target_catalog,
             target_locale,
             &source_keys,
             options,
             icu_options,
+            &mut icu_caches,
             &mut report,
         );
     }
@@ -432,6 +461,7 @@ fn audit_catalog_entries(
     validate_source_identity: bool,
     options: &CatalogAuditOptions<'_>,
     icu_options: &CatalogAuditIcuOptions,
+    mut parsed_icu_cache: Option<&mut ParsedIcuCache>,
     report: &mut CatalogAuditReport,
 ) {
     for (key, message) in catalog.iter() {
@@ -446,13 +476,20 @@ fn audit_catalog_entries(
             ));
         }
         if options.checks.icu_syntax && message.obsolete.is_none() {
-            audit_icu_syntax_for_message(
+            let cache_parse = parsed_icu_cache.is_some();
+            let parsed_candidate = audit_icu_syntax_for_message(
                 message,
                 validate_source_identity,
                 icu_options.syntax_policy,
+                cache_parse,
                 &message_ref,
                 report,
             );
+            if let (Some(cache), Some(parsed_candidate)) =
+                (parsed_icu_cache.as_deref_mut(), parsed_candidate)
+            {
+                cache.insert(key.clone(), parsed_candidate);
+            }
         }
     }
 }
@@ -463,6 +500,7 @@ fn audit_target_catalog(
     source_keys: &BTreeSet<CatalogMessageKey>,
     options: &CatalogAuditOptions<'_>,
     icu_options: &CatalogAuditIcuOptions,
+    icu_caches: &mut AuditIcuCaches<'_>,
     report: &mut CatalogAuditReport,
 ) {
     if options.checks.completeness {
@@ -519,6 +557,8 @@ fn audit_target_catalog(
             target_locale,
             source_keys,
             icu_options,
+            icu_caches.source,
+            icu_caches.target,
             report,
         );
     }
@@ -528,22 +568,55 @@ fn audit_icu_syntax_for_message(
     message: &CatalogMessage,
     validate_source_identity: bool,
     syntax_policy: IcuSyntaxPolicy,
+    cache_parse: bool,
     message_ref: &CatalogAuditMessageRef,
     report: &mut CatalogAuditReport,
-) {
+) -> Option<Option<IcuMessage>> {
+    let cache_candidate = if !cache_parse {
+        None
+    } else if validate_source_identity {
+        Some(message.msgid.as_str())
+    } else {
+        singular_translation(message).filter(|value| !value.trim().is_empty())
+    };
+    let mut parsed_candidate = None;
     for value in message_strings(message, validate_source_identity) {
         if value.trim().is_empty() {
             continue;
         }
-        if let Err(error) = parse_icu_with_syntax_policy(value, syntax_policy) {
-            report.diagnostics.push(CatalogAuditDiagnostic::new(
-                DiagnosticSeverity::Error,
-                diagnostic_codes::icu::INVALID_SYNTAX,
-                format!("Catalog message is not valid ICU MessageFormat v1: {error}"),
-                Some(message_ref.clone()),
-                None,
-            ));
+        let is_cache_candidate = cache_candidate == Some(value);
+        match parse_icu_with_syntax_policy(value, syntax_policy) {
+            Ok(parsed) => {
+                if is_cache_candidate {
+                    parsed_candidate = Some(Some(parsed));
+                }
+            }
+            Err(error) => {
+                if is_cache_candidate {
+                    parsed_candidate = Some(None);
+                }
+                report.diagnostics.push(CatalogAuditDiagnostic::new(
+                    DiagnosticSeverity::Error,
+                    diagnostic_codes::icu::INVALID_SYNTAX,
+                    format!("Catalog message is not valid ICU MessageFormat v1: {error}"),
+                    Some(message_ref.clone()),
+                    None,
+                ));
+            }
         }
+    }
+    parsed_candidate
+}
+
+fn cache_source_icu_messages(
+    source_keys: &BTreeSet<CatalogMessageKey>,
+    syntax_policy: IcuSyntaxPolicy,
+    source_icu_cache: &mut ParsedIcuCache,
+) {
+    for key in source_keys {
+        source_icu_cache
+            .entry(key.clone())
+            .or_insert_with(|| parse_icu_with_syntax_policy(&key.msgid, syntax_policy).ok());
     }
 }
 
@@ -552,6 +625,8 @@ fn audit_icu_compatibility(
     target_locale: &str,
     source_keys: &BTreeSet<CatalogMessageKey>,
     icu_options: &CatalogAuditIcuOptions,
+    source_icu_cache: &ParsedIcuCache,
+    target_icu_cache: &mut ParsedIcuCache,
     report: &mut CatalogAuditReport,
 ) {
     for key in source_keys {
@@ -567,15 +642,17 @@ fn audit_icu_compatibility(
             continue;
         };
 
-        let Ok(source) = parse_icu_with_syntax_policy(&key.msgid, icu_options.syntax_policy) else {
+        let Some(source) = source_icu_cache.get(key).and_then(Option::as_ref) else {
             continue;
         };
-        let Ok(translation) = parse_icu_with_syntax_policy(target_value, icu_options.syntax_policy)
-        else {
+        let translation = target_icu_cache.entry(key.clone()).or_insert_with(|| {
+            parse_icu_with_syntax_policy(target_value, icu_options.syntax_policy).ok()
+        });
+        let Some(translation) = translation.as_ref() else {
             continue;
         };
         let compatibility =
-            compare_icu_messages(&source, &translation, &IcuCompatibilityOptions::default());
+            compare_icu_messages(source, translation, &IcuCompatibilityOptions::default());
         for diagnostic in compatibility.diagnostics {
             report.diagnostics.push(CatalogAuditDiagnostic::new(
                 severity_from_icu(diagnostic.severity),
