@@ -1,5 +1,19 @@
 # Changelog
 
+## [2.3.0](https://github.com/sebastian-software/ferrocat/compare/ferrocat-po-v2.2.0...ferrocat-po-v2.3.0) (2026-07-11)
+
+
+### Performance Improvements
+
+* **audit:** reuse parsed ICU messages ([6664d6a](https://github.com/sebastian-software/ferrocat/commit/6664d6af17a66e6bff10787fca9f6915a89814a8))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * ferrocat-icu bumped from 2.2.0 to 2.3.0
+
 ## [2.2.0](https://github.com/sebastian-software/ferrocat/compare/ferrocat-po-v3.0.0...ferrocat-po-v2.2.0) (2026-07-05)
 
 
