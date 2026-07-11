@@ -1,5 +1,18 @@
 use super::*;
 
+#[test]
+fn fixture_catalog_mode_matches_plural_fixture_semantics() {
+    assert_eq!(fixture_catalog_mode("mixed-1000"), CatalogMode::GettextPo);
+    assert_eq!(
+        fixture_catalog_mode("gettext-commerce-pl-1000"),
+        CatalogMode::GettextPo
+    );
+    assert_eq!(
+        fixture_catalog_mode("catalog-icu-heavy"),
+        CatalogMode::IcuPo
+    );
+}
+
 fn first_po_summary_difference(left: &PoSemanticSummary, right: &PoSemanticSummary) -> String {
     if left.headers != right.headers {
         return format!(
