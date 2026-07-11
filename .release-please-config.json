@@ -1,45 +1,30 @@
 {
   "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
-  "release-type": "rust",
-  "separate-pull-requests": false,
-  "plugins": [
-    {
-      "type": "cargo-workspace",
-      "merge": false,
-      "updateAllPackages": true
-    },
-    {
-      "type": "linked-versions",
-      "groupName": "ferrocat",
-      "merge": true,
-      "components": [
-        "ferrocat",
-        "ferrocat-po",
-        "ferrocat-icu",
-        "ferrocat-conformance",
-        "ferrocat-bench",
-        "ferrocat-cli"
-      ]
-    }
-  ],
+  "release-type": "simple",
+  "include-component-in-tag": true,
+  "last-release-sha": "49767429bb761464c6261d37af1f995ced6b0b90",
   "packages": {
-    "crates/ferrocat": {
-      "component": "ferrocat"
-    },
-    "crates/ferrocat-po": {
-      "component": "ferrocat-po"
-    },
-    "crates/ferrocat-icu": {
-      "component": "ferrocat-icu"
-    },
-    "crates/ferrocat-conformance": {
-      "component": "ferrocat-conformance"
-    },
-    "crates/ferrocat-bench": {
-      "component": "ferrocat-bench"
-    },
-    "crates/ferrocat-cli": {
-      "component": "ferrocat-cli"
+    ".": {
+      "component": "ferrocat",
+      "version-file": "version.txt",
+      "changelog-path": "CHANGELOG.md",
+      "extra-files": [
+        {
+          "type": "toml",
+          "path": "Cargo.toml",
+          "jsonpath": "$.workspace.package.version"
+        },
+        {
+          "type": "toml",
+          "path": "Cargo.toml",
+          "jsonpath": "$['workspace']['dependencies']['ferrocat-icu']['version']"
+        },
+        {
+          "type": "toml",
+          "path": "Cargo.toml",
+          "jsonpath": "$['workspace']['dependencies']['ferrocat-po']['version']"
+        }
+      ]
     }
   }
 }

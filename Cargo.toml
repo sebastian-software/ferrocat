@@ -11,11 +11,17 @@ exclude = ["fuzz"]
 resolver = "2"
 
 [workspace.package]
+version = "2.2.0"
 edition = "2024"
 homepage = "https://github.com/sebastian-software/ferrocat"
 license = "MIT"
 repository = "https://github.com/sebastian-software/ferrocat"
 rust-version = "1.93.0"
+
+[workspace.dependencies]
+ferrocat-conformance = { path = "crates/ferrocat-conformance" }
+ferrocat-icu = { version = "2.2.0", path = "crates/ferrocat-icu", default-features = false }
+ferrocat-po = { version = "2.2.0", path = "crates/ferrocat-po", default-features = false }
 
 [workspace.lints.rust]
 unsafe_op_in_unsafe_fn = "deny"
