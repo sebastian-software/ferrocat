@@ -1,0 +1,23 @@
+name: Product release config spike
+
+on:
+  push:
+    branches:
+      - codex/product-release-config-spike
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+
+jobs:
+  release-please:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Run Release Please without publishing packages
+        uses: googleapis/release-please-action@v5
+        with:
+          target-branch: ${{ github.ref_name }}
+          config-file: .release-please-config.json
+          manifest-file: .release-please-manifest.json
+          token: ${{ secrets.RELEASE_PLEASE_TOKEN || secrets.GITHUB_TOKEN }}
