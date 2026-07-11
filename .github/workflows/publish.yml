@@ -25,9 +25,8 @@ jobs:
       pull-requests: write
     outputs:
       releases_created: ${{ steps.release.outputs.releases_created }}
-      ferrocat_cli_release_created: ${{ steps.release.outputs['crates/ferrocat-cli--release_created'] }}
-      ferrocat_cli_tag_name: ${{ steps.release.outputs['crates/ferrocat-cli--tag_name'] }}
-      ferrocat_cli_version: ${{ steps.release.outputs['crates/ferrocat-cli--version'] }}
+      ferrocat_tag_name: ${{ steps.release.outputs['crates/ferrocat--tag_name'] }}
+      ferrocat_version: ${{ steps.release.outputs['crates/ferrocat--version'] }}
 
     steps:
       - name: Check out repository
@@ -56,22 +55,22 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v7
 
-      - name: Resolve ferrocat CLI release
-        id: cli-release
+      - name: Resolve Ferrocat product release
+        id: product-release
         shell: bash
         env:
-          RELEASE_PLEASE_CLI_TAG: ${{ needs.release-please.outputs.ferrocat_cli_tag_name }}
-          RELEASE_PLEASE_CLI_VERSION: ${{ needs.release-please.outputs.ferrocat_cli_version }}
+          RELEASE_PLEASE_TAG: ${{ needs.release-please.outputs.ferrocat_tag_name }}
+          RELEASE_PLEASE_VERSION: ${{ needs.release-please.outputs.ferrocat_version }}
         run: |
-          version="$RELEASE_PLEASE_CLI_VERSION"
+          version="$RELEASE_PLEASE_VERSION"
           if [ -z "$version" ]; then
             package_id="$(cargo pkgid -p ferrocat-cli)"
             version="${package_id##*#}"
           fi
 
-          tag="$RELEASE_PLEASE_CLI_TAG"
+          tag="$RELEASE_PLEASE_TAG"
           if [ -z "$tag" ]; then
-            tag="ferrocat-cli-v${version}"
+            tag="ferrocat-v${version}"
           fi
 
           artifact_name="ferrocat-${version}-${MUSL_TARGET}"
@@ -80,10 +79,10 @@ jobs:
           echo "tag=${tag}" >> "$GITHUB_OUTPUT"
           echo "artifact_name=${artifact_name}" >> "$GITHUB_OUTPUT"
 
-      - name: Confirm ferrocat CLI release exists
+      - name: Confirm Ferrocat product release exists
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh release view "${{ steps.cli-release.outputs.tag }}" --json tagName,url
+        run: gh release view "${{ steps.product-release.outputs.tag }}" --json tagName,url
 
       - name: Install musl linker
         run: |
@@ -109,7 +108,7 @@ jobs:
       - name: Package musl CLI artifact
         shell: bash
         env:
-          ARTIFACT_NAME: ${{ steps.cli-release.outputs.artifact_name }}
+          ARTIFACT_NAME: ${{ steps.product-release.outputs.artifact_name }}
         run: |
           artifact_dir="target/dist/${ARTIFACT_NAME}"
 
@@ -127,9 +126,9 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: >-
           gh release upload
-          "${{ steps.cli-release.outputs.tag }}"
-          "target/dist/${{ steps.cli-release.outputs.artifact_name }}.tar.gz"
-          "target/dist/${{ steps.cli-release.outputs.artifact_name }}.tar.gz.sha256"
+          "${{ steps.product-release.outputs.tag }}"
+          "target/dist/${{ steps.product-release.outputs.artifact_name }}.tar.gz"
+          "target/dist/${{ steps.product-release.outputs.artifact_name }}.tar.gz.sha256"
           --clobber
 
   publish-rust:
@@ -228,3 +227,65 @@ jobs:
           publish_with_retry ferrocat-po 5 30
           publish_with_retry ferrocat 5 30
           publish_with_retry ferrocat-cli 5 30
+
+  cleanup-component-releases:
+    needs:
+      - release-please
+      - publish-cli-musl
+      - publish-rust
+    if: >-
+      ${{ always() && needs.release-please.outputs.releases_created == 'true'
+      && needs.publish-cli-musl.result == 'success'
+      && needs.publish-rust.result == 'success' }}
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+
+    steps:
+      - name: Consolidate and remove component GitHub releases
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PRODUCT_TAG: ${{ needs.release-please.outputs.ferrocat_tag_name }}
+          RELEASE_VERSION: ${{ needs.release-please.outputs.ferrocat_version }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "$RELEASE_VERSION" ]; then
+            echo "Release Please did not report the Ferrocat version." >&2
+            exit 1
+          fi
+
+          product_tag="$PRODUCT_TAG"
+          if [ -z "$product_tag" ]; then
+            product_tag="ferrocat-v${RELEASE_VERSION}"
+          fi
+
+          notes_file="$(mktemp)"
+          trap 'rm -f "$notes_file"' EXIT
+          gh release view "$product_tag" --json body --jq .body > "$notes_file"
+
+          component_tags=()
+          for component in ferrocat-po ferrocat-icu ferrocat-conformance ferrocat-bench ferrocat-cli; do
+            tag="${component}-v${RELEASE_VERSION}"
+
+            if gh release view "$tag" >/dev/null 2>&1; then
+              component_tags+=("$tag")
+              component_notes="$(gh release view "$tag" --json body --jq .body)"
+              if [ -n "$component_notes" ]; then
+                {
+                  printf '\n\n---\n\n## %s\n\n' "$component"
+                  printf '%s\n' "$component_notes"
+                } >> "$notes_file"
+              fi
+            fi
+          done
+
+          if [ "${#component_tags[@]}" -gt 0 ]; then
+            gh release edit "$product_tag" --notes-file "$notes_file"
+          fi
+
+          for tag in "${component_tags[@]}"; do
+            # Do not pass --cleanup-tag: Release Please still needs these tags.
+            gh release delete "$tag" --yes
+          done

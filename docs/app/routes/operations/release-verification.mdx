@@ -19,8 +19,11 @@ This checklist verifies a real Rust-only `ferrocat` release after the publish wo
 - Confirm the published crates resolved to the same release version.
 - Confirm the workspace-only crates in the repo are also version-aligned with the published crates.
 - Confirm internal `ferrocat*` path dependencies in the crate manifests were updated to matching versions where applicable.
-- Confirm the GitHub release tag matches the published version created by Release Please.
-- For `ferrocat-cli` releases, confirm the
+- Confirm the product GitHub release is `ferrocat-v<version>` and matches the
+  published crate version. Component tags remain for Release Please bookkeeping,
+  but only the product release should be visible in GitHub Releases. Its release
+  notes include the component changes for that version.
+- Confirm the product release includes the
   `ferrocat-<version>-x86_64-unknown-linux-musl.tar.gz` asset and matching
   `.sha256` file were uploaded to the GitHub release.
 
