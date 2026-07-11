@@ -2,7 +2,7 @@
 
 A line-oriented, machine-owned catalog format. You don't have to trade speed for
 safety to get it: compared with the same catalog stored as PO, FCL parses about
-45% faster, takes roughly 12% less disk, and gives git one canonical line per
+25% faster, takes roughly 12% less disk, and gives git one canonical line per
 entry so ordinary 3-way merges preserve untouched translations. One entry per
 line, deterministically sorted. It is *not* meant for hand editing; the only
 non-API writer it must tolerate is git's 3-way line merge.
@@ -35,7 +35,7 @@ state machine, no keyword classification, no quote-bounds scanning, and a
 minimal escape set with a no-escape borrow fast path. The reader works on bytes
 and leans on memchr (NEON on Apple Silicon) for field splitting and escape
 scanning, the same way the PO parser is tuned. On a 10k-message ICU catalog that
-lands around 45% faster than reading the equivalent PO file.
+lands around 25% faster than reading the equivalent PO file.
 
 ## Grammar
 
