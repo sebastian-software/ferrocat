@@ -500,4 +500,5 @@ fn parse_positive_f64(label: &str, value: &str) -> Result<f64, String> {
     Ok(parsed)
 }
 
-include!("compare/tests.rs");
+#[cfg(test)]
+mod tests;
