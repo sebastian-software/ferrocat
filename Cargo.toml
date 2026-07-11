@@ -11,6 +11,7 @@ exclude = ["fuzz"]
 resolver = "2"
 
 [workspace.package]
+version = "2.2.0"
 edition = "2024"
 homepage = "https://github.com/sebastian-software/ferrocat"
 license = "MIT"

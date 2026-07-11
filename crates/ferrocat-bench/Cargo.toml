@@ -1,6 +1,6 @@
 [package]
 name = "ferrocat-bench"
-version = "2.2.0"
+version.workspace = true
 edition.workspace = true
 homepage.workspace = true
 license.workspace = true
