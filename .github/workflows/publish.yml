@@ -25,9 +25,8 @@ jobs:
       pull-requests: write
     outputs:
       releases_created: ${{ steps.release.outputs.releases_created }}
-      ferrocat_cli_release_created: ${{ steps.release.outputs['crates/ferrocat-cli--release_created'] }}
-      ferrocat_cli_tag_name: ${{ steps.release.outputs['crates/ferrocat-cli--tag_name'] }}
-      ferrocat_cli_version: ${{ steps.release.outputs['crates/ferrocat-cli--version'] }}
+      product_tag_name: ${{ steps.release.outputs.tag_name }}
+      product_version: ${{ steps.release.outputs.version }}
 
     steps:
       - name: Check out repository
@@ -56,22 +55,22 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v7
 
-      - name: Resolve ferrocat CLI release
+      - name: Resolve product release
         id: cli-release
         shell: bash
         env:
-          RELEASE_PLEASE_CLI_TAG: ${{ needs.release-please.outputs.ferrocat_cli_tag_name }}
-          RELEASE_PLEASE_CLI_VERSION: ${{ needs.release-please.outputs.ferrocat_cli_version }}
+          RELEASE_PLEASE_PRODUCT_TAG: ${{ needs.release-please.outputs.product_tag_name }}
+          RELEASE_PLEASE_PRODUCT_VERSION: ${{ needs.release-please.outputs.product_version }}
         run: |
-          version="$RELEASE_PLEASE_CLI_VERSION"
+          version="$RELEASE_PLEASE_PRODUCT_VERSION"
           if [ -z "$version" ]; then
             package_id="$(cargo pkgid -p ferrocat-cli)"
             version="${package_id##*#}"
           fi
 
-          tag="$RELEASE_PLEASE_CLI_TAG"
+          tag="$RELEASE_PLEASE_PRODUCT_TAG"
           if [ -z "$tag" ]; then
-            tag="ferrocat-cli-v${version}"
+            tag="ferrocat-v${version}"
           fi
 
           artifact_name="ferrocat-${version}-${MUSL_TARGET}"
@@ -80,7 +79,7 @@ jobs:
           echo "tag=${tag}" >> "$GITHUB_OUTPUT"
           echo "artifact_name=${artifact_name}" >> "$GITHUB_OUTPUT"
 
-      - name: Confirm ferrocat CLI release exists
+      - name: Confirm product release exists
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: gh release view "${{ steps.cli-release.outputs.tag }}" --json tagName,url

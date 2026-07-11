@@ -1,6 +1,6 @@
 [package]
 name = "ferrocat-icu"
-version = "2.2.0"
+version.workspace = true
 edition.workspace = true
 homepage.workspace = true
 license.workspace = true
@@ -27,7 +27,7 @@ serde = { version = "1.0.228", features = ["derive"], optional = true }
 all-features = true
 
 [dev-dependencies]
-ferrocat-conformance = { path = "../ferrocat-conformance" }
+ferrocat-conformance.workspace = true
 proptest = "1"
 serde_json = "1.0.145"
 

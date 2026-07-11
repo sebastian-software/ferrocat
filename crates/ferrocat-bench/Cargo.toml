@@ -1,6 +1,6 @@
 [package]
 name = "ferrocat-bench"
-version = "2.2.0"
+version.workspace = true
 edition.workspace = true
 homepage.workspace = true
 license.workspace = true
@@ -19,9 +19,9 @@ path = "src/main.rs"
 count-alloc = []
 
 [dependencies]
-ferrocat-conformance = { path = "../ferrocat-conformance" }
-ferrocat-icu = { path = "../ferrocat-icu" }
-ferrocat-po = { path = "../ferrocat-po" }
+ferrocat-conformance.workspace = true
+ferrocat-icu = { workspace = true, features = ["serde"] }
+ferrocat-po = { workspace = true, features = ["full"] }
 libc = "0.2"
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.145"
