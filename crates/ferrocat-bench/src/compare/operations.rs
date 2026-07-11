@@ -1374,7 +1374,7 @@ pub(super) fn fixture_locale_metadata(locale: &str) -> (&'static str, &'static s
 }
 
 pub(super) fn fixture_catalog_mode(name: &str) -> CatalogMode {
-    if name.starts_with("gettext-") {
+    if name.starts_with("gettext-") || name.starts_with("mixed-") {
         CatalogMode::GettextPo
     } else {
         CatalogMode::IcuPo
