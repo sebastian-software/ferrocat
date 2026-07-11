@@ -1,6 +1,9 @@
 name: Product release spike
 
 on:
+  push:
+    branches:
+      - codex/product-release-spike
   workflow_dispatch:
 
 permissions:
