@@ -352,6 +352,8 @@ pub fn audit_catalogs(
         audit_metadata(options.metadata, &source_keys, &mut report);
     }
     if options.checks.icu_compatibility {
+        // Compatibility-only audits fill this eagerly so the immutable cache can be shared
+        // across target locales; sparse catalogs trade some extra source parsing for that reuse.
         cache_source_icu_messages(
             &source_keys,
             icu_options.syntax_policy,
