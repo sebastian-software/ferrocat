@@ -3,6 +3,13 @@
   "release-type": "simple",
   "include-component-in-tag": true,
   "last-release-sha": "49767429bb761464c6261d37af1f995ced6b0b90",
+  "plugins": [
+    {
+      "type": "cargo-workspace",
+      "merge": false,
+      "updateAllPackages": true
+    }
+  ],
   "packages": {
     ".": {
       "component": "ferrocat",
