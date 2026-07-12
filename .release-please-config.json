@@ -1,30 +1,12 @@
 {
   "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
-  "release-type": "simple",
+  "release-type": "rust",
   "include-component-in-tag": true,
   "last-release-sha": "49767429bb761464c6261d37af1f995ced6b0b90",
   "packages": {
     ".": {
       "component": "ferrocat",
-      "version-file": "version.txt",
-      "changelog-path": "CHANGELOG.md",
-      "extra-files": [
-        {
-          "type": "toml",
-          "path": "Cargo.toml",
-          "jsonpath": "$.workspace.package.version"
-        },
-        {
-          "type": "toml",
-          "path": "Cargo.toml",
-          "jsonpath": "$['workspace']['dependencies']['ferrocat-icu']['version']"
-        },
-        {
-          "type": "toml",
-          "path": "Cargo.toml",
-          "jsonpath": "$['workspace']['dependencies']['ferrocat-po']['version']"
-        }
-      ]
+      "changelog-path": "crates/ferrocat/CHANGELOG.md"
     }
   }
 }
