@@ -1,6 +1,78 @@
+[package]
+name = "ferrocat"
+version = "2.2.0"
+edition.workspace = true
+homepage.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+description = "Rust-first gettext and ICU toolkit for PO parsing, catalog updates, and MessageFormat parsing."
+documentation = "https://docs.rs/ferrocat"
+readme = "crates/ferrocat/README.md"
+include = [
+    "crates/ferrocat/src/**",
+    "crates/ferrocat/examples/**",
+    "crates/ferrocat/tests/**",
+    "crates/ferrocat/README.md",
+    "crates/ferrocat/CHANGELOG.md",
+    "LICENSE",
+]
+keywords = ["ferrocat", "gettext", "po", "icu", "i18n"]
+categories = ["internationalization", "localization", "parser-implementations"]
+
+[lib]
+path = "crates/ferrocat/src/lib.rs"
+
+[[example]]
+name = "fcl_with_mt_metadata"
+path = "crates/ferrocat/examples/fcl_with_mt_metadata.rs"
+
+[[example]]
+name = "merge_extracted_messages"
+path = "crates/ferrocat/examples/merge_extracted_messages.rs"
+
+[[example]]
+name = "release_audit"
+path = "crates/ferrocat/examples/release_audit.rs"
+
+[[example]]
+name = "runtime_compile"
+path = "crates/ferrocat/examples/runtime_compile.rs"
+
+[[test]]
+name = "smoke"
+path = "crates/ferrocat/tests/smoke.rs"
+
+[features]
+default = ["full"]
+full = ["catalog", "serde"]
+catalog = ["ferrocat-po/catalog", "ferrocat-icu/serde"]
+compile = ["catalog", "ferrocat-po/compile"]
+mt = ["catalog", "ferrocat-po/mt"]
+plurals = ["catalog", "ferrocat-po/plurals"]
+serde = ["ferrocat-po/serde", "ferrocat-icu/serde"]
+
+[dependencies]
+ferrocat-icu = { workspace = true, default-features = false }
+ferrocat-po = { workspace = true, default-features = false }
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
+[lints]
+workspace = true
+
 [workspace]
 members = [
-    "crates/ferrocat",
+    "crates/ferrocat-cli",
+    "crates/ferrocat-po",
+    "crates/ferrocat-icu",
+    "crates/ferrocat-conformance",
+    "crates/ferrocat-bench",
+]
+default-members = [
+    ".",
     "crates/ferrocat-cli",
     "crates/ferrocat-po",
     "crates/ferrocat-icu",
@@ -11,7 +83,6 @@ exclude = ["fuzz"]
 resolver = "2"
 
 [workspace.package]
-version = "2.2.0"
 edition = "2024"
 homepage = "https://github.com/sebastian-software/ferrocat"
 license = "MIT"

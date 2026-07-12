@@ -1,9 +1,9 @@
 import releaseManifest from "../.release-please-manifest.json"
 
-const releaseVersion = releaseManifest["crates/ferrocat"]
+const releaseVersion = releaseManifest["."]
 
 if (typeof releaseVersion !== "string" || releaseVersion.trim() === "") {
-  throw new Error("Missing crates/ferrocat version in .release-please-manifest.json")
+  throw new Error("Missing root package version in .release-please-manifest.json")
 }
 
 export const ferrocatReleaseVersion = releaseVersion
