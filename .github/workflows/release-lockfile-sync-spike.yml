@@ -55,7 +55,7 @@ jobs:
 
           git fetch origin "$release_branch"
           git switch --detach "origin/$release_branch"
-          cargo metadata --no-deps --format-version 1 > /dev/null
+          cargo check --workspace --all-targets --all-features
 
           if git diff --quiet -- Cargo.lock; then
             echo "Cargo.lock is already current."
