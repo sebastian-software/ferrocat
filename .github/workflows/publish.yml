@@ -42,6 +42,53 @@ jobs:
           manifest-file: .release-please-manifest.json
           token: ${{ secrets.RELEASE_PLEASE_TOKEN || secrets.GITHUB_TOKEN }}
 
+      # The product release uses the virtual workspace manifest as its version
+      # source. Release Please's simple strategy updates that manifest but not
+      # Cargo.lock, so regenerate the lockfile on the release PR branch before
+      # CI validates it with --locked.
+      - name: Set Rust for release lockfile
+        if: ${{ steps.release.outputs.prs_created == 'true' }}
+        uses: dtolnay/rust-toolchain@1.93.0
+
+      - name: Synchronize release PR lockfile
+        if: ${{ steps.release.outputs.prs_created == 'true' }}
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_PLEASE_TOKEN || secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          release_branch="$(
+            gh pr list \
+              --repo "$GITHUB_REPOSITORY" \
+              --state open \
+              --base "$GITHUB_REF_NAME" \
+              --label "autorelease: pending" \
+              --json headRefName \
+              --jq 'map(select(.headRefName | startswith("release-please--branches--"))) | .[0].headRefName'
+          )"
+
+          if [ -z "$release_branch" ] || [ "$release_branch" = "null" ]; then
+            echo "Expected a pending Release Please branch for ${GITHUB_REF_NAME}." >&2
+            exit 1
+          fi
+
+          git fetch origin "$release_branch"
+          git switch --detach "origin/$release_branch"
+          # Re-resolve only because the release PR changed local workspace
+          # package versions. Unlike `cargo generate-lockfile`, this preserves
+          # the existing locked registry dependency set.
+          cargo metadata --no-deps --format-version 1 > /dev/null
+
+          if git diff --quiet -- Cargo.lock; then
+            echo "Cargo.lock is already current."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Cargo.lock
+          git commit -m "chore(release): synchronize Cargo.lock"
+          git push origin "HEAD:refs/heads/$release_branch"
+
   publish-cli-musl:
     needs: release-please
     if: ${{ needs.release-please.outputs.releases_created == 'true' }}
