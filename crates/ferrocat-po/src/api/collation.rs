@@ -268,25 +268,32 @@ fn collated_message_key(message: &CanonicalMessage) -> CollatedMessageKey {
     }
 }
 
-/// Sorts messages with a no-allocation prefix pass and full keys only for
-/// entries whose prefixes collide.
-pub(super) fn sort_messages_collated(messages: &mut [CanonicalMessage]) {
-    if messages.len() < 2 {
+/// Collates `order`, a list of indices into `messages`, by message identity.
+///
+/// Only indices move during the sort, so the pass stays independent of how
+/// large [`CanonicalMessage`] is. A no-allocation prefix pass does the bulk of
+/// the work; full keys are built only for entries whose prefixes collide.
+pub(super) fn collate_indices(messages: &[CanonicalMessage], order: &mut [usize]) {
+    if order.len() < 2 {
         return;
     }
 
-    let prefixes: Vec<CollationPrefix> = messages
+    // Pairing each prefix with its index keeps the sort's comparisons on one
+    // contiguous run instead of chasing indices back into a side table.
+    let mut keyed: Vec<(CollationPrefix, usize)> = order
         .iter()
-        .map(|message| collation_prefix(&message.msgid))
+        .map(|&index| (collation_prefix(&messages[index].msgid), index))
         .collect();
-    let mut order: Vec<usize> = (0..messages.len()).collect();
-    order.sort_unstable_by_key(|&index| prefixes[index]);
+    keyed.sort_unstable_by_key(|&(prefix, _)| prefix);
+    for (slot, &(_, index)) in order.iter_mut().zip(keyed.iter()) {
+        *slot = index;
+    }
 
     let mut start = 0;
-    while start < order.len() {
-        let prefix = prefixes[order[start]];
+    while start < keyed.len() {
+        let prefix = keyed[start].0;
         let mut end = start + 1;
-        while end < order.len() && prefixes[order[end]] == prefix {
+        while end < keyed.len() && keyed[end].0 == prefix {
             end += 1;
         }
         if end - start > 1 {
@@ -314,20 +321,48 @@ pub(super) fn sort_messages_collated(messages: &mut [CanonicalMessage]) {
         }
         start = end;
     }
+}
 
-    // `order` maps each destination to a source. Invert it, then apply the
-    // permutation in place so catalog-sized messages are never copied.
-    let mut destination = vec![0_usize; order.len()];
-    for (position, &source) in order.iter().enumerate() {
-        destination[source] = position;
+/// Rearranges `messages` so position `p` holds the message at `order[p]`.
+///
+/// Messages travel through a scratch buffer instead of being swapped along
+/// permutation cycles: a swap copies a whole [`CanonicalMessage`] three times
+/// and most entries take part in several swaps, while moving out and back in
+/// relocates every message exactly once. `Option` provides the holes that
+/// taking messages out of the buffer in permuted order needs.
+pub(super) fn apply_order(messages: &mut Vec<CanonicalMessage>, order: &[usize]) {
+    debug_assert_eq!(
+        messages.len(),
+        order.len(),
+        "order must cover every message"
+    );
+    if order
+        .iter()
+        .enumerate()
+        .all(|(position, &source)| position == source)
+    {
+        return;
     }
-    for position in 0..destination.len() {
-        while destination[position] != position {
-            let target = destination[position];
-            messages.swap(position, target);
-            destination.swap(position, target);
-        }
+
+    // `drain` keeps the allocation, so refilling below does not reallocate.
+    let mut taken: Vec<Option<CanonicalMessage>> = messages.drain(..).map(Some).collect();
+    messages.extend(order.iter().map(|&source| {
+        taken[source]
+            .take()
+            .expect("a collated order names every message exactly once")
+    }));
+}
+
+/// Sorts messages with a no-allocation prefix pass and full keys only for
+/// entries whose prefixes collide.
+pub(super) fn sort_messages_collated(messages: &mut Vec<CanonicalMessage>) {
+    if messages.len() < 2 {
+        return;
     }
+
+    let mut order: Vec<usize> = (0..messages.len()).collect();
+    collate_indices(messages, &mut order);
+    apply_order(messages, &order);
 }
 
 #[cfg(test)]

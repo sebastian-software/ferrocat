@@ -13,7 +13,7 @@ use rustc_hash::FxHashMap;
 
 use crate::diagnostic_codes;
 
-use super::collation::sort_messages_collated;
+use super::collation::{apply_order, collate_indices, sort_messages_collated};
 use super::export::export_catalog_content;
 use super::file_io::atomic_write;
 use super::helpers::{
@@ -688,7 +688,7 @@ pub(super) fn apply_header_defaults(
     }
 }
 
-pub(super) fn sort_messages(messages: &mut [CanonicalMessage], order_by: OrderBy) {
+pub(super) fn sort_messages(messages: &mut Vec<CanonicalMessage>, order_by: OrderBy) {
     match order_by {
         OrderBy::Msgid => sort_messages_collated(messages),
         OrderBy::Origin => {
@@ -696,6 +696,9 @@ pub(super) fn sort_messages(messages: &mut [CanonicalMessage], order_by: OrderBy
                 first_origin_sort_key(&left.origins).cmp(first_origin_sort_key(&right.origins))
             });
 
+            // Collate each origin run by index, then move messages once for the
+            // whole catalog instead of once per run.
+            let mut order: Vec<usize> = (0..messages.len()).collect();
             let mut start = 0;
             while start < messages.len() {
                 let mut end = start + 1;
@@ -705,9 +708,10 @@ pub(super) fn sort_messages(messages: &mut [CanonicalMessage], order_by: OrderBy
                 {
                     end += 1;
                 }
-                sort_messages_collated(&mut messages[start..end]);
+                collate_indices(messages, &mut order[start..end]);
                 start = end;
             }
+            apply_order(messages, &order);
         }
     }
 }
