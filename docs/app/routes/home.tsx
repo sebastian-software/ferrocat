@@ -216,9 +216,9 @@ type Bar = { name: string; lang: string; rate: number; self?: boolean }
 
 const parseCompare: Bar[] = [
   { name: "Ferrocat", lang: "Rust, zero-copy", rate: 695, self: true },
-  { name: "pofile-ts", lang: "Node", rate: 148 },
+  { name: "pofile-ts", lang: "Node", rate: 141 },
   { name: "gettext/gettext", lang: "PHP", rate: 49 },
-  { name: "polib", lang: "Python", rate: 20 },
+  { name: "polib", lang: "Python", rate: 22 },
 ]
 const PARSE_MAX = 695
 
@@ -227,13 +227,13 @@ const updateCompare: Bar[] = [
   {
     name: "Ferrocat full catalog update",
     lang: "with ICU checks + placeholder tracking",
-    rate: 101,
+    rate: 112,
     self: true,
   },
-  { name: "pofile-ts", lang: "Node", rate: 42 },
+  { name: "pofile-ts", lang: "Node", rate: 39 },
   { name: "gettext/gettext", lang: "PHP", rate: 16 },
-  { name: "Babel", lang: "Python, Catalog.update", rate: 7.9 },
-  { name: "polib", lang: "Python", rate: 7.4 },
+  { name: "Babel", lang: "Python, Catalog.update", rate: 8.4 },
+  { name: "polib", lang: "Python", rate: 7.8 },
   { name: "msgmerge", lang: "GNU gettext", rate: 4.6 },
 ]
 const UPDATE_MAX = 255
@@ -462,12 +462,12 @@ export default function HomePage() {
           measured time on this corpus, so the gap is real work. The Node
           baseline, pofile-ts, is our own performance fork of the popular
           pofile&mdash;so the fastest JS parser here is one we built, and Rust
-          still leads it ~4.7x; the unforked original sits about 320x back. The
+          still leads it ~4.9x; the unforked original sits about 320x back. The
           parse chart uses
           borrowed, zero-copy parsing; reading into a fully owned model still
-          reaches about 510 MiB/s. Serialization runs at about 1.4 GiB/s on the same
+          reaches about 505 MiB/s. Serialization runs at about 1.4 GiB/s on the same
           corpus. Median throughput on an Apple M1 Ultra, every tool reading
-          the same files (pofile-ts 4.0.3, gettext-parser 9.0.2, Babel 2.18.0,
+          the same files (pofile-ts 4.0.3, gettext-parser 9.1.1, Babel 2.18.0,
           polib 1.2.0, gettext/gettext 5.7.3, GNU gettext 1.0).{" "}
           <Link to="/performance/benchmarking">Methodology</Link> and{" "}
           <a href="https://github.com/sebastian-software/ferrocat/tree/main/benchmark/results">
