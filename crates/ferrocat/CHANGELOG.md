@@ -1,5 +1,38 @@
 # Changelog
 
+## [3.0.1](https://github.com/sebastian-software/ferrocat/compare/ferrocat-v2.2.0...ferrocat-v3.0.1) (2026-07-29)
+
+
+### Features
+
+* **bench:** cover catalog workflow regressions ([a4e3ab6](https://github.com/sebastian-software/ferrocat/commit/a4e3ab62aed6dd9d8d5ba81ed52f687c0af0e45c))
+* **po:** add collated catalog ordering ([18fbd36](https://github.com/sebastian-software/ferrocat/commit/18fbd36a7ab277c55872cd90e875568740c35c52))
+
+
+### Bug Fixes
+
+* **bench:** use gettext mode for mixed fixtures ([28bc4e0](https://github.com/sebastian-software/ferrocat/commit/28bc4e0f96543af2ede6d7489ff80ce6d5c609e3))
+* **ci:** restore blocking semver checks ([5edd119](https://github.com/sebastian-software/ferrocat/commit/5edd119605d2332243ba9f36bf4d94bd02c7b91d))
+* **deps:** update dependency ardo to v3.8.1 ([#261](https://github.com/sebastian-software/ferrocat/issues/261)) ([70c4b8a](https://github.com/sebastian-software/ferrocat/commit/70c4b8aa9771aa8e422f09c0eb8d9ab5032f58d5))
+* **deps:** update dependency gettext-parser to v9.1.1 ([f542ca1](https://github.com/sebastian-software/ferrocat/commit/f542ca1c3b772c88635da23c860b2fe1a04f71a1))
+* **deps:** update dependency isbot to v5.2.1 ([e1244e2](https://github.com/sebastian-software/ferrocat/commit/e1244e20d2790b95423e1c615e291bc5f331d62e))
+* **deps:** update dependency vite to v8.1.5 ([d9af196](https://github.com/sebastian-software/ferrocat/commit/d9af196ed07eb5a4e8e84048e7c53ceba8126623))
+* **deps:** update formatjs monorepo to v3.5.15 ([cac79e7](https://github.com/sebastian-software/ferrocat/commit/cac79e777025a6c97ac26cf2aa99a142bc4d89a5))
+* **deps:** update lucide monorepo to v1.27.0 ([3f9bdd3](https://github.com/sebastian-software/ferrocat/commit/3f9bdd3e3a5be0ad41254089b04924c21c7335e4))
+* **deps:** update pnpm to v11.17.0 ([a36fbc1](https://github.com/sebastian-software/ferrocat/commit/a36fbc1f4597a959aecb57d23af77a7cc921cd98))
+* **po:** preserve Intl accent ordering ([200cba0](https://github.com/sebastian-software/ferrocat/commit/200cba0ef75af85ca8cff35cb8e1deb3ed5e2bfb))
+
+
+### Performance Improvements
+
+* **audit:** reuse parsed ICU messages ([6664d6a](https://github.com/sebastian-software/ferrocat/commit/6664d6af17a66e6bff10787fca9f6915a89814a8))
+
+
+### Miscellaneous Chores
+
+* **release:** prepare 3.0.1 ([018ecfb](https://github.com/sebastian-software/ferrocat/commit/018ecfb3771b0bb3d936a317fdb7de03e63ddf84))
+* **release:** prepare 3.0.1 ([#269](https://github.com/sebastian-software/ferrocat/issues/269)) ([c948b3c](https://github.com/sebastian-software/ferrocat/commit/c948b3c628eb65350da9b84f4d7e7f0a59eca6fd))
+
 ## [2.2.0](https://github.com/sebastian-software/ferrocat/compare/ferrocat-v3.0.0...ferrocat-v2.2.0) (2026-07-05)
 
 
