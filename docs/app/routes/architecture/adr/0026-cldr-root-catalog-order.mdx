@@ -61,12 +61,14 @@ flows.
 
 The implementation ports the proven Palamedes table and key shape:
 
-- `scripts/generate-collation-table.mjs` derives primary weights and canonical
-  decompositions from `Intl.Collator("en-US")`
+- `scripts/generate-collation-table.mjs` derives primary weights, secondary
+  accent ranks, and canonical decompositions from `Intl.Collator("en-US")`
 - the checked-in Rust table covers printable ASCII, common typographic UI
   punctuation, Latin-1 Supplement, and Latin Extended-A
 - `node scripts/generate-collation-table.mjs --check` verifies provenance in CI
 - the key builder has a direct-indexed ASCII path
+- sparse secondary keys retain each accent's primary position, and the
+  generator checks 90,951 NFC/NFD accent-position pairs against the Intl oracle
 - sorting first compares a packed 32-byte primary prefix without allocation,
   then builds full primary/secondary/tertiary keys only for entries sharing a
   prefix
@@ -106,9 +108,9 @@ position and therefore a diff, not translation meaning or runtime lookup.
 The published file-to-file `po-update/gettext-ui-de-10000/ferrocat` scenario
 measured 108.997 MiB/s before this change. The new Rust-only
 `catalog-order-default-v1` profile repeats that exact operation with 10 measured
-runs, 3 warmups, and a 1,000 ms minimum sample. It measured 103.196 MiB/s, a
-5.3% reduction, with a 0.76% coefficient of variation and a 2.45% span. The
-README keeps the rounded headline at 103 MiB/s.
+runs, 3 warmups, and a 1,000 ms minimum sample. It measured 101.005 MiB/s, a
+7.3% reduction, with a 1.31% coefficient of variation and a 4.95% span. The
+README keeps the rounded headline at 101 MiB/s.
 
 A separate, earlier base-commit versus pre-optimization updated-default run
 through the direct `update-catalog` harness used the

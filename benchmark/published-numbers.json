@@ -113,13 +113,13 @@
       "report": "benchmark/results/catalog-order-default-v1-20260729.json",
       "scenario": "po-update/gettext-ui-de-10000/ferrocat",
       "metric": "statistics.median_mib_per_sec",
-      "published": 103,
+      "published": 101,
       "tolerance": 3,
       "locations": [
-        { "file": "README.md", "contains": "| Full catalog update | **103 MiB/s**" },
-        { "file": "docs/app/routes/home.tsx", "contains": "rate: 103" },
-        { "file": "docs/app/routes/architecture/adr/0026-cldr-root-catalog-order.mdx", "contains": "It measured 103.196 MiB/s" },
-        { "file": "docs/app/routes/architecture/adr/0026-cldr-root-catalog-order.mdx", "contains": "headline at 103 MiB/s" }
+        { "file": "README.md", "contains": "| Full catalog update | **101 MiB/s**" },
+        { "file": "docs/app/routes/home.tsx", "contains": "rate: 101" },
+        { "file": "docs/app/routes/architecture/adr/0026-cldr-root-catalog-order.mdx", "contains": "It measured 101.005 MiB/s" },
+        { "file": "docs/app/routes/architecture/adr/0026-cldr-root-catalog-order.mdx", "contains": "headline at 101 MiB/s" }
       ]
     },
     {
@@ -141,7 +141,7 @@
       "published": 42,
       "tolerance": 2,
       "locations": [
-        { "file": "README.md", "contains": "| Full catalog update | **103 MiB/s** | 42" }
+        { "file": "README.md", "contains": "| Full catalog update | **101 MiB/s** | 42" }
       ]
     },
     {
@@ -152,7 +152,7 @@
       "published": 7.9,
       "tolerance": 0.4,
       "locations": [
-        { "file": "README.md", "contains": "| Full catalog update | **103 MiB/s** | 42 | - | 7.9" },
+        { "file": "README.md", "contains": "| Full catalog update | **101 MiB/s** | 42 | - | 7.9" },
         { "file": "docs/app/routes/home.tsx", "contains": "rate: 7.9" }
       ]
     },
@@ -164,7 +164,7 @@
       "published": 7.4,
       "tolerance": 0.4,
       "locations": [
-        { "file": "README.md", "contains": "| Full catalog update | **103 MiB/s** | 42 | - | 7.9 | 7.4" }
+        { "file": "README.md", "contains": "| Full catalog update | **101 MiB/s** | 42 | - | 7.9 | 7.4" }
       ]
     },
     {
@@ -175,7 +175,7 @@
       "published": 4.6,
       "tolerance": 0.2,
       "locations": [
-        { "file": "README.md", "contains": "| Full catalog update | **103 MiB/s** | 42 | - | 7.9 | 7.4 | 4.6 |" }
+        { "file": "README.md", "contains": "| Full catalog update | **101 MiB/s** | 42 | - | 7.9 | 7.4 | 4.6 |" }
       ]
     }
   ],
