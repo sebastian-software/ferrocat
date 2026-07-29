@@ -5,6 +5,7 @@
 //! and serializer hot paths stay elsewhere; this layer is where we preserve
 //! catalog semantics and diagnostics.
 
+use std::borrow::Cow;
 use std::fs;
 use std::{collections::BTreeMap, mem};
 
@@ -29,7 +30,7 @@ use super::{
     ObsoleteInfo, ObsoleteStrategy, OrderBy, ParseCatalogOptions, ParsedCatalog, PluralEncoding,
     PluralSource, TranslationShape, UpdateCatalogFileOptions, UpdateCatalogOptions,
 };
-use crate::{MsgStr, PoFile, PoItem, PoVec, parse_po};
+use crate::{BorrowedMsgStr, BorrowedPoFile, BorrowedPoItem, PoVec, parse_po_borrowed};
 
 #[derive(Debug, Clone, PartialEq, Default)]
 pub(super) struct Catalog {
@@ -788,15 +789,18 @@ fn parse_catalog_to_internal_po(
     _plural_encoding: PluralEncoding,
     strict: bool,
 ) -> Result<Catalog, ApiError> {
-    let PoFile {
+    // The borrowed parser keeps every field as a slice of `content`, so each
+    // retained value is allocated exactly once below, directly into its
+    // canonical home, and dropped fields never allocate at all.
+    let BorrowedPoFile {
         headers: po_headers,
         items: po_items,
         comments: po_comments,
         extracted_comments: po_extracted_comments,
-    } = parse_po(content)?;
+    } = parse_po_borrowed(content)?;
     let headers = po_headers
         .into_iter()
-        .map(|header| (header.key, header.value))
+        .map(|header| (header.key.into_owned(), header.value.into_owned()))
         .collect::<BTreeMap<_, _>>();
     let locale = locale_override
         .map(str::to_owned)
@@ -827,20 +831,23 @@ fn parse_catalog_to_internal_po(
     Ok(Catalog {
         locale,
         headers,
-        file_comments: po_comments,
-        file_extracted_comments: po_extracted_comments,
+        file_comments: po_comments.into_iter().map(Cow::into_owned).collect(),
+        file_extracted_comments: po_extracted_comments
+            .into_iter()
+            .map(Cow::into_owned)
+            .collect(),
         messages,
         diagnostics,
     })
 }
 
-/// Converts one parsed `PoItem` into the canonical internal message form.
+/// Converts one parsed `BorrowedPoItem` into the canonical internal message form.
 ///
 /// The branching is intentionally centralized here so that gettext plural slot
 /// import, ICU projection, and all associated diagnostics stay in one semantic
 /// decision point.
 fn import_message_from_po(
-    mut item: PoItem,
+    item: BorrowedPoItem<'_>,
     locale: Option<&str>,
     nplurals: Option<usize>,
     semantics: CatalogSemantics,
@@ -848,43 +855,42 @@ fn import_message_from_po(
     _diagnostics: &mut Vec<Diagnostic>,
 ) -> Result<CanonicalMessage, ApiError> {
     // Extracted (`#.`) and translator (`#`) comments collapse into one notes list.
-    // Placeholder splitting runs on the extracted comments only, so the two lists
-    // stay separate until after the split.
-    let (mut comments, placeholders) =
-        split_placeholder_comments(item.extracted_comments.into_vec());
-    comments.extend(item.comments);
-    let origins = item
-        .references
-        .into_iter()
-        .map(parse_origin_owned)
-        .collect();
+    let (mut comments, placeholders) = split_placeholder_comments(item.extracted_comments);
+    comments.extend(item.comments.into_iter().map(Cow::into_owned));
+    let origins = item.references.into_iter().map(parse_origin).collect();
 
-    let translation = if let Some(msgid_plural) = item.msgid_plural.take() {
+    let translation = if let Some(msgid_plural) = item.msgid_plural {
         if semantics == CatalogSemantics::IcuNative {
             return Err(ApiError::Unsupported(
                 "classic gettext plural requires compat mode".to_owned(),
             ));
         }
-        // Move the parsed slot strings into the category map instead of copying
+        // Move the parsed slot values into the category map instead of copying
         // them; surplus slots beyond the locale's categories are dropped.
-        let slots = item.msgstr.into_vec();
         let plural_profile =
-            PluralProfile::for_gettext_slots(locale, nplurals.or(Some(slots.len())));
+            PluralProfile::for_gettext_slots(locale, nplurals.or(Some(item.msgstr.len())));
         CanonicalTranslation::Plural {
             source: PluralSource {
-                one: Some(item.msgid.clone()),
-                other: msgid_plural,
+                one: Some(item.msgid.as_ref().to_owned()),
+                other: msgid_plural.into_owned(),
             },
             translation_by_category: plural_profile
                 .categories()
                 .iter()
-                .cloned()
-                .zip(slots.into_iter().chain(std::iter::repeat_with(String::new)))
+                .zip(
+                    item.msgstr
+                        .into_values()
+                        .map(Cow::into_owned)
+                        .chain(std::iter::repeat_with(String::new)),
+                )
+                .map(|(category, value)| (category.clone(), value))
                 .collect(),
             variable: "count".to_owned(),
         }
     } else {
-        if semantics == CatalogSemantics::IcuNative && matches!(item.msgstr, MsgStr::Plural(_)) {
+        if semantics == CatalogSemantics::IcuNative
+            && matches!(item.msgstr, BorrowedMsgStr::Plural(_))
+        {
             return Err(ApiError::Unsupported(
                 "classic gettext plural requires compat mode".to_owned(),
             ));
@@ -895,8 +901,8 @@ fn import_message_from_po(
     };
 
     Ok(CanonicalMessage {
-        msgid: item.msgid,
-        msgctxt: item.msgctxt,
+        msgid: item.msgid.into_owned(),
+        msgctxt: item.msgctxt.map(Cow::into_owned),
         translation,
         comments,
         origins,
@@ -908,19 +914,22 @@ fn import_message_from_po(
 
 /// Builds the obsolete state from the low-level obsolete flag, reading the
 /// optional `#@ obsolete-since:` date from the entry's metadata.
-fn import_obsolete(obsolete: bool, metadata: &[(String, String)]) -> Option<ObsoleteInfo> {
+fn import_obsolete(
+    obsolete: bool,
+    metadata: &[(Cow<'_, str>, Cow<'_, str>)],
+) -> Option<ObsoleteInfo> {
     if !obsolete {
         return None;
     }
     let since = metadata
         .iter()
         .find(|(key, _)| key == PO_OBSOLETE_SINCE_KEY)
-        .map(|(_, value)| value.clone());
+        .map(|(_, value)| value.as_ref().to_owned());
     Some(ObsoleteInfo { since })
 }
 
 fn import_machine_metadata(
-    metadata: &[(String, String)],
+    metadata: &[(Cow<'_, str>, Cow<'_, str>)],
 ) -> Result<Option<MachineMetadata>, ApiError> {
     let mut lock = None;
     let mut ai = None;
@@ -948,7 +957,7 @@ fn import_machine_metadata(
     };
 
     let metadata = MachineMetadata {
-        lock: lock.clone(),
+        lock: lock.as_ref().to_owned(),
         ai: ai.map(|value| parse_ai_descriptor(value)),
     };
     validate_machine_metadata(&metadata)?;
@@ -957,18 +966,9 @@ fn import_machine_metadata(
 
 /// Splits extractor-style placeholder comments back out of the generic
 /// extracted-comment list during PO import.
-pub(super) fn split_placeholder_comments(
-    extracted_comments: Vec<String>,
+pub(super) fn split_placeholder_comments<'a>(
+    extracted_comments: impl IntoIterator<Item = Cow<'a, str>>,
 ) -> (Vec<String>, BTreeMap<String, Vec<String>>) {
-    // Most entries carry no placeholder comments at all, so scan first and hand
-    // the caller's buffer straight back instead of allocating a second vector.
-    if !extracted_comments
-        .iter()
-        .any(|comment| parse_placeholder_comment(comment).is_some())
-    {
-        return (extracted_comments, BTreeMap::new());
-    }
-
     let mut comments = Vec::new();
     let mut placeholders = BTreeMap::<String, Vec<String>>::new();
 
@@ -979,7 +979,7 @@ pub(super) fn split_placeholder_comments(
                 .or_default()
                 .push(value.to_owned());
         } else {
-            comments.push(comment);
+            comments.push(comment.into_owned());
         }
     }
 
@@ -1000,31 +1000,47 @@ fn parse_placeholder_comment(comment: &str) -> Option<(&str, &str)> {
 /// stable enclosing component or function) becomes [`CatalogOrigin::scope`], and
 /// a legacy trailing `:line` (as emitted by gettext tools) is stripped so line
 /// numbers never enter the catalog model and cannot round-trip into output.
-pub(super) fn parse_origin_owned(mut reference: String) -> CatalogOrigin {
+pub(super) fn parse_origin(reference: Cow<'_, str>) -> CatalogOrigin {
+    match reference {
+        Cow::Borrowed(reference) => {
+            let (file, scope) = split_origin(reference);
+            CatalogOrigin {
+                file: file.to_owned(),
+                scope: scope.map(str::to_owned),
+            }
+        }
+        // An already-owned reference keeps its allocation; the split only ever
+        // trims a suffix, so truncating in place is enough.
+        Cow::Owned(mut reference) => {
+            let (file, scope) = split_origin(&reference);
+            let file_len = file.len();
+            let scope = scope.map(str::to_owned);
+            reference.truncate(file_len);
+            CatalogOrigin {
+                file: reference,
+                scope,
+            }
+        }
+    }
+}
+
+/// Splits a raw reference into its file part and optional `#scope` anchor.
+fn split_origin(reference: &str) -> (&str, Option<&str>) {
     // Anchor first: split on the last `#`, so a `#` earlier in the path stays
     // with the file.
-    let scope = match reference.rsplit_once('#') {
-        Some((file, scope)) if !scope.is_empty() => {
-            let scope = scope.to_owned();
-            let file_len = file.len();
-            reference.truncate(file_len);
-            Some(scope)
-        }
-        _ => None,
+    let (file, scope) = match reference.rsplit_once('#') {
+        Some((file, scope)) if !scope.is_empty() => (file, Some(scope)),
+        _ => (reference, None),
     };
 
-    if let Some((file, line)) = reference.rsplit_once(':')
+    if let Some((trimmed, line)) = file.rsplit_once(':')
         && !line.is_empty()
         && line.bytes().all(|byte| byte.is_ascii_digit())
     {
-        let file_len = file.len();
-        reference.truncate(file_len);
+        return (trimmed, scope);
     }
 
-    CatalogOrigin {
-        file: reference,
-        scope,
-    }
+    (file, scope)
 }
 
 /// Serializes a [`CatalogOrigin`] to its wire form, shared by PO references and
@@ -1036,13 +1052,17 @@ pub(super) fn format_origin(origin: &CatalogOrigin) -> String {
     }
 }
 
-/// Moves the first available translation string out of a [`MsgStr`], matching
-/// the `first().unwrap_or_default()` semantics without copying.
-fn take_first_msgstr(msgstr: MsgStr) -> String {
+/// Takes the first available translation string out of a [`BorrowedMsgStr`],
+/// matching the `first().unwrap_or_default()` semantics with a single allocation.
+fn take_first_msgstr(msgstr: BorrowedMsgStr<'_>) -> String {
     match msgstr {
-        MsgStr::Singular(value) => value,
-        MsgStr::Plural(values) => values.into_iter().next().unwrap_or_default(),
-        MsgStr::None => String::new(),
+        BorrowedMsgStr::Singular(value) => value.into_owned(),
+        BorrowedMsgStr::Plural(values) => values
+            .into_iter()
+            .next()
+            .map(Cow::into_owned)
+            .unwrap_or_default(),
+        BorrowedMsgStr::None => String::new(),
     }
 }
 
@@ -1141,36 +1161,53 @@ pub(super) fn public_message_from_canonical(message: CanonicalMessage) -> Catalo
 
 #[cfg(test)]
 mod tests {
+    use std::borrow::Cow;
+
     use super::{
-        CanonicalMessage, CanonicalTranslation, first_origin_sort_key, parse_origin_owned,
-        sort_messages, take_first_msgstr,
+        CanonicalMessage, CanonicalTranslation, first_origin_sort_key, parse_origin, sort_messages,
+        take_first_msgstr,
     };
     use crate::api::{CatalogOrigin, ObsoleteInfo, OrderBy};
-    use crate::{MsgStr, PoVec};
+    use crate::{BorrowedMsgStr, PoVec};
 
     #[test]
-    fn parse_origin_owned_strips_line_numbers_and_keeps_file() {
+    fn parse_origin_strips_line_numbers_and_keeps_file() {
         // A trailing numeric `:line` is dropped so line numbers never enter the
         // catalog model or round-trip back into rendered references.
         assert_eq!(
-            parse_origin_owned("src/app.rs:42".to_owned()).file,
+            parse_origin(Cow::Borrowed("src/app.rs:42")).file,
+            "src/app.rs"
+        );
+        assert_eq!(
+            parse_origin(Cow::Owned("src/app.rs:42".to_owned())).file,
             "src/app.rs"
         );
 
         // No colon, and non-numeric or empty suffixes, keep the buffer verbatim.
-        assert_eq!(parse_origin_owned("README".to_owned()).file, "README");
-        assert_eq!(parse_origin_owned("a:b:rev".to_owned()).file, "a:b:rev");
+        assert_eq!(parse_origin(Cow::Borrowed("README")).file, "README");
+        assert_eq!(parse_origin(Cow::Borrowed("a:b:rev")).file, "a:b:rev");
+
+        // A trailing `#scope` anchor is split off before the line-number trim.
+        let origin = parse_origin(Cow::Owned("src/app.rs:42#Checkout".to_owned()));
+        assert_eq!(origin.file, "src/app.rs");
+        assert_eq!(origin.scope.as_deref(), Some("Checkout"));
     }
 
     #[test]
     fn take_first_msgstr_moves_first_available_value() {
-        assert_eq!(take_first_msgstr(MsgStr::Singular("one".to_owned())), "one");
         assert_eq!(
-            take_first_msgstr(MsgStr::Plural(vec!["a".to_owned(), "b".to_owned()])),
+            take_first_msgstr(BorrowedMsgStr::Singular(Cow::Borrowed("one"))),
+            "one"
+        );
+        assert_eq!(
+            take_first_msgstr(BorrowedMsgStr::Plural(vec![
+                Cow::Borrowed("a"),
+                Cow::Borrowed("b"),
+            ])),
             "a"
         );
-        assert_eq!(take_first_msgstr(MsgStr::Plural(Vec::new())), "");
-        assert_eq!(take_first_msgstr(MsgStr::None), "");
+        assert_eq!(take_first_msgstr(BorrowedMsgStr::Plural(Vec::new())), "");
+        assert_eq!(take_first_msgstr(BorrowedMsgStr::None), "");
     }
 
     #[test]

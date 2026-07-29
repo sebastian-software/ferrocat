@@ -54,6 +54,59 @@ fn owned_and_borrowed_parsers_match_on_shared_lf_inputs() {
     }
 }
 
+/// The header block is split into header lines only after the whole header
+/// `msgstr` has been decoded. Header fragments that do not close a header line,
+/// that carry escapes, or that open an obsolete (`#~`) line must therefore not
+/// be split per fragment by the borrowed parser either.
+#[test]
+fn owned_and_borrowed_parsers_match_on_irregular_header_blocks() {
+    const IRREGULAR_HEADER_CASES: &[(&str, &str)] = &[
+        (
+            "fragment without trailing newline",
+            concat!(
+                "msgid \"\"\n",
+                "msgstr \"\"\n",
+                "\"Project-Id-Version: demo\"\n",
+                "\"Language: de\\n\"\n",
+            ),
+        ),
+        (
+            "obsolete marker inside the header block",
+            concat!(
+                "msgid \"\"\n",
+                "msgstr \"\"\n",
+                "\"#~ Language: de\\n\"\n",
+                "\"Plural-Forms: nplurals=2; plural=(n != 1);\\n\"\n",
+            ),
+        ),
+        (
+            "repeated msgstr keyword replaces the header block",
+            concat!(
+                "msgid \"\"\n",
+                "msgstr \"Language: de\\n\"\n",
+                "msgstr \"Plural-Forms: nplurals=2; plural=(n != 1);\\n\"\n",
+            ),
+        ),
+        (
+            "carriage return escape inside the header block",
+            concat!(
+                "msgid \"\"\n",
+                "msgstr \"\"\n",
+                "\"Language: de\\rPlural-Forms: nplurals=2; plural=(n != 1);\\n\"\n",
+            ),
+        ),
+    ];
+
+    for (name, input) in IRREGULAR_HEADER_CASES {
+        let owned = parse_po(input).unwrap_or_else(|error| panic!("{name}: owned parse: {error}"));
+        let borrowed = parse_po_borrowed(input)
+            .unwrap_or_else(|error| panic!("{name}: borrowed parse: {error}"))
+            .into_owned();
+
+        assert_eq!(borrowed, owned, "{name}");
+    }
+}
+
 #[test]
 fn owned_and_borrowed_parsers_match_on_crlf_and_bare_cr_inputs() {
     for line_ending in ["\r\n", "\r"] {

@@ -10,7 +10,7 @@ use std::borrow::Cow;
 use std::collections::{BTreeMap, BTreeSet};
 
 use super::catalog::{
-    CanonicalMessage, CanonicalTranslation, Catalog, parse_origin_owned, split_placeholder_comments,
+    CanonicalMessage, CanonicalTranslation, Catalog, parse_origin, split_placeholder_comments,
 };
 use super::collation::{CollationKey, CollationPrefix, collation_key, collation_prefix};
 use super::export::{for_each_placeholder_comment, plural_source_branches};
@@ -385,7 +385,7 @@ fn parse_entry(line: &str) -> Result<CanonicalMessage, ApiError> {
 
     let msgctxt = (!ctx_raw.is_empty()).then_some(ctx_raw);
     let mut origins: PoVec<CatalogOrigin> = PoVec::new();
-    let mut raw_comments: Vec<String> = Vec::new();
+    let mut raw_comments: Vec<Cow<'_, str>> = Vec::new();
     let mut obsolete: Option<ObsoleteInfo> = None;
     let mut lock = None;
     let mut ai = None;
@@ -406,11 +406,11 @@ fn parse_entry(line: &str) -> Result<CanonicalMessage, ApiError> {
         match key {
             b"r" => {
                 validate_tag_order(&mut last_tag_rank, 0, "r")?;
-                origins.push(parse_origin_owned(value.into_owned()));
+                origins.push(parse_origin(value));
             }
             b"c" => {
                 validate_tag_order(&mut last_tag_rank, 1, "c")?;
-                raw_comments.push(value.into_owned());
+                raw_comments.push(value);
             }
             b"o" => {
                 validate_tag_order(&mut last_tag_rank, 2, "o")?;
