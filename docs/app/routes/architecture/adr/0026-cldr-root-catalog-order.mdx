@@ -126,8 +126,9 @@ path at 2.668–2.675 ms median across two runs. Observed spans were
 2.505–3.114 ms and 2.488–3.230 ms for collated order. The default hot path
 therefore paid about 0.48–0.54 ms in this probe.
 
-A same-harness stripped, fat-LTO release consumer grew from 666,768 bytes at
-the base commit to 716,336 bytes with the updated default, a 49,568-byte
+Using identical release settings (`lto = "fat"`, `codegen-units = 1`, and
+`strip = true`), a fresh consumer build grew from 666,768 bytes at the base
+commit to 749,360 bytes with the accent-aware default, an 82,592-byte (12.39%)
 increase. The probe invokes `update_catalog` with differently ordered messages
 and consumes the result with `black_box`, so the linked collation implementation
 is exercised rather than dead-code eliminated.

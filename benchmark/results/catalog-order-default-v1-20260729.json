@@ -3,7 +3,7 @@
   "generated_at": "2026-07-29T18:33:00.548546Z",
   "reference_host_policy": "single-reference-host",
   "environment": {
-    "git_sha": "88ccb10c8d732ef4d7025c3cef51f01e560b4dd3",
+    "git_sha": "8df9b1f63127cf33b9128505732271b1b427a0a3",
     "system_label": "Apple M1 Ultra (64 GB RAM, macOS arm64)",
     "os": "macos-aarch64",
     "cpu_model": "Apple M1 Ultra",
