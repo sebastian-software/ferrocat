@@ -1,6 +1,6 @@
 [package]
 name = "ferrocat-po"
-version = "2.2.0"
+version = "3.0.1"
 edition.workspace = true
 homepage.workspace = true
 license.workspace = true
@@ -34,7 +34,7 @@ plurals = ["catalog"]
 serde = ["dep:serde", "smallvec/serde"]
 
 [dependencies]
-ferrocat-icu = { version = "2.2.0", path = "../ferrocat-icu", default-features = false, optional = true }
+ferrocat-icu = { version = "3.0.1", path = "../ferrocat-icu", default-features = false, optional = true }
 icu_locale = { version = "2.1.1", optional = true }
 icu_plurals = { version = "2.1.1", features = ["compiled_data"], optional = true }
 memchr = "2.7.6"
