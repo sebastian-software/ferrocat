@@ -1282,6 +1282,149 @@ fn update_catalog_origin_sort_and_placeholder_options_are_applied() {
     .expect("update without placeholder comments");
     assert!(!without_placeholders.content.contains("placeholder"));
 }
+
+#[test]
+fn update_catalog_default_order_matches_lingui_message_and_context_order() {
+    // Entry block from a real Lingui 6 `pofile` catalog ordered by
+    // `Intl.Collator("en-US")`. Ferrocat-specific headers are excluded from the
+    // comparison, but the serialized entries must match byte for byte.
+    const LINGUI_GOLDEN_ENTRIES: &str = r#"msgid "!Alert"
+msgstr "!Alert"
+
+msgid "\"Quoted\""
+msgstr "\"Quoted\""
+
+msgid "(Parens)"
+msgstr "(Parens)"
+
+msgid "Álgebra"
+msgstr "Álgebra"
+
+msgctxt "a"
+msgid "apple"
+msgstr "apple"
+
+msgctxt "z"
+msgid "apple"
+msgstr "apple"
+
+msgid "Apple"
+msgstr "Apple"
+
+msgid "co-op"
+msgstr "co-op"
+
+msgid "coop"
+msgstr "coop"
+
+msgid "eclair"
+msgstr "eclair"
+
+msgid "éclair"
+msgstr "éclair"
+
+msgid "Item 10"
+msgstr "Item 10"
+
+msgid "Item 2"
+msgstr "Item 2"
+
+msgid "MiXeD CaSe"
+msgstr "MiXeD CaSe"
+
+msgid "naïve"
+msgstr "naïve"
+
+msgid "résumé"
+msgstr "résumé"
+
+msgid "Uber"
+msgstr "Uber"
+
+msgid "über"
+msgstr "über"
+
+msgid "Zebra"
+msgstr "Zebra"
+"#;
+    let messages = [
+        ("Zebra", None),
+        ("über", None),
+        ("Uber", None),
+        ("éclair", None),
+        ("eclair", None),
+        ("Apple", None),
+        ("apple", Some("z")),
+        ("apple", Some("a")),
+        ("Álgebra", None),
+        ("!Alert", None),
+        ("\"Quoted\"", None),
+        ("(Parens)", None),
+        ("Item 10", None),
+        ("Item 2", None),
+        ("co-op", None),
+        ("coop", None),
+        ("naïve", None),
+        ("résumé", None),
+        ("MiXeD CaSe", None),
+    ];
+    let result = update_catalog(UpdateCatalogOptions {
+        source_locale: "en",
+        locale: Some("en"),
+        input: structured_input(
+            messages
+                .iter()
+                .map(|(msgid, msgctxt)| {
+                    ExtractedMessage::Singular(ExtractedSingularMessage {
+                        msgid: (*msgid).to_owned(),
+                        msgctxt: msgctxt.map(str::to_owned),
+                        ..ExtractedSingularMessage::default()
+                    })
+                })
+                .collect(),
+        ),
+        ..UpdateCatalogOptions::new("en", CatalogUpdateInput::default())
+    })
+    .expect("update with default sort");
+
+    let entries = result
+        .content
+        .split_once("\n\n")
+        .map(|(_, entries)| entries)
+        .expect("PO header separator");
+    assert_eq!(entries, LINGUI_GOLDEN_ENTRIES);
+
+    let parsed = parse_po(&result.content).expect("parse output");
+    assert_eq!(
+        parsed
+            .items
+            .iter()
+            .map(|item| (item.msgid.as_str(), item.msgctxt.as_deref()))
+            .collect::<Vec<_>>(),
+        vec![
+            ("!Alert", None),
+            ("\"Quoted\"", None),
+            ("(Parens)", None),
+            ("Álgebra", None),
+            ("apple", Some("a")),
+            ("apple", Some("z")),
+            ("Apple", None),
+            ("co-op", None),
+            ("coop", None),
+            ("eclair", None),
+            ("éclair", None),
+            ("Item 10", None),
+            ("Item 2", None),
+            ("MiXeD CaSe", None),
+            ("naïve", None),
+            ("résumé", None),
+            ("Uber", None),
+            ("über", None),
+            ("Zebra", None),
+        ]
+    );
+}
+
 #[test]
 fn update_catalog_file_rejects_empty_target_path() {
     let error = update_catalog_file(UpdateCatalogFileOptions {
@@ -1806,6 +1949,44 @@ fn combine_catalog_files_merges_po_inputs_with_use_first_and_preserves_first_hea
 }
 
 #[test]
+fn combine_catalog_files_applies_default_collated_order_to_rendered_output() {
+    let temp_dir = unique_catalog_temp_dir("combine-files-collated");
+    let markup = temp_dir.join("markup.po");
+    let placeholder = temp_dir.join("placeholder.po");
+    let output = temp_dir.join("merged.po");
+    fs::write(
+        &markup,
+        "msgid \"<0>Continue</0>\"\nmsgstr \"<0>Continue</0>\"\n",
+    )
+    .expect("write markup catalog");
+    fs::write(
+        &placeholder,
+        "msgid \"{count, plural, one {#} other {#}}\"\n\
+         msgstr \"{count, plural, one {#} other {#}}\"\n",
+    )
+    .expect("write placeholder catalog");
+    let input_paths = vec![markup, placeholder];
+
+    combine_catalog_files(
+        CombineCatalogFilesOptions::new(&input_paths, &output, "en").with_locale("en"),
+    )
+    .expect("combine with default order");
+
+    let parsed =
+        parse_po(&fs::read_to_string(&output).expect("read output")).expect("parse output");
+    assert_eq!(
+        parsed
+            .items
+            .iter()
+            .map(|item| item.msgid.as_str())
+            .collect::<Vec<_>>(),
+        vec!["{count, plural, one {#} other {#}}", "<0>Continue</0>"]
+    );
+
+    let _ = fs::remove_dir_all(temp_dir);
+}
+
+#[test]
 fn combine_catalog_files_can_use_gettext_po_mode_for_classic_plural_slots() {
     let temp_dir = unique_catalog_temp_dir("combine-files-gettext-po");
     let existing = temp_dir.join("existing.po");
@@ -2174,6 +2355,50 @@ fn update_catalog_roundtrips_fcl_via_public_api() {
 }
 
 #[test]
+fn update_catalog_applies_default_collated_order_to_fcl() {
+    let result = update_catalog(UpdateCatalogOptions {
+        source_locale: "en",
+        locale: Some("en"),
+        mode: CatalogMode::IcuFcl,
+        input: structured_input(
+            ["Zebra", "über", "Uber", "Apple", "apple", "Álgebra"]
+                .into_iter()
+                .map(|msgid| {
+                    ExtractedMessage::Singular(ExtractedSingularMessage {
+                        msgid: msgid.to_owned(),
+                        ..ExtractedSingularMessage::default()
+                    })
+                })
+                .collect(),
+        ),
+        ..UpdateCatalogOptions::new("en", CatalogUpdateInput::default())
+    })
+    .expect("update FCL with collated order");
+
+    assert!(
+        result
+            .content
+            .starts_with("%FCL1\tsource=en\tlocale=en\torder=collated\n")
+    );
+    let parsed = parse_catalog(ParseCatalogOptions {
+        content: &result.content,
+        source_locale: "en",
+        locale: Some("en"),
+        mode: CatalogMode::IcuFcl,
+        strict: false,
+    })
+    .expect("parse FCL output");
+    assert_eq!(
+        parsed
+            .messages
+            .iter()
+            .map(|message| message.msgid.as_str())
+            .collect::<Vec<_>>(),
+        vec!["Álgebra", "apple", "Apple", "Uber", "über", "Zebra"]
+    );
+}
+
+#[test]
 fn update_catalog_fcl_respects_origin_render_options() {
     let input = structured_input(vec![ExtractedMessage::Singular(ExtractedSingularMessage {
         msgid: "Hello".to_owned(),
@@ -2209,6 +2434,55 @@ fn update_catalog_fcl_respects_origin_render_options() {
     .expect("update with origins");
     assert!(with_origins.content.contains("\tr=src/app.rs"));
     assert!(!with_origins.content.contains("\tr=src/app.rs:"));
+}
+
+#[test]
+fn update_catalog_fcl_keeps_collated_storage_order_for_origin_strategy() {
+    let result = update_catalog(UpdateCatalogOptions {
+        source_locale: "en",
+        locale: Some("en"),
+        mode: CatalogMode::IcuFcl,
+        render: RenderOptions::default().with_order_by(OrderBy::Origin),
+        input: structured_input(vec![
+            ExtractedMessage::Singular(ExtractedSingularMessage {
+                msgid: "<0>Continue</0>".to_owned(),
+                origin: vec![CatalogOrigin {
+                    file: "src/a.rs".to_owned(),
+                    scope: None,
+                }],
+                ..ExtractedSingularMessage::default()
+            }),
+            ExtractedMessage::Singular(ExtractedSingularMessage {
+                msgid: "{count, plural, one {#} other {#}}".to_owned(),
+                origin: vec![CatalogOrigin {
+                    file: "src/z.rs".to_owned(),
+                    scope: None,
+                }],
+                ..ExtractedSingularMessage::default()
+            }),
+        ]),
+        ..UpdateCatalogOptions::new("en", CatalogUpdateInput::default())
+    })
+    .expect("update FCL with origin strategy");
+
+    assert!(
+        result
+            .content
+            .lines()
+            .next()
+            .unwrap_or_default()
+            .contains("order=collated")
+    );
+    let ids = result
+        .content
+        .lines()
+        .skip(1)
+        .map(|line| line.split('\t').next().unwrap_or_default())
+        .collect::<Vec<_>>();
+    assert_eq!(
+        ids,
+        vec!["{count, plural, one {#} other {#}}", "<0>Continue</0>"]
+    );
 }
 
 #[test]

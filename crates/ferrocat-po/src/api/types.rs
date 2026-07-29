@@ -1012,10 +1012,17 @@ pub enum ObsoleteStrategy {
 /// Sort order used when writing output catalogs.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum OrderBy {
-    /// Sort by `msgid` then context.
+    /// Sort by `msgid` then context using the CLDR root order used by
+    /// `Intl.Collator("en-US")`.
+    ///
+    /// The built-in table covers Latin text, punctuation, symbols, and digits.
+    /// Ligatures and digraphs do not expand into multiple collation elements,
+    /// and characters outside the covered repertoire sort after it by code
+    /// point. See [ADR 0026](https://ferrocat.dev/architecture/adr/0026-cldr-root-catalog-order).
     #[default]
     Msgid,
-    /// Sort by the first source origin, then by message identity.
+    /// Sort by the first source origin, then by the same collated message and
+    /// context identity used by [`OrderBy::Msgid`].
     Origin,
 }
 
@@ -1040,9 +1047,8 @@ impl Default for PlaceholderCommentMode {
 /// Shared rendering options for catalog serialization.
 ///
 /// These fields control how a catalog is sorted and which optional reference and
-/// placeholder details are written. Some storage formats still impose their own
-/// invariants: FCL always renders in canonical `(id, ctxt)` order, while origin
-/// and placeholder detail flags apply across supported catalog storage formats.
+/// placeholder details are written. FCL always uses collated `(id, ctxt)` order
+/// because its line order is a storage invariant; `order_by` controls PO output.
 ///
 /// References render the source file only; Ferrocat does not track or emit line
 /// numbers (see [`CatalogOrigin`]).

@@ -41,7 +41,7 @@ lands around 25% faster than reading the equivalent PO file.
 
 ```
 file    = header LF *( entry LF )
-header  = "%FCL1" *( HT tag )            ; e.g. %FCL1\tsource=en\tlocale=de
+header  = "%FCL1" *( HT tag )            ; e.g. %FCL1\tsource=en\tlocale=de\torder=collated
 entry   = id HT ctxt HT target *( HT tag )
 tag     = key "=" value | flag-key       ; flag-key has no '='
 ```
@@ -50,9 +50,27 @@ tag     = key "=" value | flag-key       ; flag-key has no '='
 - Fields are separated by a single horizontal tab (`HT`, `0x09`).
 - `id`, `ctxt`, `target` are always present (positional). `ctxt` empty == no
   context; `target` empty == untranslated.
-- Entries are sorted ascending by the byte sequence of `(id, ctxt)`.
+- Newly written entries follow CLDR root order by `id` and then `ctxt`, declared
+  as `order=collated`. Readers accept legacy files with no `order` tag only
+  when they ascend by the byte sequence of `(id, ctxt)`.
 - Tags appear in a fixed canonical order (see below); empty/absent tags are
   omitted (no trailing tabs).
+
+### Header tags
+
+| tag | required | meaning |
+|---|---|---|
+| `source=` | writer-required | source locale used by the catalog |
+| `locale=` | optional | target locale |
+| `order=collated` | writer-required | use the CLDR root order described in [ADR 0026](app/routes/architecture/adr/0026-cldr-root-catalog-order.mdx) |
+
+The writer always emits `order=collated`. Omitting `order` identifies a legacy
+file under the original bytewise `(id, ctxt)` contract and remains accepted on
+read so existing files can be migrated by the next write. The only accepted
+explicit value in `%FCL1` is `collated`; unknown and duplicate `order` tags are
+hard errors. The collated table covers Latin text, punctuation, symbols, and
+digits. Its declared ligature/digraph and out-of-repertoire limits are
+documented in ADR 0026.
 
 ### Escaping
 
@@ -118,7 +136,10 @@ catalog-layer decision shared with PO output; the low-level `parse_po` /
 
 - A line beginning with a git conflict marker (`<<<<<<<`, `=======`, `>>>>>>>`)
   is a hard parse error with position — never silently mis-parsed.
-- Duplicate `(id, ctxt)` (adjacent after sort) is a hard error.
+- Duplicate `(id, ctxt)` (adjacent under either supported order) is a hard
+  error.
+- Entries that violate the legacy bytewise order or declared collated order are
+  a hard error.
 - Duplicate singleton tags and tags outside canonical order are hard errors.
 - Unknown tag keys are a hard error (the versioned `%FCL1` magic gates
   forward-compatible additions).

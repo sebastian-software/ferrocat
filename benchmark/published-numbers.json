@@ -110,14 +110,27 @@
     },
     {
       "id": "readme.full-update.ferrocat",
+      "report": "benchmark/results/catalog-order-default-v1-20260729.json",
+      "scenario": "po-update/gettext-ui-de-10000/ferrocat",
+      "metric": "statistics.median_mib_per_sec",
+      "published": 103,
+      "tolerance": 3,
+      "locations": [
+        { "file": "README.md", "contains": "| Full catalog update | **103 MiB/s**" },
+        { "file": "docs/app/routes/home.tsx", "contains": "rate: 103" },
+        { "file": "docs/app/routes/architecture/adr/0026-cldr-root-catalog-order.mdx", "contains": "It measured 103.196 MiB/s" },
+        { "file": "docs/app/routes/architecture/adr/0026-cldr-root-catalog-order.mdx", "contains": "headline at 103 MiB/s" }
+      ]
+    },
+    {
+      "id": "adr.catalog-order.previous-full-update",
       "report": "benchmark/results/gettext-workflows-ecosystem-v1-a84e6fb.json",
       "scenario": "po-update/gettext-ui-de-10000/ferrocat",
       "metric": "statistics.median_mib_per_sec",
-      "published": 109,
-      "tolerance": 3,
+      "published": 108.997,
+      "tolerance": 0.01,
       "locations": [
-        { "file": "README.md", "contains": "| Full catalog update | **109 MiB/s**" },
-        { "file": "docs/app/routes/home.tsx", "contains": "rate: 109" }
+        { "file": "docs/app/routes/architecture/adr/0026-cldr-root-catalog-order.mdx", "contains": "measured 108.997 MiB/s before this change" }
       ]
     },
     {
@@ -128,7 +141,7 @@
       "published": 42,
       "tolerance": 2,
       "locations": [
-        { "file": "README.md", "contains": "| Full catalog update | **109 MiB/s** | 42" }
+        { "file": "README.md", "contains": "| Full catalog update | **103 MiB/s** | 42" }
       ]
     },
     {
@@ -139,7 +152,7 @@
       "published": 7.9,
       "tolerance": 0.4,
       "locations": [
-        { "file": "README.md", "contains": "| Full catalog update | **109 MiB/s** | 42 | - | 7.9" },
+        { "file": "README.md", "contains": "| Full catalog update | **103 MiB/s** | 42 | - | 7.9" },
         { "file": "docs/app/routes/home.tsx", "contains": "rate: 7.9" }
       ]
     },
@@ -151,7 +164,7 @@
       "published": 7.4,
       "tolerance": 0.4,
       "locations": [
-        { "file": "README.md", "contains": "| Full catalog update | **109 MiB/s** | 42 | - | 7.9 | 7.4" }
+        { "file": "README.md", "contains": "| Full catalog update | **103 MiB/s** | 42 | - | 7.9 | 7.4" }
       ]
     },
     {
@@ -162,11 +175,21 @@
       "published": 4.6,
       "tolerance": 0.2,
       "locations": [
-        { "file": "README.md", "contains": "| Full catalog update | **109 MiB/s** | 42 | - | 7.9 | 7.4 | 4.6 |" }
+        { "file": "README.md", "contains": "| Full catalog update | **103 MiB/s** | 42 | - | 7.9 | 7.4 | 4.6 |" }
       ]
     }
   ],
   "allowedUnregisteredNumbers": [
+    {
+      "file": "docs/app/routes/architecture/adr/0026-cldr-root-catalog-order.mdx",
+      "value": "109.55 MiB/s",
+      "reason": "base-commit result from the documented direct update-catalog corroboration probe"
+    },
+    {
+      "file": "docs/app/routes/architecture/adr/0026-cldr-root-catalog-order.mdx",
+      "value": "94.75 MiB/s",
+      "reason": "updated-default result from the documented direct update-catalog corroboration probe"
+    },
     {
       "file": "docs/app/routes/home.tsx",
       "value": "309 MiB/s",

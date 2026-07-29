@@ -12,6 +12,7 @@ use rustc_hash::FxHashMap;
 
 use crate::diagnostic_codes;
 
+use super::collation::sort_messages_collated;
 use super::export::export_catalog_content;
 use super::file_io::atomic_write;
 use super::helpers::{
@@ -685,19 +686,25 @@ pub(super) fn apply_header_defaults(
 
 pub(super) fn sort_messages(messages: &mut [CanonicalMessage], order_by: OrderBy) {
     match order_by {
-        OrderBy::Msgid => messages.sort_by(|left, right| {
-            left.msgid
-                .cmp(&right.msgid)
-                .then_with(|| left.msgctxt.cmp(&right.msgctxt))
-                .then_with(|| left.obsolete.cmp(&right.obsolete))
-        }),
-        OrderBy::Origin => messages.sort_unstable_by(|left, right| {
-            first_origin_sort_key(&left.origins)
-                .cmp(first_origin_sort_key(&right.origins))
-                .then_with(|| left.msgid.cmp(&right.msgid))
-                .then_with(|| left.msgctxt.cmp(&right.msgctxt))
-                .then_with(|| left.obsolete.cmp(&right.obsolete))
-        }),
+        OrderBy::Msgid => sort_messages_collated(messages),
+        OrderBy::Origin => {
+            messages.sort_unstable_by(|left, right| {
+                first_origin_sort_key(&left.origins).cmp(first_origin_sort_key(&right.origins))
+            });
+
+            let mut start = 0;
+            while start < messages.len() {
+                let mut end = start + 1;
+                while end < messages.len()
+                    && first_origin_sort_key(&messages[end].origins)
+                        == first_origin_sort_key(&messages[start].origins)
+                {
+                    end += 1;
+                }
+                sort_messages_collated(&mut messages[start..end]);
+                start = end;
+            }
+        }
     }
 }
 
@@ -1120,7 +1127,7 @@ mod tests {
         CanonicalMessage, CanonicalTranslation, first_origin_sort_key, parse_origin_owned,
         sort_messages, take_first_msgstr,
     };
-    use crate::api::{CatalogOrigin, OrderBy};
+    use crate::api::{CatalogOrigin, ObsoleteInfo, OrderBy};
     use crate::{MsgStr, PoVec};
 
     #[test]
@@ -1164,6 +1171,12 @@ mod tests {
             test_message("src/app.rs", "beta", Some("dialog")),
             test_message("src/app.rs", "alpha", Some("dialog")),
             test_message("src/app.rs", "alpha", None),
+            test_message("src/collation.rs", "<0>Continue</0>", None),
+            test_message(
+                "src/collation.rs",
+                "{count, plural, one {#} other {#}}",
+                None,
+            ),
             test_message("src/lib.rs", "alpha", None),
         ];
 
@@ -1184,9 +1197,28 @@ mod tests {
                 ("src/app.rs", "alpha", None),
                 ("src/app.rs", "alpha", Some("dialog")),
                 ("src/app.rs", "beta", Some("dialog")),
+                (
+                    "src/collation.rs",
+                    "{count, plural, one {#} other {#}}",
+                    None
+                ),
+                ("src/collation.rs", "<0>Continue</0>", None),
                 ("src/lib.rs", "alpha", None)
             ]
         );
+    }
+
+    #[test]
+    fn sort_messages_by_origin_keeps_active_identity_before_obsolete_identity() {
+        let active = test_message("src/app.rs", "same", Some("dialog"));
+        let mut obsolete = active.clone();
+        obsolete.obsolete = Some(ObsoleteInfo::default());
+        let mut messages = vec![obsolete, active];
+
+        sort_messages(&mut messages, OrderBy::Origin);
+
+        assert!(messages[0].obsolete.is_none());
+        assert!(messages[1].obsolete.is_some());
     }
 
     fn test_message(file: &str, msgid: &str, msgctxt: Option<&str>) -> CanonicalMessage {

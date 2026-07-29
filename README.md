@@ -62,6 +62,7 @@ Beyond the basics, Ferrocat exposes byte-oriented and allocation-light borrowed 
 
 - **One reliable catalog core.** Keep source text, contexts, translations, notes, source origins such as `src/App.tsx#CheckoutButton` or `src/i18n.ts#formatInvoiceStatus`, plural forms, and obsolete entries in a model that application code can reason about.
 - **Predictable updates.** Merge newly extracted messages into existing catalogs without fuzzy guessing, hidden identity changes, or silent conflict resolution.
+- **Lingui-compatible catalog order.** Sort message and context identities with the CLDR root order used by `Intl.Collator("en-US")` across PO, FCL, update, and combine output. PO can group by source origin while retaining the same identity tie-break; FCL always keeps its own collated line-order invariant.
 - **Release-ready QA.** Audit catalog sets for missing locales, missing translations, empty translations, stale target messages, ICU mistakes, metadata conflicts, and obsolete entries.
 - **Coverage and review reports.** Turn catalog state into completion counters, translator handoff diffs, and machine-managed value freshness checks instead of rebuilding those rules in every host tool.
 - **Safer rich messages.** Analyze placeholders, formatters, plural/select branches, and rich-text tags so a translation cannot accidentally drop a required runtime value.
@@ -105,11 +106,11 @@ Ferrocat's benchmark suite compares file-to-file catalog workloads against commo
 |---|---:|---:|---:|---:|---:|---:|
 | Parse | **695 MiB/s** | 148 | 49 | - | 20 | - |
 | Update with new strings | **255 MiB/s** | 42 | 16 | - | 7.4 | 4.6 |
-| Full catalog update | **109 MiB/s** | 42 | - | 7.9 | 7.4 | 4.6 |
+| Full catalog update | **103 MiB/s** | 42 | - | 7.9 | 7.4 | 4.6 |
 
 The Node baseline is [pofile-ts](https://github.com/sebastian-software/pofile-ts), a speed-focused fork of the widely used `pofile`, so the JavaScript comparison targets a fast implementation rather than an easy one. The update benchmark parses existing and freshly extracted files, merges by exact identity, and serializes the result, which is where Ferrocat's byte-oriented scanning and move-not-clone catalog paths matter most.
 
-The full catalog update row is Ferrocat's high-level `update_catalog` on the same files: on top of the plain update it analyzes ICU message structure, tracks placeholders, and produces deterministic output. The comparison now includes Babel's real `Catalog.update` path for Python; even with that extra work, Ferrocat's full update runs about 2.6x ahead of the fastest non-Ferrocat workflow update and roughly 24x ahead of GNU `msgmerge`.
+The full catalog update row is Ferrocat's high-level `update_catalog` on the same files: on top of the plain update it analyzes ICU message structure, tracks placeholders, and produces deterministic output. The comparison now includes Babel's real `Catalog.update` path for Python; even with that extra work, Ferrocat's full update runs about 2.5x ahead of the fastest non-Ferrocat workflow update and roughly 22x ahead of GNU `msgmerge`.
 
 See the [benchmark methodology](https://sebastian-software.github.io/ferrocat/performance/benchmarking) and the checked-in reports under [`benchmark/results/`](benchmark/results) for host details, fixture definitions, noise handling, and the full matrix.
 

@@ -1,0 +1,16 @@
+{
+  "name": "catalog-order-default-v1",
+  "minimum_sample_millis": 1000,
+  "scenarios": [
+    {
+      "id": "po-update/gettext-ui-de-10000/ferrocat",
+      "comparison_group": "po-update/gettext-ui-de-10000",
+      "workload": "po-merge-update",
+      "operation": "update-catalog",
+      "fixture": "gettext-ui-de-10000",
+      "implementation": "ferrocat-update-catalog-file",
+      "warmup_runs": 3,
+      "measured_runs": 10
+    }
+  ]
+}

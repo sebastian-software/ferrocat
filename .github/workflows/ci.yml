@@ -47,6 +47,9 @@ jobs:
         working-directory: docs
         run: pnpm install --frozen-lockfile
 
+      - name: Check generated collation table
+        run: node scripts/generate-collation-table.mjs --check
+
       - name: Build docs site
         working-directory: docs
         run: pnpm build

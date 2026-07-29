@@ -1,18 +1,18 @@
 //! FCL (Ferrocat Catalog Lines) codec — see `docs/fcl-format.md`.
 //!
 //! A line-oriented, machine-owned catalog encoding optimized for git merge and
-//! fast parsing: one entry per line, deterministically sorted by `(id, ctxt)`,
-//! minimal escaping (`\n \t \\`). The codec parses and serializes
+//! fast parsing: one entry per line, deterministically sorted by collated
+//! `(id, ctxt)`, with minimal escaping (`\n \t \\`). The codec parses and serializes
 //! [`CanonicalMessage`] directly, reusing the shared plural/placeholder/MT
 //! helpers so it stays equivalent to the catalog's canonical representation.
 
 use std::borrow::Cow;
-use std::cmp::Ordering;
 use std::collections::{BTreeMap, BTreeSet};
 
 use super::catalog::{
     CanonicalMessage, CanonicalTranslation, Catalog, parse_origin_owned, split_placeholder_comments,
 };
+use super::collation::{CollationKey, CollationPrefix, collation_key, collation_prefix};
 use super::export::{for_each_placeholder_comment, plural_source_branches};
 use super::mt::{
     MachineMetadata, format_ai_descriptor, machine_translation_hash, parse_ai_descriptor,
@@ -27,6 +27,17 @@ use crate::scan::{find_byte, find_fcl_escapable_byte, split_once_byte};
 use crate::utf8::input_slice_as_str;
 
 const FCL_MAGIC: &str = "%FCL1";
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum FclOrder {
+    LegacyBytewise,
+    Collated,
+}
+
+struct FclHeader {
+    locale: Option<String>,
+    order: FclOrder,
+}
 
 // --- escaping -------------------------------------------------------------
 
@@ -205,7 +216,78 @@ fn write_entry(out: &mut String, message: &CanonicalMessage, render: &RenderOpti
     out.push('\n');
 }
 
-/// Renders an internal [`Catalog`] as FCL text, sorted canonically by (id, ctxt).
+#[derive(PartialEq, Eq, PartialOrd, Ord)]
+struct FclCollatedKey {
+    message: CollationKey,
+    context: CollationKey,
+    raw_message: String,
+    raw_context: Option<String>,
+    obsolete: bool,
+}
+
+fn fcl_collated_key(message: &CanonicalMessage) -> FclCollatedKey {
+    let id = fcl_id(message);
+    FclCollatedKey {
+        message: collation_key(&id),
+        context: collation_key(message.msgctxt.as_deref().unwrap_or("")),
+        raw_message: id.into_owned(),
+        raw_context: message.msgctxt.clone(),
+        obsolete: message.obsolete.is_some(),
+    }
+}
+
+/// Applies the same packed-prefix strategy as the shared catalog sort, using
+/// FCL's serialized `id` column so plural IDs validate after a round trip.
+fn sort_fcl_messages_collated(messages: &mut [&CanonicalMessage]) {
+    if messages.len() < 2 {
+        return;
+    }
+
+    let prefixes: Vec<CollationPrefix> = messages
+        .iter()
+        .map(|message| collation_prefix(&fcl_id(message)))
+        .collect();
+    let mut order: Vec<usize> = (0..messages.len()).collect();
+    order.sort_unstable_by_key(|&index| prefixes[index]);
+
+    let mut start = 0;
+    while start < order.len() {
+        let prefix = prefixes[order[start]];
+        let mut end = start + 1;
+        while end < order.len() && prefixes[order[end]] == prefix {
+            end += 1;
+        }
+        if end - start > 1 {
+            let mut run: Vec<(FclCollatedKey, usize)> = order[start..end]
+                .iter()
+                .map(|&index| (fcl_collated_key(messages[index]), index))
+                .collect();
+            run.sort_by(|left, right| left.0.cmp(&right.0));
+            for (slot, (_, index)) in order[start..end].iter_mut().zip(run) {
+                *slot = index;
+            }
+        }
+        start = end;
+    }
+
+    let mut destination = vec![0_usize; order.len()];
+    for (position, &source) in order.iter().enumerate() {
+        destination[source] = position;
+    }
+    for position in 0..destination.len() {
+        while destination[position] != position {
+            let target = destination[position];
+            messages.swap(position, target);
+            destination.swap(position, target);
+        }
+    }
+}
+
+/// Renders an internal [`Catalog`] as FCL text.
+///
+/// FCL always declares and uses collated `(id, ctxt)` order because line order
+/// is part of its storage invariant. PO-specific origin ordering does not alter
+/// the FCL representation.
 pub(super) fn stringify_catalog_fcl(
     catalog: &Catalog,
     locale: Option<&str>,
@@ -220,10 +302,11 @@ pub(super) fn stringify_catalog_fcl(
     if let Some(locale) = locale {
         write_tag(&mut out, "locale", locale);
     }
+    write_tag(&mut out, "order", "collated");
     out.push('\n');
 
     let mut messages: Vec<&CanonicalMessage> = catalog.messages.iter().collect();
-    messages.sort_by_cached_key(|message| (fcl_id(message).into_owned(), message.msgctxt.clone()));
+    sort_fcl_messages_collated(&mut messages);
     for message in messages {
         write_entry(&mut out, message, render);
     }
@@ -236,7 +319,7 @@ fn is_conflict_marker(line: &str) -> bool {
     line.starts_with("<<<<<<<") || line.starts_with("=======") || line.starts_with(">>>>>>>")
 }
 
-fn parse_header(line: &str, source_locale: &str) -> Result<Option<String>, ApiError> {
+fn parse_header(line: &str, source_locale: &str) -> Result<FclHeader, ApiError> {
     let mut fields = SplitTab::new(line.as_bytes());
     if fields.next() != Some(FCL_MAGIC.as_bytes()) {
         return Err(ApiError::InvalidArguments(
@@ -245,6 +328,8 @@ fn parse_header(line: &str, source_locale: &str) -> Result<Option<String>, ApiEr
     }
     let mut locale = None;
     let mut declared_source: Option<String> = None;
+    let mut order = FclOrder::LegacyBytewise;
+    let mut declared_order = false;
     for tag in fields {
         let (key, value) = split_once_byte(tag, b'=').ok_or_else(|| {
             ApiError::InvalidArguments(format!(
@@ -256,6 +341,22 @@ fn parse_header(line: &str, source_locale: &str) -> Result<Option<String>, ApiEr
         match key {
             b"source" => declared_source = Some(value),
             b"locale" => locale = Some(value),
+            b"order" => {
+                if declared_order {
+                    return Err(ApiError::InvalidArguments(
+                        "duplicate FCL header key `order`".to_owned(),
+                    ));
+                }
+                declared_order = true;
+                order = match value.as_str() {
+                    "collated" => FclOrder::Collated,
+                    other => {
+                        return Err(ApiError::InvalidArguments(format!(
+                            "unknown FCL order {other:?}"
+                        )));
+                    }
+                };
+            }
             other => {
                 return Err(ApiError::InvalidArguments(format!(
                     "unknown FCL header key {:?}",
@@ -271,7 +372,7 @@ fn parse_header(line: &str, source_locale: &str) -> Result<Option<String>, ApiEr
             "FCL source {declared:?} did not match requested source_locale {source_locale:?}"
         )));
     }
-    Ok(locale)
+    Ok(FclHeader { locale, order })
 }
 
 /// Parses one FCL entry line directly into a [`CanonicalMessage`], building the
@@ -451,13 +552,14 @@ pub(super) fn parse_catalog_to_internal_fcl(
     let header = lines.next().map(|(_, line)| line).ok_or_else(|| {
         ApiError::InvalidArguments("FCL catalog must start with the `%FCL1` header".to_owned())
     })?;
-    let frontmatter_locale = parse_header(header, source_locale)?;
-    let locale = locale_override.map(str::to_owned).or(frontmatter_locale);
+    let parsed_header = parse_header(header, source_locale)?;
+    let locale = locale_override.map(str::to_owned).or(parsed_header.locale);
 
     // The entry count is at most the newline count; over-reserving by the header
     // and any blank lines only saves reallocations.
     let estimated_entries = memchr::memchr_iter(b'\n', content.as_bytes()).count();
     let mut messages: Vec<CanonicalMessage> = Vec::with_capacity(estimated_entries);
+    let mut previous_collated_key: Option<FclCollatedKey> = None;
     for (index, line) in lines {
         if line.is_empty() {
             continue;
@@ -471,28 +573,36 @@ pub(super) fn parse_catalog_to_internal_fcl(
         let message = parse_entry(line).map_err(|error| {
             ApiError::InvalidArguments(format!("invalid FCL entry on line {}: {error}", index + 1))
         })?;
-        // FCL entries are canonically sorted by (id, ctxt), so duplicates are
-        // adjacent: comparing against the previous entry detects both
-        // duplicates and out-of-order corruption without cloning keys or
-        // maintaining a set.
+        // Legacy bytewise and declared collated order both keep equal identities
+        // adjacent, so the previous entry detects duplicates without a set.
         if let Some(previous) = messages.last() {
-            match (message.msgid.as_str(), message.msgctxt.as_deref())
-                .cmp(&(previous.msgid.as_str(), previous.msgctxt.as_deref()))
-            {
-                Ordering::Greater => {}
-                Ordering::Equal => {
-                    return Err(ApiError::Conflict(format!(
-                        "duplicate FCL entry for id {:?} and context {:?}",
-                        message.msgid, message.msgctxt
-                    )));
-                }
-                Ordering::Less => {
-                    return Err(ApiError::InvalidArguments(format!(
-                        "FCL entries must be sorted by (id, ctxt); line {} is out of order",
-                        index + 1
-                    )));
-                }
+            let identity_order = (message.msgid.as_str(), message.msgctxt.as_deref())
+                .cmp(&(previous.msgid.as_str(), previous.msgctxt.as_deref()));
+            if identity_order.is_eq() {
+                return Err(ApiError::Conflict(format!(
+                    "duplicate FCL entry for id {:?} and context {:?}",
+                    message.msgid, message.msgctxt
+                )));
             }
+            if parsed_header.order == FclOrder::LegacyBytewise && identity_order.is_lt() {
+                return Err(ApiError::InvalidArguments(format!(
+                    "FCL entries must be sorted by (id, ctxt); line {} is out of order",
+                    index + 1
+                )));
+            }
+        }
+        if parsed_header.order == FclOrder::Collated {
+            let key = fcl_collated_key(&message);
+            if previous_collated_key
+                .as_ref()
+                .is_some_and(|previous| key < *previous)
+            {
+                return Err(ApiError::InvalidArguments(format!(
+                    "FCL entries must follow the declared collated order; line {} is out of order",
+                    index + 1
+                )));
+            }
+            previous_collated_key = Some(key);
         }
         messages.push(message);
     }
@@ -535,8 +645,8 @@ mod tests {
     }
 
     #[test]
-    fn canonical_text_is_a_fixpoint() {
-        // Header + two sorted entries with tabs/newlines escaped and canonical
+    fn collated_text_is_a_fixpoint() {
+        // Header + two collated entries with tabs/newlines escaped and canonical
         // tag order. Parsing then re-serializing must reproduce it byte-for-byte.
         // The MT block is only retained when its hash matches the translation
         // (stale-protection), so compute the real hash for the target.
@@ -544,7 +654,7 @@ mod tests {
             "Hallo {name}",
         ));
         let text = format!(
-            "{FCL_MAGIC}\tsource=en\tlocale=de\n\
+            "{FCL_MAGIC}\tsource=en\tlocale=de\torder=collated\n\
              greeting\t\tHallo {{name}}\tr=src/a.tsx#Greeting\tlock={hash}\tai=openai/gpt-5.5:0.88\n\
              tabbed\tmenu\tWert mit\\tTab\n"
         );
@@ -573,10 +683,12 @@ mod tests {
     }
 
     #[test]
-    fn accepts_canonically_sorted_entries() {
-        // Already-sorted by (id, ctxt): empty context sorts before "menu".
+    fn accepts_legacy_bytewise_sorted_entries() {
+        // Legacy FCL without an order tag remains readable when bytewise-sorted.
+        // Re-serialization upgrades it to the declared collated contract.
         let text = format!("{FCL_MAGIC}\tsource=en\nalpha\t\tA\nalpha\tmenu\tA2\nbeta\t\tB\n");
         let sorted = roundtrip(&text);
+        assert!(sorted.starts_with(&format!("{FCL_MAGIC}\tsource=en\torder=collated\n")));
         let ids: Vec<&str> = sorted
             .lines()
             .skip(1)
@@ -675,7 +787,7 @@ mod tests {
         // Covers the c=/o serialize branches and the \t \n \\ escape paths in both
         // directions on a single entry.
         let text = format!(
-            "{FCL_MAGIC}\tsource=en\n\
+            "{FCL_MAGIC}\tsource=en\torder=collated\n\
              a.tab\\there\t\tWert\\nZeile\\\\back\tc=note\to\n"
         );
         assert_eq!(roundtrip(&text), text);
@@ -684,14 +796,14 @@ mod tests {
     #[test]
     fn roundtrips_reference_without_line_number() {
         // Covers the line-less origin path on both parse and serialize.
-        let text = format!("{FCL_MAGIC}\tsource=en\nid\t\tv\tr=README\n");
+        let text = format!("{FCL_MAGIC}\tsource=en\torder=collated\nid\t\tv\tr=README\n");
         assert_eq!(roundtrip(&text), text);
     }
 
     #[test]
     fn roundtrips_dated_obsolete() {
         // Covers the valued `o=<since>` serialize and parse branches.
-        let text = format!("{FCL_MAGIC}\tsource=en\nid\t\tv\to=2026-06-30\n");
+        let text = format!("{FCL_MAGIC}\tsource=en\torder=collated\nid\t\tv\to=2026-06-30\n");
         assert_eq!(roundtrip(&text), text);
     }
 
@@ -711,7 +823,24 @@ mod tests {
         assert!(parse_err(&format!("{FCL_MAGIC}\tbogus=x\nid\t\tv\n"))); // unknown header key
         assert!(parse_err(&format!("{FCL_MAGIC}\tnoeq\nid\t\tv\n"))); // header tag without '='
         assert!(parse_err(&format!("{FCL_MAGIC}\tsource=de\nid\t\tv\n"))); // source mismatch vs "en"
+        assert!(parse_err(&format!(
+            "{FCL_MAGIC}\tsource=en\torder=unknown\nid\t\tv\n"
+        )));
+        assert!(parse_err(&format!(
+            "{FCL_MAGIC}\tsource=en\torder=collated\torder=collated\nid\t\tv\n"
+        )));
         assert!(parse_err("")); // no header at all
+    }
+
+    #[test]
+    fn rejects_entries_outside_declared_collated_order() {
+        // Bytewise order puts '<' before '{'; CLDR root order is the reverse.
+        let text = format!(
+            "{FCL_MAGIC}\tsource=en\torder=collated\n\
+             <0>Continue</0>\t\tmarkup\n\
+             {{count, plural, one {{#}} other {{#}}}}\t\tplaceholder\n"
+        );
+        assert!(parse_err(&text));
     }
 
     #[test]
@@ -790,6 +919,9 @@ mod tests {
         };
 
         let text = stringify_catalog_fcl(&catalog, Some("de"), "en", &RenderOptions::default());
+        assert!(text.starts_with(&format!(
+            "{FCL_MAGIC}\tsource=en\tlocale=de\torder=collated\n"
+        )));
         // Both id and target columns are synthesized ICU plural strings, and the
         // lock/ai block survives because the lock matches the plural translation.
         assert!(text.contains("{count, plural,"));

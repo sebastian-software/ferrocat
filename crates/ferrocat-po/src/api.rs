@@ -1,6 +1,8 @@
 mod audit;
 mod catalog;
 mod catalog_index;
+mod collation;
+mod collation_table;
 mod combine;
 mod compile;
 mod compile_types;
