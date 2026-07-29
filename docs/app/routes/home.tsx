@@ -227,7 +227,7 @@ const updateCompare: Bar[] = [
   {
     name: "Ferrocat full catalog update",
     lang: "with ICU checks + placeholder tracking",
-    rate: 103,
+    rate: 101,
     self: true,
   },
   { name: "pofile-ts", lang: "Node", rate: 42 },

@@ -7,8 +7,8 @@
  * the unmodified CLDR root collation because English carries no tailoring of
  * its own. Rather than linking ICU4X and its ~1.3 MB of baked data, this derives
  * the part of the root order source messages normally exercise: primary
- * weights for Latin text, punctuation, symbols and digits, plus canonical
- * decompositions that map accented characters onto their base letter.
+ * weights for Latin text, punctuation, symbols and digits, plus secondary
+ * accent ranks and canonical decompositions.
  *
  * Run with `--check` to verify the checked-in table is current.
  */
@@ -52,6 +52,85 @@ function baseOf(character) {
 
 const RANGE_START = 0x20
 const RANGE_END = 0x01_7f
+const MARK_START = 0x0300
+const MARK_END = 0x036f
+
+function compareBytes(left, right) {
+  const length = Math.min(left.length, right.length)
+  for (let index = 0; index < length; index++) {
+    if (left[index] !== right[index]) return left[index] - right[index]
+  }
+  return left.length - right.length
+}
+
+/*
+ * Exhaustively check a focused accent-position corpus against the real oracle.
+ * The 427 NFC/NFD forms produce 90,951 pairs and cover zero, one, and two marks
+ * across three equal primary characters. Intl-equal canonical spellings may
+ * still use the raw identity tie-break in Rust, so only non-equal pairs constrain
+ * this secondary encoding.
+ */
+function verifySecondaryEncoding(secondaryWeightOf) {
+  const accents = [
+    "",
+    "\u0300",
+    "\u0301",
+    "\u0302",
+    "\u0303",
+    "\u0308",
+    "\u030a",
+    "\u0327",
+    "\u0328",
+  ]
+  const forms = new Set()
+  for (const first of accents) {
+    for (const second of accents) {
+      for (const third of accents) {
+        if ([first, second, third].filter(Boolean).length > 2) continue
+        const decomposed = `a${first}a${second}a${third}`
+        forms.add(decomposed)
+        forms.add(decomposed.normalize("NFC"))
+      }
+    }
+  }
+
+  const secondaryKey = (text) => {
+    const key = []
+    let primaryPosition = 0
+    for (const character of text.normalize("NFD")) {
+      const code = character.codePointAt(0)
+      if (code >= MARK_START && code <= MARK_END) {
+        const position = 0xffff_ffff - primaryPosition
+        key.push(
+          position >>> 24,
+          (position >>> 16) & 0xff,
+          (position >>> 8) & 0xff,
+          position & 0xff,
+          secondaryWeightOf.get(character)
+        )
+      } else {
+        primaryPosition++
+      }
+    }
+    return key
+  }
+
+  const corpus = [...forms]
+  for (let left = 0; left < corpus.length; left++) {
+    for (let right = left + 1; right < corpus.length; right++) {
+      const oracle = Math.sign(collator.compare(corpus[left], corpus[right]))
+      if (oracle === 0) continue
+      const encoded = Math.sign(
+        compareBytes(secondaryKey(corpus[left]), secondaryKey(corpus[right]))
+      )
+      if (encoded !== oracle) {
+        throw new Error(
+          `Secondary encoding disagrees with Intl.Collator for ${JSON.stringify(corpus[left])} and ${JSON.stringify(corpus[right])}.`
+        )
+      }
+    }
+  }
+}
 
 function buildTable() {
   const chars = repertoire()
@@ -65,6 +144,39 @@ function buildTable() {
   }
   const weightOf = new Map(bases.map((base, index) => [base, index + 1]))
 
+  const marks = []
+  for (let code = MARK_START; code <= MARK_END; code++) {
+    marks.push(String.fromCodePoint(code))
+  }
+  marks.sort(
+    (left, right) =>
+      collator.compare(`a${left}`, `a${right}`) ||
+      left.codePointAt(0) - right.codePointAt(0)
+  )
+  const secondaryWeightOf = new Map()
+  let secondaryWeight = 0
+  let previousMark
+  for (const mark of marks) {
+    if (
+      previousMark === undefined ||
+      collator.compare(`a${previousMark}`, `a${mark}`) !== 0
+    ) {
+      secondaryWeight++
+    }
+    secondaryWeightOf.set(mark, secondaryWeight)
+    previousMark = mark
+  }
+  if (secondaryWeight >= 0xff) {
+    throw new Error(
+      `Combining-mark block has ${secondaryWeight} distinct secondary weights; a weight must fit in a byte below 0xFF.`
+    )
+  }
+  verifySecondaryEncoding(secondaryWeightOf)
+  const markWeights = []
+  for (let code = MARK_START; code <= MARK_END; code++) {
+    markWeights.push(secondaryWeightOf.get(String.fromCodePoint(code)))
+  }
+
   const rowFor = (character) => {
     const nfd = [...character.normalize("NFD")]
     const marks = nfd.filter((candidate) => isCombining(candidate))
@@ -75,7 +187,7 @@ function buildTable() {
     }
     return {
       weight: weightOf.get(baseOf(character)) ?? 0,
-      secondary: marks.length === 1 ? marks[0].codePointAt(0) : 0,
+      secondary: marks.length === 1 ? secondaryWeightOf.get(marks[0]) : 0,
       upper: character !== character.toLowerCase(),
     }
   }
@@ -93,7 +205,7 @@ function buildTable() {
     .map((character) => [character, rowFor(character)])
   extra.sort(([left], [right]) => left.codePointAt(0) - right.codePointAt(0))
 
-  return { rows, extra }
+  return { rows, extra, markWeights }
 }
 
 /*
@@ -116,11 +228,12 @@ const rustChar = (character) => {
 const renderRow = ({ weight, secondary, upper }) =>
   `Row { primary: ${weight}, secondary: ${secondary}, upper: ${upper} }`
 
-function render({ rows, extra }) {
+function render({ rows, extra, markWeights }) {
   const dense = rows.map((row) => `    ${renderRow(row)},`).join("\n")
   const extraRows = extra
     .map(([character, row]) => `    (${rustChar(character)}, ${renderRow(row)}),`)
     .join("\n")
+  const renderedMarkWeights = markWeights.join(", ")
 
   return `// @generated by scripts/generate-collation-table.mjs — do not edit.
 //
@@ -132,8 +245,8 @@ function render({ rows, extra }) {
 pub(super) struct Row {
     /// Rank of the base character in CLDR root order, or 0 when uncovered.
     pub(super) primary: u8,
-    /// Combining mark contributed to the secondary level, or 0 for none.
-    pub(super) secondary: u32,
+    /// CLDR secondary rank contributed by a combining mark, or 0 for none.
+    pub(super) secondary: u8,
     /// Whether the character is uppercase, a tertiary difference.
     pub(super) upper: bool,
 }
@@ -152,6 +265,13 @@ ${dense}
 pub(super) const EXTRA: &[(char, Row)] = &[
 ${extraRows}
 ];
+
+/// First combining mark covered by [\`MARK_WEIGHTS\`].
+pub(super) const MARK_START: u32 = ${MARK_START};
+
+/// CLDR secondary ranks indexed by \`code point - MARK_START\`.
+#[rustfmt::skip]
+pub(super) const MARK_WEIGHTS: &[u8] = &[${renderedMarkWeights}];
 `
 }
 

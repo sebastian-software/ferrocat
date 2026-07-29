@@ -23,7 +23,7 @@ Known limits:
 */
 
 use super::catalog::CanonicalMessage;
-use super::collation_table::{EXTRA, RANGE_START, ROWS, Row};
+use super::collation_table::{EXTRA, MARK_START, MARK_WEIGHTS, RANGE_START, ROWS, Row};
 
 /// Sort key reproducing CLDR root order for the covered repertoire.
 ///
@@ -96,6 +96,7 @@ struct Levels {
     primary: Vec<u8>,
     secondary: Vec<u8>,
     tertiary: Vec<u8>,
+    primary_position: u32,
 }
 
 impl Levels {
@@ -104,22 +105,30 @@ impl Levels {
         self.primary.push(UNCOVERED_TAG);
         self.primary
             .extend_from_slice(&u32::from(base).to_be_bytes());
+        self.primary_position = self.primary_position.saturating_add(1);
         self.tertiary.push(u8::from(character.is_uppercase()));
     }
 
     fn push_row(&mut self, row: &Row) {
         self.primary.push(row.primary);
+        self.primary_position = self.primary_position.saturating_add(1);
         if row.secondary != 0 {
-            push_mark(&mut self.secondary, row.secondary);
+            self.push_secondary(row.secondary);
         }
         self.tertiary.push(u8::from(row.upper));
+    }
+
+    fn push_secondary(&mut self, weight: u8) {
+        self.secondary
+            .extend_from_slice(&u32::MAX.saturating_sub(self.primary_position).to_be_bytes());
+        self.secondary.push(weight);
     }
 
     fn push_char(&mut self, character: char) {
         // Combining marks must be handled before lookup so decomposed and
         // precomposed accents produce the same key.
         if is_combining(character) {
-            push_mark(&mut self.secondary, u32::from(character));
+            self.push_secondary(mark_weight(character));
             return;
         }
         match row(character) {
@@ -129,10 +138,13 @@ impl Levels {
     }
 }
 
-/// Combining marks are confined to U+0300..=U+036F, so their block offset fits
-/// in a byte and retains their relative order.
-fn push_mark(out: &mut Vec<u8>, mark: u32) {
-    out.push(u8::try_from(mark.saturating_sub(0x0300)).unwrap_or(u8::MAX));
+fn mark_weight(character: char) -> u8 {
+    u32::from(character)
+        .checked_sub(MARK_START)
+        .and_then(|offset| usize::try_from(offset).ok())
+        .and_then(|index| MARK_WEIGHTS.get(index))
+        .copied()
+        .unwrap_or(u8::MAX)
 }
 
 const PREFIX_BYTES: usize = 32;
@@ -204,6 +216,7 @@ pub(super) fn collation_key(text: &str) -> CollationKey {
         primary: Vec::with_capacity(text.len() * 2 + 8),
         secondary: Vec::new(),
         tertiary: Vec::with_capacity(text.len()),
+        primary_position: 0,
     };
 
     if text.is_ascii() {
@@ -226,6 +239,7 @@ pub(super) fn collation_key(text: &str) -> CollationKey {
         mut primary,
         secondary,
         tertiary,
+        primary_position: _,
     } = levels;
     let primary_end = primary.len();
     primary.extend_from_slice(&secondary);
@@ -318,7 +332,8 @@ pub(super) fn sort_messages_collated(messages: &mut [CanonicalMessage]) {
 
 #[cfg(test)]
 mod tests {
-    use super::{collation_key, collation_prefix};
+    use super::{CanonicalMessage, collation_key, collation_prefix, sort_messages_collated};
+    use crate::api::catalog::CanonicalTranslation;
 
     fn sorted(mut items: Vec<&str>) -> Vec<&str> {
         items.sort_by(|left, right| {
@@ -370,6 +385,60 @@ mod tests {
         assert_eq!(
             collation_key("resume").primary(),
             collation_key("résumé").primary()
+        );
+    }
+
+    #[test]
+    fn matches_intl_oracle_for_accent_ranks_and_positions() {
+        // Golden orders from `new Intl.Collator("en-US")`; the raw comparison
+        // only resolves canonical-equivalence ties.
+        assert_eq!(
+            sorted(vec!["ā", "ą", "ã", "ä", "å", "â", "ă", "à", "á", "a"]),
+            vec!["a", "á", "à", "ă", "â", "å", "ä", "ã", "ą", "ā"]
+        );
+        assert_eq!(
+            sorted(vec![
+                "äaa", "åaa", "àaa", "áaa", "aäa", "aåa", "aàa", "aáa", "aaä", "aaå", "aaà", "aaá",
+                "aaa",
+            ]),
+            vec![
+                "aaa", "aaá", "aaà", "aaå", "aaä", "aáa", "aàa", "aåa", "aäa", "áaa", "àaa", "åaa",
+                "äaa",
+            ]
+        );
+
+        assert_eq!(collation_key("áa"), collation_key("a\u{0301}a"));
+        assert_eq!(collation_key("aà"), collation_key("aa\u{0300}"));
+        assert!(collation_key(" Á") < collation_key(" À"));
+        assert!(collation_key(" Å") < collation_key(" Ä"));
+    }
+
+    #[test]
+    fn context_order_uses_the_same_intl_accent_weights() {
+        let mut messages = ["àa", "áa", "aà", "aá"]
+            .into_iter()
+            .map(|context| CanonicalMessage {
+                msgid: "same".to_owned(),
+                msgctxt: Some(context.to_owned()),
+                translation: CanonicalTranslation::Singular {
+                    value: String::new(),
+                },
+                comments: Vec::new(),
+                origins: Default::default(),
+                placeholders: Default::default(),
+                obsolete: None,
+                machine: None,
+            })
+            .collect::<Vec<_>>();
+
+        sort_messages_collated(&mut messages);
+
+        assert_eq!(
+            messages
+                .iter()
+                .filter_map(|message| message.msgctxt.as_deref())
+                .collect::<Vec<_>>(),
+            vec!["aá", "aà", "áa", "àa"]
         );
     }
 
