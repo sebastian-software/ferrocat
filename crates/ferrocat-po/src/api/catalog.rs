@@ -813,16 +813,14 @@ fn parse_catalog_to_internal_po(
     let mut messages = Vec::with_capacity(po_items.len());
 
     for item in po_items {
-        let mut conversion_diagnostics = Vec::new();
         let message = import_message_from_po(
             item,
             locale.as_deref(),
             nplurals,
             semantics,
             strict,
-            &mut conversion_diagnostics,
+            &mut diagnostics,
         )?;
-        diagnostics.extend(conversion_diagnostics);
         messages.push(message);
     }
 
@@ -842,7 +840,7 @@ fn parse_catalog_to_internal_po(
 /// import, ICU projection, and all associated diagnostics stay in one semantic
 /// decision point.
 fn import_message_from_po(
-    item: PoItem,
+    mut item: PoItem,
     locale: Option<&str>,
     nplurals: Option<usize>,
     semantics: CatalogSemantics,
@@ -850,33 +848,38 @@ fn import_message_from_po(
     _diagnostics: &mut Vec<Diagnostic>,
 ) -> Result<CanonicalMessage, ApiError> {
     // Extracted (`#.`) and translator (`#`) comments collapse into one notes list.
+    // Placeholder splitting runs on the extracted comments only, so the two lists
+    // stay separate until after the split.
     let (mut comments, placeholders) =
         split_placeholder_comments(item.extracted_comments.into_vec());
-    comments.extend(item.comments.into_vec());
+    comments.extend(item.comments);
     let origins = item
         .references
         .into_iter()
         .map(parse_origin_owned)
         .collect();
 
-    let translation = if let Some(msgid_plural) = &item.msgid_plural {
+    let translation = if let Some(msgid_plural) = item.msgid_plural.take() {
         if semantics == CatalogSemantics::IcuNative {
             return Err(ApiError::Unsupported(
                 "classic gettext plural requires compat mode".to_owned(),
             ));
         }
+        // Move the parsed slot strings into the category map instead of copying
+        // them; surplus slots beyond the locale's categories are dropped.
+        let slots = item.msgstr.into_vec();
         let plural_profile =
-            PluralProfile::for_gettext_slots(locale, nplurals.or(Some(item.msgstr.len())));
+            PluralProfile::for_gettext_slots(locale, nplurals.or(Some(slots.len())));
         CanonicalTranslation::Plural {
             source: PluralSource {
                 one: Some(item.msgid.clone()),
-                other: msgid_plural.clone(),
+                other: msgid_plural,
             },
             translation_by_category: plural_profile
                 .categories()
                 .iter()
-                .zip(item.msgstr.iter().chain(std::iter::repeat("")))
-                .map(|(category, value)| (category.clone(), value.to_owned()))
+                .cloned()
+                .zip(slots.into_iter().chain(std::iter::repeat_with(String::new)))
                 .collect(),
             variable: "count".to_owned(),
         }
@@ -957,12 +960,24 @@ fn import_machine_metadata(
 pub(super) fn split_placeholder_comments(
     extracted_comments: Vec<String>,
 ) -> (Vec<String>, BTreeMap<String, Vec<String>>) {
+    // Most entries carry no placeholder comments at all, so scan first and hand
+    // the caller's buffer straight back instead of allocating a second vector.
+    if !extracted_comments
+        .iter()
+        .any(|comment| parse_placeholder_comment(comment).is_some())
+    {
+        return (extracted_comments, BTreeMap::new());
+    }
+
     let mut comments = Vec::new();
     let mut placeholders = BTreeMap::<String, Vec<String>>::new();
 
     for comment in extracted_comments {
         if let Some((name, value)) = parse_placeholder_comment(&comment) {
-            placeholders.entry(name).or_default().push(value);
+            placeholders
+                .entry(name.to_owned())
+                .or_default()
+                .push(value.to_owned());
         } else {
             comments.push(comment);
         }
@@ -972,10 +987,13 @@ pub(super) fn split_placeholder_comments(
 }
 
 /// Parses the internal placeholder comment format emitted by the export helpers.
-fn parse_placeholder_comment(comment: &str) -> Option<(String, String)> {
+///
+/// Borrows from `comment` so callers can use it as an allocation-free predicate
+/// before deciding whether any placeholder splitting is needed at all.
+fn parse_placeholder_comment(comment: &str) -> Option<(&str, &str)> {
     let rest = comment.strip_prefix("placeholder {")?;
     let end = rest.find("}: ")?;
-    Some((rest[..end].to_owned(), rest[end + 3..].to_owned()))
+    Some((&rest[..end], &rest[end + 3..]))
 }
 
 /// Parses a reference into a [`CatalogOrigin`]. A trailing `#scope` anchor (the
