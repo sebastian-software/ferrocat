@@ -296,13 +296,6 @@ impl PluralProfile {
         Self::new_gettext(locale, None)
     }
 
-    pub(super) fn for_gettext_translation(
-        locale: Option<&str>,
-        translation_by_category: &BTreeMap<String, String>,
-    ) -> Self {
-        Self::new_gettext(locale, Some(translation_by_category.len()))
-    }
-
     fn new_gettext(locale: Option<&str>, nplurals: Option<usize>) -> Self {
         let normalized_locale = normalized_locale(locale);
         if let Some(rule) = normalized_locale
@@ -426,6 +419,46 @@ impl PluralProfile {
 
     pub(super) fn gettext_header(&self) -> Option<String> {
         self.gettext_header.map(str::to_owned)
+    }
+}
+
+/// Caches gettext plural profiles for the duration of one catalog operation.
+///
+/// A profile is fully determined by the locale and the observed slot count, and
+/// both stay stable across most messages of a catalog. Building it per message
+/// only repeated the same locale lookup and category allocations.
+#[derive(Debug)]
+pub(super) struct GettextPluralProfiles<'a> {
+    locale: Option<&'a str>,
+    profiles: Vec<(Option<usize>, PluralProfile)>,
+}
+
+impl<'a> GettextPluralProfiles<'a> {
+    pub(super) fn new(locale: Option<&'a str>) -> Self {
+        Self {
+            locale,
+            profiles: Vec::new(),
+        }
+    }
+
+    /// Returns the profile for `nplurals`, building it on first use.
+    pub(super) fn for_slots(&mut self, nplurals: Option<usize>) -> &PluralProfile {
+        let index = match self
+            .profiles
+            .iter()
+            .position(|(slots, _)| *slots == nplurals)
+        {
+            Some(index) => index,
+            None => {
+                self.profiles.push((
+                    nplurals,
+                    PluralProfile::for_gettext_slots(self.locale, nplurals),
+                ));
+                self.profiles.len() - 1
+            }
+        };
+
+        &self.profiles[index].1
     }
 }
 
@@ -959,9 +992,9 @@ mod tests {
 
     use super::{
         GETTEXT_ARABIC_HEADER, GETTEXT_ONE_FORM_HEADER, GETTEXT_POLISH_HEADER,
-        GETTEXT_SLAVIC_THREE_FORM_HEADER, GETTEXT_ZERO_ONE_HEADER, IcuPluralProjection,
-        PluralProfile, cached_icu_plural_categories_for, derive_plural_variable,
-        expected_gettext_nplurals_for_locale, fallback_plural_categories,
+        GETTEXT_SLAVIC_THREE_FORM_HEADER, GETTEXT_ZERO_ONE_HEADER, GettextPluralProfiles,
+        IcuPluralProjection, PluralProfile, cached_icu_plural_categories_for,
+        derive_plural_variable, expected_gettext_nplurals_for_locale, fallback_plural_categories,
         looks_like_projectable_icu_plural, materialize_plural_categories, normalize_plural_locale,
         ordered_plural_branches, project_icu_plural, split_icu_kind, synthesize_icu_plural,
         synthesize_icu_plural_source,
@@ -1013,13 +1046,8 @@ mod tests {
 
     #[test]
     fn plural_profiles_and_category_helpers_fill_expected_shapes() {
-        let profile = PluralProfile::for_gettext_translation(
-            Some("fr"),
-            &BTreeMap::from([
-                ("one".to_owned(), "un".to_owned()),
-                ("other".to_owned(), "autres".to_owned()),
-            ]),
-        );
+        let mut profiles = GettextPluralProfiles::new(Some("fr"));
+        let profile = profiles.for_slots(Some(2)).clone();
         assert_eq!(profile.nplurals(), 2);
         assert_eq!(profile.categories(), &["one", "other"]);
         assert_eq!(
@@ -1070,6 +1098,9 @@ mod tests {
                 ("other".to_owned(), String::new()),
             ])
         );
+
+        // Repeated lookups reuse the cached profile instead of rebuilding it.
+        assert_eq!(profiles.for_slots(Some(2)), &profile);
     }
 
     #[test]

@@ -23,7 +23,10 @@ use super::helpers::{
 use super::mt::{
     MachineMetadata, PO_AI_KEY, PO_LOCK_KEY, parse_ai_descriptor, validate_machine_metadata,
 };
-use super::plural::{PluralProfile, derive_plural_variable, expected_gettext_nplurals_for_locale};
+use super::plural::{
+    GettextPluralProfiles, PluralProfile, derive_plural_variable,
+    expected_gettext_nplurals_for_locale,
+};
 use super::{
     ApiError, CatalogMessage, CatalogOrigin, CatalogSemantics, CatalogStats, CatalogStorageFormat,
     CatalogUpdateInput, CatalogUpdateResult, Diagnostic, DiagnosticSeverity, ExtractedMessage,
@@ -816,10 +819,14 @@ fn parse_catalog_to_internal_po(
     );
     let mut messages = Vec::with_capacity(po_items.len());
 
+    // The locale is constant for the whole import, so plural profiles are built
+    // once per distinct slot count instead of once per plural message.
+    let mut plural_profiles = GettextPluralProfiles::new(locale.as_deref());
+
     for item in po_items {
         let message = import_message_from_po(
             item,
-            locale.as_deref(),
+            &mut plural_profiles,
             nplurals,
             semantics,
             strict,
@@ -848,7 +855,7 @@ fn parse_catalog_to_internal_po(
 /// decision point.
 fn import_message_from_po(
     item: BorrowedPoItem<'_>,
-    locale: Option<&str>,
+    plural_profiles: &mut GettextPluralProfiles<'_>,
     nplurals: Option<usize>,
     semantics: CatalogSemantics,
     _strict: bool,
@@ -867,8 +874,7 @@ fn import_message_from_po(
         }
         // Move the parsed slot values into the category map instead of copying
         // them; surplus slots beyond the locale's categories are dropped.
-        let plural_profile =
-            PluralProfile::for_gettext_slots(locale, nplurals.or(Some(item.msgstr.len())));
+        let plural_profile = plural_profiles.for_slots(nplurals.or(Some(item.msgstr.len())));
         CanonicalTranslation::Plural {
             source: PluralSource {
                 one: Some(item.msgid.as_ref().to_owned()),
@@ -1043,12 +1049,13 @@ fn split_origin(reference: &str) -> (&str, Option<&str>) {
     (file, scope)
 }
 
-/// Serializes a [`CatalogOrigin`] to its wire form, shared by PO references and
-/// FCL `r=` tags: `file` or `file#scope`.
-pub(super) fn format_origin(origin: &CatalogOrigin) -> String {
-    match &origin.scope {
-        Some(scope) => format!("{}#{scope}", origin.file),
-        None => origin.file.clone(),
+/// Appends a [`CatalogOrigin`] to `out` in its wire form, shared by PO
+/// references and FCL `r=` tags: `file` or `file#scope`.
+pub(super) fn write_origin(out: &mut String, origin: &CatalogOrigin) {
+    out.push_str(&origin.file);
+    if let Some(scope) = &origin.scope {
+        out.push('#');
+        out.push_str(scope);
     }
 }
 

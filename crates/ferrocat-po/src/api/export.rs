@@ -1,6 +1,7 @@
 //! Catalog export helpers for PO and FCL rendering.
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
+use std::ops::Range;
 
 use crate::SerializeOptions;
 use crate::diagnostic_codes;
@@ -8,16 +9,16 @@ use crate::serialize::{write_keyword, write_prefixed_line};
 use crate::text::escape_string_into;
 
 use super::catalog::{
-    CanonicalMessage, CanonicalTranslation, Catalog, PO_OBSOLETE_SINCE_KEY, format_origin,
+    CanonicalMessage, CanonicalTranslation, Catalog, PO_OBSOLETE_SINCE_KEY, write_origin,
 };
 use super::mt::{
     MachineMetadata, PO_AI_KEY, PO_LOCK_KEY, format_ai_descriptor, machine_translation_hash,
     validate_machine_metadata,
 };
-use super::plural::{PluralProfile, synthesize_icu_plural, synthesize_icu_plural_source};
+use super::plural::{GettextPluralProfiles, synthesize_icu_plural, synthesize_icu_plural_source};
 use super::{
-    ApiError, CatalogSemantics, Diagnostic, DiagnosticSeverity, EffectiveTranslationRef,
-    PlaceholderCommentMode, UpdateCatalogOptions,
+    ApiError, CatalogOrigin, CatalogSemantics, Diagnostic, DiagnosticSeverity,
+    EffectiveTranslationRef, PlaceholderCommentMode, UpdateCatalogOptions,
 };
 
 pub(super) fn export_catalog_content(
@@ -68,7 +69,10 @@ fn stringify_catalog_po(
     }
     out.push('\n');
 
-    let mut plural_profiles = PluralProfileCache::new(locale);
+    // The locale is constant for the whole export, so plural profiles are built
+    // once per distinct slot count instead of once per plural message.
+    let mut plural_profiles = GettextPluralProfiles::new(locale);
+
     let mut iter = catalog.messages.iter().peekable();
     while let Some(message) = iter.next() {
         write_catalog_po_message(
@@ -86,48 +90,6 @@ fn stringify_catalog_po(
     }
 
     Ok(out)
-}
-
-/// Reuses gettext plural profiles per observed slot count.
-///
-/// The locale is constant for a whole export, so profiles only differ by the
-/// number of translated categories; a large catalog would otherwise rebuild the
-/// same profile for every plural message.
-struct PluralProfileCache<'a> {
-    locale: Option<&'a str>,
-    entries: Vec<(usize, PluralProfile)>,
-}
-
-impl<'a> PluralProfileCache<'a> {
-    const fn new(locale: Option<&'a str>) -> Self {
-        Self {
-            locale,
-            entries: Vec::new(),
-        }
-    }
-
-    fn for_gettext_translation(
-        &mut self,
-        translation_by_category: &BTreeMap<String, String>,
-    ) -> &PluralProfile {
-        let nplurals = translation_by_category.len();
-        let index = match self
-            .entries
-            .iter()
-            .position(|(slots, _)| *slots == nplurals)
-        {
-            Some(index) => index,
-            None => {
-                self.entries.push((
-                    nplurals,
-                    PluralProfile::for_gettext_translation(self.locale, translation_by_category),
-                ));
-                self.entries.len() - 1
-            }
-        };
-
-        &self.entries[index].1
-    }
 }
 
 fn estimate_catalog_po_capacity(catalog: &Catalog) -> usize {
@@ -207,7 +169,7 @@ fn write_catalog_po_message(
     scratch: &mut String,
     message: &CanonicalMessage,
     options: &UpdateCatalogOptions<'_>,
-    plural_profiles: &mut PluralProfileCache<'_>,
+    plural_profiles: &mut GettextPluralProfiles<'_>,
     diagnostics: &mut Vec<Diagnostic>,
     serialize_options: &SerializeOptions,
 ) -> Result<(), ApiError> {
@@ -280,7 +242,7 @@ fn write_catalog_po_message(
                 return Ok(());
             }
 
-            let plural_profile = plural_profiles.for_gettext_translation(translation_by_category);
+            let plural_profile = plural_profiles.for_slots(Some(translation_by_category.len()));
             let nplurals = plural_profile
                 .nplurals()
                 .max(translation_by_category.len().max(1));
@@ -363,19 +325,40 @@ fn write_catalog_po_metadata(
     }
 
     if options.render.include_origins {
-        // Origins serialize as `file` or `file#scope`; keep the first occurrence
-        // and drop exact duplicates of the rendered reference.
-        let mut references: Vec<String> = Vec::new();
-        for origin in &message.origins {
-            let reference = format_origin(origin);
-            if !references.iter().any(|existing| existing == &reference) {
-                out.push_str(obsolete_prefix);
-                out.push_str("#: ");
-                out.push_str(&reference);
-                out.push('\n');
-                references.push(reference);
-            }
+        write_origin_references(out, obsolete_prefix, message.origins.as_slice());
+    }
+}
+
+/// Writes the `#: ` reference lines for one message.
+///
+/// Origins serialize as `file` or `file#scope`; the first occurrence is kept and
+/// exact duplicates of the rendered reference are dropped. References render
+/// straight into `out` and duplicates are detected against the spans written so
+/// far, so no per-origin `String` is allocated.
+fn write_origin_references(out: &mut String, obsolete_prefix: &str, origins: &[CatalogOrigin]) {
+    let mut written: Vec<Range<usize>> = Vec::new();
+
+    for (index, origin) in origins.iter().enumerate() {
+        let line_start = out.len();
+        out.push_str(obsolete_prefix);
+        out.push_str("#: ");
+        let reference_start = out.len();
+        write_origin(out, origin);
+
+        if written
+            .iter()
+            .any(|span| out[span.clone()] == out[reference_start..])
+        {
+            out.truncate(line_start);
+            continue;
         }
+
+        // The last origin is never compared against, so it stays untracked and
+        // the common single-origin message needs no bookkeeping allocation.
+        if index + 1 < origins.len() {
+            written.push(reference_start..out.len());
+        }
+        out.push('\n');
     }
 }
 
@@ -466,26 +449,54 @@ pub(super) fn for_each_placeholder_comment(
         PlaceholderCommentMode::Enabled { limit } => *limit,
     };
 
-    let mut seen = comments.iter().cloned().collect::<BTreeSet<String>>();
+    // Only numeric placeholder names generate comments. Bailing out first keeps
+    // the common message without generated comments completely allocation-free.
+    if !placeholders.keys().any(|name| is_numeric_placeholder(name)) {
+        return;
+    }
+
+    let mut candidate = String::new();
+    let mut generated: Vec<String> = Vec::new();
 
     for (name, values) in placeholders {
-        if !name.chars().all(|ch| ch.is_ascii_digit()) {
+        if !is_numeric_placeholder(name) {
             continue;
         }
         for value in values.iter().take(limit) {
-            let comment = format!(
-                "placeholder {{{name}}}: {}",
-                normalize_placeholder_value(value)
-            );
-            if seen.insert(comment.clone()) {
-                visit(&comment);
+            candidate.clear();
+            write_placeholder_comment(&mut candidate, name, value);
+            if comments
+                .iter()
+                .chain(generated.iter())
+                .any(|existing| existing == &candidate)
+            {
+                continue;
             }
+            visit(&candidate);
+            generated.push(candidate.clone());
         }
     }
 }
 
-fn normalize_placeholder_value(value: &str) -> String {
-    value.replace('\n', " ")
+fn is_numeric_placeholder(name: &str) -> bool {
+    name.chars().all(|ch| ch.is_ascii_digit())
+}
+
+/// Renders one generated placeholder comment, folding embedded newlines into
+/// spaces without an intermediate `String`.
+fn write_placeholder_comment(out: &mut String, name: &str, value: &str) {
+    out.push_str("placeholder {");
+    out.push_str(name);
+    out.push_str("}: ");
+
+    let mut lines = value.split('\n');
+    if let Some(first) = lines.next() {
+        out.push_str(first);
+    }
+    for line in lines {
+        out.push(' ');
+        out.push_str(line);
+    }
 }
 
 #[cfg(test)]
