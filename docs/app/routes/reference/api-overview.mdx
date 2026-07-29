@@ -120,7 +120,7 @@ At the high-level catalog layer, `ferrocat` supports three explicit combinations
 
 There is intentionally no FCL + gettext-plural mode; gettext plural behavior belongs to PO, while FCL is the ICU-native machine storage path. In API terms, that means `CatalogStorageFormat::Fcl` is only available with `CatalogSemantics::IcuNative`.
 
-FCL (Ferrocat Catalog Lines) is the machine-owned, git-merge-optimized storage choice. Each entry is one tab-separated line, deterministically sorted by `(id, ctxt)`, behind a single `%FCL1` header line. It is useful when catalogs are maintained by larger teams, automation, or external systems that benefit from one entry per line: diffs stay focused, unchanged entries stay byte-identical across merge inputs for clean git 3-way merges, and hosted Git review workflows do not need custom merge-driver support to make routine catalog edits manageable. Against the same catalog stored as PO, FCL parses about 25% faster and is roughly 12% smaller on disk.
+FCL (Ferrocat Catalog Lines) is the machine-owned, git-merge-optimized storage choice. Each entry is one tab-separated line behind a single `%FCL1` header line. Newly written catalogs are always deterministically sorted by CLDR root `(id, ctxt)` order and declare `order=collated`; the reader also accepts legacy tagless files with bytewise ordering. FCL is useful when catalogs are maintained by larger teams, automation, or external systems that benefit from one entry per line: diffs stay focused, unchanged entries stay byte-identical across merge inputs for clean git 3-way merges, and hosted Git review workflows do not need custom merge-driver support to make routine catalog edits manageable. Against the same catalog stored as PO, FCL parses about 25% faster and is roughly 12% smaller on disk.
 
 ### Origin file and scope
 
@@ -763,6 +763,20 @@ Choose `update_catalog` when you want a complete update operation rather than ju
 Compared with `merge_catalog`, this is the "full semantics" path. It is the better fit when catalog correctness and consistency matter more than taking the shortest merge route, for example in release pipelines or when you want predictable headers, ordering, plural handling, and diagnostics.
 
 `UpdateCatalogOptions` borrows locale strings, optional existing content, and optional custom-header maps. The extracted message payload itself stays owned, because that is usually the natural shape for upstream extractor output.
+
+`RenderOptions::order_by` keeps `OrderBy::Msgid` as the default and sorts
+`msgid`, then context, with the CLDR root order used by
+`Intl.Collator("en-US")`. This matches Lingui's punctuation, case, accent, and
+digit ordering. `OrderBy::Origin` groups PO output by the first source origin,
+then uses the same collated message/context identity order.
+
+The rule applies to in-memory and file-based update/combine flows. FCL retains
+its own storage invariant regardless of `order_by`: every newly written file
+sorts serialized `id`, then `ctxt`, with this collation and declares
+`order=collated` in the `%FCL1` header. Readers still accept legacy tagless FCL
+in its original bytewise order. The compact built-in repertoire and its Unicode
+limits are documented in
+[ADR 0026](/architecture/adr/0026-cldr-root-catalog-order).
 
 Like parsing, updates should normally choose one `CatalogMode`. PO with ICU-native semantics remains the default. FCL storage uses a single `%FCL1` header line plus one tab-separated entry per line.
 

@@ -1,0 +1,152 @@
+---
+title: "ADR 0026: Use CLDR Root Catalog Order by Default"
+description: "Accepted architecture decision record: Ferrocat orders catalog identities with the CLDR root order used by Intl.Collator(en-US), backed by a compact generated table instead of ICU4X."
+order: 260
+---
+
+# ADR 0026: Use CLDR Root Catalog Order by Default
+
+- Status: Accepted
+- Date: 2026-07-29
+- Relates to: [ADR 0013](/architecture/adr/0013-rust-native-catalog-combine-api)
+
+## Context
+
+Ferrocat originally ordered message and context identities by Unicode code
+point. Lingui instead orders messages and then contexts with
+`Intl.Collator("en-US")`. English has no collation tailoring, so this is the
+unmodified CLDR root order.
+
+The difference is common, not limited to unusual accented text. Punctuation,
+case, accents, and digits all participate. In particular, CLDR root order puts
+an ICU MessageFormat message beginning with `{` before markup beginning with
+`<`, while code-point order does the reverse. Passing an existing Lingui
+catalog through a code-point writer can therefore churn most of the file.
+
+Delegating a comparator to every caller would duplicate catalog semantics and
+would not help file combine operations. Linking the full ICU4X collator would
+make the behavior precise over all Unicode, but the Palamedes implementation
+that established this approach measured a 1,301,440-byte release-binary
+increase. Its generated-table implementation added 65,512 bytes and matched
+`Intl.Collator("en-US")` over the project corpora.
+
+Ferrocat's current catalog consumer is Palamedes, so carrying two catalog-output
+orders would add configuration and migration ambiguity without preserving a
+required external contract. The clean boundary is one identity order throughout
+the catalog layer.
+
+## Decision
+
+Keep the existing public `OrderBy` shape:
+
+```rust
+pub enum OrderBy {
+    Msgid,
+    Origin,
+}
+```
+
+Change `OrderBy::Msgid`, which remains the default, to sort by `msgid` and then
+`msgctxt` using CLDR root order. There is no code-point catalog-output mode.
+Raw message identity and obsolete state break collation ties so output remains
+deterministic for canonically equivalent spellings and duplicate-looking
+entries.
+
+`OrderBy::Origin` remains a PO presentation option. It sorts by the first source
+origin, then applies the same collated message/context identity and obsolete
+tie-break. The rule applies to in-memory and file-based update and combine
+flows.
+
+### Compact generated data
+
+The implementation ports the proven Palamedes table and key shape:
+
+- `scripts/generate-collation-table.mjs` derives primary weights and canonical
+  decompositions from `Intl.Collator("en-US")`
+- the checked-in Rust table covers printable ASCII, common typographic UI
+  punctuation, Latin-1 Supplement, and Latin Extended-A
+- `node scripts/generate-collation-table.mjs --check` verifies provenance in CI
+- the key builder has a direct-indexed ASCII path
+- sorting first compares a packed 32-byte primary prefix without allocation,
+  then builds full primary/secondary/tertiary keys only for entries sharing a
+  prefix
+
+No new Rust dependency or lockfile entry is required.
+
+### FCL representation
+
+FCL owns a storage order independent of PO presentation options. Every newly
+written FCL file:
+
+- adds `order=collated` to the `%FCL1` header
+- sorts the serialized `id`, followed by `ctxt`, with the same collation
+
+This remains true when a caller selects `OrderBy::Origin`; source origins do not
+change FCL's line-order invariant. The reader accepts existing FCL files with no
+`order` tag under their original bytewise `(id, ctxt)` contract. The next write
+upgrades those files to the declared collated contract. Unknown and duplicate
+order tags remain hard errors.
+
+### Declared limits
+
+This is a deliberately partial collation:
+
+- Ligatures and digraphs such as `ﬁ` and `Ǆ` expand to several collation
+  elements in the complete algorithm. The flat table cannot express that, so
+  they sort by their own primary weight instead of as `fi` and `dz`.
+- Characters outside the covered repertoire sort after it by code point. Their
+  placement after Latin matches root collation, but ordering within non-Latin
+  scripts does not.
+
+These cases are outside normal source-message corpora. A mismatch affects entry
+position and therefore a diff, not translation meaning or runtime lookup.
+
+### Measured cost
+
+The published file-to-file `po-update/gettext-ui-de-10000/ferrocat` scenario
+measured 108.997 MiB/s before this change. The new Rust-only
+`catalog-order-default-v1` profile repeats that exact operation with 10 measured
+runs, 3 warmups, and a 1,000 ms minimum sample. It measured 103.196 MiB/s, a
+5.3% reduction, with a 0.76% coefficient of variation and a 2.45% span. The
+README keeps the rounded headline at 103 MiB/s.
+
+A separate, earlier base-commit versus pre-optimization updated-default run
+through the direct `update-catalog` harness used the
+`catalog-modern-de-10000` fixture, 100
+iterations per run, 10 measured runs, and 3 warmups. Median throughput changed
+from 109.55 MiB/s (75.1 updates/s) to 94.75 MiB/s (65.0 updates/s), a 13.5%
+reduction.
+
+A local release probe exercising a complete update of 4,950 varied messages
+measured the previous code-point path at 2.135–2.197 ms median and the collated
+path at 2.668–2.675 ms median across two runs. Observed spans were
+2.045–2.653 ms and 2.093–2.380 ms for code-point order, versus
+2.505–3.114 ms and 2.488–3.230 ms for collated order. The default hot path
+therefore paid about 0.48–0.54 ms in this probe.
+
+A same-harness stripped, fat-LTO release consumer grew from 666,768 bytes at
+the base commit to 716,336 bytes with the updated default, a 49,568-byte
+increase. The probe invokes `update_catalog` with differently ordered messages
+and consumes the result with `black_box`, so the linked collation implementation
+is exercised rather than dead-code eliminated.
+
+## Consequences
+
+Positive:
+
+- Ferrocat output matches Lingui catalog order without a parse, re-sort, and
+  stringify post-pass
+- PO, FCL, update, and combine flows share one message-identity order
+- no new public enum variant is needed
+- the implementation adds no ICU collation dependency
+- checked-in generated data is reproducible and enforced in CI
+
+Negative:
+
+- the meaning of the existing default `OrderBy::Msgid` changes, so the first
+  write can reorder an existing code-point-sorted catalog
+- every new FCL file adds a header tag and is rejected by older strict FCL
+  readers that treat unknown header keys as errors
+- the default full-update hot path now pays the measured collation cost
+- the implementation owns a generated Unicode subset and its explicit
+  limitations

@@ -739,6 +739,15 @@ fn profile_loads_gettext_workflows_ecosystem_v1() {
 }
 
 #[test]
+fn profile_loads_catalog_order_default_v1_without_external_tools() {
+    let workspace = workspace_root().expect("workspace");
+    let profile = BenchmarkProfile::load(&workspace, "catalog-order-default-v1").expect("profile");
+    assert_eq!(profile.name, "catalog-order-default-v1");
+    assert_eq!(profile.scenarios.len(), 1);
+    assert_eq!(profile.tool_requirement(), ToolRequirement::RustOnly);
+}
+
+#[test]
 fn profile_loads_storage_formats_v1() {
     let workspace = workspace_root().expect("workspace");
     let profile = BenchmarkProfile::load(&workspace, "storage-formats-v1").expect("profile");
