@@ -120,7 +120,9 @@ put the branch report down to measurement conditions on the shared reference
 host rather than a code cost. Against the 108.997 MiB/s pre-change baseline,
 the collated default is within cross-run drift on this file-to-file scenario;
 the direct update-catalog probe below remains the clearest isolated cost
-signal. The README headline now uses the rounded 112 MiB/s.
+signal. The README headline was refreshed accordingly; later allocation-focused
+optimization work moved it further, so the current published number lives in
+`benchmark/published-numbers.json` rather than in this record.
 
 A separate, earlier base-commit versus pre-optimization updated-default run
 through the direct `update-catalog` harness used the

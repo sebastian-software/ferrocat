@@ -215,28 +215,28 @@ const proof = [
 type Bar = { name: string; lang: string; rate: number; self?: boolean }
 
 const parseCompare: Bar[] = [
-  { name: "Ferrocat", lang: "Rust, zero-copy", rate: 695, self: true },
-  { name: "pofile-ts", lang: "Node", rate: 141 },
+  { name: "Ferrocat", lang: "Rust, zero-copy", rate: 704, self: true },
+  { name: "pofile-ts", lang: "Node", rate: 149 },
   { name: "gettext/gettext", lang: "PHP", rate: 49 },
   { name: "polib", lang: "Python", rate: 22 },
 ]
-const PARSE_MAX = 695
+const PARSE_MAX = 704
 
 const updateCompare: Bar[] = [
-  { name: "Ferrocat", lang: "Rust, plain update", rate: 255, self: true },
+  { name: "Ferrocat", lang: "Rust, plain update", rate: 264, self: true },
   {
     name: "Ferrocat full catalog update",
     lang: "with ICU checks + placeholder tracking",
-    rate: 112,
+    rate: 137,
     self: true,
   },
-  { name: "pofile-ts", lang: "Node", rate: 39 },
+  { name: "pofile-ts", lang: "Node", rate: 43 },
   { name: "gettext/gettext", lang: "PHP", rate: 16 },
-  { name: "Babel", lang: "Python, Catalog.update", rate: 8.4 },
-  { name: "polib", lang: "Python", rate: 7.8 },
+  { name: "Babel", lang: "Python, Catalog.update", rate: 8.9 },
+  { name: "polib", lang: "Python", rate: 8.1 },
   { name: "msgmerge", lang: "GNU gettext", rate: 4.6 },
 ]
-const UPDATE_MAX = 255
+const UPDATE_MAX = 264
 
 // ── Other open source from the same studio ──
 
@@ -462,10 +462,10 @@ export default function HomePage() {
           measured time on this corpus, so the gap is real work. The Node
           baseline, pofile-ts, is our own performance fork of the popular
           pofile&mdash;so the fastest JS parser here is one we built, and Rust
-          still leads it ~4.9x; the unforked original sits about 320x back. The
+          still leads it ~4.7x; the unforked original sits about 320x back. The
           parse chart uses
           borrowed, zero-copy parsing; reading into a fully owned model still
-          reaches about 505 MiB/s. Serialization runs at about 1.4 GiB/s on the same
+          reaches about 510 MiB/s. Serialization runs at about 1.4 GiB/s on the same
           corpus. Median throughput on an Apple M1 Ultra, every tool reading
           the same files (pofile-ts 4.0.3, gettext-parser 9.1.1, Babel 2.18.0,
           polib 1.2.0, gettext/gettext 5.7.3, GNU gettext 1.0).{" "}
