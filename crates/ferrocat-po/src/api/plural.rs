@@ -35,11 +35,11 @@ pub(super) enum IcuPluralProjection {
     Malformed,
 }
 
-pub(super) type PluralCategoryCache = Mutex<HashMap<String, Option<Vec<String>>>>;
+pub(super) type PluralCategoryCache = Mutex<HashMap<String, Option<Vec<&'static str>>>>;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct PluralProfile {
-    categories: Vec<String>,
+    categories: Vec<&'static str>,
     gettext_header: Option<&'static str>,
 }
 
@@ -311,7 +311,7 @@ impl PluralProfile {
             .filter(|rule| nplurals.is_none() || nplurals == Some(rule.nplurals()))
         {
             return Self {
-                categories: static_categories(rule.categories),
+                categories: rule.categories.to_vec(),
                 gettext_header: Some(rule.header),
             };
         }
@@ -341,7 +341,7 @@ impl PluralProfile {
         }
     }
 
-    pub(super) fn categories(&self) -> &[String] {
+    pub(super) fn categories(&self) -> &[&'static str] {
         &self.categories
     }
 
@@ -357,9 +357,29 @@ impl PluralProfile {
             .iter()
             .map(|category| {
                 (
-                    category.clone(),
-                    translation.get(category).cloned().unwrap_or_default(),
+                    (*category).to_owned(),
+                    translation.get(*category).cloned().unwrap_or_default(),
                 )
+            })
+            .collect()
+    }
+
+    /// Materializes a translation and fills missing or empty categories from the
+    /// source forms in a single pass.
+    pub(super) fn source_fallback_translation(
+        &self,
+        translation: &BTreeMap<String, String>,
+        source: &PluralSource,
+    ) -> BTreeMap<String, String> {
+        self.categories
+            .iter()
+            .map(|category| {
+                let value = translation
+                    .get(*category)
+                    .filter(|value| !value.is_empty())
+                    .cloned()
+                    .unwrap_or_else(|| self.source_locale_value(category, source));
+                ((*category).to_owned(), value)
             })
             .collect()
     }
@@ -370,7 +390,10 @@ impl PluralProfile {
     ) -> BTreeMap<String, String> {
         let mut translation = BTreeMap::new();
         for category in &self.categories {
-            translation.insert(category.clone(), self.source_locale_value(category, source));
+            translation.insert(
+                (*category).to_owned(),
+                self.source_locale_value(category, source),
+            );
         }
         translation
     }
@@ -385,14 +408,19 @@ impl PluralProfile {
     pub(super) fn empty_translation(&self) -> BTreeMap<String, String> {
         self.categories
             .iter()
-            .map(|category| (category.clone(), String::new()))
+            .map(|category| ((*category).to_owned(), String::new()))
             .collect()
     }
 
-    pub(super) fn gettext_values(&self, translation: &BTreeMap<String, String>) -> Vec<String> {
+    /// Borrows the gettext slot values in category order; missing categories
+    /// render as empty slots.
+    pub(super) fn gettext_values<'a>(
+        &self,
+        translation: &'a BTreeMap<String, String>,
+    ) -> Vec<&'a str> {
         self.categories
             .iter()
-            .map(|category| translation.get(category).cloned().unwrap_or_default())
+            .map(|category| translation.get(*category).map_or("", String::as_str))
             .collect()
     }
 
@@ -410,21 +438,21 @@ impl PluralProfile {
     reason = "ICU projection remains available for lazy/on-demand bridges."
 )]
 pub(super) fn materialize_plural_categories(
-    categories: &[String],
+    categories: &[&'static str],
     translation: &BTreeMap<String, String>,
 ) -> BTreeMap<String, String> {
     categories
         .iter()
         .map(|category| {
             (
-                category.clone(),
-                translation.get(category).cloned().unwrap_or_default(),
+                (*category).to_owned(),
+                translation.get(*category).cloned().unwrap_or_default(),
             )
         })
         .collect()
 }
 
-pub(super) fn icu_plural_categories_for(locale: &str) -> Option<Vec<String>> {
+pub(super) fn icu_plural_categories_for(locale: &str) -> Option<Vec<&'static str>> {
     static CACHE: OnceLock<PluralCategoryCache> = OnceLock::new();
 
     cached_icu_plural_categories_for(locale, CACHE.get_or_init(|| Mutex::new(HashMap::new())))
@@ -438,7 +466,7 @@ pub(super) fn icu_plural_categories_for(locale: &str) -> Option<Vec<String>> {
 pub(super) fn cached_icu_plural_categories_for(
     locale: &str,
     cache: &PluralCategoryCache,
-) -> Option<Vec<String>> {
+) -> Option<Vec<&'static str>> {
     let normalized = normalize_plural_locale(locale);
     if normalized.is_empty() {
         return None;
@@ -456,13 +484,7 @@ pub(super) fn cached_icu_plural_categories_for(
         .parse::<Locale>()
         .ok()
         .and_then(|locale| PluralRules::try_new_cardinal(locale.into()).ok())
-        .map(|rules| {
-            rules
-                .categories()
-                .map(plural_category_name)
-                .map(str::to_owned)
-                .collect::<Vec<_>>()
-        });
+        .map(|rules| rules.categories().map(plural_category_name).collect());
 
     match cache.lock() {
         Ok(mut guard) => {
@@ -483,10 +505,6 @@ fn normalize_plural_locale(locale: &str) -> String {
 fn normalized_locale(locale: Option<&str>) -> Option<String> {
     let normalized = normalize_plural_locale(locale?);
     (!normalized.is_empty()).then_some(normalized)
-}
-
-fn static_categories(categories: &[&str]) -> Vec<String> {
-    categories.iter().copied().map(str::to_owned).collect()
 }
 
 fn gettext_plural_rule_for_normalized(locale: &str) -> Option<GettextPluralRule> {
@@ -546,28 +564,31 @@ const fn plural_category_name(category: PluralCategory) -> &'static str {
 
 /// Produces a deterministic fallback category order when locale-derived CLDR
 /// categories are unavailable or incompatible with the observed slot count.
-pub(super) fn fallback_plural_categories(nplurals: Option<usize>) -> Vec<String> {
-    let categories = match nplurals.unwrap_or(2) {
+pub(super) fn fallback_plural_categories(nplurals: Option<usize>) -> Vec<&'static str> {
+    match nplurals.unwrap_or(2) {
         0 | 1 => vec!["other"],
         2 => vec!["one", "other"],
         3 => vec!["one", "few", "other"],
         4 => vec!["one", "few", "many", "other"],
         5 => vec!["zero", "one", "few", "many", "other"],
         _ => vec!["zero", "one", "two", "few", "many", "other"],
-    };
-
-    categories.into_iter().map(str::to_owned).collect()
+    }
 }
 
-/// Keeps plural categories in the canonical CLDR-like order expected by
+/// Keeps plural branches in the canonical CLDR-like order expected by
 /// import/export code and guarantees that `other` is present at the end.
-pub(super) fn sorted_plural_keys(map: &BTreeMap<String, String>) -> Vec<String> {
-    let mut keys: Vec<_> = map.keys().cloned().collect();
-    keys.sort_by_key(|key| plural_key_rank(key));
-    if !keys.iter().any(|key| key == "other") {
-        keys.push("other".to_owned());
+///
+/// Branches borrow from `map` so that ordering never clones catalog strings.
+fn ordered_plural_branches(map: &BTreeMap<String, String>) -> Vec<(&str, &str)> {
+    let mut branches: Vec<(&str, &str)> = map
+        .iter()
+        .map(|(key, value)| (key.as_str(), value.as_str()))
+        .collect();
+    branches.sort_by_key(|(key, _)| plural_key_rank(key));
+    if !branches.iter().any(|(key, _)| *key == "other") {
+        branches.push(("other", ""));
     }
-    keys
+    branches
 }
 
 fn plural_key_rank(key: &str) -> usize {
@@ -607,14 +628,37 @@ pub(super) fn derive_plural_variable(
 
 /// Re-synthesizes a structured plural map into a top-level ICU plural string.
 pub(super) fn synthesize_icu_plural(variable: &str, branches: &BTreeMap<String, String>) -> String {
-    let mut out = String::new();
+    render_icu_plural(variable, &ordered_plural_branches(branches))
+}
+
+/// Synthesizes the ICU plural string for the source forms without building an
+/// intermediate branch map.
+pub(super) fn synthesize_icu_plural_source(variable: &str, source: &PluralSource) -> String {
+    match source.one.as_deref() {
+        Some(one) => render_icu_plural(variable, &[("one", one), ("other", &source.other)]),
+        None => render_icu_plural(variable, &[("other", &source.other)]),
+    }
+}
+
+/// Renders already-ordered `(category, value)` branches, presizing the output so
+/// the buffer never has to grow.
+fn render_icu_plural(variable: &str, branches: &[(&str, &str)]) -> String {
+    // `{` + variable + `, plural,` + branches + `}`, where every branch costs
+    // ` ` + category + ` {` + value + `}`.
+    let capacity = variable.len()
+        + 10
+        + branches
+            .iter()
+            .map(|(category, value)| category.len() + value.len() + 4)
+            .sum::<usize>();
+
+    let mut out = String::with_capacity(capacity);
     out.push('{');
     out.push_str(variable);
     out.push_str(", plural,");
-    for category in sorted_plural_keys(branches) {
-        let value = branches.get(&category).map_or("", String::as_str);
+    for (category, value) in branches {
         out.push(' ');
-        out.push_str(&category);
+        out.push_str(category);
         out.push_str(" {");
         out.push_str(value);
         out.push('}');
@@ -919,7 +963,8 @@ mod tests {
         PluralProfile, cached_icu_plural_categories_for, derive_plural_variable,
         expected_gettext_nplurals_for_locale, fallback_plural_categories,
         looks_like_projectable_icu_plural, materialize_plural_categories, normalize_plural_locale,
-        project_icu_plural, sorted_plural_keys, split_icu_kind, synthesize_icu_plural,
+        ordered_plural_branches, project_icu_plural, split_icu_kind, synthesize_icu_plural,
+        synthesize_icu_plural_source,
     };
 
     #[test]
@@ -976,10 +1021,7 @@ mod tests {
             ]),
         );
         assert_eq!(profile.nplurals(), 2);
-        assert_eq!(
-            profile.categories(),
-            &["one".to_owned(), "other".to_owned()]
-        );
+        assert_eq!(profile.categories(), &["one", "other"]);
         assert_eq!(
             profile.materialize_translation(&BTreeMap::from([(
                 "other".to_owned(),
@@ -1012,7 +1054,7 @@ mod tests {
                 ("one".to_owned(), "eins".to_owned()),
                 ("other".to_owned(), "viele".to_owned()),
             ])),
-            vec!["eins".to_owned(), "viele".to_owned()]
+            vec!["eins", "viele"]
         );
         assert_eq!(
             profile.gettext_header().as_deref(),
@@ -1020,7 +1062,7 @@ mod tests {
         );
         assert_eq!(
             materialize_plural_categories(
-                &["one".to_owned(), "other".to_owned()],
+                &["one", "other"],
                 &BTreeMap::from([("one".to_owned(), "eins".to_owned())]),
             ),
             BTreeMap::from([
@@ -1051,9 +1093,8 @@ mod tests {
 
         for (locale, header, categories) in cases {
             let profile = PluralProfile::for_gettext_locale(Some(locale));
-            let expected_categories = static_test_categories(categories);
             assert_eq!(profile.gettext_header().as_deref(), Some(header));
-            assert_eq!(profile.categories(), expected_categories);
+            assert_eq!(profile.categories(), categories);
             assert_eq!(
                 expected_gettext_nplurals_for_locale(Some(locale)),
                 Some(categories.len())
@@ -1070,31 +1111,21 @@ mod tests {
 
     #[test]
     fn plural_category_fallbacks_and_sorting_are_deterministic() {
-        assert_eq!(
-            fallback_plural_categories(Some(1)),
-            vec!["other".to_owned()]
-        );
+        assert_eq!(fallback_plural_categories(Some(1)), vec!["other"]);
         assert_eq!(
             fallback_plural_categories(Some(3)),
-            vec!["one".to_owned(), "few".to_owned(), "other".to_owned()]
+            vec!["one", "few", "other"]
         );
         assert_eq!(
             fallback_plural_categories(Some(7)),
-            vec![
-                "zero".to_owned(),
-                "one".to_owned(),
-                "two".to_owned(),
-                "few".to_owned(),
-                "many".to_owned(),
-                "other".to_owned(),
-            ]
+            vec!["zero", "one", "two", "few", "many", "other"]
         );
         assert_eq!(
-            sorted_plural_keys(&BTreeMap::from([
+            ordered_plural_branches(&BTreeMap::from([
                 ("many".to_owned(), "viele".to_owned()),
                 ("one".to_owned(), "eins".to_owned()),
             ])),
-            vec!["one".to_owned(), "many".to_owned(), "other".to_owned()]
+            vec![("one", "eins"), ("many", "viele"), ("other", "")]
         );
     }
 
@@ -1140,6 +1171,26 @@ mod tests {
             ]),
         );
         assert_eq!(synthesized, "{count, plural, one {# file} other {# files}}");
+        assert_eq!(
+            synthesize_icu_plural_source(
+                "count",
+                &super::PluralSource {
+                    one: Some("# file".to_owned()),
+                    other: "# files".to_owned(),
+                },
+            ),
+            synthesized
+        );
+        assert_eq!(
+            synthesize_icu_plural_source(
+                "count",
+                &super::PluralSource {
+                    one: None,
+                    other: "# files".to_owned(),
+                },
+            ),
+            "{count, plural, other {# files}}"
+        );
 
         assert!(matches!(
             project_icu_plural("{count, plural, offset:1 one {# file} other {# files}}"),
@@ -1218,26 +1269,13 @@ mod tests {
         assert!(
             cached_icu_plural_categories_for("de", &cache)
                 .expect("categories")
-                .iter()
-                .any(|category| category == "other")
+                .contains(&"other")
         );
         let synthetic = PluralProfile::for_gettext_slots(Some("fr"), Some(4));
-        assert_eq!(
-            synthetic.categories(),
-            &[
-                "one".to_owned(),
-                "few".to_owned(),
-                "many".to_owned(),
-                "other".to_owned()
-            ]
-        );
+        assert_eq!(synthetic.categories(), &["one", "few", "many", "other"]);
         assert_eq!(
             PluralProfile::for_gettext_slots(Some("und"), Some(1)).nplurals(),
             1
         );
-    }
-
-    fn static_test_categories(categories: &[&str]) -> Vec<String> {
-        categories.iter().copied().map(str::to_owned).collect()
     }
 }

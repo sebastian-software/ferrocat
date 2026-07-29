@@ -256,17 +256,9 @@ impl CatalogMessage {
                 ..
             } => {
                 let profile = PluralProfile::for_locale(locale);
-                let mut effective = profile.materialize_translation(translation);
-                for category in profile.categories() {
-                    let should_fill = effective.get(category).is_none_or(String::is_empty);
-                    if should_fill {
-                        effective.insert(
-                            category.clone(),
-                            profile.source_locale_value(category, source),
-                        );
-                    }
-                }
-                EffectiveTranslation::Plural(effective)
+                EffectiveTranslation::Plural(
+                    profile.source_fallback_translation(translation, source),
+                )
             }
         }
     }

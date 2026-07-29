@@ -13,12 +13,12 @@ use super::catalog::{
     CanonicalMessage, CanonicalTranslation, Catalog, parse_origin, split_placeholder_comments,
 };
 use super::collation::{CollationKey, CollationPrefix, collation_key, collation_prefix};
-use super::export::{for_each_placeholder_comment, plural_source_branches};
+use super::export::for_each_placeholder_comment;
 use super::mt::{
     MachineMetadata, format_ai_descriptor, machine_translation_hash, parse_ai_descriptor,
     validate_machine_metadata,
 };
-use super::plural::synthesize_icu_plural;
+use super::plural::{synthesize_icu_plural, synthesize_icu_plural_source};
 use super::{
     ApiError, CatalogOrigin, CatalogSemantics, EffectiveTranslationRef, ObsoleteInfo, RenderOptions,
 };
@@ -126,10 +126,7 @@ fn fcl_id(message: &CanonicalMessage) -> Cow<'_, str> {
         CanonicalTranslation::Singular { .. } => Cow::Borrowed(message.msgid.as_str()),
         CanonicalTranslation::Plural {
             source, variable, ..
-        } => Cow::Owned(synthesize_icu_plural(
-            variable,
-            &plural_source_branches(source),
-        )),
+        } => Cow::Owned(synthesize_icu_plural_source(variable, source)),
     }
 }
 

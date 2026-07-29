@@ -48,23 +48,51 @@ fn estimate_capacity(file: &PoFile) -> usize {
         .items
         .iter()
         .map(|item| {
-            item.msgid.len()
-                + item.msgctxt.as_ref().map_or(0, String::len)
-                + item.msgid_plural.as_ref().map_or(0, String::len)
-                + item.msgstr.iter().map(str::len).sum::<usize>()
-                + item.comments.iter().map(String::len).sum::<usize>()
+            // Keyword lines carry a fixed overhead (`msgid ""\n`, `msgstr[n] ""\n`,
+            // the blank separator) and every comment, reference or flag line adds
+            // its own prefix plus newline; counting only payload bytes would make
+            // the buffer grow for most real catalogs.
+            ITEM_LINE_OVERHEAD
+                + item.msgid.len()
+                + item
+                    .msgctxt
+                    .as_ref()
+                    .map_or(0, |context| context.len() + 12)
+                + item
+                    .msgid_plural
+                    .as_ref()
+                    .map_or(0, |plural| plural.len() + 17)
+                + item
+                    .msgstr
+                    .iter()
+                    .map(|value| value.len() + 14)
+                    .sum::<usize>()
+                + item
+                    .comments
+                    .iter()
+                    .map(|comment| comment.len() + LINE_PREFIX_OVERHEAD)
+                    .sum::<usize>()
                 + item
                     .extracted_comments
                     .iter()
-                    .map(String::len)
+                    .map(|comment| comment.len() + LINE_PREFIX_OVERHEAD)
                     .sum::<usize>()
-                + item.references.iter().map(String::len).sum::<usize>()
-                + item.flags.iter().map(String::len).sum::<usize>()
+                + item
+                    .references
+                    .iter()
+                    .map(|reference| reference.len() + LINE_PREFIX_OVERHEAD)
+                    .sum::<usize>()
+                + item.flags.iter().map(|flag| flag.len() + 4).sum::<usize>()
         })
         .sum();
 
     headers_len + items_len + 256
 }
+
+/// `msgid ""\n` plus the blank line between items.
+const ITEM_LINE_OVERHEAD: usize = 12;
+/// A `#. ` style prefix plus the trailing newline.
+const LINE_PREFIX_OVERHEAD: usize = 4;
 
 fn push_prefixed_comment(out: &mut String, prefix: &str, comment: &str) {
     out.push_str(prefix);

@@ -883,7 +883,7 @@ fn import_message_from_po(
                         .map(Cow::into_owned)
                         .chain(std::iter::repeat_with(String::new)),
                 )
-                .map(|(category, value)| (category.clone(), value))
+                .map(|(category, value)| ((*category).to_owned(), value))
                 .collect(),
             variable: "count".to_owned(),
         }
