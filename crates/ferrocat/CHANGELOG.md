@@ -26,6 +26,18 @@
 - Active PO and FCL fuzzy entries no longer count as translated, including in
   the coverage rollups embedded in review reports.
 
+## [3.2.2](https://github.com/sebastian-software/ferrocat/compare/ferrocat-v3.2.1...ferrocat-v3.2.2) (2026-07-30)
+
+
+### Bug Fixes
+
+* **deps:** merge pnpm 11.18.0 update ([1e720ba](https://github.com/sebastian-software/ferrocat/commit/1e720ba745ca42f44b56ee7be7168691569e0a9d))
+* **deps:** merge React 19.2.8 update ([860555a](https://github.com/sebastian-software/ferrocat/commit/860555a3e6746b7808b4a552da04e26ed53de32f))
+* **deps:** merge setup-node v7 update ([2429fb3](https://github.com/sebastian-software/ferrocat/commit/2429fb3805bf2f51448638e5197cdc13e7d5d980))
+* **deps:** update pnpm to 11.18.0 ([b1f1b9d](https://github.com/sebastian-software/ferrocat/commit/b1f1b9d78784f5b9551abc74039c355960a19691))
+* **deps:** update React to 19.2.8 ([6c6d496](https://github.com/sebastian-software/ferrocat/commit/6c6d4969ba9a14b1bdd9a78afcb0f022e04a8576))
+* **deps:** update setup-node action to v7 ([9dc5715](https://github.com/sebastian-software/ferrocat/commit/9dc5715200179d09b859708f72a8db304f0ee417))
+
 ## [3.2.1](https://github.com/sebastian-software/ferrocat/compare/ferrocat-v3.2.0...ferrocat-v3.2.1) (2026-07-30)
 
 
