@@ -120,6 +120,8 @@ fn estimate_catalog_po_capacity(catalog: &Catalog) -> usize {
                 + message
                     .comments
                     .iter()
+                    .chain(message.translator_comments())
+                    .chain(message.flags())
                     .map(|comment| comment.len() + COMMENT_LINE_OVERHEAD)
                     .sum::<usize>()
                 + message
@@ -301,6 +303,11 @@ fn write_catalog_po_metadata(
     message: &CanonicalMessage,
     options: &UpdateCatalogOptions<'_>,
 ) {
+    // gettext canonical order: translator `#` comments, extracted `#.` comments,
+    // `#@` metadata, `#:` references, then the `#,` flag line.
+    for comment in message.translator_comments() {
+        write_prefixed_line(out, obsolete_prefix, "#", comment);
+    }
     for comment in &message.comments {
         write_prefixed_line(out, obsolete_prefix, "#.", comment);
     }
@@ -327,6 +334,27 @@ fn write_catalog_po_metadata(
     if options.render.include_origins {
         write_origin_references(out, obsolete_prefix, message.origins.as_slice());
     }
+
+    write_flags(out, obsolete_prefix, message.flags());
+}
+
+/// Writes the single `#, flag1, flag2` line for one message.
+///
+/// Flags are opaque to the catalog layer: they render in stored order, verbatim,
+/// and only when the message actually carries some.
+fn write_flags(out: &mut String, obsolete_prefix: &str, flags: &[String]) {
+    let Some((first, rest)) = flags.split_first() else {
+        return;
+    };
+
+    out.push_str(obsolete_prefix);
+    out.push_str("#, ");
+    out.push_str(first);
+    for flag in rest {
+        out.push_str(", ");
+        out.push_str(flag);
+    }
+    out.push('\n');
 }
 
 /// Writes the `#: ` reference lines for one message.
@@ -512,6 +540,7 @@ mod tests {
             msgctxt: None,
             translation,
             comments: Vec::new(),
+            opaque: None,
             origins: vec![CatalogOrigin {
                 file: "src/lib.rs".to_owned(),
                 scope: None,

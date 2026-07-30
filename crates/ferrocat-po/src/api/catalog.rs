@@ -45,16 +45,85 @@ pub(super) struct Catalog {
     pub(super) diagnostics: Vec<Diagnostic>,
 }
 
+/// One catalog entry in the canonical internal model.
+///
+/// `opaque` is deliberately internal: the catalog layer gives translator
+/// comments and flags no semantics (see
+/// [ADR 0027](/architecture/adr/0027-opaque-po-metadata-roundtrip)), it only
+/// keeps them attached to the `(msgctxt, msgid)` identity so a source-first
+/// update does not destroy translator-owned metadata. They are not projected
+/// into the public [`CatalogMessage`].
+///
+/// Do not shrink the other fields to "compensate" for the extra one:
+/// `size_of::<CanonicalMessage>()` must stay `>= size_of::<CatalogMessage>()`
+/// or std's in-place-collect specialization in `parse_catalog` silently stops
+/// reusing the allocation.
 #[derive(Debug, Clone, PartialEq)]
 pub(super) struct CanonicalMessage {
     pub(super) msgid: String,
     pub(super) msgctxt: Option<String>,
     pub(super) translation: CanonicalTranslation,
     pub(super) comments: Vec<String>,
+    /// Opaque PO round-trip metadata; `None` for the overwhelming majority of
+    /// messages, so the common case costs one pointer instead of two inline
+    /// vectors taxing every message move.
+    pub(super) opaque: Option<Box<OpaqueMetadata>>,
     pub(super) origins: PoVec<CatalogOrigin>,
     pub(super) placeholders: BTreeMap<String, Vec<String>>,
     pub(super) obsolete: Option<ObsoleteInfo>,
     pub(super) machine: Option<MachineMetadata>,
+}
+
+/// Translator-owned `#` comments and per-entry `#,` flags, preserved opaquely
+/// across updates and never interpreted (ADR 0027).
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub(super) struct OpaqueMetadata {
+    pub(super) translator_comments: Vec<String>,
+    pub(super) flags: Vec<String>,
+}
+
+impl CanonicalMessage {
+    /// Translator-owned `#` comments from the opaque block; empty when absent.
+    pub(super) fn translator_comments(&self) -> &[String] {
+        self.opaque
+            .as_deref()
+            .map_or(&[], |opaque| opaque.translator_comments.as_slice())
+    }
+
+    /// Per-entry `#,` flags from the opaque block; empty when absent.
+    pub(super) fn flags(&self) -> &[String] {
+        self.opaque
+            .as_deref()
+            .map_or(&[], |opaque| opaque.flags.as_slice())
+    }
+}
+
+/// Whether an import keeps the opaque PO round-trip metadata.
+///
+/// The public `parse_catalog` projection has no slot for it, so building the
+/// block there would only be allocated-and-dropped churn on every parse;
+/// update and combine flows must keep it (ADR 0027).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum OpaqueCapture {
+    Keep,
+    Discard,
+}
+
+impl OpaqueMetadata {
+    /// Boxes the metadata when any of it exists; empty metadata stays `None`.
+    pub(super) fn from_parts(
+        translator_comments: Vec<String>,
+        flags: Vec<String>,
+    ) -> Option<Box<Self>> {
+        if translator_comments.is_empty() && flags.is_empty() {
+            None
+        } else {
+            Some(Box::new(Self {
+                translator_comments,
+                flags,
+            }))
+        }
+    }
 }
 
 /// PO metadata key carrying the obsolete-since date (see [`ObsoleteInfo`]).
@@ -151,6 +220,7 @@ pub fn update_catalog(
             options.mode.plural_encoding(),
             false,
             options.mode.storage_format(),
+            OpaqueCapture::Keep,
         )?,
         Some(_) | None => Catalog {
             locale: options.locale.map(str::to_owned),
@@ -263,6 +333,7 @@ pub fn parse_catalog(options: ParseCatalogOptions<'_>) -> Result<ParsedCatalog, 
         options.mode.plural_encoding(),
         options.strict,
         options.mode.storage_format(),
+        OpaqueCapture::Discard,
     )?;
     let messages = catalog
         .messages
@@ -568,8 +639,10 @@ fn merge_message(
 
     // Decide the non-translation half of "did this message change?" while the
     // previous payload is still around. `msgid`/`msgctxt` always match because
-    // they are the identity the previous message was looked up by, and `machine`
-    // is carried over verbatim, so only these fields can differ.
+    // they are the identity the previous message was looked up by, and
+    // `machine`, `translator_comments`, and `flags` are carried over verbatim
+    // (the extractor input has no such fields, so they cannot differ from
+    // themselves), so only these fields can differ.
     let payload_changed = previous.as_ref().is_some_and(|previous| {
         previous.obsolete.is_some()
             || previous.comments != comments
@@ -578,14 +651,17 @@ fn merge_message(
     });
 
     // Everything else in the previous message is superseded by the extracted
-    // one, so keep only what the merge reuses and drop the rest here.
-    let (previous_translation, machine) = match previous {
+    // one, so keep only what the merge reuses and drop the rest here. The
+    // opaque translator metadata is identity-stable: it moves across for a
+    // matched entry and a new identity starts empty, never inheriting.
+    let (previous_translation, machine, opaque) = match previous {
         Some(CanonicalMessage {
             translation,
             machine,
+            opaque,
             ..
-        }) => (Some(translation), machine),
-        None => (None, None),
+        }) => (Some(translation), machine, opaque),
+        None => (None, None, None),
     };
     let had_previous = previous_translation.is_some();
 
@@ -676,6 +752,7 @@ fn merge_message(
             msgctxt,
             translation,
             comments,
+            opaque,
             origins,
             placeholders,
             obsolete: None,
@@ -821,6 +898,10 @@ fn apply_storage_defaults(
 ///
 /// Keeping this internal representation stable lets the public APIs share one
 /// import path before they diverge into normalized lookup or update/export work.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "Internal fan-in shared by every catalog read path; a config struct would only relabel the same eight decisions."
+)]
 pub(super) fn parse_catalog_to_internal(
     content: &str,
     locale_override: Option<&str>,
@@ -829,6 +910,7 @@ pub(super) fn parse_catalog_to_internal(
     plural_encoding: PluralEncoding,
     strict: bool,
     storage_format: CatalogStorageFormat,
+    opaque_capture: OpaqueCapture,
 ) -> Result<Catalog, ApiError> {
     match storage_format {
         CatalogStorageFormat::Po => parse_catalog_to_internal_po(
@@ -837,6 +919,7 @@ pub(super) fn parse_catalog_to_internal(
             semantics,
             plural_encoding,
             strict,
+            opaque_capture,
         ),
         CatalogStorageFormat::Fcl => super::fcl::parse_catalog_to_internal_fcl(
             content,
@@ -844,6 +927,7 @@ pub(super) fn parse_catalog_to_internal(
             source_locale,
             semantics,
             strict,
+            opaque_capture,
         ),
     }
 }
@@ -854,6 +938,7 @@ fn parse_catalog_to_internal_po(
     semantics: CatalogSemantics,
     _plural_encoding: PluralEncoding,
     strict: bool,
+    opaque_capture: OpaqueCapture,
 ) -> Result<Catalog, ApiError> {
     // The borrowed parser keeps every field as a slice of `content`, so each
     // retained value is allocated exactly once below, directly into its
@@ -892,6 +977,7 @@ fn parse_catalog_to_internal_po(
             &mut plural_profiles,
             nplurals,
             semantics,
+            opaque_capture,
             strict,
             &mut diagnostics,
         )?;
@@ -921,12 +1007,23 @@ fn import_message_from_po(
     plural_profiles: &mut GettextPluralProfiles<'_>,
     nplurals: Option<usize>,
     semantics: CatalogSemantics,
+    opaque_capture: OpaqueCapture,
     _strict: bool,
     _diagnostics: &mut Vec<Diagnostic>,
 ) -> Result<CanonicalMessage, ApiError> {
-    // Extracted (`#.`) and translator (`#`) comments collapse into one notes list.
-    let (mut comments, placeholders) = split_placeholder_comments(item.extracted_comments);
-    comments.extend(item.comments.into_iter().map(Cow::into_owned));
+    // Extractor-owned `#.` comments feed the canonical notes list (after the
+    // placeholder split); translator-owned `#` comments and `#,` flags are kept
+    // separately and opaquely so an update cannot rewrite or drop them.
+    let (comments, placeholders) = split_placeholder_comments(item.extracted_comments);
+    // The public parse projection has no slot for the opaque block, so it
+    // skips building it instead of allocating strings only to drop them.
+    let opaque = match opaque_capture {
+        OpaqueCapture::Keep => OpaqueMetadata::from_parts(
+            item.comments.into_iter().map(Cow::into_owned).collect(),
+            item.flags.into_iter().map(Cow::into_owned).collect(),
+        ),
+        OpaqueCapture::Discard => None,
+    };
     let origins = item.references.into_iter().map(parse_origin).collect();
 
     let translation = if let Some(msgid_plural) = item.msgid_plural {
@@ -974,6 +1071,7 @@ fn import_message_from_po(
         msgctxt: item.msgctxt.map(Cow::into_owned),
         translation,
         comments,
+        opaque,
         origins,
         placeholders,
         obsolete: import_obsolete(item.obsolete, &item.metadata),
@@ -1203,6 +1301,9 @@ fn validate_plural_forms_header(
 }
 
 /// Rebuilds the public `CatalogMessage` shape from the canonical internal form.
+///
+/// `translator_comments` and `flags` stay internal: they are round-trip state,
+/// not catalog semantics, so the public message shape is unchanged.
 pub(super) fn public_message_from_canonical(message: CanonicalMessage) -> CatalogMessage {
     let translation = match message.translation {
         CanonicalTranslation::Singular { value } => TranslationShape::Singular { value },
@@ -1354,6 +1455,7 @@ mod tests {
                 value: String::new(),
             },
             comments: Vec::new(),
+            opaque: None,
             origins: PoVec::from(vec![CatalogOrigin {
                 file: file.to_owned(),
                 scope: None,

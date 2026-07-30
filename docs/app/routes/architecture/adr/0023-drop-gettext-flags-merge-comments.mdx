@@ -6,8 +6,16 @@ order: 230
 
 # ADR 0023: Drop gettext Flags and Merge Comments
 
-- Status: Accepted (2.0.0)
+- Status: Accepted (2.0.0), partially superseded by [ADR 0027](/architecture/adr/0027-opaque-po-metadata-roundtrip)
 - Date: 2026-06-30
+
+> [ADR 0027](/architecture/adr/0027-opaque-po-metadata-roundtrip) supersedes the
+> *lossy* half of this record. Flags and the comment-kind split still carry no
+> semantic meaning in the catalog layer, but they are no longer discarded: they
+> are preserved opaquely against the message identity through update and
+> combine, and FCL regains `tc=` and `f=` tags for them. Everything below about
+> semantics — no `Fuzzy` status, no fuzzy audit check, no coverage counter —
+> still holds.
 
 ## Context
 

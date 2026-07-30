@@ -770,6 +770,19 @@ Compared with `merge_catalog`, this is the "full semantics" path. It is the bett
 
 `UpdateCatalogOptions` borrows locale strings, optional existing content, and optional custom-header maps. The extracted message payload itself stays owned, because that is usually the natural shape for upstream extractor output.
 
+An update splits per-entry metadata by who owns it. Extractor-owned metadata is
+refreshed from the incoming messages: `#.` extracted comments and `#:` source
+references are replaced by whatever the extractor reports this run.
+Translator-owned metadata is preserved: `#` translator comments and `#,` flags
+stay attached to the `(msgctxt, msgid)` identity, including through the
+transition to obsolete and back, and a new entry never inherits them from an
+unrelated identity. Flags are kept opaquely and are not interpreted — `fuzzy`
+does not produce a status and unknown flags such as `x-custom` survive verbatim.
+`combine_catalogs` and `combine_catalog_files` attach this metadata to the
+definition that wins the entry rather than merging it across inputs. FCL stores
+the same two fields as the `tc=` and `f=` entry tags. See
+[ADR 0027](/architecture/adr/0027-opaque-po-metadata-roundtrip).
+
 `RenderOptions::order_by` keeps `OrderBy::Msgid` as the default and sorts
 `msgid`, then context, with the CLDR root order used by
 `Intl.Collator("en-US")`. This matches Lingui's punctuation, case, accent, and

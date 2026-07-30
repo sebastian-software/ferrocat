@@ -240,6 +240,10 @@ impl CombineState {
 /// translations, and non-empty translation conflicts are resolved or rejected
 /// according to [`CatalogConflictStrategy`].
 ///
+/// Translator-owned metadata (translator comments and per-entry flags) is the
+/// exception to cumulation: it is carried from the definition that wins the
+/// entry value rather than unioned across inputs.
+///
 /// # Errors
 ///
 /// Returns [`ApiError`] when required options are missing, an input cannot be
@@ -353,6 +357,7 @@ fn parse_combine_catalog(content: &str, config: CombineConfig<'_>) -> Result<Cat
         config.mode.plural_encoding(),
         false,
         config.mode.storage_format(),
+        super::catalog::OpaqueCapture::Keep,
     )
 }
 
@@ -399,7 +404,7 @@ fn input_label(label: Option<&str>, index: usize) -> String {
 
 fn merge_combine_message(
     entry: &mut CombineEntry,
-    message: CanonicalMessage,
+    mut message: CanonicalMessage,
     labels: &[String],
     conflict_strategy: CatalogConflictStrategy,
     stats: &mut CatalogCombineStats,
@@ -452,6 +457,22 @@ fn merge_combine_message(
             .flatten();
     } else if translation_merge.matches_source && entry.message.machine.is_none() {
         entry.message.machine = message.machine.clone();
+    }
+
+    // Opaque translator metadata belongs to whichever definition ends up owning
+    // the entry value, and moves as one block. Unioning it across inputs would
+    // invent comments and flags no single catalog ever declared. Ownership
+    // mirrors the machine-metadata rule above: the incoming definition owns the
+    // value only when the merged translation equals its translation, and a
+    // value composed from several definitions (a partial plural fill) is owned
+    // by none of them, so its metadata clears.
+    if translation_merge.changed {
+        entry.message.opaque = translation_merge
+            .matches_source
+            .then(|| message.opaque.take())
+            .flatten();
+    } else if translation_merge.matches_source && entry.message.opaque.is_none() {
+        entry.message.opaque = message.opaque.take();
     }
 
     merge_combine_metadata(&mut entry.message, message);

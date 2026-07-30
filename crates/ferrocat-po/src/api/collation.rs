@@ -515,6 +515,7 @@ mod tests {
                 value: String::new(),
             },
             comments: Vec::new(),
+            opaque: None,
             origins: Default::default(),
             placeholders: Default::default(),
             obsolete: None,

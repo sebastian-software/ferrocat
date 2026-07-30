@@ -10,7 +10,8 @@ use std::borrow::Cow;
 use std::collections::{BTreeMap, BTreeSet};
 
 use super::catalog::{
-    CanonicalMessage, CanonicalTranslation, Catalog, parse_origin, split_placeholder_comments,
+    CanonicalMessage, CanonicalTranslation, Catalog, OpaqueCapture, OpaqueMetadata, parse_origin,
+    split_placeholder_comments,
 };
 use super::collation::{CollationKey, CollationPrefix, collation_key, collation_prefix};
 use super::export::for_each_placeholder_comment;
@@ -149,7 +150,7 @@ fn write_entry(out: &mut String, message: &CanonicalMessage, render: &RenderOpti
     out.push('\t');
     escape_into(out, &fcl_target(message));
 
-    // Canonical tag order: r (sorted), c, tc, f (sorted), o, mt.*
+    // Canonical tag order: r (sorted), c, tc, f, o, lock, ai.
     if render.include_origins {
         // References are file-only; sort for determinism and drop duplicates that
         // distinct origins can now collapse to.
@@ -183,6 +184,15 @@ fn write_entry(out: &mut String, message: &CanonicalMessage, render: &RenderOpti
             write_tag(out, "c", comment);
         },
     );
+
+    // Translator-owned notes and flags stay separate from `c` and keep their
+    // stored order; the catalog layer never interprets either.
+    for comment in message.translator_comments() {
+        write_tag(out, "tc", comment);
+    }
+    for flag in message.flags() {
+        write_tag(out, "f", flag);
+    }
 
     if let Some(info) = &message.obsolete {
         match &info.since {
@@ -374,7 +384,7 @@ fn parse_header(line: &str, source_locale: &str) -> Result<FclHeader, ApiError> 
 
 /// Parses one FCL entry line directly into a [`CanonicalMessage`], building the
 /// owned fields in a single pass without an intermediate record.
-fn parse_entry(line: &str) -> Result<CanonicalMessage, ApiError> {
+fn parse_entry(line: &str, opaque_capture: OpaqueCapture) -> Result<CanonicalMessage, ApiError> {
     let mut fields = SplitTab::new(line.as_bytes());
     let msgid = unescape(field(&mut fields, "id")?)?.into_owned();
     let ctx_raw = unescape(field(&mut fields, "ctxt")?)?.into_owned();
@@ -383,6 +393,8 @@ fn parse_entry(line: &str) -> Result<CanonicalMessage, ApiError> {
     let msgctxt = (!ctx_raw.is_empty()).then_some(ctx_raw);
     let mut origins: PoVec<CatalogOrigin> = PoVec::new();
     let mut raw_comments: Vec<Cow<'_, str>> = Vec::new();
+    let mut translator_comments: Vec<String> = Vec::new();
+    let mut flags: Vec<String> = Vec::new();
     let mut obsolete: Option<ObsoleteInfo> = None;
     let mut lock = None;
     let mut ai = None;
@@ -390,7 +402,7 @@ fn parse_entry(line: &str) -> Result<CanonicalMessage, ApiError> {
 
     for tag in fields {
         if tag == b"o" {
-            validate_tag_order(&mut last_tag_rank, 2, "o")?;
+            validate_tag_order(&mut last_tag_rank, TAG_RANK_OBSOLETE, "o")?;
             set_obsolete(&mut obsolete, None)?;
             continue;
         }
@@ -402,19 +414,27 @@ fn parse_entry(line: &str) -> Result<CanonicalMessage, ApiError> {
         let value = unescape(input_slice_as_str(raw_value))?;
         match key {
             b"r" => {
-                validate_tag_order(&mut last_tag_rank, 0, "r")?;
+                validate_tag_order(&mut last_tag_rank, TAG_RANK_REFERENCE, "r")?;
                 origins.push(parse_origin(value));
             }
             b"c" => {
-                validate_tag_order(&mut last_tag_rank, 1, "c")?;
+                validate_tag_order(&mut last_tag_rank, TAG_RANK_COMMENT, "c")?;
                 raw_comments.push(value);
             }
+            b"tc" => {
+                validate_tag_order(&mut last_tag_rank, TAG_RANK_TRANSLATOR_COMMENT, "tc")?;
+                translator_comments.push(value.into_owned());
+            }
+            b"f" => {
+                validate_tag_order(&mut last_tag_rank, TAG_RANK_FLAG, "f")?;
+                flags.push(value.into_owned());
+            }
             b"o" => {
-                validate_tag_order(&mut last_tag_rank, 2, "o")?;
+                validate_tag_order(&mut last_tag_rank, TAG_RANK_OBSOLETE, "o")?;
                 set_obsolete(&mut obsolete, Some(value.into_owned()))?;
             }
             b"lock" => {
-                validate_tag_order(&mut last_tag_rank, 3, "lock")?;
+                validate_tag_order(&mut last_tag_rank, TAG_RANK_LOCK, "lock")?;
                 if lock.is_some() {
                     return Err(ApiError::InvalidArguments(
                         "duplicate FCL tag `lock`".to_owned(),
@@ -423,7 +443,7 @@ fn parse_entry(line: &str) -> Result<CanonicalMessage, ApiError> {
                 lock = Some(value.into_owned());
             }
             b"ai" => {
-                validate_tag_order(&mut last_tag_rank, 4, "ai")?;
+                validate_tag_order(&mut last_tag_rank, TAG_RANK_AI, "ai")?;
                 if ai.is_some() {
                     return Err(ApiError::InvalidArguments(
                         "duplicate FCL tag `ai`".to_owned(),
@@ -459,12 +479,26 @@ fn parse_entry(line: &str) -> Result<CanonicalMessage, ApiError> {
         msgctxt,
         translation: CanonicalTranslation::Singular { value },
         comments,
+        opaque: match opaque_capture {
+            OpaqueCapture::Keep => OpaqueMetadata::from_parts(translator_comments, flags),
+            OpaqueCapture::Discard => None,
+        },
         origins,
         placeholders,
         obsolete,
         machine,
     })
 }
+
+/// Canonical entry-tag order, enforced on read and produced on write:
+/// `r`, `c`, `tc`, `f`, `o`, `lock`, `ai`.
+const TAG_RANK_REFERENCE: u8 = 0;
+const TAG_RANK_COMMENT: u8 = 1;
+const TAG_RANK_TRANSLATOR_COMMENT: u8 = 2;
+const TAG_RANK_FLAG: u8 = 3;
+const TAG_RANK_OBSOLETE: u8 = 4;
+const TAG_RANK_LOCK: u8 = 5;
+const TAG_RANK_AI: u8 = 6;
 
 fn validate_tag_order(last_rank: &mut u8, rank: u8, key: &str) -> Result<(), ApiError> {
     if rank < *last_rank {
@@ -537,6 +571,7 @@ pub(super) fn parse_catalog_to_internal_fcl(
     source_locale: &str,
     semantics: CatalogSemantics,
     _strict: bool,
+    opaque_capture: OpaqueCapture,
 ) -> Result<Catalog, ApiError> {
     if semantics != CatalogSemantics::IcuNative {
         return Err(ApiError::Unsupported(
@@ -567,7 +602,7 @@ pub(super) fn parse_catalog_to_internal_fcl(
                 index + 1
             )));
         }
-        let message = parse_entry(line).map_err(|error| {
+        let message = parse_entry(line, opaque_capture).map_err(|error| {
             ApiError::InvalidArguments(format!("invalid FCL entry on line {}: {error}", index + 1))
         })?;
         // Legacy bytewise and declared collated order both keep equal identities
@@ -616,14 +651,22 @@ pub(super) fn parse_catalog_to_internal_fcl(
 
 #[cfg(test)]
 mod tests {
-    use super::{FCL_MAGIC, parse_catalog_to_internal_fcl, stringify_catalog_fcl, unescape};
+    use super::{
+        FCL_MAGIC, OpaqueCapture, parse_catalog_to_internal_fcl, stringify_catalog_fcl, unescape,
+    };
     use crate::api::CatalogSemantics;
     use crate::api::types::RenderOptions;
 
     fn roundtrip(text: &str) -> String {
-        let catalog =
-            parse_catalog_to_internal_fcl(text, None, "en", CatalogSemantics::IcuNative, false)
-                .expect("parse FCL");
+        let catalog = parse_catalog_to_internal_fcl(
+            text,
+            None,
+            "en",
+            CatalogSemantics::IcuNative,
+            false,
+            OpaqueCapture::Keep,
+        )
+        .expect("parse FCL");
         stringify_catalog_fcl(
             &catalog,
             catalog.locale.as_deref(),
@@ -667,15 +710,23 @@ mod tests {
                 None,
                 "en",
                 CatalogSemantics::IcuNative,
-                false
+                false,
+                OpaqueCapture::Keep,
             )
             .is_err()
         );
 
         let unknown = format!("{FCL_MAGIC}\tsource=en\nid\t\tvalue\tzz=1\n");
         assert!(
-            parse_catalog_to_internal_fcl(&unknown, None, "en", CatalogSemantics::IcuNative, false)
-                .is_err()
+            parse_catalog_to_internal_fcl(
+                &unknown,
+                None,
+                "en",
+                CatalogSemantics::IcuNative,
+                false,
+                OpaqueCapture::Keep,
+            )
+            .is_err()
         );
     }
 
@@ -705,7 +756,8 @@ mod tests {
                 None,
                 "en",
                 CatalogSemantics::IcuNative,
-                false
+                false,
+                OpaqueCapture::Keep,
             )
             .is_err()
         );
@@ -717,14 +769,23 @@ mod tests {
                 None,
                 "en",
                 CatalogSemantics::IcuNative,
-                false
+                false,
+                OpaqueCapture::Keep,
             )
             .is_err()
         );
     }
 
     fn parse_err(text: &str) -> bool {
-        parse_catalog_to_internal_fcl(text, None, "en", CatalogSemantics::IcuNative, false).is_err()
+        parse_catalog_to_internal_fcl(
+            text,
+            None,
+            "en",
+            CatalogSemantics::IcuNative,
+            false,
+            OpaqueCapture::Keep,
+        )
+        .is_err()
     }
 
     #[test]
@@ -745,6 +806,7 @@ mod tests {
                 value: "Hallo {0}".to_owned(),
             },
             comments: vec!["Translator note".to_owned()],
+            opaque: None,
             origins: vec![
                 super::CatalogOrigin {
                     file: "src/app.rs".to_owned(),
@@ -855,6 +917,52 @@ mod tests {
     }
 
     #[test]
+    fn roundtrips_translator_comments_and_flags_byte_identically() {
+        // `tc` and `f` are opaque: multiple of each are preserved verbatim, in
+        // order, and re-serialize to the same bytes.
+        let text = format!(
+            "{FCL_MAGIC}\tsource=en\torder=collated\n\
+             id\tbutton\tv\tr=src/a.tsx\tc=extracted\ttc=first note\ttc=second\\tnote\tf=fuzzy\tf=x-custom\to=2026-07-30\n"
+        );
+        assert_eq!(roundtrip(&text), text);
+    }
+
+    #[test]
+    fn rejects_translator_comment_and_flag_tags_outside_canonical_order() {
+        // Canonical order is `r`, `c`, `tc`, `f`, `o`, `lock`, `ai`.
+        assert!(parse_err(&format!(
+            "{FCL_MAGIC}\tsource=en\nid\t\tv\ttc=note\tc=extracted\n"
+        )));
+        assert!(parse_err(&format!(
+            "{FCL_MAGIC}\tsource=en\nid\t\tv\tf=fuzzy\ttc=note\n"
+        )));
+        assert!(parse_err(&format!(
+            "{FCL_MAGIC}\tsource=en\nid\t\tv\to\tf=fuzzy\n"
+        )));
+    }
+
+    #[test]
+    fn carries_opaque_po_metadata_into_fcl_tags() {
+        // A PO catalog read through the shared import path renders its
+        // translator comments and flags as `tc=`/`f=` tags.
+        let catalog = super::super::catalog::parse_catalog_to_internal(
+            "# translator note\n#. extracted note\n#, fuzzy, x-custom\nmsgid \"Hello\"\nmsgstr \"Hallo\"\n",
+            Some("de"),
+            "en",
+            CatalogSemantics::IcuNative,
+            crate::api::PluralEncoding::Icu,
+            false,
+            crate::api::CatalogStorageFormat::Po,
+            OpaqueCapture::Keep,
+        )
+        .expect("parse PO");
+
+        let text = stringify_catalog_fcl(&catalog, Some("de"), "en", &RenderOptions::default());
+
+        assert!(text.contains("\tc=extracted note\ttc=translator note\tf=fuzzy\tf=x-custom\n"));
+    }
+
+    #[test]
     fn rejects_duplicate_singleton_and_out_of_order_tags() {
         assert!(parse_err(&format!(
             "{FCL_MAGIC}\tsource=en\nid\t\tv\to\to\n"
@@ -895,6 +1003,7 @@ mod tests {
                 variable: "count".to_owned(),
             },
             comments: Vec::new(),
+            opaque: None,
             origins: super::PoVec::new(),
             placeholders: std::collections::BTreeMap::new(),
             obsolete: None,
@@ -926,9 +1035,15 @@ mod tests {
         assert!(text.contains("ai=example/mt:0.9"));
 
         // The synthesized ICU string round-trips back through the reader.
-        let reparsed =
-            parse_catalog_to_internal_fcl(&text, None, "en", CatalogSemantics::IcuNative, false)
-                .expect("parse plural FCL");
+        let reparsed = parse_catalog_to_internal_fcl(
+            &text,
+            None,
+            "en",
+            CatalogSemantics::IcuNative,
+            false,
+            OpaqueCapture::Keep,
+        )
+        .expect("parse plural FCL");
         assert_eq!(reparsed.messages.len(), 1);
     }
 
@@ -946,6 +1061,7 @@ mod tests {
                 value: "Hallo".to_owned(),
             },
             comments: Vec::new(),
+            opaque: None,
             origins: super::PoVec::new(),
             placeholders: std::collections::BTreeMap::new(),
             obsolete: None,
@@ -980,7 +1096,8 @@ mod tests {
                 None,
                 "en",
                 CatalogSemantics::GettextCompat,
-                false
+                false,
+                OpaqueCapture::Keep,
             )
             .is_err()
         );
@@ -995,6 +1112,7 @@ mod tests {
             "en",
             CatalogSemantics::IcuNative,
             false,
+            OpaqueCapture::Keep,
         )
         .expect("parse");
         assert_eq!(catalog.locale.as_deref(), Some("fr"));
