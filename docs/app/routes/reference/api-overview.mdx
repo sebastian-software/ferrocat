@@ -159,6 +159,8 @@ find a stable named container, emit the file alone and leave `scope` empty.
 | Turn a `PoFile` back into Gettext PO text | `stringify_po` |
 | Merge fresh extracted Gettext messages into an existing Gettext PO file | `merge_catalog` |
 | Combine multiple catalogs with deterministic conflict and selection rules | `combine_catalogs` |
+| Convert ICU-native PO and FCL catalogs with explicit source/target modes | `convert_catalog` |
+| Convert PO/FCL files with independent format inference and atomic replacement | `convert_catalog_file` |
 | Read a Gettext PO or FCL catalog into the higher-level canonical catalog model | `parse_catalog` |
 | Build keyed lookup/helpers on top of a parsed catalog | `ParsedCatalog::into_normalized_view` |
 | Audit source and target catalogs for release readiness | `audit_catalogs` |
@@ -327,6 +329,58 @@ Supported inferred suffixes are:
 The file helper returns the output path, the file format used, combine stats, and non-fatal diagnostics. It supports one or more input files, so two-file host workflows can stay thin while larger overlay workflows do not need a separate wrapper.
 
 When no mode is provided, `CatalogFileFormat::Po` uses `CatalogMode::IcuPo` and `CatalogFileFormat::Fcl` uses `CatalogMode::IcuFcl`. PO callers that need classic gettext plural semantics can set `mode: Some(CatalogMode::GettextPo)`.
+
+### `convert_catalog` and `convert_catalog_file`
+
+Use these APIs when one catalog needs a new storage format. Unlike
+`combine_catalog_files`, conversion has separate source and target choices:
+`ConvertCatalogOptions` takes explicit `source_mode` and `target_mode`, while
+`ConvertCatalogFileOptions` infers `source_format` and `target_format`
+independently unless the caller supplies them. An explicit mode must agree with
+its side's format.
+
+ICU-native PO and FCL are losslessly convertible at the shared message level.
+That contract includes `msgid`/`msgctxt`, singular and ICU plural strings,
+extracted comments and placeholder hints, translator comments, origins and
+stable scopes, opaque flags such as `fuzzy`, obsolete state, and valid
+machine-translation metadata. PO document headers and file-level comments do
+not have a general FCL representation; PO → FCL normalizes that format-specific
+document state to FCL's `source`, `locale`, and `order` header. Converting back
+to PO creates the standard canonical PO headers.
+
+Semantic conversion is deliberately not implicit. `IcuPo` ↔ `IcuFcl` is
+supported, while `GettextPo` ↔ `IcuFcl` and `GettextPo` ↔ `IcuPo` are rejected.
+The source is parsed without a locale override, so a declared locale that
+disagrees with the caller's expected `locale` is an error rather than being
+silently replaced. PO states that cannot form valid FCL—such as active and
+obsolete entries with the same serialized identity—are also rejected.
+
+```rust
+use ferrocat::{
+    CatalogMode, ConvertCatalogOptions, convert_catalog,
+};
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let po = "# translator note\n#, fuzzy\nmsgid \"Hello\"\nmsgstr \"Hallo\"\n";
+    let fcl = convert_catalog(
+        ConvertCatalogOptions::new(
+            po,
+            "en",
+            CatalogMode::IcuPo,
+            CatalogMode::IcuFcl,
+        )
+        .with_locale("de"),
+    )?;
+
+    assert!(fcl.content.contains("\ttc=translator note\tf=fuzzy"));
+    Ok(())
+}
+```
+
+The file API reads and renders the complete conversion before calling the
+shared atomic replacement helper. Parse, locale, semantic, representability,
+and render failures therefore leave an existing output untouched. Input and
+output may safely be the same path.
 
 ### `parse_catalog`
 

@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Features
+
+* **catalog:** add explicit PO/FCL conversion that preserves shared message metadata
+
 ## [2.2.0](https://github.com/sebastian-software/ferrocat/compare/ferrocat-po-v3.0.0...ferrocat-po-v2.2.0) (2026-07-05)
 
 

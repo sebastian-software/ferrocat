@@ -320,6 +320,13 @@ pub ferrocat_po::CatalogCombineStats::inputs: usize
 pub ferrocat_po::CatalogCombineStats::selected: usize
 pub ferrocat_po::CatalogCombineStats::skipped: usize
 pub ferrocat_po::CatalogCombineStats::total: usize
+pub struct ferrocat_po::CatalogConvertResult
+pub ferrocat_po::CatalogConvertResult::content: alloc::string::String
+pub ferrocat_po::CatalogConvertResult::diagnostics: alloc::vec::Vec<ferrocat_po::Diagnostic>
+pub ferrocat_po::CatalogConvertResult::locale: core::option::Option<alloc::string::String>
+pub ferrocat_po::CatalogConvertResult::message_count: usize
+pub ferrocat_po::CatalogConvertResult::source_mode: ferrocat_po::CatalogMode
+pub ferrocat_po::CatalogConvertResult::target_mode: ferrocat_po::CatalogMode
 pub struct ferrocat_po::CatalogCoverageMessage
 pub ferrocat_po::CatalogCoverageMessage::locale: alloc::string::String
 pub ferrocat_po::CatalogCoverageMessage::source_key: ferrocat_po::CatalogMessageKey
@@ -340,6 +347,15 @@ pub ferrocat_po::CatalogFileCombineResult::diagnostics: alloc::vec::Vec<ferrocat
 pub ferrocat_po::CatalogFileCombineResult::format: ferrocat_po::CatalogFileFormat
 pub ferrocat_po::CatalogFileCombineResult::output_path: std::path::PathBuf
 pub ferrocat_po::CatalogFileCombineResult::stats: ferrocat_po::CatalogCombineStats
+pub struct ferrocat_po::CatalogFileConvertResult
+pub ferrocat_po::CatalogFileConvertResult::diagnostics: alloc::vec::Vec<ferrocat_po::Diagnostic>
+pub ferrocat_po::CatalogFileConvertResult::locale: core::option::Option<alloc::string::String>
+pub ferrocat_po::CatalogFileConvertResult::message_count: usize
+pub ferrocat_po::CatalogFileConvertResult::output_path: std::path::PathBuf
+pub ferrocat_po::CatalogFileConvertResult::source_format: ferrocat_po::CatalogFileFormat
+pub ferrocat_po::CatalogFileConvertResult::source_mode: ferrocat_po::CatalogMode
+pub ferrocat_po::CatalogFileConvertResult::target_format: ferrocat_po::CatalogFileFormat
+pub ferrocat_po::CatalogFileConvertResult::target_mode: ferrocat_po::CatalogMode
 pub struct ferrocat_po::CatalogLocaleCoverage
 pub ferrocat_po::CatalogLocaleCoverage::details: alloc::vec::Vec<ferrocat_po::CatalogCoverageMessage>
 pub ferrocat_po::CatalogLocaleCoverage::empty: usize
@@ -617,6 +633,43 @@ pub struct ferrocat_po::CompiledMessage
 pub ferrocat_po::CompiledMessage::key: alloc::string::String
 pub ferrocat_po::CompiledMessage::source_key: ferrocat_po::CatalogMessageKey
 pub ferrocat_po::CompiledMessage::translation: ferrocat_po::CompiledTranslation
+#[non_exhaustive] pub struct ferrocat_po::ConvertCatalogFileOptions<'a>
+pub ferrocat_po::ConvertCatalogFileOptions::input_path: &'a std::path::Path
+pub ferrocat_po::ConvertCatalogFileOptions::locale: core::option::Option<&'a str>
+pub ferrocat_po::ConvertCatalogFileOptions::order_by: ferrocat_po::OrderBy
+pub ferrocat_po::ConvertCatalogFileOptions::output_path: &'a std::path::Path
+pub ferrocat_po::ConvertCatalogFileOptions::po_serialize: ferrocat_po::SerializeOptions
+pub ferrocat_po::ConvertCatalogFileOptions::source_format: core::option::Option<ferrocat_po::CatalogFileFormat>
+pub ferrocat_po::ConvertCatalogFileOptions::source_locale: &'a str
+pub ferrocat_po::ConvertCatalogFileOptions::source_mode: core::option::Option<ferrocat_po::CatalogMode>
+pub ferrocat_po::ConvertCatalogFileOptions::target_format: core::option::Option<ferrocat_po::CatalogFileFormat>
+pub ferrocat_po::ConvertCatalogFileOptions::target_mode: core::option::Option<ferrocat_po::CatalogMode>
+impl<'a> ferrocat_po::ConvertCatalogFileOptions<'a>
+pub fn ferrocat_po::ConvertCatalogFileOptions<'a>::new(&'a std::path::Path, &'a std::path::Path, &'a str) -> Self
+pub fn ferrocat_po::ConvertCatalogFileOptions<'a>::with_input_path(self, &'a std::path::Path) -> Self
+pub fn ferrocat_po::ConvertCatalogFileOptions<'a>::with_locale(self, &'a str) -> Self
+pub fn ferrocat_po::ConvertCatalogFileOptions<'a>::with_order_by(self, ferrocat_po::OrderBy) -> Self
+pub fn ferrocat_po::ConvertCatalogFileOptions<'a>::with_output_path(self, &'a std::path::Path) -> Self
+pub fn ferrocat_po::ConvertCatalogFileOptions<'a>::with_po_serialize_options(self, ferrocat_po::SerializeOptions) -> Self
+pub fn ferrocat_po::ConvertCatalogFileOptions<'a>::with_source_format(self, ferrocat_po::CatalogFileFormat) -> Self
+pub fn ferrocat_po::ConvertCatalogFileOptions<'a>::with_source_mode(self, ferrocat_po::CatalogMode) -> Self
+pub fn ferrocat_po::ConvertCatalogFileOptions<'a>::with_target_format(self, ferrocat_po::CatalogFileFormat) -> Self
+pub fn ferrocat_po::ConvertCatalogFileOptions<'a>::with_target_mode(self, ferrocat_po::CatalogMode) -> Self
+#[non_exhaustive] pub struct ferrocat_po::ConvertCatalogOptions<'a>
+pub ferrocat_po::ConvertCatalogOptions::content: &'a str
+pub ferrocat_po::ConvertCatalogOptions::locale: core::option::Option<&'a str>
+pub ferrocat_po::ConvertCatalogOptions::order_by: ferrocat_po::OrderBy
+pub ferrocat_po::ConvertCatalogOptions::po_serialize: ferrocat_po::SerializeOptions
+pub ferrocat_po::ConvertCatalogOptions::source_locale: &'a str
+pub ferrocat_po::ConvertCatalogOptions::source_mode: ferrocat_po::CatalogMode
+pub ferrocat_po::ConvertCatalogOptions::target_mode: ferrocat_po::CatalogMode
+impl<'a> ferrocat_po::ConvertCatalogOptions<'a>
+pub fn ferrocat_po::ConvertCatalogOptions<'a>::new(&'a str, &'a str, ferrocat_po::CatalogMode, ferrocat_po::CatalogMode) -> Self
+pub fn ferrocat_po::ConvertCatalogOptions<'a>::with_locale(self, &'a str) -> Self
+pub fn ferrocat_po::ConvertCatalogOptions<'a>::with_order_by(self, ferrocat_po::OrderBy) -> Self
+pub fn ferrocat_po::ConvertCatalogOptions<'a>::with_po_serialize_options(self, ferrocat_po::SerializeOptions) -> Self
+pub fn ferrocat_po::ConvertCatalogOptions<'a>::with_source_mode(self, ferrocat_po::CatalogMode) -> Self
+pub fn ferrocat_po::ConvertCatalogOptions<'a>::with_target_mode(self, ferrocat_po::CatalogMode) -> Self
 pub struct ferrocat_po::DescribeCompiledIdsReport
 pub ferrocat_po::DescribeCompiledIdsReport::described: alloc::vec::Vec<ferrocat_po::CompiledCatalogIdDescription>
 pub ferrocat_po::DescribeCompiledIdsReport::unavailable_compiled_ids: alloc::vec::Vec<ferrocat_po::CompiledCatalogUnavailableId>
@@ -853,6 +906,8 @@ pub fn ferrocat_po::compile_catalog_artifact(&[&ferrocat_po::NormalizedParsedCat
 pub fn ferrocat_po::compile_catalog_artifact_report(&[&ferrocat_po::NormalizedParsedCatalog], &ferrocat_po::CompileCatalogArtifactReportOptions<'_>) -> core::result::Result<ferrocat_po::CompiledCatalogArtifactReport, ferrocat_po::ApiError>
 pub fn ferrocat_po::compile_catalog_artifact_selected(&[&ferrocat_po::NormalizedParsedCatalog], &ferrocat_po::CompiledCatalogIdIndex, &ferrocat_po::CompileSelectedCatalogArtifactOptions<'_>) -> core::result::Result<ferrocat_po::CompiledCatalogArtifact, ferrocat_po::ApiError>
 pub fn ferrocat_po::compiled_key(&str, core::option::Option<&str>) -> alloc::string::String
+pub fn ferrocat_po::convert_catalog(ferrocat_po::ConvertCatalogOptions<'_>) -> core::result::Result<ferrocat_po::CatalogConvertResult, ferrocat_po::ApiError>
+pub fn ferrocat_po::convert_catalog_file(ferrocat_po::ConvertCatalogFileOptions<'_>) -> core::result::Result<ferrocat_po::CatalogFileConvertResult, ferrocat_po::ApiError>
 pub fn ferrocat_po::escape_string(&str) -> alloc::string::String
 pub fn ferrocat_po::extract_quoted(&str) -> core::result::Result<alloc::string::String, ferrocat_po::ParseError>
 pub fn ferrocat_po::extract_quoted_cow(&str) -> core::result::Result<alloc::borrow::Cow<'_, str>, ferrocat_po::ParseError>

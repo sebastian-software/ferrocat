@@ -20,8 +20,8 @@ It re-exports the stable Rust API from `ferrocat-po` and `ferrocat-icu`.
 `ferrocat` enables `full` by default. `full` currently means `catalog` plus
 `serde`, so the default build exposes the complete current API surface.
 
-- `catalog`: high-level catalog parse, update, combine, audit, metadata, FCL,
-  plural, and runtime compile APIs
+- `catalog`: high-level catalog parse, update, combine, conversion, audit,
+  metadata, FCL, plural, and runtime compile APIs
 - `serde`: serde support in the re-exported `ferrocat-po` and `ferrocat-icu`
   types
 - `compile`, `mt`, and `plurals`: reserved subsystem aliases that currently
@@ -35,6 +35,7 @@ Use the umbrella crate when you want one dependency for the full catalog workflo
 
 - translator-friendly catalog parsing and serialization
 - deterministic catalog updates and combination
+- explicit ICU-native PO ↔ FCL conversion for content and files
 - AI translation metadata for machine-generated entries, including stale-metadata cleanup after manual edits
 - release QA through structured audit reports
 - rich-message diagnostics for placeholders, plural/select logic, formatters, and tags

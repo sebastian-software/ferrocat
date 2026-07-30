@@ -143,6 +143,25 @@ fn fcl_target(message: &CanonicalMessage) -> Cow<'_, str> {
     }
 }
 
+/// Rejects catalog states that cannot be represented as unique FCL entry
+/// identities. Active and obsolete PO entries can legally share an identity,
+/// while FCL has no separate obsolete namespace, and synthesized plural IDs can
+/// also collide with a literal singular ID.
+pub(super) fn validate_catalog_fcl(catalog: &Catalog) -> Result<(), ApiError> {
+    let mut identities = BTreeSet::new();
+    for message in &catalog.messages {
+        let id = fcl_id(message);
+        if !identities.insert((id, message.msgctxt.as_deref())) {
+            return Err(ApiError::Conflict(format!(
+                "catalog contains duplicate FCL identity for id {:?} and context {:?}",
+                fcl_id(message),
+                message.msgctxt
+            )));
+        }
+    }
+    Ok(())
+}
+
 fn write_entry(out: &mut String, message: &CanonicalMessage, render: &RenderOptions<'_>) {
     escape_into(out, &fcl_id(message));
     out.push('\t');
