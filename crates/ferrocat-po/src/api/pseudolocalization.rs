@@ -155,4 +155,33 @@ mod tests {
             artifact.messages["runtime-key"]
         );
     }
+
+    #[test]
+    fn pseudolocalize_compiled_artifact_preserves_runtime_quotes() {
+        let artifact = CompiledCatalogArtifact {
+            messages: BTreeMap::from([
+                ("quoted-argument".to_owned(), "L'{title}".to_owned()),
+                (
+                    "quoted-pound".to_owned(),
+                    "{count, plural, other {'#' items}}".to_owned(),
+                ),
+            ]),
+            missing: Vec::new(),
+            diagnostics: Vec::new(),
+        };
+
+        let pseudolocalized = pseudolocalize_compiled_catalog_artifact(
+            &artifact,
+            &CompiledCatalogPseudolocalizationOptions::new()
+                .with_icu_options(IcuPseudolocalizationOptions::new().with_expansion_percent(0))
+                .with_syntax_policy(IcuSyntaxPolicy::RuntimeLiteralApostrophes),
+        )
+        .expect("pseudolocalize artifact");
+        let quoted_argument = &pseudolocalized.messages["quoted-argument"];
+        let parsed =
+            ferrocat_icu::parse_icu(quoted_argument).expect("canonical pseudolocalized ICU");
+
+        assert!(!ferrocat_icu::extract_argument_names(&parsed).contains(&"title".to_owned()));
+        assert!(pseudolocalized.messages["quoted-pound"].contains("'#'"));
+    }
 }

@@ -14,9 +14,9 @@ pub(super) use super::{
     UpdateCatalogFileOptions, UpdateCatalogOptions, audit_catalogs, combine_catalog_files,
     combine_catalogs, compile::compiled_key_for, compile_catalog_artifact,
     compile_catalog_artifact_report, compile_catalog_artifact_selected, compiled_key,
-    convert_catalog, convert_catalog_file, machine_translation_hash, measure_catalog_coverage,
-    parse_catalog, plural::cached_icu_plural_categories_for, review_catalogs, update_catalog,
-    update_catalog_file,
+    compiled_key_with_policy, convert_catalog, convert_catalog_file, machine_translation_hash,
+    measure_catalog_coverage, parse_catalog, parse_catalog_for_review,
+    plural::cached_icu_plural_categories_for, review_catalogs, update_catalog, update_catalog_file,
 };
 pub(super) use crate::parse_po;
 pub(super) use std::collections::{BTreeMap, HashMap};
@@ -48,26 +48,22 @@ pub(super) fn normalized_catalog(
         PluralEncoding::Icu => CatalogMode::IcuPo,
         PluralEncoding::Gettext => CatalogMode::GettextPo,
     };
-    parse_catalog(ParseCatalogOptions {
+    parse_catalog_for_review(ParseCatalogOptions {
         locale,
         mode,
         ..ParseCatalogOptions::new(content, "en")
     })
     .expect("parse catalog")
-    .into_normalized_view()
-    .expect("normalized view")
 }
 
 pub(super) fn normalized_fcl_catalog(
     content: &str,
     locale: Option<&str>,
 ) -> super::NormalizedParsedCatalog {
-    parse_catalog(ParseCatalogOptions {
+    parse_catalog_for_review(ParseCatalogOptions {
         locale,
         mode: CatalogMode::IcuFcl,
         ..ParseCatalogOptions::new(content, "en")
     })
     .expect("parse fcl catalog")
-    .into_normalized_view()
-    .expect("normalized fcl view")
 }

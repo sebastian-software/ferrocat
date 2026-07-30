@@ -146,6 +146,7 @@ pub use ferrocat::UpdateCatalogFileOptions
 pub use ferrocat::UpdateCatalogOptions
 pub use ferrocat::analyze_icu
 pub use ferrocat::audit_catalogs
+pub use ferrocat::canonicalize_icu_with_policy
 pub use ferrocat::combine_catalog_files
 pub use ferrocat::combine_catalogs
 pub use ferrocat::compare_icu_messages
@@ -153,6 +154,7 @@ pub use ferrocat::compile_catalog_artifact
 pub use ferrocat::compile_catalog_artifact_report
 pub use ferrocat::compile_catalog_artifact_selected
 pub use ferrocat::compiled_key
+pub use ferrocat::compiled_key_with_policy
 pub use ferrocat::convert_catalog
 pub use ferrocat::convert_catalog_file
 pub use ferrocat::derive_message_metadata_from_icu
@@ -171,6 +173,7 @@ pub use ferrocat::measure_catalog_coverage
 pub use ferrocat::merge_catalog
 pub use ferrocat::normalize_message_metadata
 pub use ferrocat::parse_catalog
+pub use ferrocat::parse_catalog_for_review
 pub use ferrocat::parse_icu
 pub use ferrocat::parse_icu_with_options
 pub use ferrocat::parse_po
@@ -291,18 +294,21 @@ pub use ferrocat::catalog::TranslationShape
 pub use ferrocat::catalog::UpdateCatalogFileOptions
 pub use ferrocat::catalog::UpdateCatalogOptions
 pub use ferrocat::catalog::audit_catalogs
+pub use ferrocat::catalog::canonicalize_icu_with_policy
 pub use ferrocat::catalog::combine_catalog_files
 pub use ferrocat::catalog::combine_catalogs
 pub use ferrocat::catalog::compile_catalog_artifact
 pub use ferrocat::catalog::compile_catalog_artifact_report
 pub use ferrocat::catalog::compile_catalog_artifact_selected
 pub use ferrocat::catalog::compiled_key
+pub use ferrocat::catalog::compiled_key_with_policy
 pub use ferrocat::catalog::convert_catalog
 pub use ferrocat::catalog::convert_catalog_file
 pub use ferrocat::catalog::diagnostic_codes
 pub use ferrocat::catalog::machine_translation_hash
 pub use ferrocat::catalog::measure_catalog_coverage
 pub use ferrocat::catalog::parse_catalog
+pub use ferrocat::catalog::parse_catalog_for_review
 pub use ferrocat::catalog::pseudolocalize_compiled_catalog_artifact
 pub use ferrocat::catalog::review_catalogs
 pub use ferrocat::catalog::update_catalog

@@ -56,7 +56,14 @@ msgstr "world"
 
 For the common "merge fresh extracted messages into an existing catalog" workflow, `merge_catalog` is the lean Gettext-style entry point. For N-way catalog overlays and `msgcat`-style set operations, use `combine_catalogs`; when catalogs already live on disk, `combine_catalog_files` adds format inference and atomic output replacement around the same semantics. Use `convert_catalog` or `convert_catalog_file` for explicit ICU-native PO ↔ FCL conversion without treating conversion as a one-input combine. For release checks across a source catalog and target catalogs, use `audit_catalogs`. For dashboards or translator handoffs, use `measure_catalog_coverage` and `review_catalogs`. For application delivery, compile requested-locale artifacts with fallback and ICU diagnostics; use `compile_catalog_artifact_report` when host tooling also needs per-message resolution provenance without changing the runtime artifact shape.
 
-Beyond the basics, Ferrocat exposes byte-oriented and allocation-light borrowed parsers for hot paths, ICU analysis and source/translation compatibility checks (`analyze_icu`, `compare_icu_messages`, `validate_icu_formatter_support`), ICU-aware pseudolocalization, semantic metadata normalization around `msgid + msgctxt`, and AI-translation metadata that high-level writers clear automatically once a human edits the text. ICU scope is MessageFormat v1; MessageFormat 2 is tracked as a future standard but is not a near-term target.
+Coverage, audit, and review inputs should be parsed with
+`parse_catalog_for_review`. It returns a normalized catalog that retains only
+semantic fuzzy identities, so active `#, fuzzy` PO and `f=fuzzy` FCL entries do
+not count as translated. The ordinary `parse_catalog` path continues to skip
+opaque flags and translator comments for high-throughput consumers that do not
+request report state.
+
+Beyond the basics, Ferrocat exposes byte-oriented and allocation-light borrowed parsers for hot paths, ICU analysis and source/translation compatibility checks (`analyze_icu`, `compare_icu_messages`, `validate_icu_formatter_support`), policy-aware apostrophe canonicalization and compiled-key derivation, ICU-aware pseudolocalization, semantic metadata normalization around `msgid + msgctxt`, and AI-translation metadata that high-level writers clear automatically once a human edits the text. ICU scope is MessageFormat v1; MessageFormat 2 is tracked as a future standard but is not a near-term target.
 
 ## What Ferrocat Gives You
 

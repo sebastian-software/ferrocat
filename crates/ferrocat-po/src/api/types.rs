@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, btree_map};
+use std::collections::{BTreeMap, BTreeSet, btree_map};
 use std::fmt;
 use std::hash::{Hash, Hasher};
 use std::path::{Path, PathBuf};
@@ -954,6 +954,22 @@ impl ParsedCatalog {
     pub fn into_normalized_view(self) -> Result<NormalizedParsedCatalog, ApiError> {
         NormalizedParsedCatalog::new(self)
     }
+
+    /// Builds a lookup-oriented view for a programmatically constructed
+    /// catalog that is known not to contain fuzzy messages.
+    ///
+    /// Parsed PO or FCL content should use [`super::parse_catalog_for_review`]
+    /// instead, because [`super::parse_catalog`] deliberately discards flags.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ApiError::Conflict`] when the parsed catalog contains
+    /// duplicate `msgid`/`msgctxt` pairs.
+    pub fn into_normalized_view_assuming_no_fuzzy(
+        self,
+    ) -> Result<NormalizedParsedCatalog, ApiError> {
+        NormalizedParsedCatalog::new_with_review_state(self, BTreeSet::new())
+    }
 }
 
 /// Parsed catalog with fast key-based lookup helpers.
@@ -962,11 +978,26 @@ pub struct NormalizedParsedCatalog {
     pub(super) catalog: ParsedCatalog,
     pub(super) key_index: BTreeMap<CatalogMessageKey, usize>,
     msgid_hash_index: FxHashMap<u64, Vec<usize>>,
+    review_fuzzy_keys: Option<BTreeSet<CatalogMessageKey>>,
 }
 
 impl NormalizedParsedCatalog {
     /// Builds the lookup index once and rejects duplicate gettext identities up front.
     pub(super) fn new(catalog: ParsedCatalog) -> Result<Self, ApiError> {
+        Self::new_with_optional_review_state(catalog, None)
+    }
+
+    pub(super) fn new_with_review_state(
+        catalog: ParsedCatalog,
+        fuzzy_keys: BTreeSet<CatalogMessageKey>,
+    ) -> Result<Self, ApiError> {
+        Self::new_with_optional_review_state(catalog, Some(fuzzy_keys))
+    }
+
+    fn new_with_optional_review_state(
+        catalog: ParsedCatalog,
+        review_fuzzy_keys: Option<BTreeSet<CatalogMessageKey>>,
+    ) -> Result<Self, ApiError> {
         let mut key_index = BTreeMap::new();
         let mut msgid_hash_index = FxHashMap::<u64, Vec<usize>>::with_capacity_and_hasher(
             catalog.messages.len(),
@@ -995,7 +1026,34 @@ impl NormalizedParsedCatalog {
             catalog,
             key_index,
             msgid_hash_index,
+            review_fuzzy_keys,
         })
+    }
+
+    /// Returns whether this catalog carries the semantic review state required
+    /// by coverage, audit, and review reports.
+    ///
+    /// [`super::parse_catalog_for_review`] creates a review-aware catalog.
+    /// The default [`super::parse_catalog`] projection intentionally does not.
+    #[must_use]
+    pub const fn has_review_state(&self) -> bool {
+        self.review_fuzzy_keys.is_some()
+    }
+
+    pub(super) fn require_review_state(&self, operation: &str) -> Result<(), ApiError> {
+        if self.has_review_state() {
+            Ok(())
+        } else {
+            Err(ApiError::InvalidArguments(format!(
+                "{operation} requires review-aware catalogs; parse catalog content with parse_catalog_for_review"
+            )))
+        }
+    }
+
+    pub(super) fn is_fuzzy(&self, key: &CatalogMessageKey) -> bool {
+        self.review_fuzzy_keys
+            .as_ref()
+            .is_some_and(|keys| keys.contains(key))
     }
 
     /// Returns the underlying parsed catalog.
@@ -1172,8 +1230,9 @@ pub enum IcuSyntaxPolicy {
     ///
     /// Use this when a downstream runtime accepts messages such as `you're`
     /// and `We've got {count, plural, one {...} other {...}}` without requiring
-    /// translators to double every literal apostrophe.
-    /// Callers that rely on ICU apostrophe quoting should keep [`Self::Strict`].
+    /// translators to double every literal apostrophe. Existing ICU quoting
+    /// remains meaningful: a single apostrophe starts a quote before `{`, `}`,
+    /// or `#` inside a plural or selectordinal branch.
     RuntimeLiteralApostrophes,
 }
 

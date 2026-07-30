@@ -9,7 +9,7 @@ use super::{
     ApiError, CatalogMessageKey, CatalogSemantics, IcuSyntaxPolicy, NormalizedParsedCatalog,
     compile::{
         compiled_catalog_translation_kind_for_message, compiled_key_for,
-        describe_compiled_id_catalogs,
+        compiled_key_for_with_policy, describe_compiled_id_catalogs,
     },
 };
 
@@ -71,6 +71,11 @@ pub struct CompileCatalogOptions<'a> {
     pub source_locale: Option<&'a str>,
     /// High-level semantics used by the input catalog set.
     pub semantics: CatalogSemantics,
+    /// ICU syntax policy used to canonicalize message text and compiled keys.
+    ///
+    /// Non-strict policies require [`CatalogSemantics::IcuNative`]; structured
+    /// gettext plural branch values are not ICU message patterns.
+    pub syntax_policy: IcuSyntaxPolicy,
 }
 
 impl Default for CompileCatalogOptions<'_> {
@@ -80,6 +85,7 @@ impl Default for CompileCatalogOptions<'_> {
             source_fallback: false,
             source_locale: None,
             semantics: CatalogSemantics::IcuNative,
+            syntax_policy: IcuSyntaxPolicy::Strict,
         }
     }
 }
@@ -116,6 +122,13 @@ impl<'a> CompileCatalogOptions<'a> {
     #[must_use]
     pub fn with_semantics(mut self, semantics: CatalogSemantics) -> Self {
         self.semantics = semantics;
+        self
+    }
+
+    /// Returns options that canonicalize ICU message text and keys with the given policy.
+    #[must_use]
+    pub fn with_syntax_policy(mut self, syntax_policy: IcuSyntaxPolicy) -> Self {
+        self.syntax_policy = syntax_policy;
         self
     }
 }
@@ -341,6 +354,11 @@ pub struct CompileCatalogArtifactReportOptions<'a> {
     /// Shared artifact compile options applied to the generated artifact.
     pub options: CompileCatalogArtifactOptions<'a>,
     /// ICU-specific options applied while validating final runtime messages.
+    ///
+    /// This is the authoritative value during report compilation. The builder
+    /// methods keep it synchronized with [`Self::options`]; if callers mutate
+    /// the public fields independently, this field preserves the pre-existing
+    /// report behavior.
     pub icu_options: CompileCatalogArtifactIcuOptions,
     /// Source identity selection for the generated artifact and provenance report.
     pub selection: CompileCatalogArtifactReportSelection<'a>,
@@ -376,15 +394,24 @@ impl<'a> CompileCatalogArtifactReportOptions<'a> {
     }
 
     /// Returns report options that use the given shared artifact compile options.
+    ///
+    /// This also synchronizes the report-level ICU options so report compilation
+    /// uses the same syntax and formatter-support policy as ordinary artifact
+    /// compilation.
     #[must_use]
     pub fn with_options(mut self, options: CompileCatalogArtifactOptions<'a>) -> Self {
+        self.icu_options = options.icu_options;
         self.options = options;
         self
     }
 
     /// Returns report options that use the given ICU validation options.
+    ///
+    /// This also updates the nested artifact options to keep subsequent builder
+    /// composition policy-consistent.
     #[must_use]
     pub fn with_icu_options(mut self, icu_options: CompileCatalogArtifactIcuOptions) -> Self {
+        self.options.icu_options = icu_options;
         self.icu_options = icu_options;
         self
     }
@@ -516,6 +543,28 @@ impl CompiledCatalogIdIndex {
         Self::new_with_key_generator(catalogs, key_strategy, compiled_key_for)
     }
 
+    /// Builds a deterministic compiled-ID index using policy-canonical message IDs.
+    ///
+    /// Use the same policy for [`super::compiled_key_with_policy`] and selected
+    /// artifact compilation. Selected compilation recomputes each requested ID
+    /// with its active policy and rejects mismatches.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ApiError::Conflict`] when two different source identities compile to the same ID.
+    pub fn new_with_policy(
+        catalogs: &[&NormalizedParsedCatalog],
+        key_strategy: CompiledKeyStrategy,
+        syntax_policy: IcuSyntaxPolicy,
+    ) -> Result<Self, ApiError> {
+        Self::new_with_policy_and_key_generator(
+            catalogs,
+            key_strategy,
+            syntax_policy,
+            compiled_key_for_with_policy,
+        )
+    }
+
     pub(super) fn new_with_key_generator<F>(
         catalogs: &[&NormalizedParsedCatalog],
         key_strategy: CompiledKeyStrategy,
@@ -524,6 +573,23 @@ impl CompiledCatalogIdIndex {
     where
         F: FnMut(CompiledKeyStrategy, &CatalogMessageKey) -> String,
     {
+        Self::new_with_policy_and_key_generator(
+            catalogs,
+            key_strategy,
+            IcuSyntaxPolicy::Strict,
+            |strategy, key, _| key_generator(strategy, key),
+        )
+    }
+
+    fn new_with_policy_and_key_generator<F>(
+        catalogs: &[&NormalizedParsedCatalog],
+        key_strategy: CompiledKeyStrategy,
+        syntax_policy: IcuSyntaxPolicy,
+        mut key_generator: F,
+    ) -> Result<Self, ApiError>
+    where
+        F: FnMut(CompiledKeyStrategy, &CatalogMessageKey, IcuSyntaxPolicy) -> String,
+    {
         let mut ids = BTreeMap::<String, CatalogMessageKey>::new();
 
         for catalog in catalogs {
@@ -531,7 +597,7 @@ impl CompiledCatalogIdIndex {
                 if message.obsolete.is_some() {
                     continue;
                 }
-                let compiled_id = key_generator(key_strategy, source_key);
+                let compiled_id = key_generator(key_strategy, source_key, syntax_policy);
                 if let Some(existing) = ids.get(&compiled_id) {
                     if existing != source_key {
                         return Err(ApiError::Conflict(format!(
@@ -928,24 +994,37 @@ mod tests {
             index: &index,
             compiled_ids: &other_ids,
         };
+        let runtime_icu_options = CompileCatalogArtifactIcuOptions::new()
+            .with_syntax_policy(IcuSyntaxPolicy::RuntimeLiteralApostrophes);
         let report = CompileCatalogArtifactReportOptions::new("de", "en")
             .with_options(artifact.clone())
-            .with_icu_options(
-                CompileCatalogArtifactIcuOptions::new()
-                    .with_syntax_policy(IcuSyntaxPolicy::RuntimeLiteralApostrophes),
-            )
+            .with_icu_options(runtime_icu_options)
             .with_selection(selection);
 
-        assert_eq!(report.options, artifact);
+        assert_eq!(
+            report.options,
+            artifact.clone().with_icu_options(runtime_icu_options)
+        );
         assert_eq!(
             report.icu_options.syntax_policy,
             IcuSyntaxPolicy::RuntimeLiteralApostrophes
         );
+        assert_eq!(report.options.icu_options, report.icu_options);
         assert!(matches!(
             report.selection,
             CompileCatalogArtifactReportSelection::Selected { compiled_ids, .. }
                 if compiled_ids == other_ids.as_slice()
         ));
+
+        let report_with_artifact_options_last =
+            CompileCatalogArtifactReportOptions::new("de", "en")
+                .with_icu_options(runtime_icu_options)
+                .with_options(artifact.clone());
+        assert_eq!(report_with_artifact_options_last.options, artifact);
+        assert_eq!(
+            report_with_artifact_options_last.icu_options,
+            artifact.icu_options
+        );
     }
 
     #[test]

@@ -59,7 +59,7 @@ pub struct CatalogLocaleCoverage {
     pub locale: String,
     /// Active source messages expected for this locale.
     pub total: usize,
-    /// Expected messages with non-empty active translations.
+    /// Expected messages with non-empty, non-fuzzy active translations.
     pub translated: usize,
     /// Expected messages with no target entry.
     pub missing: usize,
@@ -74,6 +74,20 @@ pub struct CatalogLocaleCoverage {
 }
 
 impl CatalogLocaleCoverage {
+    /// Returns expected messages with a non-empty active translation carrying
+    /// the semantic `fuzzy` review marker.
+    ///
+    /// Fuzzy is the remaining mutually exclusive expected-message state after
+    /// subtracting translated, missing, empty, and obsolete messages.
+    #[must_use]
+    pub const fn fuzzy(&self) -> usize {
+        self.total
+            .saturating_sub(self.translated)
+            .saturating_sub(self.missing)
+            .saturating_sub(self.empty)
+            .saturating_sub(self.obsolete)
+    }
+
     /// Returns messages that still need translator attention.
     #[must_use]
     pub const fn incomplete(&self) -> usize {
@@ -113,7 +127,7 @@ pub struct CatalogCoverageMessage {
 /// Builds a read-only completeness and coverage report for normalized catalogs.
 ///
 /// The report uses the source locale's active messages as the expected set.
-/// Empty, obsolete, and absent target messages do not count as translated.
+/// Fuzzy, empty, obsolete, and absent target messages do not count as translated.
 /// Active target-only messages are counted as `extra` and do not affect the
 /// completion denominator.
 ///
@@ -122,18 +136,16 @@ pub struct CatalogCoverageMessage {
 /// ```rust
 /// use ferrocat_po::{
 ///     CatalogCoverageOptions, CatalogMessageStatus, ParseCatalogOptions, measure_catalog_coverage,
-///     parse_catalog,
+///     parse_catalog_for_review,
 /// };
 ///
-/// let source = parse_catalog(
+/// let source = parse_catalog_for_review(
 ///     ParseCatalogOptions::new("msgid \"Save\"\nmsgstr \"\"\n", "en").with_locale("en"),
-/// )?
-/// .into_normalized_view()?;
-/// let target = parse_catalog(
+/// )?;
+/// let target = parse_catalog_for_review(
 ///     ParseCatalogOptions::new("msgid \"Save\"\nmsgstr \"Speichern\"\n", "en")
 ///         .with_locale("de"),
-/// )?
-/// .into_normalized_view()?;
+/// )?;
 ///
 /// let options = CatalogCoverageOptions::new("en").with_details(true);
 /// let report = measure_catalog_coverage(&[&source, &target], &options)?;
@@ -148,7 +160,9 @@ pub struct CatalogCoverageMessage {
 /// # Errors
 ///
 /// Returns [`ApiError::InvalidArguments`] when locales are missing, empty,
-/// duplicated, or when a requested target locale is absent from the catalog set.
+/// duplicated, when a requested target locale is absent from the catalog set,
+/// or when a selected target was not parsed with
+/// [`super::parse_catalog_for_review`].
 pub fn measure_catalog_coverage(
     catalogs: &[&NormalizedParsedCatalog],
     options: &CatalogCoverageOptions<'_>,
@@ -177,6 +191,7 @@ pub fn measure_catalog_coverage(
         let target_catalog = catalog_index
             .get(target_locale.as_str())
             .expect("selected target locale must exist");
+        target_catalog.require_review_state("measure_catalog_coverage")?;
         locale_reports.push(coverage_for_locale(
             target_locale,
             target_catalog,
@@ -239,5 +254,6 @@ fn increment_status(coverage: &mut CatalogLocaleCoverage, status: CatalogMessage
         CatalogMessageStatus::Empty => coverage.empty += 1,
         CatalogMessageStatus::Obsolete => coverage.obsolete += 1,
         CatalogMessageStatus::Extra => coverage.extra += 1,
+        CatalogMessageStatus::Fuzzy => {}
     }
 }
