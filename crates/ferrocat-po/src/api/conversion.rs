@@ -94,7 +94,6 @@ fn finish_catalog_conversion(
             sort_messages(&mut catalog.messages, options.order_by);
         }
         CatalogStorageFormat::Fcl => {
-            super::fcl::validate_catalog_fcl(&catalog)?;
             // FCL intentionally has only source/locale/order header state. PO
             // document-level metadata is outside the cross-format contract.
             catalog.headers.clear();

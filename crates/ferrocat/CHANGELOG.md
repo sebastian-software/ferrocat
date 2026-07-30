@@ -20,6 +20,9 @@
 
 ### Bug Fixes
 
+- FCL catalog workflows now reject duplicate serialized `(id, ctxt)`
+  identities before rendering, and file updates preserve an existing
+  destination when validation fails.
 - Active PO and FCL fuzzy entries no longer count as translated, including in
   the coverage rollups embedded in review reports.
 

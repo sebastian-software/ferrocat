@@ -31,12 +31,15 @@ pub(super) fn export_catalog_content(
         super::CatalogStorageFormat::Po => {
             stringify_catalog_po(catalog, options, locale, diagnostics)
         }
-        super::CatalogStorageFormat::Fcl => Ok(super::fcl::stringify_catalog_fcl(
-            catalog,
-            locale,
-            options.source_locale,
-            &options.render,
-        )),
+        super::CatalogStorageFormat::Fcl => {
+            super::fcl::validate_catalog_fcl(catalog)?;
+            Ok(super::fcl::stringify_catalog_fcl(
+                catalog,
+                locale,
+                options.source_locale,
+                &options.render,
+            ))
+        }
     }
 }
 
@@ -593,6 +596,64 @@ mod tests {
             diagnostics[0].code.as_str(),
             diagnostic_codes::plural::UNSUPPORTED_GETTEXT_EXPORT
         );
+    }
+
+    #[test]
+    fn fcl_export_rejects_active_and_obsolete_duplicate_identities() {
+        let active = singular_message("Hallo");
+        let mut obsolete = active.clone();
+        obsolete.obsolete = Some(ObsoleteInfo::default());
+        let catalog = Catalog {
+            messages: vec![active, obsolete],
+            ..Catalog::default()
+        };
+        let fcl_options = UpdateCatalogOptions::new("en", CatalogUpdateInput::default())
+            .with_mode(CatalogMode::IcuFcl);
+        let mut diagnostics = Vec::new();
+
+        let error = export_catalog_content(&catalog, &fcl_options, Some("de"), &mut diagnostics)
+            .expect_err("duplicate FCL identity");
+
+        assert!(matches!(
+            error,
+            ApiError::Conflict(message)
+                if message.contains("duplicate FCL identity")
+                    && message.contains("items")
+        ));
+
+        let po_options = UpdateCatalogOptions::new("en", CatalogUpdateInput::default());
+        let output = export_catalog_content(&catalog, &po_options, Some("de"), &mut diagnostics)
+            .expect("PO keeps separate active and obsolete entries");
+        assert_eq!(output.matches("msgid \"items\"").count(), 2);
+    }
+
+    #[test]
+    fn fcl_export_rejects_singular_and_synthesized_plural_id_collision() {
+        let plural_id = "{count, plural, one {item} other {items}}";
+        let mut singular = singular_message("");
+        singular.msgid = plural_id.to_owned();
+        let mut plural = plural_message(BTreeMap::from([
+            ("one".to_owned(), "Artikel".to_owned()),
+            ("other".to_owned(), "Artikel".to_owned()),
+        ]));
+        plural.msgid = "cart.items".to_owned();
+        let catalog = Catalog {
+            messages: vec![singular, plural],
+            ..Catalog::default()
+        };
+        let options = UpdateCatalogOptions::new("en", CatalogUpdateInput::default())
+            .with_mode(CatalogMode::IcuFcl);
+        let mut diagnostics = Vec::new();
+
+        let error = export_catalog_content(&catalog, &options, Some("de"), &mut diagnostics)
+            .expect_err("synthesized plural FCL identity collision");
+
+        assert!(matches!(
+            error,
+            ApiError::Conflict(message)
+                if message.contains("duplicate FCL identity")
+                    && message.contains(plural_id)
+        ));
     }
 
     #[test]
