@@ -9,10 +9,10 @@ fuzz_target!(|data: &[u8]| {
             msgid: "fuzz.message".to_owned(),
             ..SourceExtractedMessage::default()
         }];
-        let _ = update_catalog(UpdateCatalogOptions {
-            existing: Some(input),
-            mode: CatalogMode::IcuPo,
-            ..UpdateCatalogOptions::new("en", extracted)
-        });
+        let _ = update_catalog(
+            UpdateCatalogOptions::new("en", extracted)
+                .with_existing(input)
+                .with_mode(CatalogMode::IcuPo),
+        );
     }
 });
