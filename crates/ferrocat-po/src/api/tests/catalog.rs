@@ -1051,7 +1051,7 @@ fn update_catalog_gettext_preserves_previous_plural_variable_and_translations() 
         existing: Some(existing),
         mode: CatalogMode::GettextPo,
         input: structured_input(vec![ExtractedMessage::Plural(ExtractedPluralMessage {
-            msgid: "books".to_owned(),
+            msgid: "book".to_owned(),
             source: PluralSource {
                 one: Some("book".to_owned()),
                 other: "books".to_owned(),
@@ -1086,6 +1086,45 @@ fn update_catalog_gettext_preserves_previous_plural_variable_and_translations() 
         }
         other => panic!("expected plural translation, got {other:?}"),
     }
+}
+
+#[test]
+fn overwrite_rebuild_takes_plural_variable_from_previous_translation() {
+    // Source-locale update with overwrite forces the rebuild arm; the plural
+    // variable must come from the previous translation instead of falling
+    // through to the assumed-variable warning.
+    let existing = concat!(
+        "msgid \"book\"\n",
+        "msgid_plural \"books\"\n",
+        "msgstr[0] \"book\"\n",
+        "msgstr[1] \"books\"\n",
+    );
+    let result = update_catalog(UpdateCatalogOptions {
+        source_locale: "en",
+        locale: Some("en"),
+        existing: Some(existing),
+        mode: CatalogMode::GettextPo,
+        overwrite_source_translations: true,
+        input: structured_input(vec![ExtractedMessage::Plural(ExtractedPluralMessage {
+            msgid: "book".to_owned(),
+            source: PluralSource {
+                one: Some("book".to_owned()),
+                other: "books".to_owned(),
+            },
+            ..ExtractedPluralMessage::default()
+        })]),
+        ..UpdateCatalogOptions::new("en", CatalogUpdateInput::default())
+    })
+    .expect("update");
+
+    assert!(
+        result
+            .diagnostics
+            .iter()
+            .all(|diagnostic| diagnostic.code != crate::diagnostic_codes::plural::ASSUMED_VARIABLE),
+        "previous plural translation should supply the variable without a warning"
+    );
+    assert!(result.content.contains("msgid_plural \"books\""));
 }
 
 #[test]

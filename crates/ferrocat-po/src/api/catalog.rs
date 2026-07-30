@@ -85,10 +85,7 @@ struct NormalizedMessage {
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum NormalizedKind {
     Singular,
-    Plural {
-        source: PluralSource,
-        variable: Option<String>,
-    },
+    Plural { source: PluralSource },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -307,7 +304,6 @@ fn normalize_update_input(input: CatalogUpdateInput) -> Result<Vec<NormalizedMes
                         message.msgctxt,
                         NormalizedKind::Plural {
                             source: message.source,
-                            variable: None,
                         },
                         message.comments,
                         message.origin,
@@ -615,7 +611,7 @@ fn merge_message(
         // inner `Plural` here means a non-plural previous simply falls through
         // to the rebuild arm below.
         (
-            NormalizedKind::Plural { source, variable },
+            NormalizedKind::Plural { source },
             Some(CanonicalTranslation::Plural {
                 source: previous_source,
                 translation_by_category: mut previous_translation_by_category,
@@ -625,26 +621,18 @@ fn merge_message(
             let categories_changed = plural_profile
                 .materialize_translation_in_place(&mut previous_translation_by_category);
             let source_changed = source != previous_source;
-            let (variable, variable_changed) = match variable {
-                Some(variable) => {
-                    let changed = variable != previous_variable;
-                    (variable, changed)
-                }
-                None => (previous_variable, false),
-            };
 
             (
                 CanonicalTranslation::Plural {
                     source,
                     translation_by_category: previous_translation_by_category,
-                    variable,
+                    variable: previous_variable,
                 },
-                categories_changed || source_changed || variable_changed,
+                categories_changed || source_changed,
             )
         }
-        (NormalizedKind::Plural { source, variable }, previous) => {
-            let variable = variable
-                .or_else(|| extract_plural_variable(previous.as_ref()))
+        (NormalizedKind::Plural { source }, previous) => {
+            let variable = extract_plural_variable(previous.as_ref())
                 .or_else(|| derive_plural_variable(&placeholders))
                 .unwrap_or_else(|| {
                     diagnostics.push(

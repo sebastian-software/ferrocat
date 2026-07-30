@@ -683,6 +683,25 @@ mod tests {
     }
 
     #[test]
+    fn continuation_prefixes_handle_uncovered_bytes_and_combining_marks() {
+        let head = "a".repeat(32);
+
+        // An uncovered ASCII byte past the first window packs the same
+        // uncovered-tag encoding a fresh prefix would produce for it.
+        assert_eq!(
+            collation_prefix_from(&format!("{head}\u{001F}b"), 32),
+            collation_prefix("\u{001F}b")
+        );
+
+        // Combining marks past the first window contribute nothing to the
+        // continuation, exactly as they contribute nothing to a fresh prefix.
+        assert_eq!(
+            collation_prefix_from(&format!("{head}e\u{0301}f"), 32),
+            collation_prefix("ef")
+        );
+    }
+
+    #[test]
     fn prefix_order_never_disagrees_with_full_key() {
         let corpus = [
             "",
