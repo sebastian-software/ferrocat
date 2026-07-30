@@ -1,0 +1,122 @@
+---
+title: "ADR 0027: Preserve Translator Comments and Flags as Opaque Round-Trip State"
+description: "Accepted architecture decision record: the catalog layer keeps translator comments and per-entry flags attached to the message identity through update and combine without giving them any semantic meaning."
+order: 270
+---
+
+# ADR 0027: Preserve Translator Comments and Flags as Opaque Round-Trip State
+
+- Status: Accepted
+- Date: 2026-07-30
+- Partially supersedes: [ADR 0023](/architecture/adr/0023-drop-gettext-flags-merge-comments)
+- Relates to: [ADR 0006](/architecture/adr/0006-separate-po-core-from-high-level-catalog-api)
+
+## Context
+
+[ADR 0023](/architecture/adr/0023-drop-gettext-flags-merge-comments) removed the
+gettext flag concept from the catalog layer and collapsed the two comment kinds
+into one notes list. That decision was about *semantics*, and it still holds:
+Ferrocat has no use for a `fuzzy` status it never produces, and printf format
+flags say nothing about an ICU catalog.
+
+It also had a side effect that was not the point of the decision. Because the
+catalog model had nowhere to put them, a high-level update *destroyed* this
+metadata: translator-written `#` comments were rewritten as extractor-owned
+`#.` comments, and per-entry flags disappeared. A hand-maintained PO file lost
+information every time a source-first update ran.
+
+Hosts worked around it. Palamedes parsed the original PO, stripped translator
+comments and flags before calling Ferrocat, then parsed the rendered output and
+restored them by `(msgctxt, msgid)` — a full extra parse/serialize pass whenever
+any entry in a catalog carried this metadata. The workaround reimplements, less
+efficiently, an identity join Ferrocat already performs internally during merge.
+
+The two concerns are separable. "Ferrocat does not act on flags" and "Ferrocat
+throws flags away" are different claims, and only the first one is a decision
+worth keeping.
+
+## Decision
+
+Keep translator comments and per-entry flags attached to the message identity
+through the catalog layer, as **opaque round-trip state**.
+
+- `CanonicalMessage` gains `translator_comments: Vec<String>` and
+  `flags: Vec<String>`. Both are **internal**. The public `CatalogMessage` is
+  unchanged and does not expose them; they are storage detail, not part of the
+  catalog's semantic shape.
+- **PO import** keeps `#` comments in `translator_comments` instead of merging
+  them into the canonical notes list. Extractor-owned `#.` comments keep the
+  existing pipeline (placeholder split, then notes). Per-entry `#,` flags go to
+  `flags` verbatim, including unknown ones such as `x-custom`.
+- **PO export** writes gettext's canonical order: `#` translator comments first,
+  then `#.` extracted and placeholder comments, `#@` metadata, `#:` references,
+  and finally a single `#, flag1, flag2` line when the entry has flags. The
+  obsolete `#~` prefix applies to all of them as elsewhere.
+- **Update** moves both fields across for a matched identity. They survive the
+  transition to obsolete and back, because they live on the message rather than
+  beside it. A new identity always starts empty and never inherits from an
+  unrelated entry.
+- **Combine** attaches them to the definition that wins the entry value. They
+  move as one block; they are never unioned across inputs, because a union
+  would invent a set of comments and flags that no single input declared.
+- **FCL** gains two optional per-entry tags: `tc=` for one translator comment
+  and `f=` for one flag, both `0..n`, escaped like every other value. The
+  canonical tag order becomes `r` (sorted), `c`, `tc`, `f`, `o`, `lock`, `ai`.
+
+Repeating an unchanged update is byte-stable: feeding an update's output back in
+as the existing catalog with the same extractor input reproduces the same bytes.
+
+### What this does not change
+
+This ADR grants no meaning to any of it. Everything ADR 0023 decided about
+semantics stands:
+
+- there is no `CatalogMessageStatus::Fuzzy`, and `#, fuzzy` on import does not
+  produce one — it is a string in a list;
+- `CatalogAuditChecks::fuzzy_flags` and the `catalog.fuzzy_flag` diagnostic do
+  not come back;
+- the coverage `fuzzy` counter does not come back;
+- the comment-kind split drives no behavior. Ferrocat does not read translator
+  comments differently from extracted ones; it only knows which line prefix they
+  came from so it can write them back the same way.
+
+What ADR 0023 said about the two comment kinds having "no consumer" remains
+true. The consumer is the file itself.
+
+### Faithful low-level PO is still unchanged
+
+As in ADR 0023, this is a catalog-layer decision. The low-level `parse_po` /
+`stringify_po` round-trip already preserved `PoItem::flags` and both comment
+kinds verbatim and is untouched.
+
+## Consequences
+
+Positive:
+
+- a source-first update no longer destroys translator-owned metadata, which was
+  the one genuinely lossy part of the catalog round-trip
+- downstream hosts drop the strip-and-restore pass entirely, along with its
+  extra parse and serialize of every catalog that carries this metadata
+- preservation follows the same `(msgctxt, msgid)` identity as everything else,
+  so it stays correct across obsolete transitions and context-disambiguated
+  entries for free
+- the public API surface does not grow: no new option, no new public field, and
+  no new semantics to document or support
+
+Negative:
+
+- catalogs whose translator comments were previously flattened into `#.` will be
+  imported and exported differently from now on; the first update after this
+  change moves those lines back to `#`. That is the intended correction, but it
+  is a visible one-time diff
+- FCL files that carry the new `tc=`/`f=` tags need a reader with this change.
+  The reader hard-errors on unknown tag keys by design, so an older strict
+  reader rejects such a file. Files without the new tags are unaffected and
+  parse exactly as before. This is the same forward-compatibility trade the
+  `order=collated` header tag made in
+  [ADR 0026](/architecture/adr/0026-cldr-root-catalog-order)
+- the canonical model carries two fields Ferrocat deliberately does not reason
+  about, which is a small exception to the "every field is something Ferrocat
+  understands" framing of ADR 0021 through ADR 0023. The exception is explicit:
+  they are round-trip state, kept internal precisely so they cannot leak into
+  catalog semantics

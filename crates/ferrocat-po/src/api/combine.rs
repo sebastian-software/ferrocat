@@ -241,6 +241,10 @@ impl CombineState {
 /// translations, and non-empty translation conflicts are resolved or rejected
 /// according to [`CatalogConflictStrategy`].
 ///
+/// Translator-owned metadata (translator comments and per-entry flags) is the
+/// exception to cumulation: it is carried from the definition that wins the
+/// entry value rather than unioned across inputs.
+///
 /// # Errors
 ///
 /// Returns [`ApiError`] when required options are missing, an input cannot be

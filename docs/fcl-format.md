@@ -89,12 +89,14 @@ A field containing no `\` is taken verbatim (zero-copy borrow on parse).
 | tag | source field | meaning | cardinality |
 |-----|--------------|---------|-------------|
 | `r=`       | `origin` (`CatalogOrigin`) | source reference `file` or `file#scope` (no line numbers) | 0..n |
-| `c=`       | `comments`                 | note for translators (`#.` in PO)      | 0..n |
+| `c=`       | `comments`                 | extractor-owned note (`#.` in PO)      | 0..n |
+| `tc=`      | `translator_comments`      | translator-owned note (`#` in PO)      | 0..n |
+| `f=`       | `flags`                    | one opaque per-entry flag (`#,` in PO) | 0..n |
 | `o`        | `obsolete`                 | obsolete marker (flag, no value)       | 0..1 |
 | `lock=`    | `machine.lock`             | integrity hash; presence marks the value as machine-managed | 0..1 |
 | `ai=`      | `machine.ai`               | AI provenance, `model[:confidence]`    | 0..1 |
 
-Canonical tag order: `r` (sorted), `c`, `o`, `lock`, `ai`.
+Canonical tag order: `r` (sorted), `c`, `tc`, `f`, `o`, `lock`, `ai`.
 
 `r` carries the file and an optional stable `#scope` anchor. The file identifies
 the source file; the scope identifies the nearest stable named source container.
@@ -110,10 +112,16 @@ Use names a developer would recognize in source code:
 Scope is metadata for review and tooling, not message identity, and it is not a
 replacement for gettext context / `msgctxt`; downstream tools should not derive
 it from `msgctxt` by default. See
-[ADR 0024](app/routes/architecture/adr/0024-origin-scope-anchor.mdx). `c` holds free-form
-notes: the gettext extracted (`#.`) and translator (`#`) comment kinds collapse
-into one list, and gettext flags (`fuzzy`, `*-format`) are not carried (see
-[ADR 0023](app/routes/architecture/adr/0023-drop-gettext-flags-merge-comments.mdx)).
+[ADR 0024](app/routes/architecture/adr/0024-origin-scope-anchor.mdx).
+
+`c`, `tc`, and `f` all hold free-form values the catalog layer never interprets.
+The split exists purely so the gettext comment kinds and per-entry flags can be
+written back the way they arrived: `c` is extractor-owned and gets refreshed by
+an update, while `tc` and `f` are translator-owned and are preserved verbatim
+against the entry identity. Flags carry no semantics — `fuzzy` does not produce
+a status, and unknown flags such as `x-custom` round-trip unchanged (see
+[ADR 0023](app/routes/architecture/adr/0023-drop-gettext-flags-merge-comments.mdx)
+and [ADR 0027](app/routes/architecture/adr/0027-opaque-po-metadata-roundtrip.mdx)).
 
 `lock` is the fingerprint of the value when a machine (AI engine, TMS, script)
 set it; if `hash(current value) != lock`, a human edited it and high-level
@@ -143,6 +151,12 @@ catalog-layer decision shared with PO output; the low-level `parse_po` /
 - Duplicate singleton tags and tags outside canonical order are hard errors.
 - Unknown tag keys are a hard error (the versioned `%FCL1` magic gates
   forward-compatible additions).
+
+Entry tags are additive the same way the `order=collated` header tag was: a
+reader that knows a tag accepts files with and without it, but a file that
+*carries* a newer tag is rejected by an older reader, because unknown keys are
+an error by design. `tc=` and `f=` were added this way; a file written without
+them parses under any reader that understands the rest of `%FCL1`.
 
 ## FCL vs PO
 
