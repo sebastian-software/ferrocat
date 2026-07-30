@@ -1,5 +1,39 @@
 # Changelog
 
+## [3.1.0](https://github.com/sebastian-software/ferrocat/compare/ferrocat-v3.0.1...ferrocat-v3.1.0) (2026-07-30)
+
+
+### Features
+
+* **po:** carry opaque metadata through FCL tc/f tags ([faabfc4](https://github.com/sebastian-software/ferrocat/commit/faabfc44a19cca7ecf8172a978f9116beda74be4)), closes [#271](https://github.com/sebastian-software/ferrocat/issues/271)
+* **po:** expose PO serialization options through catalog update and combine ([51eca62](https://github.com/sebastian-software/ferrocat/commit/51eca62c490cafe00b2c59b0b96a0bd01f37ee05))
+* **po:** expose PO serialization options through catalog update and combine ([d0769df](https://github.com/sebastian-software/ferrocat/commit/d0769dfb102f6429ea72798f632eac256ef3e328)), closes [#272](https://github.com/sebastian-software/ferrocat/issues/272)
+* **po:** preserve translator comments and flags through catalog updates ([d057d1d](https://github.com/sebastian-software/ferrocat/commit/d057d1d82d64cbf07ca752d18f623e4b28f23ddb)), closes [#271](https://github.com/sebastian-software/ferrocat/issues/271)
+* **po:** preserve translator comments and opaque flags across catalog updates ([97bdb69](https://github.com/sebastian-software/ferrocat/commit/97bdb69215531ae083a733a2e6010d336aa395a7))
+
+
+### Bug Fixes
+
+* **deps:** update react-router monorepo to v8.3.0 ([9ed1a7d](https://github.com/sebastian-software/ferrocat/commit/9ed1a7d3661ed93b4a7fe71f9945907652e38032))
+* **po:** correct ICU plural synthesis capacity estimate ([70ad183](https://github.com/sebastian-software/ferrocat/commit/70ad183458911f49299c64deff7c0224e2485574))
+* **po:** derive combine metadata transfer from translation ownership ([b358744](https://github.com/sebastian-software/ferrocat/commit/b358744ee677dce910f270dddc00b33af0d6c2a7))
+
+
+### Performance Improvements
+
+* **bench:** ingest templates via the borrowed PO parser ([fc4a8fb](https://github.com/sebastian-software/ferrocat/commit/fc4a8fba6dfc721a6443a64159177ae4c945d437))
+* **po:** allocation-focused catalog speedups and refreshed benchmark numbers ([4cd8796](https://github.com/sebastian-software/ferrocat/commit/4cd8796a48f899dc26eaaa2e321bee4cc717fa29))
+* **po:** box the opaque metadata block ([6c6c280](https://github.com/sebastian-software/ferrocat/commit/6c6c28018200e7d2181396f99a347fce3915ce1b))
+* **po:** continue collation prefixes on collision ([c3caa27](https://github.com/sebastian-software/ferrocat/commit/c3caa274664a992410d654fc0ac072c042af9e6d))
+* **po:** cut allocation churn in plural synthesis and PO export ([454b7a8](https://github.com/sebastian-software/ferrocat/commit/454b7a80a9db646e089bb9a4f79875bae35246d0))
+* **po:** cut per-message allocations in catalog export ([e6e14a0](https://github.com/sebastian-software/ferrocat/commit/e6e14a00c1c09290df9abee8abca4023212ab9e6))
+* **po:** drop redundant buffers in catalog message import ([e933efb](https://github.com/sebastian-software/ferrocat/commit/e933efb8e36501c0b3bc8c02e390cfe835c61284))
+* **po:** drop throwaway sets in catalog merge helpers ([f41268c](https://github.com/sebastian-software/ferrocat/commit/f41268c35869dbaee69ea867391b30d73c18de15))
+* **po:** move each message once when applying collated order ([75f807d](https://github.com/sebastian-software/ferrocat/commit/75f807d79b66634e78f512774d9d683db5701bad))
+* **po:** move merged message payloads instead of cloning ([658aed5](https://github.com/sebastian-software/ferrocat/commit/658aed534c359262a6600d40a073c4900f6bfb6f))
+* **po:** parse catalogs through the borrowed PO parser ([f999064](https://github.com/sebastian-software/ferrocat/commit/f999064413ba6368bc6a9ed3ae9b1dcc9ceae0c2))
+* **po:** skip opaque metadata capture on the public parse projection ([7b507d6](https://github.com/sebastian-software/ferrocat/commit/7b507d612d5762002731529756297fcbea44f190))
+
 ## [3.0.1](https://github.com/sebastian-software/ferrocat/compare/ferrocat-v2.2.0...ferrocat-v3.0.1) (2026-07-29)
 
 
