@@ -146,12 +146,21 @@ catalog-layer decision shared with PO output; the low-level `parse_po` /
 - A line beginning with a git conflict marker (`<<<<<<<`, `=======`, `>>>>>>>`)
   is a hard parse error with position — never silently mis-parsed.
 - Duplicate `(id, ctxt)` (adjacent under either supported order) is a hard
-  error.
+  parse error. The shared FCL export boundary also rejects duplicate serialized
+  identities with `ApiError::Conflict`, so `update_catalog`, catalog conversion,
+  and catalog combine cannot emit an FCL file that its reader would reject.
+- Structured plural messages use their synthesized ICU source string as the
+  serialized `id`. A literal singular ID that matches that string is therefore
+  a collision, just like active and obsolete messages that share an identity.
 - Entries that violate the legacy bytewise order or declared collated order are
   a hard error.
 - Duplicate singleton tags and tags outside canonical order are hard errors.
 - Unknown tag keys are a hard error (the versioned `%FCL1` magic gates
   forward-compatible additions).
+
+File-based catalog workflows finish this validation and render the complete FCL
+content before atomically replacing the destination. An identity conflict
+therefore leaves an existing destination unchanged.
 
 Entry tags are additive the same way the `order=collated` header tag was: a
 reader that knows a tag accepts files with and without it, but a file that

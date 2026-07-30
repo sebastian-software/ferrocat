@@ -49,9 +49,10 @@ operations.
   placeholder hints, origins and scopes, opaque flags, obsolete metadata, and
   valid machine metadata. Placeholder hints are materialized without the
   update API's presentation limit.
-- FCL conversion validates serialized `(id, ctxt)` uniqueness before rendering.
-  This rejects PO states such as active and obsolete entries with the same
-  identity, which PO can carry but FCL cannot represent.
+- The shared FCL export boundary validates serialized `(id, ctxt)` uniqueness
+  before rendering. This protects conversion, update, and combine alike and
+  rejects states such as active and obsolete entries with the same identity,
+  which PO can carry but FCL cannot represent.
 - PO output uses the requested deterministic PO ordering and serializer
   controls. FCL output always uses its canonical collated order and line shape.
 - The file API reads, validates, parses, and renders completely before atomic

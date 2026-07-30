@@ -1547,6 +1547,33 @@ fn combine_catalogs_rejects_empty_inputs() {
 }
 
 #[test]
+fn combine_catalogs_renders_valid_fcl_through_shared_export() {
+    let first = "%FCL1\tsource=en\tlocale=de\torder=collated\nHello\t\tHallo\n";
+    let second = "%FCL1\tsource=en\tlocale=de\torder=collated\nNew\t\tNeu\n";
+    let inputs = [
+        CatalogCombineInput::labeled(first, "first.fcl"),
+        CatalogCombineInput::labeled(second, "second.fcl"),
+    ];
+
+    let result = combine_catalogs(CombineCatalogOptions {
+        inputs: &inputs,
+        source_locale: "en",
+        locale: Some("de"),
+        mode: CatalogMode::IcuFcl,
+        ..CombineCatalogOptions::new(&[], "en")
+    })
+    .expect("combine valid FCL catalogs");
+
+    assert!(
+        result
+            .content
+            .starts_with("%FCL1\tsource=en\tlocale=de\torder=collated\n")
+    );
+    assert!(result.content.contains("Hello\t\tHallo\n"));
+    assert!(result.content.contains("New\t\tNeu\n"));
+}
+
+#[test]
 fn combine_catalogs_use_first_preserves_existing_translations_and_adds_missing() {
     let existing = concat!("msgid \"Hello\"\n", "msgstr \"Hallo\"\n",);
     let template = concat!(
@@ -2512,6 +2539,79 @@ fn update_catalog_roundtrips_fcl_via_public_api() {
     .expect("parse");
     assert_eq!(parsed.messages.len(), 1);
     assert_eq!(parsed.messages[0].msgid, "Hello");
+}
+
+#[test]
+fn update_catalog_rejects_duplicate_serialized_fcl_identities() {
+    let plural_id = "{count, plural, one {item} other {items}}";
+    let error = update_catalog(UpdateCatalogOptions {
+        source_locale: "en",
+        locale: Some("de"),
+        mode: CatalogMode::IcuFcl,
+        input: structured_input(vec![
+            ExtractedMessage::Singular(ExtractedSingularMessage {
+                msgid: plural_id.to_owned(),
+                ..ExtractedSingularMessage::default()
+            }),
+            ExtractedMessage::Plural(ExtractedPluralMessage {
+                msgid: "cart.items".to_owned(),
+                source: PluralSource {
+                    one: Some("item".to_owned()),
+                    other: "items".to_owned(),
+                },
+                ..ExtractedPluralMessage::default()
+            }),
+        ]),
+        ..UpdateCatalogOptions::new("en", CatalogUpdateInput::default())
+    })
+    .expect_err("duplicate serialized FCL identity");
+
+    assert!(matches!(
+        error,
+        ApiError::Conflict(message)
+            if message.contains("duplicate FCL identity")
+                && message.contains(plural_id)
+    ));
+}
+
+#[test]
+fn update_catalog_file_keeps_existing_fcl_on_identity_conflict() {
+    let directory = tempfile::tempdir().expect("tempdir");
+    let target = directory.path().join("de.fcl");
+    let original = "%FCL1\tsource=en\tlocale=de\torder=collated\n";
+    fs::write(&target, original).expect("write existing FCL");
+    let plural_id = "{count, plural, one {item} other {items}}";
+    let options = UpdateCatalogOptions::new(
+        "en",
+        structured_input(vec![
+            ExtractedMessage::Singular(ExtractedSingularMessage {
+                msgid: plural_id.to_owned(),
+                ..ExtractedSingularMessage::default()
+            }),
+            ExtractedMessage::Plural(ExtractedPluralMessage {
+                msgid: "cart.items".to_owned(),
+                source: PluralSource {
+                    one: Some("item".to_owned()),
+                    other: "items".to_owned(),
+                },
+                ..ExtractedPluralMessage::default()
+            }),
+        ]),
+    )
+    .with_locale("de")
+    .with_mode(CatalogMode::IcuFcl);
+
+    let error = update_catalog_file(
+        UpdateCatalogFileOptions::new(&target, "en", CatalogUpdateInput::default())
+            .with_options(options),
+    )
+    .expect_err("duplicate serialized FCL identity");
+
+    assert!(matches!(
+        error,
+        ApiError::Conflict(message) if message.contains("duplicate FCL identity")
+    ));
+    assert_eq!(fs::read_to_string(&target).expect("read target"), original);
 }
 
 #[test]

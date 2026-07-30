@@ -25,6 +25,9 @@
 
 ### Bug Fixes
 
+- FCL update, conversion, and combine now reject duplicate serialized
+  `(id, ctxt)` identities at their shared export boundary. File updates leave
+  an existing destination unchanged when validation fails.
 - Active PO `#, fuzzy` and FCL `f=fuzzy` entries no longer count as translated;
   coverage, audit, and review share the same empty/plural/obsolete/fuzzy
   precedence.
