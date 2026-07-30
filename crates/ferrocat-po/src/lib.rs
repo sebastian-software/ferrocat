@@ -77,18 +77,18 @@
 //! ```
 //!
 //! ```rust
-//! use ferrocat_po::{CatalogAuditOptions, ParseCatalogOptions, audit_catalogs, parse_catalog};
+//! use ferrocat_po::{
+//!     CatalogAuditOptions, ParseCatalogOptions, audit_catalogs, parse_catalog_for_review,
+//! };
 //!
-//! let source = parse_catalog(
+//! let source = parse_catalog_for_review(
 //!     ParseCatalogOptions::new("msgid \"Hello {name}\"\nmsgstr \"Hello {name}\"\n", "en")
 //!         .with_locale("en"),
-//! )?
-//! .into_normalized_view()?;
-//! let target = parse_catalog(
+//! )?;
+//! let target = parse_catalog_for_review(
 //!     ParseCatalogOptions::new("msgid \"Hello {name}\"\nmsgstr \"Hallo\"\n", "en")
 //!         .with_locale("de"),
-//! )?
-//! .into_normalized_view()?;
+//! )?;
 //! let report = audit_catalogs(&[&source, &target], &CatalogAuditOptions::new("en"))?;
 //!
 //! assert!(report.has_errors());
@@ -140,8 +140,8 @@ pub use api::{
     audit_catalogs, canonicalize_icu_with_policy, combine_catalog_files, combine_catalogs,
     compile_catalog_artifact, compile_catalog_artifact_report, compile_catalog_artifact_selected,
     compiled_key, compiled_key_with_policy, machine_translation_hash, measure_catalog_coverage,
-    parse_catalog, pseudolocalize_compiled_catalog_artifact, review_catalogs, update_catalog,
-    update_catalog_file,
+    parse_catalog, parse_catalog_for_review, pseudolocalize_compiled_catalog_artifact,
+    review_catalogs, update_catalog, update_catalog_file,
 };
 pub use borrowed::{
     BorrowedHeader, BorrowedMsgStr, BorrowedPoFile, BorrowedPoItem, parse_po_borrowed,

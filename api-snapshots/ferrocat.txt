@@ -167,6 +167,7 @@ pub use ferrocat::measure_catalog_coverage
 pub use ferrocat::merge_catalog
 pub use ferrocat::normalize_message_metadata
 pub use ferrocat::parse_catalog
+pub use ferrocat::parse_catalog_for_review
 pub use ferrocat::parse_icu
 pub use ferrocat::parse_icu_with_options
 pub use ferrocat::parse_po
@@ -295,6 +296,7 @@ pub use ferrocat::catalog::diagnostic_codes
 pub use ferrocat::catalog::machine_translation_hash
 pub use ferrocat::catalog::measure_catalog_coverage
 pub use ferrocat::catalog::parse_catalog
+pub use ferrocat::catalog::parse_catalog_for_review
 pub use ferrocat::catalog::pseudolocalize_compiled_catalog_artifact
 pub use ferrocat::catalog::review_catalogs
 pub use ferrocat::catalog::update_catalog

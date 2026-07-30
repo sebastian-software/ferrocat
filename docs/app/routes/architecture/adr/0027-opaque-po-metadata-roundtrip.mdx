@@ -6,7 +6,7 @@ order: 270
 
 # ADR 0027: Preserve Translator Comments and Flags as Opaque Round-Trip State
 
-- Status: Accepted
+- Status: Accepted, partially superseded by [ADR 0028](/architecture/adr/0028-fuzzy-review-state-projection)
 - Date: 2026-07-30
 - Partially supersedes: [ADR 0023](/architecture/adr/0023-drop-gettext-flags-merge-comments)
 - Relates to: [ADR 0006](/architecture/adr/0006-separate-po-core-from-high-level-catalog-api)
@@ -16,8 +16,10 @@ order: 270
 [ADR 0023](/architecture/adr/0023-drop-gettext-flags-merge-comments) removed the
 gettext flag concept from the catalog layer and collapsed the two comment kinds
 into one notes list. That decision was about *semantics*, and it still holds:
-Ferrocat has no use for a `fuzzy` status it never produces, and printf format
-flags say nothing about an ICU catalog.
+Ferrocat did not produce a `fuzzy` status, and printf format flags say nothing
+about an ICU catalog. ADR 0028 later narrows the first statement: an opt-in
+report projection recognizes the exact `fuzzy` marker without exposing the
+general flag list.
 
 It also had a side effect that was not the point of the decision. Because the
 catalog model had nowhere to put them, a high-level update *destroyed* this
@@ -68,14 +70,16 @@ as the existing catalog with the same extractor input reproduces the same bytes.
 
 ### What this does not change
 
-This ADR grants no meaning to any of it. Everything ADR 0023 decided about
-semantics stands:
+This ADR originally granted no meaning to any of it. ADR 0028 partially
+supersedes that rule for the exact `fuzzy` marker in an opt-in report
+projection:
 
-- there is no `CatalogMessageStatus::Fuzzy`, and `#, fuzzy` on import does not
-  produce one — it is a string in a list;
-- `CatalogAuditChecks::fuzzy_flags` and the `catalog.fuzzy_flag` diagnostic do
-  not come back;
-- the coverage `fuzzy` counter does not come back;
+- `CatalogMessageStatus::Fuzzy`, `CatalogAuditChecks::fuzzy_flags`,
+  `catalog.fuzzy_flag`, and the coverage `fuzzy` counter are available when
+  catalogs are parsed with `parse_catalog_for_review`;
+- the default public parse projection still drops all flags, while update and
+  combine continue to preserve them opaquely;
+- no flag other than exact `fuzzy` acquires semantic meaning;
 - the comment-kind split drives no behavior. Ferrocat does not read translator
   comments differently from extracted ones; it only knows which line prefix they
   came from so it can write them back the same way.

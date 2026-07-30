@@ -8,10 +8,25 @@
   canonicalizes both artifact messages and compiled IDs. Regenerate runtime
   artifacts and `CompiledCatalogIdIndex` values created with Ferrocat 3.1.0 or
   earlier; previously cached IDs do not match the canonicalized contract.
+- `measure_catalog_coverage`, default fuzzy-enabled `audit_catalogs`, and
+  current target catalogs passed to `review_catalogs` now require normalized
+  inputs from `parse_catalog_for_review` (or programmatic catalogs explicitly
+  normalized with `into_normalized_view_assuming_no_fuzzy`). This prevents
+  discarded fuzzy state from being counted as translated.
+- `CatalogMessageStatus::Fuzzy`, `CatalogLocaleCoverage::fuzzy()`,
+  `CatalogAuditChecks::fuzzy_flags`, and the `catalog.fuzzy_flag` diagnostic are
+  restored. The derived accessor keeps the externally constructible coverage
+  struct semver-compatible.
 
 ### Features
 
 * **icu:** add policy-aware runtime apostrophe canonicalization and compiled-key derivation
+
+### Bug Fixes
+
+- Active PO `#, fuzzy` and FCL `f=fuzzy` entries no longer count as translated;
+  coverage, audit, and review share the same empty/plural/obsolete/fuzzy
+  precedence.
 
 ## [2.2.0](https://github.com/sebastian-software/ferrocat/compare/ferrocat-po-v3.0.0...ferrocat-po-v2.2.0) (2026-07-05)
 

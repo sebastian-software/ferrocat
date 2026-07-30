@@ -47,12 +47,11 @@ pub(super) struct Catalog {
 
 /// One catalog entry in the canonical internal model.
 ///
-/// `opaque` is deliberately internal: the catalog layer gives translator
-/// comments and flags no semantics (see
-/// [ADR 0027](/architecture/adr/0027-opaque-po-metadata-roundtrip)), it only
-/// keeps them attached to the `(msgctxt, msgid)` identity so a source-first
-/// update does not destroy translator-owned metadata. They are not projected
-/// into the public [`CatalogMessage`].
+/// `opaque` is deliberately internal: the catalog layer keeps translator
+/// comments and arbitrary flags attached to the `(msgctxt, msgid)` identity so
+/// a source-first update does not destroy translator-owned metadata (ADR 0027).
+/// Only the dedicated review projection observes exact `fuzzy` (ADR 0028);
+/// none of this metadata is projected into the public [`CatalogMessage`].
 ///
 /// Do not shrink the other fields to "compensate" for the extra one:
 /// `size_of::<CanonicalMessage>()` must stay `>= size_of::<CatalogMessage>()`
@@ -75,7 +74,8 @@ pub(super) struct CanonicalMessage {
 }
 
 /// Translator-owned `#` comments and per-entry `#,` flags, preserved opaquely
-/// across updates and never interpreted (ADR 0027).
+/// across updates; exact `fuzzy` is observed only by the review projection
+/// (ADRs 0027 and 0028).
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub(super) struct OpaqueMetadata {
     pub(super) translator_comments: Vec<String>,
@@ -101,11 +101,16 @@ impl CanonicalMessage {
 /// Whether an import keeps the opaque PO round-trip metadata.
 ///
 /// The public `parse_catalog` projection has no slot for it, so building the
-/// block there would only be allocated-and-dropped churn on every parse;
-/// update and combine flows must keep it (ADR 0027).
+/// block there would only be allocated-and-dropped churn on every parse.
+/// Update/combine keep everything (ADR 0027); the report projection keeps only
+/// exact `fuzzy` (ADR 0028).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum OpaqueCapture {
+    /// Preserve all opaque metadata for update/combine round-tripping.
     Keep,
+    /// Preserve only the semantic `fuzzy` marker needed by report classifiers.
+    ReviewState,
+    /// Skip opaque metadata for the default high-throughput public projection.
     Discard,
 }
 
@@ -319,11 +324,38 @@ pub fn update_catalog_file(
 /// assert_eq!(catalog.messages.len(), 1);
 /// # Ok::<(), ferrocat_po::ApiError>(())
 /// ```
-#[expect(
-    clippy::needless_pass_by_value,
-    reason = "Public API takes owned option structs so callers can build and move them ergonomically."
-)]
 pub fn parse_catalog(options: ParseCatalogOptions<'_>) -> Result<ParsedCatalog, ApiError> {
+    parse_catalog_projection(options, OpaqueCapture::Discard).map(|(catalog, _)| catalog)
+}
+
+/// Parses catalog content directly into a normalized, review-aware projection.
+///
+/// Unlike [`parse_catalog`], this entry point retains the semantic presence of
+/// the `fuzzy` flag for coverage, audit, and review classification. Arbitrary
+/// gettext flags and translator comments remain opaque and are not exposed.
+///
+/// # Errors
+///
+/// Returns [`ApiError`] when the catalog content cannot be parsed, the source
+/// locale is missing, strict ICU projection fails, or duplicate message
+/// identities prevent normalization.
+pub fn parse_catalog_for_review(
+    options: ParseCatalogOptions<'_>,
+) -> Result<super::NormalizedParsedCatalog, ApiError> {
+    let (catalog, fuzzy_keys) = parse_catalog_projection(options, OpaqueCapture::ReviewState)?;
+    super::NormalizedParsedCatalog::new_with_review_state(catalog, fuzzy_keys)
+}
+
+fn parse_catalog_projection(
+    options: ParseCatalogOptions<'_>,
+    opaque_capture: OpaqueCapture,
+) -> Result<
+    (
+        ParsedCatalog,
+        std::collections::BTreeSet<super::CatalogMessageKey>,
+    ),
+    ApiError,
+> {
     super::validate_source_locale(options.source_locale)?;
     let catalog = parse_catalog_to_internal(
         options.content,
@@ -333,21 +365,36 @@ pub fn parse_catalog(options: ParseCatalogOptions<'_>) -> Result<ParsedCatalog, 
         options.mode.plural_encoding(),
         options.strict,
         options.mode.storage_format(),
-        OpaqueCapture::Discard,
+        opaque_capture,
     )?;
+    let fuzzy_keys = if opaque_capture == OpaqueCapture::ReviewState {
+        catalog
+            .messages
+            .iter()
+            .filter(|message| message.flags().iter().any(|flag| flag == "fuzzy"))
+            .map(|message| {
+                super::CatalogMessageKey::new(message.msgid.clone(), message.msgctxt.clone())
+            })
+            .collect()
+    } else {
+        std::collections::BTreeSet::new()
+    };
     let messages = catalog
         .messages
         .into_iter()
         .map(public_message_from_canonical)
         .collect();
 
-    Ok(ParsedCatalog {
-        locale: catalog.locale,
-        semantics: options.mode.semantics(),
-        headers: catalog.headers,
-        messages,
-        diagnostics: catalog.diagnostics,
-    })
+    Ok((
+        ParsedCatalog {
+            locale: catalog.locale,
+            semantics: options.mode.semantics(),
+            headers: catalog.headers,
+            messages,
+            diagnostics: catalog.diagnostics,
+        },
+        fuzzy_keys,
+    ))
 }
 
 /// Collapses the accepted extractor input shapes into one merge-oriented form.
@@ -1015,12 +1062,20 @@ fn import_message_from_po(
     // placeholder split); translator-owned `#` comments and `#,` flags are kept
     // separately and opaquely so an update cannot rewrite or drop them.
     let (comments, placeholders) = split_placeholder_comments(item.extracted_comments);
-    // The public parse projection has no slot for the opaque block, so it
-    // skips building it instead of allocating strings only to drop them.
+    // The default public projection skips this block entirely. Reporting keeps
+    // only exact `fuzzy`; update/combine keep the full round-trip payload.
     let opaque = match opaque_capture {
         OpaqueCapture::Keep => OpaqueMetadata::from_parts(
             item.comments.into_iter().map(Cow::into_owned).collect(),
             item.flags.into_iter().map(Cow::into_owned).collect(),
+        ),
+        OpaqueCapture::ReviewState => OpaqueMetadata::from_parts(
+            Vec::new(),
+            item.flags
+                .into_iter()
+                .filter(|flag| flag == "fuzzy")
+                .map(Cow::into_owned)
+                .collect(),
         ),
         OpaqueCapture::Discard => None,
     };
