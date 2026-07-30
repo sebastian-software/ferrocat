@@ -2719,8 +2719,8 @@ fn update_catalog_preserves_unknown_flags_verbatim() {
     })
     .expect("update");
 
-    // Flags render as one line after the references and are never interpreted:
-    // `fuzzy` does not revive a status, `x-custom` survives unchanged.
+    // Update treats flags as opaque round-trip state: `fuzzy` and `x-custom`
+    // both survive unchanged. Report classification is tested separately.
     assert!(result.content.contains("#, fuzzy, x-custom\n"));
     let parsed = parse_po(&result.content).expect("parse output");
     assert_eq!(parsed.items[0].flags.as_slice(), ["fuzzy", "x-custom"]);

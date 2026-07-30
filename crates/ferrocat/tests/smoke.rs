@@ -6,7 +6,7 @@ use ferrocat::{
         CompileSelectedCatalogArtifactOptions, CompiledCatalogIdIndex, CompiledKeyStrategy,
         EffectiveTranslation, EffectiveTranslationRef, ParseCatalogOptions, SourceExtractedMessage,
         audit_catalogs, combine_catalogs, compile_catalog_artifact,
-        compile_catalog_artifact_selected, parse_catalog,
+        compile_catalog_artifact_selected, parse_catalog, parse_catalog_for_review,
     },
     icu, parse_po_bytes, po,
 };
@@ -98,8 +98,16 @@ msgstr "world"
     .expect("parse source catalog")
     .into_normalized_view()
     .expect("normalized source catalog");
+    let review_source = parse_catalog_for_review(
+        ParseCatalogOptions::new("msgid \"hello\"\nmsgstr \"hello\"\n", "en").with_locale("en"),
+    )
+    .expect("parse review source catalog");
+    let review_target = parse_catalog_for_review(
+        ParseCatalogOptions::new("msgid \"hello\"\nmsgstr \"world\"\n", "en").with_locale("de"),
+    )
+    .expect("parse review target catalog");
     let audit = audit_catalogs(
-        &[&source, &normalized],
+        &[&review_source, &review_target],
         &CatalogAuditOptions::new("en").with_icu_options(CatalogAuditIcuOptions::default()),
     )
     .expect("audit catalogs with icu options");

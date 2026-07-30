@@ -25,7 +25,9 @@ pub use self::audit::{
     CatalogAuditChecks, CatalogAuditDiagnostic, CatalogAuditIcuOptions, CatalogAuditMessageRef,
     CatalogAuditOptions, CatalogAuditReport, CatalogAuditSummary, audit_catalogs,
 };
-pub use self::catalog::{parse_catalog, update_catalog, update_catalog_file};
+pub use self::catalog::{
+    parse_catalog, parse_catalog_for_review, update_catalog, update_catalog_file,
+};
 pub use self::combine::{combine_catalog_files, combine_catalogs};
 pub use self::compile::{
     compile_catalog_artifact, compile_catalog_artifact_report, compile_catalog_artifact_selected,

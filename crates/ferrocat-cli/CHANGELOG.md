@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+### Bug Fixes
+
+- `ferrocat audit` now reports active fuzzy entries through the shared
+  review-aware catalog classifier.
+
 ## [2.2.0](https://github.com/sebastian-software/ferrocat/compare/ferrocat-cli-v3.0.0...ferrocat-cli-v2.2.0) (2026-07-05)
 
 

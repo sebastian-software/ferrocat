@@ -1,6 +1,7 @@
 use super::{
-    ApiError, CatalogCoverageOptions, CatalogMessageKey, CatalogMessageStatus, PluralEncoding,
-    measure_catalog_coverage, normalized_catalog,
+    ApiError, CatalogCoverageOptions, CatalogMessageKey, CatalogMessageStatus, ParseCatalogOptions,
+    PluralEncoding, measure_catalog_coverage, normalized_catalog, normalized_fcl_catalog,
+    parse_catalog,
 };
 
 fn invalid_arguments_message(error: ApiError) -> String {
@@ -45,15 +46,36 @@ fn coverage_report_counts_expected_message_statuses() {
     assert_eq!(report.source_messages, 5);
     assert_eq!(report.target_locales, 1);
     assert_eq!(locale.total, 5);
-    // The `#, fuzzy` entry imports as a normal translation now that flags are
-    // dropped, so it counts as translated rather than a separate fuzzy bucket.
-    assert_eq!(locale.translated, 2);
+    assert_eq!(locale.translated, 1);
     assert_eq!(locale.empty, 1);
+    assert_eq!(locale.fuzzy(), 1);
     assert_eq!(locale.obsolete, 1);
     assert_eq!(locale.missing, 1);
     assert_eq!(locale.extra, 1);
-    assert_eq!(locale.incomplete(), 3);
-    assert_eq!(locale.completion_percent(), 40.0);
+    assert_eq!(locale.incomplete(), 4);
+    assert_eq!(locale.completion_percent(), 20.0);
+    assert!(locale.details.iter().any(|detail| {
+        detail.source_key == CatalogMessageKey::new("Fuzzy", None)
+            && detail.status == CatalogMessageStatus::Fuzzy
+    }));
+}
+
+#[test]
+fn coverage_report_classifies_fcl_fuzzy_like_po_fuzzy() {
+    let source = normalized_fcl_catalog("%FCL1\tsource=en\nFuzzy\t\tFuzzy\n", Some("en"));
+    let target =
+        normalized_fcl_catalog("%FCL1\tsource=en\nFuzzy\t\tUnscharf\tf=fuzzy\n", Some("de"));
+
+    let report = measure_catalog_coverage(
+        &[&source, &target],
+        &CatalogCoverageOptions::new("en").with_details(true),
+    )
+    .expect("coverage");
+    let locale = &report.locales[0];
+
+    assert_eq!(locale.translated, 0);
+    assert_eq!(locale.fuzzy(), 1);
+    assert_eq!(locale.details[0].status, CatalogMessageStatus::Fuzzy);
 }
 
 #[test]
@@ -84,6 +106,34 @@ fn coverage_report_includes_optional_details() {
         detail.source_key == CatalogMessageKey::new("Extra", None)
             && detail.status == CatalogMessageStatus::Extra
     }));
+}
+
+#[test]
+fn coverage_report_rejects_the_metadata_discarding_parse_projection() {
+    let source = normalized_catalog(
+        "msgid \"Hello\"\nmsgstr \"Hello\"\n",
+        Some("en"),
+        PluralEncoding::Icu,
+    );
+    let target = parse_catalog(
+        ParseCatalogOptions::new(
+            "#, fuzzy, x-custom\nmsgid \"Hello\"\nmsgstr \"Hallo\"\n",
+            "en",
+        )
+        .with_locale("de"),
+    )
+    .expect("parse catalog")
+    .into_normalized_view()
+    .expect("normalize catalog");
+
+    let error = measure_catalog_coverage(&[&source, &target], &CatalogCoverageOptions::new("en"))
+        .expect_err("discarded review state must not silently count fuzzy as translated");
+
+    assert!(
+        invalid_arguments_message(error).contains("parse_catalog_for_review"),
+        "error should explain the review-aware parse path"
+    );
+    assert!(!target.has_review_state());
 }
 
 #[test]
@@ -203,6 +253,56 @@ fn coverage_report_classifies_plural_messages_with_empty_slots() {
         detail.source_key == CatalogMessageKey::new("book", None)
             && detail.status == CatalogMessageStatus::Empty
     }));
+}
+
+#[test]
+fn coverage_statuses_are_mutually_exclusive_when_fuzzy_overlaps_other_state() {
+    let source = normalized_catalog(
+        concat!(
+            "msgid \"partial\"\n",
+            "msgid_plural \"partials\"\n",
+            "msgstr[0] \"partial\"\n",
+            "msgstr[1] \"partials\"\n\n",
+            "msgid \"obsolete\"\nmsgstr \"obsolete\"\n",
+        ),
+        Some("en"),
+        PluralEncoding::Gettext,
+    );
+    let target = normalized_catalog(
+        concat!(
+            "#, fuzzy\n",
+            "msgid \"partial\"\n",
+            "msgid_plural \"partials\"\n",
+            "msgstr[0] \"Teil\"\n",
+            "msgstr[1] \"\"\n\n",
+            "#~ #, fuzzy\n",
+            "#~ msgid \"obsolete\"\n",
+            "#~ msgstr \"veraltet\"\n\n",
+            "#, fuzzy\n",
+            "msgid \"extra\"\n",
+            "msgstr \"zusätzlich\"\n",
+        ),
+        Some("de"),
+        PluralEncoding::Gettext,
+    );
+
+    let report = measure_catalog_coverage(
+        &[&source, &target],
+        &CatalogCoverageOptions::new("en").with_details(true),
+    )
+    .expect("coverage");
+    let locale = &report.locales[0];
+
+    assert_eq!(locale.translated, 0);
+    assert_eq!(locale.fuzzy(), 0);
+    assert_eq!(locale.empty, 1);
+    assert_eq!(locale.obsolete, 1);
+    assert_eq!(locale.missing, 0);
+    assert_eq!(locale.extra, 1);
+    assert_eq!(
+        locale.total,
+        locale.translated + locale.fuzzy() + locale.empty + locale.obsolete + locale.missing
+    );
 }
 
 #[test]

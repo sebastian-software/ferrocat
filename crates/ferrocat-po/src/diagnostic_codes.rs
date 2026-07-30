@@ -107,6 +107,8 @@ pub mod catalog {
     pub const MISSING_LOCALE: &str = "catalog.missing_locale";
     /// Catalog contains an obsolete entry.
     pub const OBSOLETE_ENTRY: &str = "catalog.obsolete_entry";
+    /// Active catalog entry carries the semantic `fuzzy` review marker.
+    pub const FUZZY_FLAG: &str = "catalog.fuzzy_flag";
     /// Target locale is missing an active source message.
     pub const MISSING_TRANSLATION: &str = "catalog.missing_translation";
     /// Target locale has an empty translation for an active source message.
@@ -123,6 +125,7 @@ pub mod catalog {
         MISSING_SOURCE_LOCALE,
         MISSING_LOCALE,
         OBSOLETE_ENTRY,
+        FUZZY_FLAG,
         MISSING_TRANSLATION,
         EMPTY_TRANSLATION,
         EXTRA_TRANSLATION,

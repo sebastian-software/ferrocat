@@ -1094,20 +1094,15 @@ pub(super) struct CatalogWorkflowFixture {
 
 impl CatalogWorkflowFixture {
     fn from_fixture(fixture: &Fixture) -> Result<Self, String> {
-        let parsed = parse_catalog(
-            ParseCatalogOptions::new(fixture.content(), "en")
-                .with_locale("en")
-                .with_mode(CatalogMode::IcuPo),
-        )
-        .map_err(|error| format!("failed to parse catalog workflow fixture: {error}"))?;
         let catalogs = ["en", "de", "fr", "es", "it", "pl"]
             .into_iter()
             .map(|locale| {
-                let mut catalog = parsed.clone();
-                catalog.locale = Some(locale.to_owned());
-                catalog.into_normalized_view().map_err(|error| {
-                    format!("failed to normalize catalog workflow fixture: {error}")
-                })
+                parse_catalog_for_review(
+                    ParseCatalogOptions::new(fixture.content(), "en")
+                        .with_locale(locale)
+                        .with_mode(CatalogMode::IcuPo),
+                )
+                .map_err(|error| format!("failed to parse catalog workflow fixture: {error}"))
             })
             .collect::<Result<Vec<_>, _>>()?;
         Ok(Self {

@@ -161,6 +161,7 @@ find a stable named container, emit the file alone and leave `scope` empty.
 | Combine multiple catalogs with deterministic conflict and selection rules | `combine_catalogs` |
 | Read a Gettext PO or FCL catalog into the higher-level canonical catalog model | `parse_catalog` |
 | Build keyed lookup/helpers on top of a parsed catalog | `ParsedCatalog::into_normalized_view` |
+| Parse directly into a fuzzy-aware normalized catalog for reports | `parse_catalog_for_review` |
 | Audit source and target catalogs for release readiness | `audit_catalogs` |
 | Summarize per-locale catalog completeness | `measure_catalog_coverage` |
 | Compare catalog states for translator review handoffs | `review_catalogs` |
@@ -360,7 +361,12 @@ That gives you exactly three supported modes:
 - ICU-native Gettext PO mode: Gettext PO + `IcuNative`
 - ICU-native FCL catalog mode: FCL + `IcuNative`
 
-`parse_catalog` intentionally stays as the neutral parse step. If you want keyed lookups or effective-translation helpers, build a richer view explicitly with `ParsedCatalog::into_normalized_view()`.
+`parse_catalog` intentionally stays as the neutral, metadata-discarding parse
+step. If you want keyed lookups or effective-translation helpers, build a
+richer view explicitly with `ParsedCatalog::into_normalized_view()`. If the
+catalog will feed coverage, audit, or review, use `parse_catalog_for_review`
+instead; it returns a normalized view directly and retains only fuzzy message
+identities.
 
 The normalized view supports both owned-key lookup with `CatalogMessageKey` and borrowed identity lookup with `get_by_parts(msgid, msgctxt)`, which is useful in host adapters that already have borrowed source strings.
 
@@ -411,6 +417,7 @@ Default checks cover:
 - source locale presence
 - requested target locale presence
 - missing and empty target translations
+- active fuzzy translations that still need review
 - target-only active messages that look stale
 - obsolete entries
 - ICU syntax in active source and target messages
@@ -426,18 +433,18 @@ visible while accepting runtime-valid strings such as `you're available`.
 Diagnostics are machine-readable. Examples include:
 
 ```rust
-use ferrocat::{CatalogAuditOptions, ParseCatalogOptions, audit_catalogs, parse_catalog};
+use ferrocat::{
+    CatalogAuditOptions, ParseCatalogOptions, audit_catalogs, parse_catalog_for_review,
+};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let source = parse_catalog(
+    let source = parse_catalog_for_review(
         ParseCatalogOptions::new("msgid \"Checkout\"\nmsgstr \"Checkout\"\n", "en")
             .with_locale("en"),
-    )?
-    .into_normalized_view()?;
-    let target = parse_catalog(
+    )?;
+    let target = parse_catalog_for_review(
         ParseCatalogOptions::new("msgid \"Checkout\"\nmsgstr \"\"\n", "en").with_locale("de"),
-    )?
-    .into_normalized_view()?;
+    )?;
 
     let report = audit_catalogs(&[&source, &target], &CatalogAuditOptions::new("en"))?;
     assert!(report.has_errors());
@@ -517,32 +524,35 @@ source locale's active, non-obsolete identities define the expected set for each
 target locale. Each target message is classified with the same shared status
 taxonomy used by catalog audit:
 
-- `translated`: active target entry with a non-empty translation
+- `translated`: active target entry with a non-empty, non-fuzzy translation
+- `fuzzy`: active target entry has a non-empty translation that still needs review
 - `missing`: no active or obsolete target entry exists
 - `empty`: active target entry exists, but its effective translation is empty
 - `obsolete`: target entry exists for the source identity, but is obsolete
 - `extra`: active target entry is not present in the active source set
 
-Only `translated` messages count toward completion. Empty, obsolete, and absent
-entries remain visible as separate counters so hosts can choose their own
-threshold and presentation rules.
+Only `translated` messages count toward completion. Fuzzy, empty, obsolete, and
+absent entries remain visible as separate counters so hosts can choose their
+own threshold and presentation rules. An empty singular or partially empty
+required plural remains `empty` even if it also carries `fuzzy`; obsolete and
+extra identities likewise keep their structural state. Read the per-locale
+fuzzy count with `CatalogLocaleCoverage::fuzzy()`.
 
 ```rust
 use ferrocat::{
-    CatalogCoverageOptions, ParseCatalogOptions, measure_catalog_coverage, parse_catalog,
+    CatalogCoverageOptions, ParseCatalogOptions, measure_catalog_coverage,
+    parse_catalog_for_review,
 };
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let source = parse_catalog(
+    let source = parse_catalog_for_review(
         ParseCatalogOptions::new("msgid \"Checkout\"\nmsgstr \"Checkout\"\n", "en")
             .with_locale("en"),
-    )?
-    .into_normalized_view()?;
-    let target = parse_catalog(
+    )?;
+    let target = parse_catalog_for_review(
         ParseCatalogOptions::new("msgid \"Checkout\"\nmsgstr \"Zur Kasse\"\n", "en")
             .with_locale("de"),
-    )?
-    .into_normalized_view()?;
+    )?;
 
     let report = measure_catalog_coverage(&[&source, &target], &CatalogCoverageOptions::new("en"))?;
     assert_eq!(report.locales[0].completion_percent(), 100.0);
@@ -553,6 +563,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 Set `CatalogCoverageOptions::with_details(true)` when callers also need
 per-message rows. File discovery, threshold failures, JSON/table formatting, and
 pseudo-locale filtering stay outside the core API.
+
+`parse_catalog_for_review` retains only semantic fuzzy identities and returns a
+normalized catalog directly. Arbitrary flags and translator comments remain
+opaque. The ordinary `parse_catalog` path keeps skipping this metadata for
+high-throughput callers that do not request reports; passing its normalized
+projection to coverage returns an argument error instead of silently treating
+unknown fuzzy state as translated.
 
 ### `review_catalogs`
 
@@ -572,33 +589,29 @@ Ferrocat reports a removal plus an addition instead of guessing intent.
 
 ```rust
 use ferrocat::{
-    CatalogReviewOptions, ParseCatalogOptions, review_catalogs, parse_catalog,
+    CatalogReviewOptions, ParseCatalogOptions, parse_catalog_for_review, review_catalogs,
 };
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let previous_source = parse_catalog(
+    let previous_source = parse_catalog_for_review(
         ParseCatalogOptions::new("msgid \"Checkout\"\nmsgstr \"Checkout\"\n", "en")
             .with_locale("en"),
-    )?
-    .into_normalized_view()?;
-    let current_source = parse_catalog(
+    )?;
+    let current_source = parse_catalog_for_review(
         ParseCatalogOptions::new(
             "msgid \"Checkout\"\nmsgstr \"Checkout\"\n\nmsgid \"Cancel\"\nmsgstr \"Cancel\"\n",
             "en",
         )
         .with_locale("en"),
-    )?
-    .into_normalized_view()?;
-    let previous_de = parse_catalog(
+    )?;
+    let previous_de = parse_catalog_for_review(
         ParseCatalogOptions::new("msgid \"Checkout\"\nmsgstr \"Zur Kasse\"\n", "en")
             .with_locale("de"),
-    )?
-    .into_normalized_view()?;
-    let current_de = parse_catalog(
+    )?;
+    let current_de = parse_catalog_for_review(
         ParseCatalogOptions::new("msgid \"Checkout\"\nmsgstr \"Checkout\"\n", "en")
             .with_locale("de"),
-    )?
-    .into_normalized_view()?;
+    )?;
 
     let report = review_catalogs(
         &[&previous_source, &previous_de],
@@ -776,12 +789,15 @@ references are replaced by whatever the extractor reports this run.
 Translator-owned metadata is preserved: `#` translator comments and `#,` flags
 stay attached to the `(msgctxt, msgid)` identity, including through the
 transition to obsolete and back, and a new entry never inherits them from an
-unrelated identity. Flags are kept opaquely and are not interpreted — `fuzzy`
-does not produce a status and unknown flags such as `x-custom` survive verbatim.
+unrelated identity. Update and combine keep flags opaquely. The dedicated
+`parse_catalog_for_review` projection recognizes only exact `fuzzy` for
+coverage/audit/review classification; unknown flags such as `x-custom` remain
+uninterpreted and survive verbatim.
 `combine_catalogs` and `combine_catalog_files` attach this metadata to the
 definition that wins the entry rather than merging it across inputs. FCL stores
 the same two fields as the `tc=` and `f=` entry tags. See
-[ADR 0027](/architecture/adr/0027-opaque-po-metadata-roundtrip).
+[ADR 0027](/architecture/adr/0027-opaque-po-metadata-roundtrip) and
+[ADR 0028](/architecture/adr/0028-fuzzy-review-state-projection).
 
 `RenderOptions::order_by` keeps `OrderBy::Msgid` as the default and sorts
 `msgid`, then context, with the CLDR root order used by
@@ -1070,6 +1086,7 @@ part of this source-side metadata format.
 - N-way catalog overlays and set operations: `combine_catalogs`
 - Full app-level catalog maintenance: `update_catalog` or `update_catalog_file`
 - Parsed catalog consumption with keyed accessors: `parse_catalog` + `into_normalized_view`
+- Fuzzy-aware coverage/audit/review input: `parse_catalog_for_review`
 - Locale-specific runtime artifact generation: `compile_catalog_artifact`
 - Selected locale artifact generation by compiled ID: `compile_catalog_artifact_selected`
 - Runtime artifact provenance reporting: `compile_catalog_artifact_report`

@@ -6,7 +6,7 @@ order: 230
 
 # ADR 0023: Drop gettext Flags and Merge Comments
 
-- Status: Accepted (2.0.0), partially superseded by [ADR 0027](/architecture/adr/0027-opaque-po-metadata-roundtrip)
+- Status: Accepted (2.0.0), partially superseded by [ADR 0027](/architecture/adr/0027-opaque-po-metadata-roundtrip) and [ADR 0028](/architecture/adr/0028-fuzzy-review-state-projection)
 - Date: 2026-06-30
 
 > [ADR 0027](/architecture/adr/0027-opaque-po-metadata-roundtrip) supersedes the
@@ -14,8 +14,10 @@ order: 230
 > semantic meaning in the catalog layer, but they are no longer discarded: they
 > are preserved opaquely against the message identity through update and
 > combine, and FCL regains `tc=` and `f=` tags for them. Everything below about
-> semantics — no `Fuzzy` status, no fuzzy audit check, no coverage counter —
-> still holds.
+> semantics originally remained unchanged. [ADR 0028](/architecture/adr/0028-fuzzy-review-state-projection)
+> now makes one narrow correction: an opt-in review projection interprets the
+> exact `fuzzy` marker for audit, coverage, and review. Arbitrary flags remain
+> absent from the public message model and opaque to update/combine behavior.
 
 ## Context
 
