@@ -46,7 +46,7 @@ fn stringify_catalog_po(
     locale: Option<&str>,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> Result<String, ApiError> {
-    let serialize_options = SerializeOptions::default();
+    let serialize_options = &options.render.po_serialize;
     let mut out = String::with_capacity(estimate_catalog_po_capacity(catalog));
     let mut scratch = String::new();
 
@@ -82,7 +82,7 @@ fn stringify_catalog_po(
             options,
             &mut plural_profiles,
             diagnostics,
-            &serialize_options,
+            serialize_options,
         )?;
         if iter.peek().is_some() {
             out.push('\n');

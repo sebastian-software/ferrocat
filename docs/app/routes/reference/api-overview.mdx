@@ -778,6 +778,16 @@ in its original bytewise order. The compact built-in repertoire and its Unicode
 limits are documented in
 [ADR 0026](/architecture/adr/0026-cldr-root-catalog-order).
 
+`RenderOptions::po_serialize` exposes the low-level PO serializer controls to
+the same high-level flows, so hosts no longer need a parse/stringify post-pass
+to change the output shape. `combine_catalogs` and `combine_catalog_files`
+accept the same value directly as `po_serialize`. For example,
+`RenderOptions::default().with_po_serialize_options(SerializeOptions::default().with_fold_length(0))`
+disables automatic width folding for an update. Embedded newline characters
+still render as valid multiline PO syntax, and default output stays
+byte-identical to previous releases. FCL output has a canonical line shape and
+ignores these controls.
+
 Like parsing, updates should normally choose one `CatalogMode`. PO with ICU-native semantics remains the default. FCL storage uses a single `%FCL1` header line plus one tab-separated entry per line.
 
 Choose FCL when collaboration and automation matter more than maximum PO fidelity. The one-entry-per-line shape keeps large catalog diffs readable, keeps unchanged entries byte-identical across merge inputs for clean git 3-way merges, and makes ordinary Git conflict handling more practical, including hosted review flows where custom `.gitattributes` merge drivers may not be part of the web merge path.

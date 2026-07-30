@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 
 use rustc_hash::{FxHashMap, FxHasher};
 
-use crate::{ParseError, PoVec, diagnostic_codes::DiagnosticCode};
+use crate::{ParseError, PoVec, SerializeOptions, diagnostic_codes::DiagnosticCode};
 
 use super::mt::MachineMetadata;
 use super::plural::PluralProfile;
@@ -557,6 +557,11 @@ pub struct CombineCatalogFilesOptions<'a> {
     pub include_origins: bool,
     /// Whether obsolete definitions should participate in the combine operation.
     pub include_obsolete: bool,
+    /// PO serializer controls for the rendered output, e.g. width folding.
+    ///
+    /// This only affects PO rendering; FCL output has a canonical line shape
+    /// and ignores these controls.
+    pub po_serialize: SerializeOptions,
 }
 
 impl<'a> CombineCatalogFilesOptions<'a> {
@@ -577,6 +582,7 @@ impl<'a> CombineCatalogFilesOptions<'a> {
             order_by: OrderBy::Msgid,
             include_origins: true,
             include_obsolete: false,
+            po_serialize: SerializeOptions::default(),
         }
     }
 
@@ -647,6 +653,15 @@ impl<'a> CombineCatalogFilesOptions<'a> {
     #[must_use]
     pub fn with_include_obsolete(mut self, include_obsolete: bool) -> Self {
         self.include_obsolete = include_obsolete;
+        self
+    }
+
+    /// Returns options that render PO output with the given serializer
+    /// controls, e.g. `SerializeOptions::default().with_fold_length(0)` to
+    /// disable automatic width folding.
+    #[must_use]
+    pub fn with_po_serialize_options(mut self, po_serialize: SerializeOptions) -> Self {
+        self.po_serialize = po_serialize;
         self
     }
 }
@@ -1055,6 +1070,12 @@ pub struct RenderOptions<'a> {
     pub print_placeholders_in_comments: PlaceholderCommentMode,
     /// Optional additional header attributes to inject or override.
     pub custom_header_attributes: Option<&'a BTreeMap<String, String>>,
+    /// PO serializer controls for the rendered output, e.g. width folding.
+    ///
+    /// This only affects PO rendering. FCL output has a canonical line shape
+    /// and ignores these controls. Embedded newline characters always render
+    /// as valid multiline PO syntax, even with width folding disabled.
+    pub po_serialize: SerializeOptions,
 }
 
 impl Default for RenderOptions<'_> {
@@ -1064,6 +1085,7 @@ impl Default for RenderOptions<'_> {
             include_origins: true,
             print_placeholders_in_comments: PlaceholderCommentMode::Enabled { limit: 3 },
             custom_header_attributes: None,
+            po_serialize: SerializeOptions::default(),
         }
     }
 }
@@ -1100,6 +1122,15 @@ impl<'a> RenderOptions<'a> {
         custom_header_attributes: &'a BTreeMap<String, String>,
     ) -> Self {
         self.custom_header_attributes = Some(custom_header_attributes);
+        self
+    }
+
+    /// Returns options that render PO output with the given serializer
+    /// controls, e.g. `SerializeOptions::default().with_fold_length(0)` to
+    /// disable automatic width folding.
+    #[must_use]
+    pub fn with_po_serialize_options(mut self, po_serialize: SerializeOptions) -> Self {
+        self.po_serialize = po_serialize;
         self
     }
 }
@@ -1263,6 +1294,11 @@ pub struct CombineCatalogOptions<'a> {
     pub include_origins: bool,
     /// Whether obsolete definitions should participate in the combine operation.
     pub include_obsolete: bool,
+    /// PO serializer controls for the rendered output, e.g. width folding.
+    ///
+    /// This only affects PO rendering; FCL output has a canonical line shape
+    /// and ignores these controls.
+    pub po_serialize: SerializeOptions,
 }
 
 impl<'a> CombineCatalogOptions<'a> {
@@ -1270,7 +1306,8 @@ impl<'a> CombineCatalogOptions<'a> {
     ///
     /// Optional fields default to an inferred locale, ICU-native PO mode,
     /// first-definition conflict resolution, all message identities, `msgid`
-    /// ordering, rendered origins, and skipped obsolete entries.
+    /// ordering, rendered origins, skipped obsolete entries, and default PO
+    /// serialization.
     #[must_use]
     pub fn new(inputs: &'a [CatalogCombineInput<'a>], source_locale: &'a str) -> Self {
         Self {
@@ -1283,6 +1320,7 @@ impl<'a> CombineCatalogOptions<'a> {
             order_by: OrderBy::Msgid,
             include_origins: true,
             include_obsolete: false,
+            po_serialize: SerializeOptions::default(),
         }
     }
 
@@ -1339,6 +1377,15 @@ impl<'a> CombineCatalogOptions<'a> {
     #[must_use]
     pub fn with_include_obsolete(mut self, include_obsolete: bool) -> Self {
         self.include_obsolete = include_obsolete;
+        self
+    }
+
+    /// Returns options that render PO output with the given serializer
+    /// controls, e.g. `SerializeOptions::default().with_fold_length(0)` to
+    /// disable automatic width folding.
+    #[must_use]
+    pub fn with_po_serialize_options(mut self, po_serialize: SerializeOptions) -> Self {
+        self.po_serialize = po_serialize;
         self
     }
 }
