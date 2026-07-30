@@ -96,13 +96,14 @@ hosted runner throughput number:
 - treat scheduled reports as trend artifacts unless a maintainer promotes one
   into release notes or a reference-host checkpoint
 
-The slowest current Rust-only path under review was
+The slowest current Rust-only path under review is
 `po-update/catalog-icu-heavy/ferrocat`. Its budget is no worse than the same
 `20%` PR regression band. If it trips the guard or a same-host local run drops
-below roughly `40 MiB/s`, profile the path before changing the threshold. The
-first profiling pass should separate repeated ICU parsing/projection, plural
-category resolution, allocation/cloning, serialization, and catalog
-normalization costs.
+below roughly `40 MiB/s`, profile the path before changing the threshold; the
+allocation-focused optimization series from July 2026 left the same-host local
+number at more than three times that floor. A profiling pass should separate
+repeated ICU parsing/projection, plural category resolution,
+allocation/cloning, serialization, and catalog normalization costs.
 
 ## Reproduce A Fast Baseline
 
