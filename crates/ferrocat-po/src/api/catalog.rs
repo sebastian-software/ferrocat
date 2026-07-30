@@ -98,6 +98,17 @@ impl CanonicalMessage {
     }
 }
 
+/// Whether an import keeps the opaque PO round-trip metadata.
+///
+/// The public `parse_catalog` projection has no slot for it, so building the
+/// block there would only be allocated-and-dropped churn on every parse;
+/// update and combine flows must keep it (ADR 0027).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum OpaqueCapture {
+    Keep,
+    Discard,
+}
+
 impl OpaqueMetadata {
     /// Boxes the metadata when any of it exists; empty metadata stays `None`.
     pub(super) fn from_parts(
@@ -209,6 +220,7 @@ pub fn update_catalog(
             options.mode.plural_encoding(),
             false,
             options.mode.storage_format(),
+            OpaqueCapture::Keep,
         )?,
         Some(_) | None => Catalog {
             locale: options.locale.map(str::to_owned),
@@ -321,6 +333,7 @@ pub fn parse_catalog(options: ParseCatalogOptions<'_>) -> Result<ParsedCatalog, 
         options.mode.plural_encoding(),
         options.strict,
         options.mode.storage_format(),
+        OpaqueCapture::Discard,
     )?;
     let messages = catalog
         .messages
@@ -885,6 +898,10 @@ fn apply_storage_defaults(
 ///
 /// Keeping this internal representation stable lets the public APIs share one
 /// import path before they diverge into normalized lookup or update/export work.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "Internal fan-in shared by every catalog read path; a config struct would only relabel the same eight decisions."
+)]
 pub(super) fn parse_catalog_to_internal(
     content: &str,
     locale_override: Option<&str>,
@@ -893,6 +910,7 @@ pub(super) fn parse_catalog_to_internal(
     plural_encoding: PluralEncoding,
     strict: bool,
     storage_format: CatalogStorageFormat,
+    opaque_capture: OpaqueCapture,
 ) -> Result<Catalog, ApiError> {
     match storage_format {
         CatalogStorageFormat::Po => parse_catalog_to_internal_po(
@@ -901,6 +919,7 @@ pub(super) fn parse_catalog_to_internal(
             semantics,
             plural_encoding,
             strict,
+            opaque_capture,
         ),
         CatalogStorageFormat::Fcl => super::fcl::parse_catalog_to_internal_fcl(
             content,
@@ -908,6 +927,7 @@ pub(super) fn parse_catalog_to_internal(
             source_locale,
             semantics,
             strict,
+            opaque_capture,
         ),
     }
 }
@@ -918,6 +938,7 @@ fn parse_catalog_to_internal_po(
     semantics: CatalogSemantics,
     _plural_encoding: PluralEncoding,
     strict: bool,
+    opaque_capture: OpaqueCapture,
 ) -> Result<Catalog, ApiError> {
     // The borrowed parser keeps every field as a slice of `content`, so each
     // retained value is allocated exactly once below, directly into its
@@ -956,6 +977,7 @@ fn parse_catalog_to_internal_po(
             &mut plural_profiles,
             nplurals,
             semantics,
+            opaque_capture,
             strict,
             &mut diagnostics,
         )?;
@@ -985,6 +1007,7 @@ fn import_message_from_po(
     plural_profiles: &mut GettextPluralProfiles<'_>,
     nplurals: Option<usize>,
     semantics: CatalogSemantics,
+    opaque_capture: OpaqueCapture,
     _strict: bool,
     _diagnostics: &mut Vec<Diagnostic>,
 ) -> Result<CanonicalMessage, ApiError> {
@@ -992,8 +1015,15 @@ fn import_message_from_po(
     // placeholder split); translator-owned `#` comments and `#,` flags are kept
     // separately and opaquely so an update cannot rewrite or drop them.
     let (comments, placeholders) = split_placeholder_comments(item.extracted_comments);
-    let translator_comments = item.comments.into_iter().map(Cow::into_owned).collect();
-    let flags = item.flags.into_iter().map(Cow::into_owned).collect();
+    // The public parse projection has no slot for the opaque block, so it
+    // skips building it instead of allocating strings only to drop them.
+    let opaque = match opaque_capture {
+        OpaqueCapture::Keep => OpaqueMetadata::from_parts(
+            item.comments.into_iter().map(Cow::into_owned).collect(),
+            item.flags.into_iter().map(Cow::into_owned).collect(),
+        ),
+        OpaqueCapture::Discard => None,
+    };
     let origins = item.references.into_iter().map(parse_origin).collect();
 
     let translation = if let Some(msgid_plural) = item.msgid_plural {
@@ -1041,7 +1071,7 @@ fn import_message_from_po(
         msgctxt: item.msgctxt.map(Cow::into_owned),
         translation,
         comments,
-        opaque: OpaqueMetadata::from_parts(translator_comments, flags),
+        opaque,
         origins,
         placeholders,
         obsolete: import_obsolete(item.obsolete, &item.metadata),

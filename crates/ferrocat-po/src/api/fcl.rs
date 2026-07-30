@@ -10,7 +10,7 @@ use std::borrow::Cow;
 use std::collections::{BTreeMap, BTreeSet};
 
 use super::catalog::{
-    CanonicalMessage, CanonicalTranslation, Catalog, OpaqueMetadata, parse_origin,
+    CanonicalMessage, CanonicalTranslation, Catalog, OpaqueCapture, OpaqueMetadata, parse_origin,
     split_placeholder_comments,
 };
 use super::collation::{CollationKey, CollationPrefix, collation_key, collation_prefix};
@@ -384,7 +384,7 @@ fn parse_header(line: &str, source_locale: &str) -> Result<FclHeader, ApiError> 
 
 /// Parses one FCL entry line directly into a [`CanonicalMessage`], building the
 /// owned fields in a single pass without an intermediate record.
-fn parse_entry(line: &str) -> Result<CanonicalMessage, ApiError> {
+fn parse_entry(line: &str, opaque_capture: OpaqueCapture) -> Result<CanonicalMessage, ApiError> {
     let mut fields = SplitTab::new(line.as_bytes());
     let msgid = unescape(field(&mut fields, "id")?)?.into_owned();
     let ctx_raw = unescape(field(&mut fields, "ctxt")?)?.into_owned();
@@ -479,7 +479,10 @@ fn parse_entry(line: &str) -> Result<CanonicalMessage, ApiError> {
         msgctxt,
         translation: CanonicalTranslation::Singular { value },
         comments,
-        opaque: OpaqueMetadata::from_parts(translator_comments, flags),
+        opaque: match opaque_capture {
+            OpaqueCapture::Keep => OpaqueMetadata::from_parts(translator_comments, flags),
+            OpaqueCapture::Discard => None,
+        },
         origins,
         placeholders,
         obsolete,
@@ -568,6 +571,7 @@ pub(super) fn parse_catalog_to_internal_fcl(
     source_locale: &str,
     semantics: CatalogSemantics,
     _strict: bool,
+    opaque_capture: OpaqueCapture,
 ) -> Result<Catalog, ApiError> {
     if semantics != CatalogSemantics::IcuNative {
         return Err(ApiError::Unsupported(
@@ -598,7 +602,7 @@ pub(super) fn parse_catalog_to_internal_fcl(
                 index + 1
             )));
         }
-        let message = parse_entry(line).map_err(|error| {
+        let message = parse_entry(line, opaque_capture).map_err(|error| {
             ApiError::InvalidArguments(format!("invalid FCL entry on line {}: {error}", index + 1))
         })?;
         // Legacy bytewise and declared collated order both keep equal identities
@@ -647,14 +651,22 @@ pub(super) fn parse_catalog_to_internal_fcl(
 
 #[cfg(test)]
 mod tests {
-    use super::{FCL_MAGIC, parse_catalog_to_internal_fcl, stringify_catalog_fcl, unescape};
+    use super::{
+        FCL_MAGIC, OpaqueCapture, parse_catalog_to_internal_fcl, stringify_catalog_fcl, unescape,
+    };
     use crate::api::CatalogSemantics;
     use crate::api::types::RenderOptions;
 
     fn roundtrip(text: &str) -> String {
-        let catalog =
-            parse_catalog_to_internal_fcl(text, None, "en", CatalogSemantics::IcuNative, false)
-                .expect("parse FCL");
+        let catalog = parse_catalog_to_internal_fcl(
+            text,
+            None,
+            "en",
+            CatalogSemantics::IcuNative,
+            false,
+            OpaqueCapture::Keep,
+        )
+        .expect("parse FCL");
         stringify_catalog_fcl(
             &catalog,
             catalog.locale.as_deref(),
@@ -698,15 +710,23 @@ mod tests {
                 None,
                 "en",
                 CatalogSemantics::IcuNative,
-                false
+                false,
+                OpaqueCapture::Keep,
             )
             .is_err()
         );
 
         let unknown = format!("{FCL_MAGIC}\tsource=en\nid\t\tvalue\tzz=1\n");
         assert!(
-            parse_catalog_to_internal_fcl(&unknown, None, "en", CatalogSemantics::IcuNative, false)
-                .is_err()
+            parse_catalog_to_internal_fcl(
+                &unknown,
+                None,
+                "en",
+                CatalogSemantics::IcuNative,
+                false,
+                OpaqueCapture::Keep,
+            )
+            .is_err()
         );
     }
 
@@ -736,7 +756,8 @@ mod tests {
                 None,
                 "en",
                 CatalogSemantics::IcuNative,
-                false
+                false,
+                OpaqueCapture::Keep,
             )
             .is_err()
         );
@@ -748,14 +769,23 @@ mod tests {
                 None,
                 "en",
                 CatalogSemantics::IcuNative,
-                false
+                false,
+                OpaqueCapture::Keep,
             )
             .is_err()
         );
     }
 
     fn parse_err(text: &str) -> bool {
-        parse_catalog_to_internal_fcl(text, None, "en", CatalogSemantics::IcuNative, false).is_err()
+        parse_catalog_to_internal_fcl(
+            text,
+            None,
+            "en",
+            CatalogSemantics::IcuNative,
+            false,
+            OpaqueCapture::Keep,
+        )
+        .is_err()
     }
 
     #[test]
@@ -923,6 +953,7 @@ mod tests {
             crate::api::PluralEncoding::Icu,
             false,
             crate::api::CatalogStorageFormat::Po,
+            OpaqueCapture::Keep,
         )
         .expect("parse PO");
 
@@ -1004,9 +1035,15 @@ mod tests {
         assert!(text.contains("ai=example/mt:0.9"));
 
         // The synthesized ICU string round-trips back through the reader.
-        let reparsed =
-            parse_catalog_to_internal_fcl(&text, None, "en", CatalogSemantics::IcuNative, false)
-                .expect("parse plural FCL");
+        let reparsed = parse_catalog_to_internal_fcl(
+            &text,
+            None,
+            "en",
+            CatalogSemantics::IcuNative,
+            false,
+            OpaqueCapture::Keep,
+        )
+        .expect("parse plural FCL");
         assert_eq!(reparsed.messages.len(), 1);
     }
 
@@ -1059,7 +1096,8 @@ mod tests {
                 None,
                 "en",
                 CatalogSemantics::GettextCompat,
-                false
+                false,
+                OpaqueCapture::Keep,
             )
             .is_err()
         );
@@ -1074,6 +1112,7 @@ mod tests {
             "en",
             CatalogSemantics::IcuNative,
             false,
+            OpaqueCapture::Keep,
         )
         .expect("parse");
         assert_eq!(catalog.locale.as_deref(), Some("fr"));

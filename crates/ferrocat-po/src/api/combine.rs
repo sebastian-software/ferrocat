@@ -357,6 +357,7 @@ fn parse_combine_catalog(content: &str, config: CombineConfig<'_>) -> Result<Cat
         config.mode.plural_encoding(),
         false,
         config.mode.storage_format(),
+        super::catalog::OpaqueCapture::Keep,
     )
 }
 
