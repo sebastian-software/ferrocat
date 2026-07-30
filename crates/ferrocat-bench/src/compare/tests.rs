@@ -876,6 +876,126 @@ fn owned_and_borrowed_match_on_gettext_plural_fixture() {
     );
 }
 
+/// Legacy owned-parse conversion, kept as the equivalence reference for the
+/// borrowed template ingestion path used by the timed benchmark loops.
+fn legacy_extracted_messages_from_template(template: &PoFile) -> Vec<ExtractedMessage> {
+    template
+        .items
+        .iter()
+        .filter(|item| !item.obsolete)
+        .map(|item| {
+            let comments: Vec<String> = item.extracted_comments.iter().cloned().collect();
+            let origin: Vec<CatalogOrigin> = item
+                .references
+                .iter()
+                .map(|reference| crate::fixtures::parse_origin(reference))
+                .collect();
+            if let Some(msgid_plural) = item.msgid_plural.as_deref() {
+                ExtractedMessage::Plural(ExtractedPluralMessage {
+                    msgid: item.msgid.clone(),
+                    msgctxt: item.msgctxt.clone(),
+                    source: PluralSource {
+                        one: Some(item.msgid.clone()),
+                        other: msgid_plural.to_owned(),
+                    },
+                    comments,
+                    origin,
+                    placeholders: BTreeMap::default(),
+                })
+            } else {
+                ExtractedMessage::Singular(ExtractedSingularMessage {
+                    msgid: item.msgid.clone(),
+                    msgctxt: item.msgctxt.clone(),
+                    comments,
+                    origin,
+                    placeholders: BTreeMap::default(),
+                })
+            }
+        })
+        .collect()
+}
+
+/// Legacy owned-parse conversion for the merge input, kept as the equivalence
+/// reference for [`merge_inputs_from_template`].
+fn legacy_merge_inputs_from_template(template: &PoFile) -> Vec<MergeMessageInput<'_>> {
+    template
+        .items
+        .iter()
+        .map(|item| MergeMessageInput {
+            msgctxt: item.msgctxt.as_deref().map(Cow::Borrowed),
+            msgid: Cow::Borrowed(item.msgid.as_str()),
+            msgid_plural: item.msgid_plural.as_deref().map(Cow::Borrowed),
+            references: item
+                .references
+                .iter()
+                .map(|value| Cow::Borrowed(value.as_str()))
+                .collect(),
+            extracted_comments: item
+                .extracted_comments
+                .iter()
+                .map(|value| Cow::Borrowed(value.as_str()))
+                .collect(),
+            flags: item
+                .flags
+                .iter()
+                .map(|value| Cow::Borrowed(value.as_str()))
+                .collect(),
+        })
+        .collect()
+}
+
+#[test]
+fn borrowed_template_ingestion_matches_owned_conversion() {
+    for fixture_name in [
+        "gettext-ui-de-1000",
+        "gettext-commerce-pl-1000",
+        "mixed-1000",
+    ] {
+        let fixture = merge_fixture_by_name(fixture_name).expect("merge fixture");
+        let owned_fixture = OwnedMergeFixture::from_fixture(&fixture);
+        let template_pot = owned_fixture.template_pot.as_str();
+
+        let owned = parse_po(template_pot).expect("owned template parse");
+        let borrowed = parse_po_borrowed(template_pot).expect("borrowed template parse");
+        assert_eq!(
+            extracted_messages_from_template(borrowed),
+            legacy_extracted_messages_from_template(&owned),
+            "extraction input drifted for {fixture_name}"
+        );
+
+        let borrowed = parse_po_borrowed(template_pot).expect("borrowed template parse");
+        assert_eq!(
+            merge_inputs_from_template(borrowed),
+            legacy_merge_inputs_from_template(&owned),
+            "merge input drifted for {fixture_name}"
+        );
+    }
+}
+
+#[test]
+fn origin_from_reference_matches_parse_origin() {
+    for reference in [
+        "src/app.rs:10",
+        "src/app.rs",
+        "src/app.rs:",
+        "src/app.rs:abc",
+        "10",
+        "",
+        "a:b:12",
+    ] {
+        assert_eq!(
+            origin_from_reference(Cow::Borrowed(reference)),
+            crate::fixtures::parse_origin(reference),
+            "borrowed origin drifted for {reference:?}"
+        );
+        assert_eq!(
+            origin_from_reference(Cow::Owned(reference.to_owned())),
+            crate::fixtures::parse_origin(reference),
+            "owned origin drifted for {reference:?}"
+        );
+    }
+}
+
 fn regression_report<const N: usize>(scenarios: [ScenarioReport; N]) -> CompareReport {
     CompareReport {
         profile: "rust-scheduled-v1".to_owned(),

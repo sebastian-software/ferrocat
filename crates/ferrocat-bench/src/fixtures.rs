@@ -1523,19 +1523,39 @@ fn placeholder_map(entries: &[(&str, &str)]) -> BTreeMap<String, Vec<String>> {
 }
 
 pub(crate) fn parse_origin(reference: &str) -> CatalogOrigin {
+    CatalogOrigin {
+        file: reference[..origin_file_len(reference)].to_owned(),
+        scope: None,
+    }
+}
+
+/// Builds an origin from a possibly borrowed reference, reusing the existing
+/// allocation when the parser already produced an owned string.
+///
+/// This is the [`Cow`] companion to [`parse_origin`] and shares its splitting
+/// rule, so both paths always agree on the resulting `file` value.
+pub(crate) fn origin_from_reference(reference: Cow<'_, str>) -> CatalogOrigin {
+    let file_len = origin_file_len(&reference);
+    let file = match reference {
+        Cow::Borrowed(value) => value[..file_len].to_owned(),
+        Cow::Owned(mut value) => {
+            value.truncate(file_len);
+            value
+        }
+    };
+    CatalogOrigin { file, scope: None }
+}
+
+/// Returns the byte length of the file portion of a gettext reference,
+/// dropping a trailing `:<line>` suffix when one is present.
+fn origin_file_len(reference: &str) -> usize {
     match reference.rsplit_once(':') {
         Some((file, line))
             if !line.is_empty() && line.bytes().all(|byte| byte.is_ascii_digit()) =>
         {
-            CatalogOrigin {
-                file: file.to_owned(),
-                scope: None,
-            }
+            file.len()
         }
-        _ => CatalogOrigin {
-            file: reference.to_owned(),
-            scope: None,
-        },
+        _ => reference.len(),
     }
 }
 

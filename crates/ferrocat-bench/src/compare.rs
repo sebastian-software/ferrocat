@@ -45,7 +45,7 @@ use time::format_description::well_known::Rfc3339;
 
 use crate::fixtures::{
     Fixture, IcuFixture, MergeFixture, fixture_by_name, icu_fixture_by_name, merge_fixture_by_name,
-    parse_origin,
+    origin_from_reference,
 };
 
 const INTERNAL_TOOL_VERSION: &str = concat!("ferrocat@", env!("CARGO_PKG_VERSION"));
