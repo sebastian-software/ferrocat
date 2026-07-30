@@ -220,6 +220,12 @@ Typical use cases:
 - generating PO content from your own tooling
 - normalizing formatting after edits
 
+`SerializeOptions` controls the output shape, for example
+`with_fold_length(0)` to disable automatic width folding. The same options
+also flow through the high-level update and combine flows via
+`RenderOptions::po_serialize`, so a host does not need to re-serialize
+finished catalog output just to change its shape.
+
 ## Catalog Workflows
 
 The high-level catalog request structs are now intentionally borrowing-first:
