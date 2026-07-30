@@ -104,13 +104,13 @@ Ferrocat's benchmark suite compares file-to-file catalog workloads against commo
 
 | Workload | Ferrocat | pofile-ts (Node) | gettext/gettext (PHP) | Babel (Python) | polib (Python) | GNU msgmerge |
 |---|---:|---:|---:|---:|---:|---:|
-| Parse | **704 MiB/s** | 149 | 49 | - | 22 | - |
-| Update with new strings | **264 MiB/s** | 43 | 16 | - | 8.1 | 4.6 |
-| Full catalog update | **137 MiB/s** | 42 | - | 8.9 | 8.2 | 4.6 |
+| Parse | **725 MiB/s** | 149 | 53 | - | 22 | - |
+| Update with new strings | **291 MiB/s** | 43 | 16 | - | 8.1 | 4.8 |
+| Full catalog update | **150 MiB/s** | 42 | - | 8.9 | 8.2 | 4.8 |
 
 The Node baseline is [pofile-ts](https://github.com/sebastian-software/pofile-ts), a speed-focused fork of the widely used `pofile`, so the JavaScript comparison targets a fast implementation rather than an easy one. The update benchmark parses existing and freshly extracted files, merges by exact identity, and serializes the result, which is where Ferrocat's byte-oriented scanning and move-not-clone catalog paths matter most.
 
-The full catalog update row is Ferrocat's high-level `update_catalog` on the same files: on top of the plain update it analyzes ICU message structure, tracks placeholders, and produces deterministic output. The comparison now includes Babel's real `Catalog.update` path for Python; even with that extra work, Ferrocat's full update runs about 3.3x ahead of the fastest non-Ferrocat workflow update and roughly 30x ahead of GNU `msgmerge`.
+The full catalog update row is Ferrocat's high-level `update_catalog` on the same files: on top of the plain update it analyzes ICU message structure, tracks placeholders, and produces deterministic output. The comparison now includes Babel's real `Catalog.update` path for Python; even with that extra work, Ferrocat's full update runs about 3.4x ahead of the fastest non-Ferrocat workflow update and roughly 31x ahead of GNU `msgmerge`.
 
 See the [benchmark methodology](https://sebastian-software.github.io/ferrocat/performance/benchmarking) and the checked-in reports under [`benchmark/results/`](benchmark/results) for host details, fixture definitions, noise handling, and the full matrix.
 
