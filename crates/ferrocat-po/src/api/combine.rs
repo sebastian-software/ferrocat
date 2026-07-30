@@ -5,6 +5,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
+use std::mem;
 use std::path::{Path, PathBuf};
 
 use crate::SerializeOptions;
@@ -399,7 +400,7 @@ fn input_label(label: Option<&str>, index: usize) -> String {
 
 fn merge_combine_message(
     entry: &mut CombineEntry,
-    message: CanonicalMessage,
+    mut message: CanonicalMessage,
     labels: &[String],
     conflict_strategy: CatalogConflictStrategy,
     stats: &mut CatalogCombineStats,
@@ -452,6 +453,16 @@ fn merge_combine_message(
             .flatten();
     } else if translation_merge.matches_source && entry.message.machine.is_none() {
         entry.message.machine = message.machine.clone();
+    }
+
+    // Opaque translator metadata belongs to whichever definition ends up owning
+    // the entry value, and moves as one block. Unioning it across inputs would
+    // invent comments and flags no single catalog ever declared.
+    if translation_merge.changed
+        || (entry.message.translator_comments.is_empty() && entry.message.flags.is_empty())
+    {
+        entry.message.translator_comments = mem::take(&mut message.translator_comments);
+        entry.message.flags = mem::take(&mut message.flags);
     }
 
     merge_combine_metadata(&mut entry.message, message);

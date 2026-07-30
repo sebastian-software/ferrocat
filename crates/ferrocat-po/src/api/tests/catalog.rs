@@ -71,9 +71,11 @@ fn parse_catalog_reads_po_machine_metadata() {
 }
 
 #[test]
-fn parse_catalog_reads_origin_scope_and_merges_comments() {
-    // A `#scope` anchor on the reference becomes `CatalogOrigin::scope`, and the
-    // extracted (`#.`) and translator (`#`) comments collapse into one notes list.
+fn parse_catalog_reads_origin_scope_and_keeps_translator_comments_out_of_notes() {
+    // A `#scope` anchor on the reference becomes `CatalogOrigin::scope`. Only the
+    // extractor-owned `#.` comments become public notes; translator-owned `#`
+    // comments are preserved internally for round-tripping and are deliberately
+    // not projected into `CatalogMessage` (ADR 0027).
     let content = "# translator note\n\
          #. extracted note\n\
          #: src/Button.tsx#Button\n\
@@ -89,8 +91,7 @@ fn parse_catalog_reads_origin_scope_and_merges_comments() {
     let message = &parsed.messages[0];
     assert_eq!(message.origin[0].file, "src/Button.tsx");
     assert_eq!(message.origin[0].scope.as_deref(), Some("Button"));
-    assert!(message.comments.contains(&"extracted note".to_owned()));
-    assert!(message.comments.contains(&"translator note".to_owned()));
+    assert_eq!(message.comments, vec!["extracted note".to_owned()]);
 }
 
 #[test]
@@ -2650,4 +2651,298 @@ fn infers_fcl_file_format_from_extension() {
         .expect("infer .fcl");
     assert!(matches!(format, crate::CatalogFileFormat::Fcl));
     assert_eq!(format.default_mode(), CatalogMode::IcuFcl);
+}
+
+// --- opaque translator metadata round-trip (ADR 0027) ----------------------
+
+/// PO fixture carrying every kind of per-entry metadata the update path has to
+/// keep apart: translator-owned `#`, extractor-owned `#.`/`#:`, and flags.
+const TRANSLATOR_METADATA_PO: &str = "# translator note\n\
+     # second translator note\n\
+     #. stale extractor note\n\
+     #: src/Old.tsx\n\
+     #, fuzzy, x-custom\n\
+     msgctxt \"button\"\n\
+     msgid \"Hello\"\n\
+     msgstr \"Hallo\"\n";
+
+fn extracted(msgid: &str, msgctxt: Option<&str>, comments: Vec<String>) -> ExtractedMessage {
+    ExtractedMessage::Singular(ExtractedSingularMessage {
+        msgid: msgid.to_owned(),
+        msgctxt: msgctxt.map(str::to_owned),
+        comments,
+        ..ExtractedSingularMessage::default()
+    })
+}
+
+#[test]
+fn update_catalog_keeps_translator_comments_and_refreshes_extracted_comments() {
+    let result = update_catalog(UpdateCatalogOptions {
+        source_locale: "en",
+        locale: Some("de"),
+        existing: Some(TRANSLATOR_METADATA_PO),
+        input: structured_input(vec![extracted(
+            "Hello",
+            Some("button"),
+            vec!["fresh extractor note".to_owned()],
+        )]),
+        ..UpdateCatalogOptions::new("en", CatalogUpdateInput::default())
+    })
+    .expect("update");
+
+    // Translator comments stay translator comments; the extractor-owned note is
+    // replaced by the freshly extracted one instead of being converted in kind.
+    assert!(result.content.contains("# translator note\n"));
+    assert!(result.content.contains("# second translator note\n"));
+    assert!(result.content.contains("#. fresh extractor note\n"));
+    assert!(!result.content.contains("stale extractor note"));
+    assert!(!result.content.contains("#. translator note"));
+
+    // The low-level parser sees them under the right comment kinds again.
+    let parsed = parse_po(&result.content).expect("parse output");
+    let item = &parsed.items[0];
+    assert_eq!(
+        item.comments.as_slice(),
+        ["translator note", "second translator note"]
+    );
+    assert_eq!(item.extracted_comments.as_slice(), ["fresh extractor note"]);
+}
+
+#[test]
+fn update_catalog_preserves_unknown_flags_verbatim() {
+    let result = update_catalog(UpdateCatalogOptions {
+        source_locale: "en",
+        locale: Some("de"),
+        existing: Some(TRANSLATOR_METADATA_PO),
+        input: structured_input(vec![extracted("Hello", Some("button"), Vec::new())]),
+        ..UpdateCatalogOptions::new("en", CatalogUpdateInput::default())
+    })
+    .expect("update");
+
+    // Flags render as one line after the references and are never interpreted:
+    // `fuzzy` does not revive a status, `x-custom` survives unchanged.
+    assert!(result.content.contains("#, fuzzy, x-custom\n"));
+    let parsed = parse_po(&result.content).expect("parse output");
+    assert_eq!(parsed.items[0].flags.as_slice(), ["fuzzy", "x-custom"]);
+    assert_eq!(parsed.items[0].msgstr[0], "Hallo");
+}
+
+#[test]
+fn update_catalog_keys_opaque_metadata_by_msgctxt_and_msgid() {
+    let existing = "# button note\n\
+         #, x-button\n\
+         msgctxt \"button\"\n\
+         msgid \"Hello\"\n\
+         msgstr \"Hallo (Knopf)\"\n\
+         \n\
+         # title note\n\
+         #, x-title\n\
+         msgctxt \"title\"\n\
+         msgid \"Hello\"\n\
+         msgstr \"Hallo (Titel)\"\n";
+
+    let result = update_catalog(UpdateCatalogOptions {
+        source_locale: "en",
+        locale: Some("de"),
+        existing: Some(existing),
+        input: structured_input(vec![
+            extracted("Hello", Some("button"), Vec::new()),
+            extracted("Hello", Some("title"), Vec::new()),
+        ]),
+        ..UpdateCatalogOptions::new("en", CatalogUpdateInput::default())
+    })
+    .expect("update");
+
+    let parsed = parse_po(&result.content).expect("parse output");
+    let by_context = parsed
+        .items
+        .iter()
+        .map(|item| {
+            (
+                item.msgctxt.clone().unwrap_or_default(),
+                (item.comments.to_vec(), item.flags.to_vec()),
+            )
+        })
+        .collect::<BTreeMap<_, _>>();
+
+    assert_eq!(
+        by_context["button"],
+        (vec!["button note".to_owned()], vec!["x-button".to_owned()])
+    );
+    assert_eq!(
+        by_context["title"],
+        (vec!["title note".to_owned()], vec!["x-title".to_owned()])
+    );
+}
+
+#[test]
+fn update_catalog_carries_opaque_metadata_through_obsolete_and_revival() {
+    // The entry disappears from the extractor input and becomes obsolete; the
+    // opaque metadata rides along and renders under the `#~` prefix.
+    let marked = update_catalog(UpdateCatalogOptions {
+        source_locale: "en",
+        locale: Some("de"),
+        existing: Some(TRANSLATOR_METADATA_PO),
+        input: structured_input(vec![]),
+        now: Some("2026-07-30"),
+        ..UpdateCatalogOptions::new("en", CatalogUpdateInput::default())
+    })
+    .expect("mark obsolete");
+
+    assert!(marked.content.contains("#~ # translator note\n"));
+    assert!(marked.content.contains("#~ #, fuzzy, x-custom\n"));
+
+    // Reviving the identity keeps the same metadata and drops the obsolete state.
+    let revived = update_catalog(UpdateCatalogOptions {
+        source_locale: "en",
+        locale: Some("de"),
+        existing: Some(&marked.content),
+        input: structured_input(vec![extracted("Hello", Some("button"), Vec::new())]),
+        ..UpdateCatalogOptions::new("en", CatalogUpdateInput::default())
+    })
+    .expect("revive");
+
+    assert!(!revived.content.contains("#~"));
+    assert!(revived.content.contains("# translator note\n"));
+    assert!(revived.content.contains("#, fuzzy, x-custom\n"));
+    let parsed = parse_po(&revived.content).expect("parse revived");
+    assert_eq!(parsed.items[0].flags.as_slice(), ["fuzzy", "x-custom"]);
+    assert!(!parsed.items[0].obsolete);
+}
+
+#[test]
+fn update_catalog_is_byte_stable_when_repeated_with_opaque_metadata() {
+    let input = || {
+        structured_input(vec![extracted(
+            "Hello",
+            Some("button"),
+            vec!["fresh extractor note".to_owned()],
+        )])
+    };
+    let first = update_catalog(UpdateCatalogOptions {
+        source_locale: "en",
+        locale: Some("de"),
+        existing: Some(TRANSLATOR_METADATA_PO),
+        input: input(),
+        ..UpdateCatalogOptions::new("en", CatalogUpdateInput::default())
+    })
+    .expect("first update");
+
+    let second = update_catalog(UpdateCatalogOptions {
+        source_locale: "en",
+        locale: Some("de"),
+        existing: Some(&first.content),
+        input: input(),
+        ..UpdateCatalogOptions::new("en", CatalogUpdateInput::default())
+    })
+    .expect("second update");
+
+    assert_eq!(first.content, second.content);
+    assert!(!second.updated);
+}
+
+#[test]
+fn update_catalog_does_not_inherit_opaque_metadata_for_new_entries() {
+    let result = update_catalog(UpdateCatalogOptions {
+        source_locale: "en",
+        locale: Some("de"),
+        existing: Some(TRANSLATOR_METADATA_PO),
+        input: structured_input(vec![
+            extracted("Hello", Some("button"), Vec::new()),
+            // Same msgid with a different context, plus an unrelated identity.
+            extracted("Hello", Some("title"), Vec::new()),
+            extracted("Goodbye", None, Vec::new()),
+        ]),
+        ..UpdateCatalogOptions::new("en", CatalogUpdateInput::default())
+    })
+    .expect("update");
+
+    let parsed = parse_po(&result.content).expect("parse output");
+    assert_eq!(parsed.items.len(), 3);
+    for item in &parsed.items {
+        let carries_metadata = item.msgctxt.as_deref() == Some("button");
+        assert_eq!(!item.comments.is_empty(), carries_metadata);
+        assert_eq!(!item.flags.is_empty(), carries_metadata);
+    }
+}
+
+#[test]
+fn combine_catalogs_keeps_the_winning_definition_opaque_metadata() {
+    let template = "#. extracted note\nmsgid \"Hello\"\nmsgstr \"\"\n";
+    let translated = "# translator note\n#, x-custom\nmsgid \"Hello\"\nmsgstr \"Hallo\"\n";
+    let inputs = [
+        CatalogCombineInput::labeled(template, "messages.pot"),
+        CatalogCombineInput::labeled(translated, "de.po"),
+    ];
+
+    let combined = combine_catalogs(CombineCatalogOptions {
+        locale: Some("de"),
+        ..CombineCatalogOptions::new(&inputs, "en")
+    })
+    .expect("combine");
+
+    // `de.po` supplies the winning translation, so its opaque metadata comes
+    // with it, while extractor-owned notes still cumulate across inputs.
+    let parsed = parse_po(&combined.content).expect("parse combined");
+    assert_eq!(parsed.items[0].msgstr[0], "Hallo");
+    assert_eq!(parsed.items[0].comments.as_slice(), ["translator note"]);
+    assert_eq!(parsed.items[0].flags.as_slice(), ["x-custom"]);
+    assert_eq!(
+        parsed.items[0].extracted_comments.as_slice(),
+        ["extracted note"]
+    );
+}
+
+#[test]
+fn combine_catalogs_does_not_union_opaque_metadata_across_inputs() {
+    let ours = "# ours note\n#, x-ours\nmsgid \"Hello\"\nmsgstr \"Hallo\"\n";
+    let theirs = "# theirs note\n#, x-theirs\nmsgid \"Hello\"\nmsgstr \"Hallo\"\n";
+    let inputs = [
+        CatalogCombineInput::labeled(ours, "ours.po"),
+        CatalogCombineInput::labeled(theirs, "theirs.po"),
+    ];
+
+    let combined = combine_catalogs(CombineCatalogOptions {
+        locale: Some("de"),
+        ..CombineCatalogOptions::new(&inputs, "en")
+    })
+    .expect("combine");
+
+    let parsed = parse_po(&combined.content).expect("parse combined");
+    assert_eq!(parsed.items[0].comments.as_slice(), ["ours note"]);
+    assert_eq!(parsed.items[0].flags.as_slice(), ["x-ours"]);
+}
+
+#[test]
+fn combine_catalog_files_keeps_the_winning_definition_opaque_metadata() {
+    let temp_dir = unique_catalog_temp_dir("combine-files-opaque-metadata");
+    let template = temp_dir.join("messages.pot");
+    let translated = temp_dir.join("de.po");
+    let output = temp_dir.join("merged.po");
+    fs::write(
+        &template,
+        "#. extracted note\nmsgid \"Hello\"\nmsgstr \"\"\n",
+    )
+    .expect("write pot");
+    fs::write(
+        &translated,
+        "# translator note\n#, x-custom\nmsgid \"Hello\"\nmsgstr \"Hallo\"\n",
+    )
+    .expect("write po");
+    let input_paths = vec![template, translated];
+
+    combine_catalog_files(CombineCatalogFilesOptions {
+        input_paths: &input_paths,
+        output_path: &output,
+        locale: Some("de"),
+        ..CombineCatalogFilesOptions::new(&[], &output, "en")
+    })
+    .expect("combine files");
+
+    let parsed =
+        parse_po(&fs::read_to_string(&output).expect("read output")).expect("parse output");
+    assert_eq!(parsed.items[0].comments.as_slice(), ["translator note"]);
+    assert_eq!(parsed.items[0].flags.as_slice(), ["x-custom"]);
+
+    let _ = fs::remove_dir_all(temp_dir);
 }

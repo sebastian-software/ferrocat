@@ -515,6 +515,8 @@ mod tests {
                 value: String::new(),
             },
             comments: Vec::new(),
+            translator_comments: Vec::new(),
+            flags: Vec::new(),
             origins: Default::default(),
             placeholders: Default::default(),
             obsolete: None,

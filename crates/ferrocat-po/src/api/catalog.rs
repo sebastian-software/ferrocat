@@ -45,12 +45,29 @@ pub(super) struct Catalog {
     pub(super) diagnostics: Vec<Diagnostic>,
 }
 
+/// One catalog entry in the canonical internal model.
+///
+/// `translator_comments` and `flags` are deliberately internal: the catalog
+/// layer gives them no semantics (see
+/// [ADR 0027](/architecture/adr/0027-opaque-po-metadata-roundtrip)), it only
+/// keeps them attached to the `(msgctxt, msgid)` identity so a source-first
+/// update does not destroy translator-owned metadata. They are not projected
+/// into the public [`CatalogMessage`].
+///
+/// Do not shrink the other fields to "compensate" for the extra ones:
+/// `size_of::<CanonicalMessage>()` must stay `>= size_of::<CatalogMessage>()`
+/// or std's in-place-collect specialization in `parse_catalog` silently stops
+/// reusing the allocation.
 #[derive(Debug, Clone, PartialEq)]
 pub(super) struct CanonicalMessage {
     pub(super) msgid: String,
     pub(super) msgctxt: Option<String>,
     pub(super) translation: CanonicalTranslation,
     pub(super) comments: Vec<String>,
+    /// Translator-owned `#` comments, preserved opaquely across updates.
+    pub(super) translator_comments: Vec<String>,
+    /// Per-entry `#,` flags, preserved opaquely and never interpreted.
+    pub(super) flags: Vec<String>,
     pub(super) origins: PoVec<CatalogOrigin>,
     pub(super) placeholders: BTreeMap<String, Vec<String>>,
     pub(super) obsolete: Option<ObsoleteInfo>,
@@ -568,8 +585,10 @@ fn merge_message(
 
     // Decide the non-translation half of "did this message change?" while the
     // previous payload is still around. `msgid`/`msgctxt` always match because
-    // they are the identity the previous message was looked up by, and `machine`
-    // is carried over verbatim, so only these fields can differ.
+    // they are the identity the previous message was looked up by, and
+    // `machine`, `translator_comments`, and `flags` are carried over verbatim
+    // (the extractor input has no such fields, so they cannot differ from
+    // themselves), so only these fields can differ.
     let payload_changed = previous.as_ref().is_some_and(|previous| {
         previous.obsolete.is_some()
             || previous.comments != comments
@@ -578,14 +597,18 @@ fn merge_message(
     });
 
     // Everything else in the previous message is superseded by the extracted
-    // one, so keep only what the merge reuses and drop the rest here.
-    let (previous_translation, machine) = match previous {
+    // one, so keep only what the merge reuses and drop the rest here. The
+    // opaque translator metadata is identity-stable: it moves across for a
+    // matched entry and a new identity starts empty, never inheriting.
+    let (previous_translation, machine, translator_comments, flags) = match previous {
         Some(CanonicalMessage {
             translation,
             machine,
+            translator_comments,
+            flags,
             ..
-        }) => (Some(translation), machine),
-        None => (None, None),
+        }) => (Some(translation), machine, translator_comments, flags),
+        None => (None, None, Vec::new(), Vec::new()),
     };
     let had_previous = previous_translation.is_some();
 
@@ -676,6 +699,8 @@ fn merge_message(
             msgctxt,
             translation,
             comments,
+            translator_comments,
+            flags,
             origins,
             placeholders,
             obsolete: None,
@@ -924,9 +949,12 @@ fn import_message_from_po(
     _strict: bool,
     _diagnostics: &mut Vec<Diagnostic>,
 ) -> Result<CanonicalMessage, ApiError> {
-    // Extracted (`#.`) and translator (`#`) comments collapse into one notes list.
-    let (mut comments, placeholders) = split_placeholder_comments(item.extracted_comments);
-    comments.extend(item.comments.into_iter().map(Cow::into_owned));
+    // Extractor-owned `#.` comments feed the canonical notes list (after the
+    // placeholder split); translator-owned `#` comments and `#,` flags are kept
+    // separately and opaquely so an update cannot rewrite or drop them.
+    let (comments, placeholders) = split_placeholder_comments(item.extracted_comments);
+    let translator_comments = item.comments.into_iter().map(Cow::into_owned).collect();
+    let flags = item.flags.into_iter().map(Cow::into_owned).collect();
     let origins = item.references.into_iter().map(parse_origin).collect();
 
     let translation = if let Some(msgid_plural) = item.msgid_plural {
@@ -974,6 +1002,8 @@ fn import_message_from_po(
         msgctxt: item.msgctxt.map(Cow::into_owned),
         translation,
         comments,
+        translator_comments,
+        flags,
         origins,
         placeholders,
         obsolete: import_obsolete(item.obsolete, &item.metadata),
@@ -1203,6 +1233,9 @@ fn validate_plural_forms_header(
 }
 
 /// Rebuilds the public `CatalogMessage` shape from the canonical internal form.
+///
+/// `translator_comments` and `flags` stay internal: they are round-trip state,
+/// not catalog semantics, so the public message shape is unchanged.
 pub(super) fn public_message_from_canonical(message: CanonicalMessage) -> CatalogMessage {
     let translation = match message.translation {
         CanonicalTranslation::Singular { value } => TranslationShape::Singular { value },
@@ -1354,6 +1387,8 @@ mod tests {
                 value: String::new(),
             },
             comments: Vec::new(),
+            translator_comments: Vec::new(),
+            flags: Vec::new(),
             origins: PoVec::from(vec![CatalogOrigin {
                 file: file.to_owned(),
                 scope: None,
