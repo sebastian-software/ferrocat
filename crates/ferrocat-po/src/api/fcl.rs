@@ -110,6 +110,29 @@ fn unescape(value: &str) -> Result<Cow<'_, str>, ApiError> {
     }
 }
 
+fn validate_escapes(value: &str) -> Result<(), ApiError> {
+    let bytes = value.as_bytes();
+    let mut start = 0;
+    while let Some(relative) = find_byte(b'\\', &bytes[start..]) {
+        let at = start + relative;
+        match bytes.get(at + 1) {
+            Some(b'\\' | b't' | b'n') => start = at + 2,
+            Some(_) => {
+                let other = value[at + 1..].chars().next().unwrap_or('\u{fffd}');
+                return Err(ApiError::InvalidArguments(format!(
+                    "invalid FCL escape `\\{other}`"
+                )));
+            }
+            None => {
+                return Err(ApiError::InvalidArguments(
+                    "dangling `\\` at end of FCL value".to_owned(),
+                ));
+            }
+        }
+    }
+    Ok(())
+}
+
 // --- serialize ------------------------------------------------------------
 
 fn write_tag(out: &mut String, key: &str, value: &str) {
@@ -186,7 +209,8 @@ fn write_entry(out: &mut String, message: &CanonicalMessage, render: &RenderOpti
     );
 
     // Translator-owned notes and flags stay separate from `c` and keep their
-    // stored order; the catalog layer never interprets either.
+    // stored order. Export treats them as opaque even though the dedicated
+    // review projection observes exact `fuzzy`.
     for comment in message.translator_comments() {
         write_tag(out, "tc", comment);
     }
@@ -409,29 +433,40 @@ fn parse_entry(line: &str, opaque_capture: OpaqueCapture) -> Result<CanonicalMes
         let (key, raw_value) = split_once_byte(tag, b'=').ok_or_else(|| {
             ApiError::InvalidArguments(format!("invalid FCL tag {:?}", input_slice_as_str(tag)))
         })?;
-        // Keep the unescaped value borrowed; only allocate (`into_owned`) for tags
-        // whose value is stored.
-        let value = unescape(input_slice_as_str(raw_value))?;
+        let raw_value = input_slice_as_str(raw_value);
         match key {
             b"r" => {
                 validate_tag_order(&mut last_tag_rank, TAG_RANK_REFERENCE, "r")?;
-                origins.push(parse_origin(value));
+                origins.push(parse_origin(unescape(raw_value)?));
             }
             b"c" => {
                 validate_tag_order(&mut last_tag_rank, TAG_RANK_COMMENT, "c")?;
-                raw_comments.push(value);
+                raw_comments.push(unescape(raw_value)?);
             }
             b"tc" => {
                 validate_tag_order(&mut last_tag_rank, TAG_RANK_TRANSLATOR_COMMENT, "tc")?;
-                translator_comments.push(value.into_owned());
+                if opaque_capture == OpaqueCapture::Keep {
+                    translator_comments.push(unescape(raw_value)?.into_owned());
+                } else {
+                    validate_escapes(raw_value)?;
+                }
             }
             b"f" => {
                 validate_tag_order(&mut last_tag_rank, TAG_RANK_FLAG, "f")?;
-                flags.push(value.into_owned());
+                match opaque_capture {
+                    OpaqueCapture::Keep => flags.push(unescape(raw_value)?.into_owned()),
+                    OpaqueCapture::ReviewState => {
+                        validate_escapes(raw_value)?;
+                        if raw_value == "fuzzy" {
+                            flags.push("fuzzy".to_owned());
+                        }
+                    }
+                    OpaqueCapture::Discard => validate_escapes(raw_value)?,
+                }
             }
             b"o" => {
                 validate_tag_order(&mut last_tag_rank, TAG_RANK_OBSOLETE, "o")?;
-                set_obsolete(&mut obsolete, Some(value.into_owned()))?;
+                set_obsolete(&mut obsolete, Some(unescape(raw_value)?.into_owned()))?;
             }
             b"lock" => {
                 validate_tag_order(&mut last_tag_rank, TAG_RANK_LOCK, "lock")?;
@@ -440,7 +475,7 @@ fn parse_entry(line: &str, opaque_capture: OpaqueCapture) -> Result<CanonicalMes
                         "duplicate FCL tag `lock`".to_owned(),
                     ));
                 }
-                lock = Some(value.into_owned());
+                lock = Some(unescape(raw_value)?.into_owned());
             }
             b"ai" => {
                 validate_tag_order(&mut last_tag_rank, TAG_RANK_AI, "ai")?;
@@ -449,6 +484,7 @@ fn parse_entry(line: &str, opaque_capture: OpaqueCapture) -> Result<CanonicalMes
                         "duplicate FCL tag `ai`".to_owned(),
                     ));
                 }
+                let value = unescape(raw_value)?;
                 ai = Some(parse_ai_descriptor(&value));
             }
             other => {
@@ -481,6 +517,7 @@ fn parse_entry(line: &str, opaque_capture: OpaqueCapture) -> Result<CanonicalMes
         comments,
         opaque: match opaque_capture {
             OpaqueCapture::Keep => OpaqueMetadata::from_parts(translator_comments, flags),
+            OpaqueCapture::ReviewState => OpaqueMetadata::from_parts(Vec::new(), flags),
             OpaqueCapture::Discard => None,
         },
         origins,

@@ -6,7 +6,7 @@ use std::process::ExitCode;
 
 use ferrocat_po::{
     CatalogAuditOptions, CatalogAuditReport, CatalogAuditSummary, CatalogMode, DiagnosticSeverity,
-    NormalizedParsedCatalog, ParseCatalogOptions, audit_catalogs, parse_catalog,
+    NormalizedParsedCatalog, ParseCatalogOptions, audit_catalogs, parse_catalog_for_review,
 };
 
 const EXIT_AUDIT_FAILED: u8 = 1;
@@ -387,12 +387,11 @@ fn load_catalog(
     let content = fs::read_to_string(path).map_err(|error| {
         CliError::runtime(format!("failed to read {}: {error}", path.display()))
     })?;
-    parse_catalog(
+    parse_catalog_for_review(
         ParseCatalogOptions::new(&content, source_locale)
             .with_locale(locale)
             .with_mode(storage_format.catalog_mode()),
     )
-    .and_then(ferrocat_po::ParsedCatalog::into_normalized_view)
     .map_err(|error| CliError::runtime(format!("failed to parse {}: {error}", path.display())))
 }
 
@@ -585,6 +584,43 @@ mod tests {
             serde_json::from_slice(&stdout).expect("JSON output should parse");
         assert_eq!(json["summary"]["errors"], 0);
         assert_eq!(json["summary"]["target_locales"], 1);
+    }
+
+    #[test]
+    fn audit_command_reports_fuzzy_translations() {
+        let tempdir = tempfile_dir();
+        let source_path = tempdir.path().join("en.po");
+        let target_path = tempdir.path().join("de.po");
+        fs::write(&source_path, "msgid \"Checkout\"\nmsgstr \"Checkout\"\n")
+            .expect("write source fixture");
+        fs::write(
+            &target_path,
+            "#, fuzzy\nmsgid \"Checkout\"\nmsgstr \"Zur Kasse\"\n",
+        )
+        .expect("write target fixture");
+
+        let mut stdout = Vec::new();
+        let exit_code = run_with_writer(
+            [
+                "audit".to_owned(),
+                "--source-locale".to_owned(),
+                "en".to_owned(),
+                "--source".to_owned(),
+                source_path.display().to_string(),
+                "--target".to_owned(),
+                format!("de={}", target_path.display()),
+                "--format".to_owned(),
+                "json".to_owned(),
+            ],
+            &mut stdout,
+        )
+        .expect("audit command should run");
+
+        assert_eq!(exit_code, std::process::ExitCode::SUCCESS);
+        let json: serde_json::Value =
+            serde_json::from_slice(&stdout).expect("JSON output should parse");
+        assert_eq!(json["summary"]["infos"], 1);
+        assert_eq!(json["diagnostics"][0]["code"], "catalog.fuzzy_flag");
     }
 
     #[test]

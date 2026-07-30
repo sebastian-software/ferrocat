@@ -222,40 +222,38 @@ pub enum CatalogMachineTranslationStatus {
 /// Target status rollups reuse [`CatalogMessageStatus`] and therefore match
 /// [`super::audit_catalogs`] and [`super::measure_catalog_coverage`] semantics.
 /// Translation change details are limited to source identities whose current
-/// target status is [`CatalogMessageStatus::Translated`]; missing, empty, and
-/// obsolete current entries are surfaced by the coverage counters.
+/// target status is [`CatalogMessageStatus::Translated`]; missing, empty,
+/// fuzzy, and obsolete current entries are surfaced by the coverage counters.
 ///
 /// # Examples
 ///
 /// ```rust
-/// use ferrocat_po::{CatalogReviewOptions, ParseCatalogOptions, review_catalogs, parse_catalog};
+/// use ferrocat_po::{
+///     CatalogReviewOptions, ParseCatalogOptions, parse_catalog_for_review, review_catalogs,
+/// };
 ///
-/// let previous_source = parse_catalog(
+/// let previous_source = parse_catalog_for_review(
 ///     ParseCatalogOptions::new("msgid \"Save\"\nmsgstr \"\"\n", "en").with_locale("en"),
-/// )?
-/// .into_normalized_view()?;
-/// let previous_target = parse_catalog(
+/// )?;
+/// let previous_target = parse_catalog_for_review(
 ///     ParseCatalogOptions::new("msgid \"Save\"\nmsgstr \"Speichern\"\n", "en")
 ///         .with_locale("de"),
-/// )?
-/// .into_normalized_view()?;
+/// )?;
 ///
-/// let current_source = parse_catalog(
+/// let current_source = parse_catalog_for_review(
 ///     ParseCatalogOptions::new(
 ///         "msgid \"Save\"\nmsgstr \"\"\n\nmsgid \"Cancel\"\nmsgstr \"\"\n",
 ///         "en",
 ///     )
 ///     .with_locale("en"),
-/// )?
-/// .into_normalized_view()?;
-/// let current_target = parse_catalog(
+/// )?;
+/// let current_target = parse_catalog_for_review(
 ///     ParseCatalogOptions::new(
 ///         "msgid \"Save\"\nmsgstr \"Sichern\"\n\nmsgid \"Cancel\"\nmsgstr \"\"\n",
 ///         "en",
 ///     )
 ///     .with_locale("de"),
-/// )?
-/// .into_normalized_view()?;
+/// )?;
 ///
 /// let options = CatalogReviewOptions::new("en").with_details(true);
 /// let report = review_catalogs(
@@ -274,7 +272,8 @@ pub enum CatalogMachineTranslationStatus {
 ///
 /// Returns [`ApiError::InvalidArguments`] when either catalog state is missing
 /// required locales, contains duplicate locales, or a requested target locale is
-/// not available in the current catalog state.
+/// not available in the current catalog state, or when a current target was not
+/// parsed with [`super::parse_catalog_for_review`].
 pub fn review_catalogs(
     previous_catalogs: &[&NormalizedParsedCatalog],
     current_catalogs: &[&NormalizedParsedCatalog],
@@ -522,7 +521,7 @@ mod tests {
     use crate::api::{
         AiProvenance, ApiError, CatalogMessage, CatalogMessageKey, CatalogMode, CatalogSemantics,
         EffectiveTranslationRef, MachineMetadata, ParseCatalogOptions, ParsedCatalog,
-        TranslationShape, machine_translation_hash, parse_catalog,
+        TranslationShape, machine_translation_hash, parse_catalog_for_review,
     };
 
     fn catalog(content: &str, locale: &str) -> crate::api::NormalizedParsedCatalog {
@@ -545,14 +544,12 @@ mod tests {
         locale: Option<&str>,
         mode: CatalogMode,
     ) -> crate::api::NormalizedParsedCatalog {
-        parse_catalog(ParseCatalogOptions {
+        parse_catalog_for_review(ParseCatalogOptions {
             locale,
             mode,
             ..ParseCatalogOptions::new(content, "en")
         })
         .expect("parse catalog")
-        .into_normalized_view()
-        .expect("normalize catalog")
     }
 
     fn catalog_with_messages(
@@ -566,7 +563,7 @@ mod tests {
             messages,
             diagnostics: Vec::new(),
         }
-        .into_normalized_view()
+        .into_normalized_view_assuming_no_fuzzy()
         .expect("normalize catalog")
     }
 

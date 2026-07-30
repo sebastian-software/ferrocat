@@ -34,8 +34,8 @@ use ferrocat_po::{
     ExtractedSingularMessage, MergeMessageInput, MsgStr, NormalizedParsedCatalog,
     ParseCatalogOptions, ParsedCatalog, PluralSource, PoFile, SerializeOptions, TranslationShape,
     UpdateCatalogOptions, audit_catalogs, combine_catalogs, compile_catalog_artifact,
-    measure_catalog_coverage, merge_catalog, parse_catalog, parse_po, parse_po_borrowed,
-    review_catalogs, stringify_po, update_catalog,
+    measure_catalog_coverage, merge_catalog, parse_catalog, parse_catalog_for_review, parse_po,
+    parse_po_borrowed, review_catalogs, stringify_po, update_catalog,
 };
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};

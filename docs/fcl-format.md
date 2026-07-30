@@ -114,14 +114,15 @@ replacement for gettext context / `msgctxt`; downstream tools should not derive
 it from `msgctxt` by default. See
 [ADR 0024](app/routes/architecture/adr/0024-origin-scope-anchor.mdx).
 
-`c`, `tc`, and `f` all hold free-form values the catalog layer never interprets.
-The split exists purely so the gettext comment kinds and per-entry flags can be
-written back the way they arrived: `c` is extractor-owned and gets refreshed by
-an update, while `tc` and `f` are translator-owned and are preserved verbatim
-against the entry identity. Flags carry no semantics — `fuzzy` does not produce
-a status, and unknown flags such as `x-custom` round-trip unchanged (see
+`c`, `tc`, and `f` all hold free-form values for round-tripping. The split
+exists so the gettext comment kinds and per-entry flags can be written back the
+way they arrived: `c` is extractor-owned and gets refreshed by an update, while
+`tc` and `f` are translator-owned and are preserved verbatim against the entry
+identity. The opt-in review projection recognizes exact `fuzzy` as a
+review-needed status; unknown flags such as `x-custom` remain semantically
+opaque and round-trip unchanged (see
 [ADR 0023](app/routes/architecture/adr/0023-drop-gettext-flags-merge-comments.mdx)
-and [ADR 0027](app/routes/architecture/adr/0027-opaque-po-metadata-roundtrip.mdx)).
+and [ADR 0028](app/routes/architecture/adr/0028-fuzzy-review-state-projection.mdx)).
 
 `lock` is the fingerprint of the value when a machine (AI engine, TMS, script)
 set it; if `hash(current value) != lock`, a human edited it and high-level

@@ -1,0 +1,120 @@
+---
+title: "ADR 0028: Project Fuzzy as Opt-In Review State"
+description: "Accepted architecture decision record: coverage, audit, and review classify fuzzy entries without exposing arbitrary gettext flags or slowing the default catalog projection."
+order: 280
+---
+
+# ADR 0028: Project Fuzzy as Opt-In Review State
+
+- Status: Accepted
+- Date: 2026-07-30
+- Partially supersedes: [ADR 0023](/architecture/adr/0023-drop-gettext-flags-merge-comments), [ADR 0027](/architecture/adr/0027-opaque-po-metadata-roundtrip)
+- Relates to: [ADR 0014](/architecture/adr/0014-ferrocat-palamedes-boundary), [ADR 0017](/architecture/adr/0017-catalog-audit-reports)
+
+## Context
+
+ADR 0023 removed gettext flags from the public catalog message model. ADR 0027
+later preserved those flags internally as opaque round-trip state, while still
+prohibiting any semantic interpretation. That combination protected catalog
+updates from data loss, but left coverage unable to distinguish a verified
+translation from an active `#, fuzzy` entry.
+
+Gettext defines `fuzzy` as a review-needed marker. Counting such an entry as
+translated overstates completion. The gap also forced Palamedes to parse every
+PO target twice: once through the format-neutral catalog API and again through
+the low-level PO API to join fuzzy flags back onto message identities. Its
+manual coverage loop then risked diverging from Ferrocat's plural completeness
+rule.
+
+Restoring every flag to `CatalogMessage` would solve the visibility problem at
+the wrong layer. Most callers do not request reports, arbitrary flags such as
+`c-format` have no ICU meaning, and the public high-throughput projection should
+not allocate metadata it immediately discards.
+
+## Decision
+
+Add a dedicated review-aware parse projection:
+
+- `parse_catalog_for_review` parses PO or FCL directly into a normalized
+  catalog and retains only the identities carrying an exact `fuzzy` flag.
+- The ordinary `parse_catalog` path continues to discard translator comments
+  and flags from its public projection. It does not allocate or expose review
+  state.
+- `NormalizedParsedCatalog` records whether review state is available.
+  Coverage, audit completeness/fuzzy checks, and current-state review reject a
+  metadata-discarding projection instead of silently counting an unknown fuzzy
+  entry as translated.
+- Programmatically constructed `ParsedCatalog` values can opt into reporting
+  with `into_normalized_view_assuming_no_fuzzy`; because `CatalogMessage` has
+  no flag field, this explicitly declares that the constructed messages are
+  non-fuzzy.
+- `CatalogMessageStatus::Fuzzy`,
+  `CatalogLocaleCoverage::fuzzy`,
+  `CatalogAuditChecks::fuzzy_flags`, and
+  `catalog.fuzzy_flag` are restored.
+
+The shared classifier applies one precedence order to an expected target
+identity:
+
+1. absent is `missing`;
+2. obsolete is `obsolete`;
+3. an empty singular or any empty required plural form is `empty`;
+4. a non-empty active entry with the review marker is `fuzzy`;
+5. otherwise it is `translated`.
+
+An active target identity outside the active source set remains `extra`,
+regardless of its flag. These states are mutually exclusive. Only `translated`
+contributes to completion.
+
+This is a narrow exception to ADR 0027's "flags carry no semantics" rule.
+Ferrocat still does not infer fuzzy matches, move translations by similarity,
+or expose arbitrary flags. It recognizes only the exact `fuzzy` marker when a
+caller explicitly requests report state.
+
+## Consequences
+
+Positive:
+
+- coverage no longer treats review-needed translations as complete
+- PO `#, fuzzy` and FCL `f=fuzzy` have identical report behavior
+- coverage, audit, and review use one classification rule, including partial
+  gettext plurals
+- Palamedes can remove its second PO parse, manual identity join, and local
+  coverage classifier
+- ordinary parse callers keep the allocation-light projection introduced after
+  ADR 0027
+
+Negative:
+
+- report callers must use `parse_catalog_for_review`; passing a normalized view
+  derived from ordinary `parse_catalog` now returns an argument error
+- the public status enum and serialized coverage/audit report shapes regain
+  fuzzy fields and values
+- Ferrocat now interprets one member of an otherwise opaque flag list, so future
+  review markers need another explicit architecture decision rather than being
+  inferred from arbitrary metadata
+
+## Alternatives Considered
+
+### Expose All Flags on `CatalogMessage`
+
+Rejected because it would reverse the useful public-model boundary from ADR
+0023, increase the default projection cost, and encourage callers to build new
+semantics on unstructured gettext metadata.
+
+### Keep Counting Fuzzy as Translated
+
+Rejected because it contradicts the review-needed meaning of `fuzzy`, the
+original coverage contract, and the completion rule downstream hosts need.
+
+### Add a File-Only Coverage API
+
+Rejected because audit and review need the same state, callers may already hold
+normalized catalogs, and a separate content API would duplicate locale-set
+validation and report classification.
+
+### Silently Treat Missing Review State as Non-Fuzzy
+
+Rejected because a fast parse projection cannot distinguish "no fuzzy flags"
+from "flags were discarded." A clear argument error prevents an incorrect
+completion result.

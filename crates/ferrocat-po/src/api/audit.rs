@@ -117,6 +117,8 @@ pub struct CatalogAuditChecks {
     pub icu_compatibility: bool,
     /// Validate source-side semantic message metadata.
     pub semantic_metadata: bool,
+    /// Report active entries carrying the semantic `fuzzy` review marker.
+    pub fuzzy_flags: bool,
     /// Report obsolete entries.
     pub obsolete_entries: bool,
 }
@@ -129,6 +131,7 @@ impl Default for CatalogAuditChecks {
             icu_syntax: true,
             icu_compatibility: true,
             semantic_metadata: true,
+            fuzzy_flags: true,
             obsolete_entries: true,
         }
     }
@@ -167,6 +170,13 @@ impl CatalogAuditChecks {
     #[must_use]
     pub fn with_semantic_metadata(mut self, semantic_metadata: bool) -> Self {
         self.semantic_metadata = semantic_metadata;
+        self
+    }
+
+    /// Returns checks with fuzzy-entry reporting enabled or disabled.
+    #[must_use]
+    pub fn with_fuzzy_flags(mut self, fuzzy_flags: bool) -> Self {
+        self.fuzzy_flags = fuzzy_flags;
         self
     }
 
@@ -285,21 +295,22 @@ impl CatalogAuditReport {
 ///
 /// Returns [`ApiError::InvalidArguments`] when `source_locale` is empty or when
 /// catalogs cannot be inspected because their declared locales are missing or
-/// duplicated.
+/// duplicated, or when a required catalog was not parsed with
+/// [`super::parse_catalog_for_review`].
 ///
 /// # Examples
 ///
 /// ```rust
-/// use ferrocat_po::{CatalogAuditOptions, ParseCatalogOptions, audit_catalogs, parse_catalog};
+/// use ferrocat_po::{
+///     CatalogAuditOptions, ParseCatalogOptions, audit_catalogs, parse_catalog_for_review,
+/// };
 ///
-/// let source = parse_catalog(
+/// let source = parse_catalog_for_review(
 ///     ParseCatalogOptions::new("msgid \"Checkout\"\nmsgstr \"Checkout\"\n", "en").with_locale("en"),
-/// )?
-/// .into_normalized_view()?;
-/// let target = parse_catalog(
+/// )?;
+/// let target = parse_catalog_for_review(
 ///     ParseCatalogOptions::new("msgid \"Checkout\"\nmsgstr \"\"\n", "en").with_locale("de"),
-/// )?
-/// .into_normalized_view()?;
+/// )?;
 ///
 /// let report = audit_catalogs(&[&source, &target], &CatalogAuditOptions::new("en"))?;
 /// assert!(report.has_errors());
@@ -334,7 +345,11 @@ pub fn audit_catalogs(
     let source_locale = source_catalog.parsed_catalog().locale.as_deref();
     let mut source_icu_cache = ParsedIcuCache::new();
 
-    if options.checks.obsolete_entries || options.checks.icu_syntax {
+    if options.checks.fuzzy_flags {
+        source_catalog.require_review_state("audit_catalogs")?;
+    }
+
+    if options.checks.fuzzy_flags || options.checks.obsolete_entries || options.checks.icu_syntax {
         audit_catalog_entries(
             source_catalog,
             source_locale,
@@ -365,6 +380,9 @@ pub fn audit_catalogs(
         let Some(target_catalog) = catalog_index.get(target_locale.as_str()).copied() else {
             continue;
         };
+        if options.checks.fuzzy_flags || options.checks.completeness {
+            target_catalog.require_review_state("audit_catalogs")?;
+        }
         let mut target_icu_cache = ParsedIcuCache::new();
         audit_catalog_entries(
             target_catalog,
@@ -477,6 +495,15 @@ fn audit_catalog_entries(
                 None,
             ));
         }
+        if options.checks.fuzzy_flags && message.obsolete.is_none() && catalog.is_fuzzy(key) {
+            report.diagnostics.push(CatalogAuditDiagnostic::new(
+                DiagnosticSeverity::Info,
+                diagnostic_codes::catalog::FUZZY_FLAG,
+                "Catalog entry carries a fuzzy review marker.",
+                Some(message_ref.clone()),
+                Some("fuzzy".to_owned()),
+            ));
+        }
         if options.checks.icu_syntax && message.obsolete.is_none() {
             let cache_parse = parsed_icu_cache.is_some();
             let parsed_candidate = audit_icu_syntax_for_message(
@@ -529,7 +556,7 @@ fn audit_target_catalog(
                         Some(target_locale.to_owned()),
                     ));
                 }
-                CatalogMessageStatus::Translated => {}
+                CatalogMessageStatus::Translated | CatalogMessageStatus::Fuzzy => {}
                 CatalogMessageStatus::Extra => {
                     unreachable!("expected source-key classification cannot produce extra status")
                 }
@@ -755,6 +782,7 @@ mod tests {
             .with_icu_syntax(false)
             .with_icu_compatibility(false)
             .with_semantic_metadata(false)
+            .with_fuzzy_flags(false)
             .with_obsolete_entries(false);
 
         assert!(!checks.completeness);
@@ -762,6 +790,7 @@ mod tests {
         assert!(!checks.icu_syntax);
         assert!(!checks.icu_compatibility);
         assert!(!checks.semantic_metadata);
+        assert!(!checks.fuzzy_flags);
         assert!(!checks.obsolete_entries);
 
         let options = CatalogAuditOptions::new("en")

@@ -8,18 +8,16 @@ use crate::{CatalogAuditChecks, CatalogAuditIcuOptions};
 use super::super::icu_syntax::{icu_parse_count, reset_icu_parse_count};
 use super::{
     CatalogAuditOptions, CatalogMode, DiagnosticSeverity, IcuSyntaxPolicy, ParseCatalogOptions,
-    audit_catalogs, parse_catalog,
+    audit_catalogs, parse_catalog_for_review,
 };
 
 fn catalog(content: &str, locale: &str) -> super::super::NormalizedParsedCatalog {
-    parse_catalog(ParseCatalogOptions {
+    parse_catalog_for_review(ParseCatalogOptions {
         locale: Some(locale),
         mode: CatalogMode::IcuPo,
         ..ParseCatalogOptions::new(content, "en")
     })
     .expect("parse catalog")
-    .into_normalized_view()
-    .expect("normalize catalog")
 }
 
 fn diagnostic_codes(report: &super::super::CatalogAuditReport) -> Vec<&str> {
@@ -121,6 +119,20 @@ fn audit_reports_empty_target_translation() {
         audit_catalogs(&[&source, &target], &CatalogAuditOptions::new("en")).expect("audit");
 
     assert!(diagnostic_codes(&report).contains(&"catalog.empty_translation"));
+}
+
+#[test]
+fn audit_reports_fuzzy_without_classifying_it_as_missing_or_empty() {
+    let source = catalog("msgid \"Hello\"\nmsgstr \"Hello\"\n", "en");
+    let target = catalog("#, fuzzy\nmsgid \"Hello\"\nmsgstr \"Hallo\"\n", "de");
+
+    let report =
+        audit_catalogs(&[&source, &target], &CatalogAuditOptions::new("en")).expect("audit");
+    let codes = diagnostic_codes(&report);
+
+    assert!(codes.contains(&"catalog.fuzzy_flag"));
+    assert!(!codes.contains(&"catalog.missing_translation"));
+    assert!(!codes.contains(&"catalog.empty_translation"));
 }
 
 #[test]
