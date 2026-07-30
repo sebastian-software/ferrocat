@@ -47,7 +47,7 @@ function, class, route handler, or similar authoring unit around the text. It
 helps reviewers understand where the message came from; it does not replace
 `msgctxt` and does not change message identity.
 
-Here is the part that usually involves a trade-off, except it doesn't: you do not pay for that safety with speed or size. Against the same catalog stored as PO, FCL parses about 25% faster and the file is roughly 12% smaller. Use it as the machine-owned format: generated, reviewed in diffs, handed to pipelines and external services, never hand-edited. Generate it through `CatalogMode::IcuFcl`; PO remains the right choice when translator tools need to read the file directly.
+Here is the part that usually involves a trade-off, except it doesn't: you do not pay for that safety with speed or size. Against the same catalog stored as PO, FCL parses about 30% faster and the file is roughly 14% smaller. Use it as the machine-owned format: generated, reviewed in diffs, handed to pipelines and external services, never hand-edited. Generate it through `CatalogMode::IcuFcl`; PO remains the right choice when translator tools need to read the file directly.
 
 Both PO and FCL can carry machine-translation metadata for AI-assisted workflows. Ferrocat keeps the storage compact, verifies the translation hash when writing, and drops stale metadata once the translated text has been edited.
 

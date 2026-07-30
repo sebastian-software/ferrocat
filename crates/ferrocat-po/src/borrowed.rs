@@ -3,7 +3,7 @@ use std::borrow::Cow;
 use crate::line_state::{PoLineContext, PoLineState};
 use crate::scan::{
     CommentKind, Keyword, LineKind, LineScanner, classify_line, find_quoted_bounds, has_byte,
-    parse_plural_index, split_once_byte, trim_ascii, unrecognized_po_line,
+    parse_plural_index, split_once_byte, trim_ascii, trim_ascii_start, unrecognized_po_line,
 };
 use crate::text::{extract_quoted_bytes_cow, for_each_reference_token};
 use crate::utf8::input_slice_as_str;
@@ -147,6 +147,26 @@ impl<'a> BorrowedMsgStr<'a> {
         matches!(self, Self::None)
     }
 
+    /// Returns the number of translation values present, mirroring
+    /// [`MsgStr::len`].
+    pub(crate) fn len(&self) -> usize {
+        match self {
+            Self::None => 0,
+            Self::Singular(_) => 1,
+            Self::Plural(values) => values.len(),
+        }
+    }
+
+    /// Consumes the payload and yields its translation values in slot order,
+    /// mirroring [`MsgStr::iter`] without re-allocating the values.
+    pub(crate) fn into_values(self) -> std::vec::IntoIter<Cow<'a, str>> {
+        match self {
+            Self::None => Vec::new().into_iter(),
+            Self::Singular(value) => vec![value].into_iter(),
+            Self::Plural(values) => values.into_iter(),
+        }
+    }
+
     pub(crate) fn set_slot(&mut self, plural_index: usize, value: Cow<'a, str>) {
         match (&mut *self, plural_index) {
             (Self::None, 0) => *self = Self::Singular(value),
@@ -238,6 +258,13 @@ impl<'a> BorrowedMsgStr<'a> {
 struct ParserState<'a> {
     item: BorrowedPoItem<'a>,
     header_entries: Vec<BorrowedHeader<'a>>,
+    /// Whether splitting the header block per physical fragment still yields the
+    /// same headers as decoding the whole header `msgstr` first (see
+    /// [`ParserState::push_header_fragment`]).
+    header_entries_faithful: bool,
+    /// Whether the previous header fragment left a header line unterminated, so
+    /// the next fragment continues it instead of starting a new header.
+    header_line_open: bool,
     msgstr: BorrowedMsgStr<'a>,
     line: PoLineState,
 }
@@ -247,6 +274,8 @@ impl<'a> ParserState<'a> {
         Self {
             item: BorrowedPoItem::new(nplurals),
             header_entries: Vec::new(),
+            header_entries_faithful: true,
+            header_line_open: false,
             msgstr: BorrowedMsgStr::None,
             line: PoLineState::default(),
         }
@@ -262,6 +291,53 @@ impl<'a> ParserState<'a> {
 
     fn append_msgstr(&mut self, plural_index: usize, value: Cow<'a, str>) {
         self.msgstr.append_slot(plural_index, value);
+    }
+
+    /// Collects the headers of one physical header line while they can be kept
+    /// as slices of the input.
+    ///
+    /// Per-fragment splitting only matches the reference algorithm — decode the
+    /// whole header `msgstr`, then split it into lines — when every fragment
+    /// ends its header line, carries no escape other than `\n`, and starts no
+    /// obsolete (`#~`) line. Anything else clears
+    /// [`ParserState::header_entries_faithful`] so [`finish_item`] falls back to
+    /// the reference algorithm on the decoded `msgstr`.
+    ///
+    /// `starts_new_msgstr` marks a `msgstr` keyword line, which replaces the
+    /// header text collected so far instead of extending it.
+    fn push_header_fragment(&mut self, line_bytes: &'a [u8], starts_new_msgstr: bool) {
+        if starts_new_msgstr {
+            self.header_entries.clear();
+            self.header_line_open = false;
+        }
+        if !self.header_entries_faithful {
+            return;
+        }
+
+        let Some((start, end)) = find_quoted_bounds(line_bytes) else {
+            self.header_entries_faithful = false;
+            return;
+        };
+        let raw = &line_bytes[start..end];
+
+        if self.header_line_open
+            || !header_fragment_is_borrowable(raw)
+            || !push_borrowed_header_segments(raw, &mut self.header_entries)
+        {
+            self.header_entries_faithful = false;
+            return;
+        }
+
+        self.header_line_open = !raw.is_empty() && !raw.ends_with(br"\n");
+    }
+
+    /// Returns the decoded header `msgstr`, mirroring the owned parser.
+    fn header_msgstr(&self) -> &str {
+        match &self.msgstr {
+            BorrowedMsgStr::None => "",
+            BorrowedMsgStr::Singular(value) => value.as_ref(),
+            BorrowedMsgStr::Plural(values) => values.first().map_or("", Cow::as_ref),
+        }
     }
 
     fn materialize_msgstr(&mut self) {
@@ -427,8 +503,7 @@ fn parse_keyword_line<'a>(
                 at_line_position(extract_quoted_bytes_cow(line_bytes), position)?,
             );
             if is_header_candidate(state) {
-                let headers = at_line_position(parse_header_fragment(line_bytes), position)?;
-                state.header_entries.extend(headers);
+                state.push_header_fragment(line_bytes, true);
             }
         }
         Keyword::Ctxt => {
@@ -457,8 +532,7 @@ fn append_continuation<'a>(
         Some(PoLineContext::Str) => {
             state.append_msgstr(state.line.plural_index(), value);
             if is_header_candidate(state) {
-                let headers = at_line_position(parse_header_fragment(line_bytes), position)?;
-                state.header_entries.extend(headers);
+                state.push_header_fragment(line_bytes, false);
             }
         }
         Some(PoLineContext::Id) => state.item.msgid.to_mut().push_str(value.as_ref()),
@@ -504,7 +578,11 @@ fn finish_item<'a>(
     if is_header_state(state) && file.headers.is_empty() && file.items.is_empty() {
         file.comments = std::mem::take(&mut state.item.comments).into_vec();
         file.extracted_comments = std::mem::take(&mut state.item.extracted_comments).into_vec();
-        file.headers = std::mem::take(&mut state.header_entries);
+        if state.header_entries_faithful {
+            file.headers = std::mem::take(&mut state.header_entries);
+        } else {
+            parse_owned_headers(state.header_msgstr(), &mut file.headers);
+        }
         *current_nplurals = parse_nplurals(&file.headers).unwrap_or(2);
         state.reset(*current_nplurals);
         return;
@@ -539,27 +617,19 @@ fn is_header_candidate(state: &ParserState<'_>) -> bool {
         && state.line.plural_index() == 0
 }
 
-fn parse_header_fragment(line_bytes: &[u8]) -> Result<Vec<BorrowedHeader<'_>>, ParseError> {
-    let Some((start, end)) = find_quoted_bounds(line_bytes) else {
-        return Ok(Vec::new());
-    };
-    let raw = &line_bytes[start..end];
-
-    if header_fragment_is_borrowable(raw) {
-        return Ok(parse_header_fragment_borrowed(raw));
-    }
-
-    parse_header_fragment_owned(line_bytes)
-}
-
-fn parse_header_fragment_borrowed(raw: &[u8]) -> Vec<BorrowedHeader<'_>> {
-    let mut headers = Vec::new();
+/// Splits one borrowable header fragment into `\n`-terminated header lines.
+///
+/// Returns `false` when a segment starts an obsolete (`#~`) line, which the
+/// reference line splitter strips but this fast path cannot.
+fn push_borrowed_header_segments<'a>(raw: &'a [u8], out: &mut Vec<BorrowedHeader<'a>>) -> bool {
     let mut start = 0usize;
     let mut index = 0usize;
 
     while index < raw.len() {
         if raw[index] == b'\\' && raw.get(index + 1) == Some(&b'n') {
-            push_borrowed_header_segment(&raw[start..index], &mut headers);
+            if !push_borrowed_header_segment(&raw[start..index], out) {
+                return false;
+            }
             index += 2;
             start = index;
             continue;
@@ -567,13 +637,16 @@ fn parse_header_fragment_borrowed(raw: &[u8]) -> Vec<BorrowedHeader<'_>> {
         index += 1;
     }
 
-    push_borrowed_header_segment(&raw[start..], &mut headers);
-    headers
+    push_borrowed_header_segment(&raw[start..], out)
 }
 
-fn push_borrowed_header_segment<'a>(segment: &'a [u8], out: &mut Vec<BorrowedHeader<'a>>) {
+fn push_borrowed_header_segment<'a>(segment: &'a [u8], out: &mut Vec<BorrowedHeader<'a>>) -> bool {
+    let segment = trim_ascii_start(segment);
     if segment.is_empty() {
-        return;
+        return true;
+    }
+    if segment.starts_with(b"#~") {
+        return false;
     }
     if let Some((key_bytes, value_bytes)) = split_once_byte(segment, b':') {
         out.push(BorrowedHeader {
@@ -581,23 +654,21 @@ fn push_borrowed_header_segment<'a>(segment: &'a [u8], out: &mut Vec<BorrowedHea
             value: trimmed_cow(value_bytes),
         });
     }
+    true
 }
 
-fn parse_header_fragment_owned(line_bytes: &[u8]) -> Result<Vec<BorrowedHeader<'_>>, ParseError> {
-    let decoded = extract_quoted_bytes_cow(line_bytes)?;
-    let mut headers = Vec::new();
-    for segment in decoded.split('\n') {
-        if segment.is_empty() {
-            continue;
-        }
-        if let Some((key, value)) = segment.split_once(':') {
-            headers.push(BorrowedHeader {
-                key: Cow::Owned(key.trim().to_owned()),
-                value: Cow::Owned(value.trim().to_owned()),
+/// Reference header parsing: split the already decoded header `msgstr` into
+/// lines the same way the file itself is scanned. Used whenever the borrowed
+/// fast path cannot reproduce that result exactly.
+fn parse_owned_headers<'a>(raw: &str, out: &mut Vec<BorrowedHeader<'a>>) {
+    for line in LineScanner::new(raw.as_bytes()) {
+        if let Some((key_bytes, value_bytes)) = split_once_byte(line.trimmed, b':') {
+            out.push(BorrowedHeader {
+                key: Cow::Owned(trimmed_str(key_bytes).to_owned()),
+                value: Cow::Owned(trimmed_str(value_bytes).to_owned()),
             });
         }
     }
-    Ok(headers)
 }
 
 fn header_fragment_is_borrowable(raw: &[u8]) -> bool {

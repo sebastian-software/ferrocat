@@ -529,32 +529,9 @@ impl PreparedScenario {
             // Parse the same template.pot the competitors read, then merge.
             // This keeps the catalog-update comparison strictly file-to-file
             // instead of handing ferrocat pre-structured messages.
-            let template = parse_po(&fixture.template_pot)
+            let template = parse_po_borrowed(&fixture.template_pot)
                 .map_err(|error| format!("merge template parse failed: {error}"))?;
-            let extracted: Vec<MergeMessageInput<'_>> = template
-                .items
-                .iter()
-                .map(|item| MergeMessageInput {
-                    msgctxt: item.msgctxt.as_deref().map(Cow::Borrowed),
-                    msgid: Cow::Borrowed(item.msgid.as_str()),
-                    msgid_plural: item.msgid_plural.as_deref().map(Cow::Borrowed),
-                    references: item
-                        .references
-                        .iter()
-                        .map(|value| Cow::Borrowed(value.as_str()))
-                        .collect(),
-                    extracted_comments: item
-                        .extracted_comments
-                        .iter()
-                        .map(|value| Cow::Borrowed(value.as_str()))
-                        .collect(),
-                    flags: item
-                        .flags
-                        .iter()
-                        .map(|value| Cow::Borrowed(value.as_str()))
-                        .collect(),
-                })
-                .collect();
+            let extracted = merge_inputs_from_template(template);
             let rendered = merge_catalog(&fixture.existing_po, &extracted)
                 .map_err(|error| format!("merge_catalog failed: {error}"))?;
             bytes_processed += rendered.len();
@@ -655,9 +632,9 @@ impl PreparedScenario {
             // extraction input from it inside the timed loop. This keeps the
             // catalog-update comparison strictly file-to-file instead of
             // handing ferrocat pre-structured messages.
-            let template = parse_po(&fixture.template_pot)
+            let template = parse_po_borrowed(&fixture.template_pot)
                 .map_err(|error| format!("update template parse failed: {error}"))?;
-            let messages = extracted_messages_from_template(&template);
+            let messages = extracted_messages_from_template(template);
             let mut options = UpdateCatalogOptions::new("en", messages)
                 .with_mode(mode)
                 .with_existing(fixture.existing_po.as_str());
@@ -1177,43 +1154,77 @@ impl OwnedMergeFixture {
     }
 }
 
-/// Builds the catalog-layer extraction input from a freshly parsed template,
-/// mirroring what a host extractor hands to `update_catalog`.
-pub(super) fn extracted_messages_from_template(template: &PoFile) -> Vec<ExtractedMessage> {
+/// Builds the merge-layer extraction input from a freshly parsed template.
+///
+/// Consuming the borrowed items keeps the input zero-copy for the common case:
+/// unescaped fields stay slices of the template text, and escaped fields reuse
+/// the string the parser already had to allocate.
+pub(super) fn merge_inputs_from_template<'a>(
+    template: BorrowedPoFile<'a>,
+) -> Vec<MergeMessageInput<'a>> {
     template
         .items
-        .iter()
-        .filter(|item| !item.obsolete)
-        .map(|item| {
-            let comments: Vec<String> = item.extracted_comments.iter().cloned().collect();
-            let origin: Vec<CatalogOrigin> = item
-                .references
-                .iter()
-                .map(|reference| parse_origin(reference))
-                .collect();
-            if let Some(msgid_plural) = item.msgid_plural.as_deref() {
-                ExtractedMessage::Plural(ExtractedPluralMessage {
-                    msgid: item.msgid.clone(),
-                    msgctxt: item.msgctxt.clone(),
-                    source: PluralSource {
-                        one: Some(item.msgid.clone()),
-                        other: msgid_plural.to_owned(),
-                    },
-                    comments,
-                    origin,
-                    placeholders: BTreeMap::default(),
-                })
-            } else {
-                ExtractedMessage::Singular(ExtractedSingularMessage {
-                    msgid: item.msgid.clone(),
-                    msgctxt: item.msgctxt.clone(),
-                    comments,
-                    origin,
-                    placeholders: BTreeMap::default(),
-                })
-            }
+        .into_iter()
+        .map(|item| MergeMessageInput {
+            msgctxt: item.msgctxt,
+            msgid: item.msgid,
+            msgid_plural: item.msgid_plural,
+            references: item.references.into_iter().collect(),
+            extracted_comments: item.extracted_comments.into_iter().collect(),
+            flags: item.flags.into_iter().collect(),
         })
         .collect()
+}
+
+/// Builds the catalog-layer extraction input from a freshly parsed template,
+/// mirroring what a host extractor hands to `update_catalog`.
+///
+/// The template is consumed so every retained field is allocated exactly once:
+/// the borrowed parser hands out [`Cow`] values that are either promoted into
+/// owned strings here, or moved when the parser already had to unescape them.
+pub(super) fn extracted_messages_from_template(
+    template: BorrowedPoFile<'_>,
+) -> Vec<ExtractedMessage> {
+    let mut messages = Vec::with_capacity(template.items.len());
+    for item in template.items {
+        if item.obsolete {
+            continue;
+        }
+        let comments: Vec<String> = item
+            .extracted_comments
+            .into_iter()
+            .map(Cow::into_owned)
+            .collect();
+        let origin: Vec<CatalogOrigin> = item
+            .references
+            .into_iter()
+            .map(origin_from_reference)
+            .collect();
+        let msgid = item.msgid.into_owned();
+        let msgctxt = item.msgctxt.map(Cow::into_owned);
+        messages.push(if let Some(msgid_plural) = item.msgid_plural {
+            ExtractedMessage::Plural(ExtractedPluralMessage {
+                msgctxt,
+                source: PluralSource {
+                    one: Some(msgid.clone()),
+                    other: msgid_plural.into_owned(),
+                },
+                msgid,
+                comments,
+                origin,
+                placeholders: BTreeMap::default(),
+            })
+        } else {
+            ExtractedMessage::Singular(ExtractedSingularMessage {
+                msgid,
+                msgctxt,
+                comments,
+                origin,
+                placeholders: BTreeMap::default(),
+            })
+        });
+    }
+    messages
 }
 
 pub(super) fn build_merge_pot(fixture: &MergeFixture) -> String {

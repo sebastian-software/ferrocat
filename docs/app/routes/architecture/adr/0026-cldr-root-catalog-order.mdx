@@ -108,9 +108,21 @@ position and therefore a diff, not translation meaning or runtime lookup.
 The published file-to-file `po-update/gettext-ui-de-10000/ferrocat` scenario
 measured 108.997 MiB/s before this change. The new Rust-only
 `catalog-order-default-v1` profile repeats that exact operation with 10 measured
-runs, 3 warmups, and a 1,000 ms minimum sample. It measured 101.005 MiB/s, a
-7.3% reduction, with a 1.31% coefficient of variation and a 4.95% span. The
-README keeps the rounded headline at 101 MiB/s.
+runs, 3 warmups, and a 1,000 ms minimum sample. The branch report captured
+while this change was under review measured 101.005 MiB/s, which looked like a
+7.3% reduction at the time.
+
+A rerun of the same profile on the merged commit with byte-identical collation
+code measured 112.45 MiB/s, with a 1.72% coefficient of variation and a 5.42%
+span, and the independent `gettext-workflows-ecosystem-v1` run from the same
+session measured 111.70 MiB/s for the same scenario. Two agreeing fresh runs
+put the branch report down to measurement conditions on the shared reference
+host rather than a code cost. Against the 108.997 MiB/s pre-change baseline,
+the collated default is within cross-run drift on this file-to-file scenario;
+the direct update-catalog probe below remains the clearest isolated cost
+signal. The README headline was refreshed accordingly; later allocation-focused
+optimization work moved it further, so the current published number lives in
+`benchmark/published-numbers.json` rather than in this record.
 
 A separate, earlier base-commit versus pre-optimization updated-default run
 through the direct `update-catalog` harness used the

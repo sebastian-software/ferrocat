@@ -5,6 +5,7 @@
 //! and serializer hot paths stay elsewhere; this layer is where we preserve
 //! catalog semantics and diagnostics.
 
+use std::borrow::Cow;
 use std::fs;
 use std::{collections::BTreeMap, mem};
 
@@ -12,7 +13,7 @@ use rustc_hash::FxHashMap;
 
 use crate::diagnostic_codes;
 
-use super::collation::sort_messages_collated;
+use super::collation::{apply_order, collate_indices, sort_messages_collated};
 use super::export::export_catalog_content;
 use super::file_io::atomic_write;
 use super::helpers::{
@@ -22,14 +23,17 @@ use super::helpers::{
 use super::mt::{
     MachineMetadata, PO_AI_KEY, PO_LOCK_KEY, parse_ai_descriptor, validate_machine_metadata,
 };
-use super::plural::{PluralProfile, derive_plural_variable, expected_gettext_nplurals_for_locale};
+use super::plural::{
+    GettextPluralProfiles, PluralProfile, derive_plural_variable,
+    expected_gettext_nplurals_for_locale,
+};
 use super::{
     ApiError, CatalogMessage, CatalogOrigin, CatalogSemantics, CatalogStats, CatalogStorageFormat,
     CatalogUpdateInput, CatalogUpdateResult, Diagnostic, DiagnosticSeverity, ExtractedMessage,
     ObsoleteInfo, ObsoleteStrategy, OrderBy, ParseCatalogOptions, ParsedCatalog, PluralEncoding,
     PluralSource, TranslationShape, UpdateCatalogFileOptions, UpdateCatalogOptions,
 };
-use crate::{MsgStr, PoFile, PoItem, PoVec, parse_po};
+use crate::{BorrowedMsgStr, BorrowedPoFile, BorrowedPoItem, PoVec, parse_po_borrowed};
 
 #[derive(Debug, Clone, PartialEq, Default)]
 pub(super) struct Catalog {
@@ -81,10 +85,7 @@ struct NormalizedMessage {
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum NormalizedKind {
     Singular,
-    Plural {
-        source: PluralSource,
-        variable: Option<String>,
-    },
+    Plural { source: PluralSource },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -303,7 +304,6 @@ fn normalize_update_input(input: CatalogUpdateInput) -> Result<Vec<NormalizedMes
                         message.msgctxt,
                         NormalizedKind::Plural {
                             source: message.source,
-                            variable: None,
                         },
                         message.comments,
                         message.origin,
@@ -414,7 +414,6 @@ fn merge_catalogs(
         .is_none_or(|value| value == context.source_locale);
     let mut stats = CatalogStats::default();
 
-    let mut matched = vec![false; existing.messages.len()];
     let mut messages = Vec::with_capacity(normalized.len() + existing.messages.len());
 
     // `locale` and `semantics` are constant for the whole merge, so build the
@@ -425,6 +424,10 @@ fn merge_catalogs(
         PluralProfile::for_locale(context.locale)
     };
 
+    // Resolve identities first, while the previous messages are still borrowable
+    // as index keys. The merge below then moves matched entries out of
+    // `existing.messages` instead of cloning their payloads.
+    let mut matched_indexes = Vec::with_capacity(normalized.len());
     {
         let mut existing_index = FxHashMap::<(&str, Option<&str>), usize>::with_capacity_and_hasher(
             existing.messages.len(),
@@ -434,38 +437,46 @@ fn merge_catalogs(
             existing_index.insert((message.msgid.as_str(), message.msgctxt.as_deref()), index);
         }
 
-        for next in normalized {
-            let previous = if let Some(&index) =
-                existing_index.get(&(next.msgid.as_str(), next.msgctxt.as_deref()))
-            {
-                matched[index] = true;
-                Some(&existing.messages[index])
-            } else {
-                None
-            };
-            let merged = merge_message(
-                previous,
-                next,
-                is_source_locale,
-                &plural_profile,
-                context.overwrite_source_translations,
-                diagnostics,
+        for next in &normalized {
+            matched_indexes.push(
+                existing_index
+                    .get(&(next.msgid.as_str(), next.msgctxt.as_deref()))
+                    .copied(),
             );
-            if previous.is_none() {
-                stats.added += 1;
-            } else if previous == Some(&merged) {
-                stats.unchanged += 1;
-            } else {
-                stats.changed += 1;
-            }
-            messages.push(merged);
         }
     }
 
-    for (index, message) in existing.messages.into_iter().enumerate() {
-        if matched[index] {
-            continue;
+    // `None` slots are the entries claimed by an extracted message; whatever is
+    // left is what the obsolete strategy applies to below.
+    let mut previous_messages = existing
+        .messages
+        .into_iter()
+        .map(Some)
+        .collect::<Vec<Option<CanonicalMessage>>>();
+
+    for (next, matched_index) in normalized.into_iter().zip(matched_indexes) {
+        let previous = matched_index.map(|index| {
+            previous_messages[index]
+                .take()
+                .expect("each existing message is claimed by at most one extracted message")
+        });
+        let (merged, outcome) = merge_message(
+            previous,
+            next,
+            is_source_locale,
+            &plural_profile,
+            context.overwrite_source_translations,
+            diagnostics,
+        );
+        match outcome {
+            MergeOutcome::Added => stats.added += 1,
+            MergeOutcome::Unchanged => stats.unchanged += 1,
+            MergeOutcome::Changed => stats.changed += 1,
         }
+        messages.push(merged);
+    }
+
+    for message in previous_messages.into_iter().flatten() {
         match &context.obsolete_strategy {
             ObsoleteStrategy::Delete => {
                 stats.obsolete_removed += 1;
@@ -521,18 +532,31 @@ fn mark_obsolete(message: &mut CanonicalMessage, now: Option<&str>, stats: &mut 
     }
 }
 
+/// How one merged message is counted in [`CatalogStats`].
+///
+/// `merge_message` consumes the previous message so its payload can be moved
+/// into the merged one, which means the counters cannot be derived from a
+/// `previous == merged` comparison afterwards. The variants below are decided
+/// field by field instead and must stay equivalent to that comparison.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum MergeOutcome {
+    Added,
+    Unchanged,
+    Changed,
+}
+
 /// Resolves the final canonical message for one gettext identity.
 ///
 /// This is the central place where source-locale overwrite rules, plural
 /// variable inference, and locale-aware plural category materialization meet.
 fn merge_message(
-    previous: Option<&CanonicalMessage>,
+    previous: Option<CanonicalMessage>,
     next: NormalizedMessage,
     is_source_locale: bool,
     plural_profile: &PluralProfile,
     overwrite_source_translations: bool,
     diagnostics: &mut Vec<Diagnostic>,
-) -> CanonicalMessage {
+) -> (CanonicalMessage, MergeOutcome) {
     let NormalizedMessage {
         msgid,
         msgctxt,
@@ -542,44 +566,73 @@ fn merge_message(
         placeholders,
     } = next;
 
-    let translation = match (kind, previous) {
-        (NormalizedKind::Singular, Some(previous))
-            if matches!(previous.translation, CanonicalTranslation::Singular { .. })
-                && !(is_source_locale && overwrite_source_translations) =>
+    // Decide the non-translation half of "did this message change?" while the
+    // previous payload is still around. `msgid`/`msgctxt` always match because
+    // they are the identity the previous message was looked up by, and `machine`
+    // is carried over verbatim, so only these fields can differ.
+    let payload_changed = previous.as_ref().is_some_and(|previous| {
+        previous.obsolete.is_some()
+            || previous.comments != comments
+            || previous.origins != origins
+            || previous.placeholders != placeholders
+    });
+
+    // Everything else in the previous message is superseded by the extracted
+    // one, so keep only what the merge reuses and drop the rest here.
+    let (previous_translation, machine) = match previous {
+        Some(CanonicalMessage {
+            translation,
+            machine,
+            ..
+        }) => (Some(translation), machine),
+        None => (None, None),
+    };
+    let had_previous = previous_translation.is_some();
+
+    let (translation, translation_changed) = match (kind, previous_translation) {
+        (NormalizedKind::Singular, Some(previous @ CanonicalTranslation::Singular { .. }))
+            if !(is_source_locale && overwrite_source_translations) =>
         {
-            previous.translation.clone()
+            (previous, false)
         }
-        (NormalizedKind::Singular, _) => CanonicalTranslation::Singular {
-            value: if is_source_locale {
-                msgid.clone()
-            } else {
-                String::new()
-            },
-        },
+        (NormalizedKind::Singular, previous) => {
+            let translation = CanonicalTranslation::Singular {
+                value: if is_source_locale {
+                    msgid.clone()
+                } else {
+                    String::new()
+                },
+            };
+            let changed = previous.is_none_or(|previous| previous != translation);
+            (translation, changed)
+        }
         // Reuse an existing plural translation when the source plural is
         // unchanged and we're not overwriting source-locale text. Binding the
         // inner `Plural` here means a non-plural previous simply falls through
         // to the rebuild arm below.
         (
-            NormalizedKind::Plural { source, variable },
-            Some(CanonicalMessage {
-                translation:
-                    CanonicalTranslation::Plural {
-                        translation_by_category,
-                        variable: previous_variable,
-                        ..
-                    },
-                ..
+            NormalizedKind::Plural { source },
+            Some(CanonicalTranslation::Plural {
+                source: previous_source,
+                translation_by_category: mut previous_translation_by_category,
+                variable: previous_variable,
             }),
-        ) if !(is_source_locale && overwrite_source_translations) => CanonicalTranslation::Plural {
-            source,
-            translation_by_category: plural_profile
-                .materialize_translation(translation_by_category),
-            variable: variable.unwrap_or_else(|| previous_variable.clone()),
-        },
-        (NormalizedKind::Plural { source, variable }, previous) => {
-            let variable = variable
-                .or_else(|| previous.and_then(extract_plural_variable))
+        ) if !(is_source_locale && overwrite_source_translations) => {
+            let categories_changed = plural_profile
+                .materialize_translation_in_place(&mut previous_translation_by_category);
+            let source_changed = source != previous_source;
+
+            (
+                CanonicalTranslation::Plural {
+                    source,
+                    translation_by_category: previous_translation_by_category,
+                    variable: previous_variable,
+                },
+                categories_changed || source_changed,
+            )
+        }
+        (NormalizedKind::Plural { source }, previous) => {
+            let variable = extract_plural_variable(previous.as_ref())
                 .or_else(|| derive_plural_variable(&placeholders))
                 .unwrap_or_else(|| {
                     diagnostics.push(
@@ -599,33 +652,43 @@ fn merge_message(
                 plural_profile.empty_translation()
             };
 
-            CanonicalTranslation::Plural {
+            let translation = CanonicalTranslation::Plural {
                 source,
                 translation_by_category,
                 variable,
-            }
+            };
+            let changed = previous.is_none_or(|previous| previous != translation);
+            (translation, changed)
         }
     };
 
-    let (machine, obsolete) =
-        previous.map_or_else(|| (None, None), |message| (message.machine.clone(), None));
+    let outcome = if !had_previous {
+        MergeOutcome::Added
+    } else if payload_changed || translation_changed {
+        MergeOutcome::Changed
+    } else {
+        MergeOutcome::Unchanged
+    };
 
-    CanonicalMessage {
-        msgid,
-        msgctxt,
-        translation,
-        comments,
-        origins,
-        placeholders,
-        obsolete,
-        machine,
-    }
+    (
+        CanonicalMessage {
+            msgid,
+            msgctxt,
+            translation,
+            comments,
+            origins,
+            placeholders,
+            obsolete: None,
+            machine,
+        },
+        outcome,
+    )
 }
 
-fn extract_plural_variable(message: &CanonicalMessage) -> Option<String> {
-    match &message.translation {
-        CanonicalTranslation::Plural { variable, .. } => Some(variable.clone()),
-        CanonicalTranslation::Singular { .. } => None,
+fn extract_plural_variable(translation: Option<&CanonicalTranslation>) -> Option<String> {
+    match translation {
+        Some(CanonicalTranslation::Plural { variable, .. }) => Some(variable.clone()),
+        Some(CanonicalTranslation::Singular { .. }) | None => None,
     }
 }
 
@@ -684,7 +747,7 @@ pub(super) fn apply_header_defaults(
     }
 }
 
-pub(super) fn sort_messages(messages: &mut [CanonicalMessage], order_by: OrderBy) {
+pub(super) fn sort_messages(messages: &mut Vec<CanonicalMessage>, order_by: OrderBy) {
     match order_by {
         OrderBy::Msgid => sort_messages_collated(messages),
         OrderBy::Origin => {
@@ -692,6 +755,9 @@ pub(super) fn sort_messages(messages: &mut [CanonicalMessage], order_by: OrderBy
                 first_origin_sort_key(&left.origins).cmp(first_origin_sort_key(&right.origins))
             });
 
+            // Collate each origin run by index, then move messages once for the
+            // whole catalog instead of once per run.
+            let mut order: Vec<usize> = (0..messages.len()).collect();
             let mut start = 0;
             while start < messages.len() {
                 let mut end = start + 1;
@@ -701,9 +767,10 @@ pub(super) fn sort_messages(messages: &mut [CanonicalMessage], order_by: OrderBy
                 {
                     end += 1;
                 }
-                sort_messages_collated(&mut messages[start..end]);
+                collate_indices(messages, &mut order[start..end]);
                 start = end;
             }
+            apply_order(messages, &order);
         }
     }
 }
@@ -788,15 +855,18 @@ fn parse_catalog_to_internal_po(
     _plural_encoding: PluralEncoding,
     strict: bool,
 ) -> Result<Catalog, ApiError> {
-    let PoFile {
+    // The borrowed parser keeps every field as a slice of `content`, so each
+    // retained value is allocated exactly once below, directly into its
+    // canonical home, and dropped fields never allocate at all.
+    let BorrowedPoFile {
         headers: po_headers,
         items: po_items,
         comments: po_comments,
         extracted_comments: po_extracted_comments,
-    } = parse_po(content)?;
+    } = parse_po_borrowed(content)?;
     let headers = po_headers
         .into_iter()
-        .map(|header| (header.key, header.value))
+        .map(|header| (header.key.into_owned(), header.value.into_owned()))
         .collect::<BTreeMap<_, _>>();
     let locale = locale_override
         .map(str::to_owned)
@@ -812,76 +882,84 @@ fn parse_catalog_to_internal_po(
     );
     let mut messages = Vec::with_capacity(po_items.len());
 
+    // The locale is constant for the whole import, so plural profiles are built
+    // once per distinct slot count instead of once per plural message.
+    let mut plural_profiles = GettextPluralProfiles::new(locale.as_deref());
+
     for item in po_items {
-        let mut conversion_diagnostics = Vec::new();
         let message = import_message_from_po(
             item,
-            locale.as_deref(),
+            &mut plural_profiles,
             nplurals,
             semantics,
             strict,
-            &mut conversion_diagnostics,
+            &mut diagnostics,
         )?;
-        diagnostics.extend(conversion_diagnostics);
         messages.push(message);
     }
 
     Ok(Catalog {
         locale,
         headers,
-        file_comments: po_comments,
-        file_extracted_comments: po_extracted_comments,
+        file_comments: po_comments.into_iter().map(Cow::into_owned).collect(),
+        file_extracted_comments: po_extracted_comments
+            .into_iter()
+            .map(Cow::into_owned)
+            .collect(),
         messages,
         diagnostics,
     })
 }
 
-/// Converts one parsed `PoItem` into the canonical internal message form.
+/// Converts one parsed `BorrowedPoItem` into the canonical internal message form.
 ///
 /// The branching is intentionally centralized here so that gettext plural slot
 /// import, ICU projection, and all associated diagnostics stay in one semantic
 /// decision point.
 fn import_message_from_po(
-    item: PoItem,
-    locale: Option<&str>,
+    item: BorrowedPoItem<'_>,
+    plural_profiles: &mut GettextPluralProfiles<'_>,
     nplurals: Option<usize>,
     semantics: CatalogSemantics,
     _strict: bool,
     _diagnostics: &mut Vec<Diagnostic>,
 ) -> Result<CanonicalMessage, ApiError> {
     // Extracted (`#.`) and translator (`#`) comments collapse into one notes list.
-    let (mut comments, placeholders) =
-        split_placeholder_comments(item.extracted_comments.into_vec());
-    comments.extend(item.comments.into_vec());
-    let origins = item
-        .references
-        .into_iter()
-        .map(parse_origin_owned)
-        .collect();
+    let (mut comments, placeholders) = split_placeholder_comments(item.extracted_comments);
+    comments.extend(item.comments.into_iter().map(Cow::into_owned));
+    let origins = item.references.into_iter().map(parse_origin).collect();
 
-    let translation = if let Some(msgid_plural) = &item.msgid_plural {
+    let translation = if let Some(msgid_plural) = item.msgid_plural {
         if semantics == CatalogSemantics::IcuNative {
             return Err(ApiError::Unsupported(
                 "classic gettext plural requires compat mode".to_owned(),
             ));
         }
-        let plural_profile =
-            PluralProfile::for_gettext_slots(locale, nplurals.or(Some(item.msgstr.len())));
+        // Move the parsed slot values into the category map instead of copying
+        // them; surplus slots beyond the locale's categories are dropped.
+        let plural_profile = plural_profiles.for_slots(nplurals.or(Some(item.msgstr.len())));
         CanonicalTranslation::Plural {
             source: PluralSource {
-                one: Some(item.msgid.clone()),
-                other: msgid_plural.clone(),
+                one: Some(item.msgid.as_ref().to_owned()),
+                other: msgid_plural.into_owned(),
             },
             translation_by_category: plural_profile
                 .categories()
                 .iter()
-                .zip(item.msgstr.iter().chain(std::iter::repeat("")))
-                .map(|(category, value)| (category.clone(), value.to_owned()))
+                .zip(
+                    item.msgstr
+                        .into_values()
+                        .map(Cow::into_owned)
+                        .chain(std::iter::repeat_with(String::new)),
+                )
+                .map(|(category, value)| ((*category).to_owned(), value))
                 .collect(),
             variable: "count".to_owned(),
         }
     } else {
-        if semantics == CatalogSemantics::IcuNative && matches!(item.msgstr, MsgStr::Plural(_)) {
+        if semantics == CatalogSemantics::IcuNative
+            && matches!(item.msgstr, BorrowedMsgStr::Plural(_))
+        {
             return Err(ApiError::Unsupported(
                 "classic gettext plural requires compat mode".to_owned(),
             ));
@@ -892,8 +970,8 @@ fn import_message_from_po(
     };
 
     Ok(CanonicalMessage {
-        msgid: item.msgid,
-        msgctxt: item.msgctxt,
+        msgid: item.msgid.into_owned(),
+        msgctxt: item.msgctxt.map(Cow::into_owned),
         translation,
         comments,
         origins,
@@ -905,19 +983,22 @@ fn import_message_from_po(
 
 /// Builds the obsolete state from the low-level obsolete flag, reading the
 /// optional `#@ obsolete-since:` date from the entry's metadata.
-fn import_obsolete(obsolete: bool, metadata: &[(String, String)]) -> Option<ObsoleteInfo> {
+fn import_obsolete(
+    obsolete: bool,
+    metadata: &[(Cow<'_, str>, Cow<'_, str>)],
+) -> Option<ObsoleteInfo> {
     if !obsolete {
         return None;
     }
     let since = metadata
         .iter()
         .find(|(key, _)| key == PO_OBSOLETE_SINCE_KEY)
-        .map(|(_, value)| value.clone());
+        .map(|(_, value)| value.as_ref().to_owned());
     Some(ObsoleteInfo { since })
 }
 
 fn import_machine_metadata(
-    metadata: &[(String, String)],
+    metadata: &[(Cow<'_, str>, Cow<'_, str>)],
 ) -> Result<Option<MachineMetadata>, ApiError> {
     let mut lock = None;
     let mut ai = None;
@@ -945,7 +1026,7 @@ fn import_machine_metadata(
     };
 
     let metadata = MachineMetadata {
-        lock: lock.clone(),
+        lock: lock.as_ref().to_owned(),
         ai: ai.map(|value| parse_ai_descriptor(value)),
     };
     validate_machine_metadata(&metadata)?;
@@ -954,17 +1035,20 @@ fn import_machine_metadata(
 
 /// Splits extractor-style placeholder comments back out of the generic
 /// extracted-comment list during PO import.
-pub(super) fn split_placeholder_comments(
-    extracted_comments: Vec<String>,
+pub(super) fn split_placeholder_comments<'a>(
+    extracted_comments: impl IntoIterator<Item = Cow<'a, str>>,
 ) -> (Vec<String>, BTreeMap<String, Vec<String>>) {
     let mut comments = Vec::new();
     let mut placeholders = BTreeMap::<String, Vec<String>>::new();
 
     for comment in extracted_comments {
         if let Some((name, value)) = parse_placeholder_comment(&comment) {
-            placeholders.entry(name).or_default().push(value);
+            placeholders
+                .entry(name.to_owned())
+                .or_default()
+                .push(value.to_owned());
         } else {
-            comments.push(comment);
+            comments.push(comment.into_owned());
         }
     }
 
@@ -972,59 +1056,83 @@ pub(super) fn split_placeholder_comments(
 }
 
 /// Parses the internal placeholder comment format emitted by the export helpers.
-fn parse_placeholder_comment(comment: &str) -> Option<(String, String)> {
+///
+/// Borrows from `comment` so callers can use it as an allocation-free predicate
+/// before deciding whether any placeholder splitting is needed at all.
+fn parse_placeholder_comment(comment: &str) -> Option<(&str, &str)> {
     let rest = comment.strip_prefix("placeholder {")?;
     let end = rest.find("}: ")?;
-    Some((rest[..end].to_owned(), rest[end + 3..].to_owned()))
+    Some((&rest[..end], &rest[end + 3..]))
 }
 
 /// Parses a reference into a [`CatalogOrigin`]. A trailing `#scope` anchor (the
 /// stable enclosing component or function) becomes [`CatalogOrigin::scope`], and
 /// a legacy trailing `:line` (as emitted by gettext tools) is stripped so line
 /// numbers never enter the catalog model and cannot round-trip into output.
-pub(super) fn parse_origin_owned(mut reference: String) -> CatalogOrigin {
+pub(super) fn parse_origin(reference: Cow<'_, str>) -> CatalogOrigin {
+    match reference {
+        Cow::Borrowed(reference) => {
+            let (file, scope) = split_origin(reference);
+            CatalogOrigin {
+                file: file.to_owned(),
+                scope: scope.map(str::to_owned),
+            }
+        }
+        // An already-owned reference keeps its allocation; the split only ever
+        // trims a suffix, so truncating in place is enough.
+        Cow::Owned(mut reference) => {
+            let (file, scope) = split_origin(&reference);
+            let file_len = file.len();
+            let scope = scope.map(str::to_owned);
+            reference.truncate(file_len);
+            CatalogOrigin {
+                file: reference,
+                scope,
+            }
+        }
+    }
+}
+
+/// Splits a raw reference into its file part and optional `#scope` anchor.
+fn split_origin(reference: &str) -> (&str, Option<&str>) {
     // Anchor first: split on the last `#`, so a `#` earlier in the path stays
     // with the file.
-    let scope = match reference.rsplit_once('#') {
-        Some((file, scope)) if !scope.is_empty() => {
-            let scope = scope.to_owned();
-            let file_len = file.len();
-            reference.truncate(file_len);
-            Some(scope)
-        }
-        _ => None,
+    let (file, scope) = match reference.rsplit_once('#') {
+        Some((file, scope)) if !scope.is_empty() => (file, Some(scope)),
+        _ => (reference, None),
     };
 
-    if let Some((file, line)) = reference.rsplit_once(':')
+    if let Some((trimmed, line)) = file.rsplit_once(':')
         && !line.is_empty()
         && line.bytes().all(|byte| byte.is_ascii_digit())
     {
-        let file_len = file.len();
-        reference.truncate(file_len);
+        return (trimmed, scope);
     }
 
-    CatalogOrigin {
-        file: reference,
-        scope,
+    (file, scope)
+}
+
+/// Appends a [`CatalogOrigin`] to `out` in its wire form, shared by PO
+/// references and FCL `r=` tags: `file` or `file#scope`.
+pub(super) fn write_origin(out: &mut String, origin: &CatalogOrigin) {
+    out.push_str(&origin.file);
+    if let Some(scope) = &origin.scope {
+        out.push('#');
+        out.push_str(scope);
     }
 }
 
-/// Serializes a [`CatalogOrigin`] to its wire form, shared by PO references and
-/// FCL `r=` tags: `file` or `file#scope`.
-pub(super) fn format_origin(origin: &CatalogOrigin) -> String {
-    match &origin.scope {
-        Some(scope) => format!("{}#{scope}", origin.file),
-        None => origin.file.clone(),
-    }
-}
-
-/// Moves the first available translation string out of a [`MsgStr`], matching
-/// the `first().unwrap_or_default()` semantics without copying.
-fn take_first_msgstr(msgstr: MsgStr) -> String {
+/// Takes the first available translation string out of a [`BorrowedMsgStr`],
+/// matching the `first().unwrap_or_default()` semantics with a single allocation.
+fn take_first_msgstr(msgstr: BorrowedMsgStr<'_>) -> String {
     match msgstr {
-        MsgStr::Singular(value) => value,
-        MsgStr::Plural(values) => values.into_iter().next().unwrap_or_default(),
-        MsgStr::None => String::new(),
+        BorrowedMsgStr::Singular(value) => value.into_owned(),
+        BorrowedMsgStr::Plural(values) => values
+            .into_iter()
+            .next()
+            .map(Cow::into_owned)
+            .unwrap_or_default(),
+        BorrowedMsgStr::None => String::new(),
     }
 }
 
@@ -1123,36 +1231,53 @@ pub(super) fn public_message_from_canonical(message: CanonicalMessage) -> Catalo
 
 #[cfg(test)]
 mod tests {
+    use std::borrow::Cow;
+
     use super::{
-        CanonicalMessage, CanonicalTranslation, first_origin_sort_key, parse_origin_owned,
-        sort_messages, take_first_msgstr,
+        CanonicalMessage, CanonicalTranslation, first_origin_sort_key, parse_origin, sort_messages,
+        take_first_msgstr,
     };
     use crate::api::{CatalogOrigin, ObsoleteInfo, OrderBy};
-    use crate::{MsgStr, PoVec};
+    use crate::{BorrowedMsgStr, PoVec};
 
     #[test]
-    fn parse_origin_owned_strips_line_numbers_and_keeps_file() {
+    fn parse_origin_strips_line_numbers_and_keeps_file() {
         // A trailing numeric `:line` is dropped so line numbers never enter the
         // catalog model or round-trip back into rendered references.
         assert_eq!(
-            parse_origin_owned("src/app.rs:42".to_owned()).file,
+            parse_origin(Cow::Borrowed("src/app.rs:42")).file,
+            "src/app.rs"
+        );
+        assert_eq!(
+            parse_origin(Cow::Owned("src/app.rs:42".to_owned())).file,
             "src/app.rs"
         );
 
         // No colon, and non-numeric or empty suffixes, keep the buffer verbatim.
-        assert_eq!(parse_origin_owned("README".to_owned()).file, "README");
-        assert_eq!(parse_origin_owned("a:b:rev".to_owned()).file, "a:b:rev");
+        assert_eq!(parse_origin(Cow::Borrowed("README")).file, "README");
+        assert_eq!(parse_origin(Cow::Borrowed("a:b:rev")).file, "a:b:rev");
+
+        // A trailing `#scope` anchor is split off before the line-number trim.
+        let origin = parse_origin(Cow::Owned("src/app.rs:42#Checkout".to_owned()));
+        assert_eq!(origin.file, "src/app.rs");
+        assert_eq!(origin.scope.as_deref(), Some("Checkout"));
     }
 
     #[test]
     fn take_first_msgstr_moves_first_available_value() {
-        assert_eq!(take_first_msgstr(MsgStr::Singular("one".to_owned())), "one");
         assert_eq!(
-            take_first_msgstr(MsgStr::Plural(vec!["a".to_owned(), "b".to_owned()])),
+            take_first_msgstr(BorrowedMsgStr::Singular(Cow::Borrowed("one"))),
+            "one"
+        );
+        assert_eq!(
+            take_first_msgstr(BorrowedMsgStr::Plural(vec![
+                Cow::Borrowed("a"),
+                Cow::Borrowed("b"),
+            ])),
             "a"
         );
-        assert_eq!(take_first_msgstr(MsgStr::Plural(Vec::new())), "");
-        assert_eq!(take_first_msgstr(MsgStr::None), "");
+        assert_eq!(take_first_msgstr(BorrowedMsgStr::Plural(Vec::new())), "");
+        assert_eq!(take_first_msgstr(BorrowedMsgStr::None), "");
     }
 
     #[test]
