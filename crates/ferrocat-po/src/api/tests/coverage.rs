@@ -48,7 +48,7 @@ fn coverage_report_counts_expected_message_statuses() {
     assert_eq!(locale.total, 5);
     assert_eq!(locale.translated, 1);
     assert_eq!(locale.empty, 1);
-    assert_eq!(locale.fuzzy, 1);
+    assert_eq!(locale.fuzzy(), 1);
     assert_eq!(locale.obsolete, 1);
     assert_eq!(locale.missing, 1);
     assert_eq!(locale.extra, 1);
@@ -74,7 +74,7 @@ fn coverage_report_classifies_fcl_fuzzy_like_po_fuzzy() {
     let locale = &report.locales[0];
 
     assert_eq!(locale.translated, 0);
-    assert_eq!(locale.fuzzy, 1);
+    assert_eq!(locale.fuzzy(), 1);
     assert_eq!(locale.details[0].status, CatalogMessageStatus::Fuzzy);
 }
 
@@ -294,14 +294,14 @@ fn coverage_statuses_are_mutually_exclusive_when_fuzzy_overlaps_other_state() {
     let locale = &report.locales[0];
 
     assert_eq!(locale.translated, 0);
-    assert_eq!(locale.fuzzy, 0);
+    assert_eq!(locale.fuzzy(), 0);
     assert_eq!(locale.empty, 1);
     assert_eq!(locale.obsolete, 1);
     assert_eq!(locale.missing, 0);
     assert_eq!(locale.extra, 1);
     assert_eq!(
         locale.total,
-        locale.translated + locale.fuzzy + locale.empty + locale.obsolete + locale.missing
+        locale.translated + locale.fuzzy() + locale.empty + locale.obsolete + locale.missing
     );
 }
 

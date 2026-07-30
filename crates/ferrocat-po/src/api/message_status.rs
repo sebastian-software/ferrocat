@@ -13,9 +13,6 @@ use super::{CatalogMessage, CatalogMessageKey, EffectiveTranslationRef, Normaliz
 pub enum CatalogMessageStatus {
     /// Active target message exists and has a non-empty, non-fuzzy translation.
     Translated,
-    /// Active target message exists, has a non-empty translation, and carries
-    /// the semantic `fuzzy` review marker.
-    Fuzzy,
     /// No active or obsolete target entry exists for the active source identity.
     Missing,
     /// Active target entry exists, but its effective translation is empty.
@@ -24,6 +21,9 @@ pub enum CatalogMessageStatus {
     Obsolete,
     /// Active target entry is not present in the active source identity set.
     Extra,
+    /// Active target message exists, has a non-empty translation, and carries
+    /// the semantic `fuzzy` review marker.
+    Fuzzy,
 }
 
 pub(super) fn active_message_keys(

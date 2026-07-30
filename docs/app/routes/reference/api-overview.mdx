@@ -535,7 +535,8 @@ Only `translated` messages count toward completion. Fuzzy, empty, obsolete, and
 absent entries remain visible as separate counters so hosts can choose their
 own threshold and presentation rules. An empty singular or partially empty
 required plural remains `empty` even if it also carries `fuzzy`; obsolete and
-extra identities likewise keep their structural state.
+extra identities likewise keep their structural state. Read the per-locale
+fuzzy count with `CatalogLocaleCoverage::fuzzy()`.
 
 ```rust
 use ferrocat::{

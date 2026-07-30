@@ -65,9 +65,6 @@ pub struct CatalogLocaleCoverage {
     pub missing: usize,
     /// Expected messages with an empty effective translation.
     pub empty: usize,
-    /// Expected messages with a non-empty active translation carrying the
-    /// semantic `fuzzy` review marker.
-    pub fuzzy: usize,
     /// Expected messages with only an obsolete target entry.
     pub obsolete: usize,
     /// Active target messages that are not present in the active source set.
@@ -77,6 +74,20 @@ pub struct CatalogLocaleCoverage {
 }
 
 impl CatalogLocaleCoverage {
+    /// Returns expected messages with a non-empty active translation carrying
+    /// the semantic `fuzzy` review marker.
+    ///
+    /// Fuzzy is the remaining mutually exclusive expected-message state after
+    /// subtracting translated, missing, empty, and obsolete messages.
+    #[must_use]
+    pub const fn fuzzy(&self) -> usize {
+        self.total
+            .saturating_sub(self.translated)
+            .saturating_sub(self.missing)
+            .saturating_sub(self.empty)
+            .saturating_sub(self.obsolete)
+    }
+
     /// Returns messages that still need translator attention.
     #[must_use]
     pub const fn incomplete(&self) -> usize {
@@ -239,10 +250,10 @@ fn coverage_for_locale(
 fn increment_status(coverage: &mut CatalogLocaleCoverage, status: CatalogMessageStatus) {
     match status {
         CatalogMessageStatus::Translated => coverage.translated += 1,
-        CatalogMessageStatus::Fuzzy => coverage.fuzzy += 1,
         CatalogMessageStatus::Missing => coverage.missing += 1,
         CatalogMessageStatus::Empty => coverage.empty += 1,
         CatalogMessageStatus::Obsolete => coverage.obsolete += 1,
         CatalogMessageStatus::Extra => coverage.extra += 1,
+        CatalogMessageStatus::Fuzzy => {}
     }
 }

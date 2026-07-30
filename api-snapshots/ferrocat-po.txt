@@ -348,7 +348,6 @@ pub struct ferrocat_po::CatalogLocaleCoverage
 pub ferrocat_po::CatalogLocaleCoverage::details: alloc::vec::Vec<ferrocat_po::CatalogCoverageMessage>
 pub ferrocat_po::CatalogLocaleCoverage::empty: usize
 pub ferrocat_po::CatalogLocaleCoverage::extra: usize
-pub ferrocat_po::CatalogLocaleCoverage::fuzzy: usize
 pub ferrocat_po::CatalogLocaleCoverage::locale: alloc::string::String
 pub ferrocat_po::CatalogLocaleCoverage::missing: usize
 pub ferrocat_po::CatalogLocaleCoverage::obsolete: usize
@@ -357,6 +356,7 @@ pub ferrocat_po::CatalogLocaleCoverage::translated: usize
 impl ferrocat_po::CatalogLocaleCoverage
 pub fn ferrocat_po::CatalogLocaleCoverage::completion_percent(&self) -> f64
 pub fn ferrocat_po::CatalogLocaleCoverage::completion_ratio(&self) -> f64
+pub const fn ferrocat_po::CatalogLocaleCoverage::fuzzy(&self) -> usize
 pub const fn ferrocat_po::CatalogLocaleCoverage::incomplete(&self) -> usize
 pub struct ferrocat_po::CatalogLocaleReview
 pub ferrocat_po::CatalogLocaleReview::coverage: ferrocat_po::CatalogLocaleCoverage

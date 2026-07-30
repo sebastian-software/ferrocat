@@ -914,6 +914,40 @@ mod tests {
     }
 
     #[test]
+    fn discard_projection_validates_opaque_tag_escapes_without_retaining_them() {
+        let valid =
+            format!("{FCL_MAGIC}\tsource=en\nid\t\tvalue\ttc=first\\tnote\tf=x\\\\custom\n");
+        let catalog = parse_catalog_to_internal_fcl(
+            &valid,
+            None,
+            "en",
+            CatalogSemantics::IcuNative,
+            false,
+            OpaqueCapture::Discard,
+        )
+        .expect("discard projection should validate opaque tags");
+        assert!(catalog.messages[0].translator_comments().is_empty());
+        assert!(catalog.messages[0].flags().is_empty());
+
+        for invalid in [
+            format!("{FCL_MAGIC}\tsource=en\nid\t\tvalue\ttc=bad\\xescape\n"),
+            format!("{FCL_MAGIC}\tsource=en\nid\t\tvalue\tf=dangling\\\n"),
+        ] {
+            assert!(
+                parse_catalog_to_internal_fcl(
+                    &invalid,
+                    None,
+                    "en",
+                    CatalogSemantics::IcuNative,
+                    false,
+                    OpaqueCapture::Discard,
+                )
+                .is_err()
+            );
+        }
+    }
+
+    #[test]
     fn rejects_malformed_headers() {
         assert!(parse_err("nope\nid\t\tv\n")); // missing %FCL1 magic
         assert!(parse_err(&format!("{FCL_MAGIC}\tbogus=x\nid\t\tv\n"))); // unknown header key

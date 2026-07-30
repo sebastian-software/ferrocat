@@ -49,7 +49,7 @@ Add a dedicated review-aware parse projection:
   no flag field, this explicitly declares that the constructed messages are
   non-fuzzy.
 - `CatalogMessageStatus::Fuzzy`,
-  `CatalogLocaleCoverage::fuzzy`,
+  `CatalogLocaleCoverage::fuzzy()`,
   `CatalogAuditChecks::fuzzy_flags`, and
   `catalog.fuzzy_flag` are restored.
 
@@ -88,8 +88,9 @@ Negative:
 
 - report callers must use `parse_catalog_for_review`; passing a normalized view
   derived from ordinary `parse_catalog` now returns an argument error
-- the public status enum and serialized coverage/audit report shapes regain
-  fuzzy fields and values
+- coverage details can carry the `fuzzy` status, and the per-locale
+  `fuzzy()` accessor derives its count without adding a field to the
+  externally constructible report struct
 - Ferrocat now interprets one member of an otherwise opaque flag list, so future
   review markers need another explicit architecture decision rather than being
   inferred from arbitrary metadata

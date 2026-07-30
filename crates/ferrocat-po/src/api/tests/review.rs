@@ -69,6 +69,6 @@ fn review_report_uses_fuzzy_coverage_and_skips_fuzzy_translation_changes() {
     .expect("review");
 
     assert_eq!(report.locales[0].coverage.translated, 0);
-    assert_eq!(report.locales[0].coverage.fuzzy, 1);
+    assert_eq!(report.locales[0].coverage.fuzzy(), 1);
     assert_eq!(report.locales[0].translations.changed, 0);
 }

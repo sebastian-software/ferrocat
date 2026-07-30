@@ -9,9 +9,10 @@
   inputs from `parse_catalog_for_review` (or programmatic catalogs explicitly
   normalized with `into_normalized_view_assuming_no_fuzzy`). This prevents
   discarded fuzzy state from being counted as translated.
-- `CatalogMessageStatus::Fuzzy`, `CatalogLocaleCoverage::fuzzy`,
+- `CatalogMessageStatus::Fuzzy`, `CatalogLocaleCoverage::fuzzy()`,
   `CatalogAuditChecks::fuzzy_flags`, and the `catalog.fuzzy_flag` diagnostic are
-  restored in public and serialized report shapes.
+  restored. The derived accessor keeps the externally constructible coverage
+  struct semver-compatible.
 
 ### Bug Fixes
 
