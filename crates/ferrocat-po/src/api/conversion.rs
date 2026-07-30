@@ -59,7 +59,7 @@ pub fn convert_catalog(
 
     // Parse without an override so a conflicting source declaration cannot be
     // hidden by the caller's expected locale.
-    let mut catalog = parse_catalog_to_internal(
+    let catalog = parse_catalog_to_internal(
         options.content,
         None,
         options.source_locale,
@@ -69,6 +69,13 @@ pub fn convert_catalog(
         options.source_mode.storage_format(),
         OpaqueCapture::Keep,
     )?;
+    finish_catalog_conversion(options, catalog)
+}
+
+fn finish_catalog_conversion(
+    options: ConvertCatalogOptions<'_>,
+    mut catalog: super::catalog::Catalog,
+) -> Result<CatalogConvertResult, ApiError> {
     let locale = resolve_locale(options.locale, catalog.locale.as_deref())?;
     catalog.locale.clone_from(&locale);
     let message_count = catalog.messages.len();
@@ -160,14 +167,14 @@ pub fn convert_catalog_file(
         ));
     }
 
-    let source_format = options.source_format.map_or_else(
-        || CatalogFileFormat::infer_from_path(options.input_path),
-        Ok,
-    )?;
-    let target_format = options.target_format.map_or_else(
-        || CatalogFileFormat::infer_from_path(options.output_path),
-        Ok,
-    )?;
+    let source_format = match options.source_format {
+        Some(format) => format,
+        None => CatalogFileFormat::infer_from_path(options.input_path)?,
+    };
+    let target_format = match options.target_format {
+        Some(format) => format,
+        None => CatalogFileFormat::infer_from_path(options.output_path)?,
+    };
     let source_mode = mode_for_format("source", source_format, options.source_mode)?;
     let target_mode = mode_for_format("target", target_format, options.target_mode)?;
     validate_conversion_modes(source_mode, target_mode)?;
@@ -271,4 +278,55 @@ fn mode_for_format(
         )));
     }
     Ok(mode)
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::BTreeMap;
+
+    use crate::PoVec;
+
+    use super::super::PluralSource;
+    use super::super::catalog::{CanonicalMessage, CanonicalTranslation, Catalog};
+    use super::*;
+
+    #[test]
+    fn conversion_propagates_target_export_errors() {
+        let catalog = Catalog {
+            messages: vec![CanonicalMessage {
+                msgid: "item".to_owned(),
+                msgctxt: None,
+                translation: CanonicalTranslation::Plural {
+                    source: PluralSource {
+                        one: Some("item".to_owned()),
+                        other: "items".to_owned(),
+                    },
+                    translation_by_category: BTreeMap::from([(
+                        "one".to_owned(),
+                        "Artikel".to_owned(),
+                    )]),
+                    variable: "count".to_owned(),
+                },
+                comments: Vec::new(),
+                opaque: None,
+                origins: PoVec::new(),
+                placeholders: BTreeMap::new(),
+                obsolete: None,
+                machine: None,
+            }],
+            ..Catalog::default()
+        };
+
+        let error = finish_catalog_conversion(
+            ConvertCatalogOptions::new("", "en", CatalogMode::GettextPo, CatalogMode::GettextPo)
+                .with_locale("de"),
+            catalog,
+        )
+        .expect_err("missing other category");
+
+        assert!(matches!(
+            error,
+            ApiError::Unsupported(message) if message.contains("other")
+        ));
+    }
 }

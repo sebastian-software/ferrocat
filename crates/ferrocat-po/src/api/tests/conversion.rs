@@ -2,6 +2,8 @@ use super::*;
 
 use std::path::Path;
 
+use crate::SerializeOptions;
+
 #[test]
 fn po_fcl_po_roundtrip_preserves_shared_message_metadata() {
     let hash = machine_translation_hash(EffectiveTranslationRef::Singular("Maschinell"));
@@ -181,6 +183,116 @@ fn conversion_rejects_semantic_changes_and_locale_mismatches() {
         locale_error,
         ApiError::InvalidArguments(message) if message.contains("did not match expected locale")
     ));
+}
+
+#[test]
+fn conversion_option_builders_set_every_field() {
+    let serialize = SerializeOptions::default()
+        .with_fold_length(24)
+        .with_compact_multiline(false);
+    let content_options =
+        ConvertCatalogOptions::new("catalog", "en", CatalogMode::IcuPo, CatalogMode::IcuFcl)
+            .with_locale("de")
+            .with_source_mode(CatalogMode::IcuFcl)
+            .with_target_mode(CatalogMode::IcuPo)
+            .with_order_by(OrderBy::Origin)
+            .with_po_serialize_options(serialize.clone());
+    assert_eq!(content_options.content, "catalog");
+    assert_eq!(content_options.locale, Some("de"));
+    assert_eq!(content_options.source_locale, "en");
+    assert_eq!(content_options.source_mode, CatalogMode::IcuFcl);
+    assert_eq!(content_options.target_mode, CatalogMode::IcuPo);
+    assert_eq!(content_options.order_by, OrderBy::Origin);
+    assert_eq!(content_options.po_serialize, serialize);
+
+    let original_input = Path::new("original.po");
+    let original_output = Path::new("original.fcl");
+    let selected_input = Path::new("selected.fcl");
+    let selected_output = Path::new("selected.po");
+    let file_options = ConvertCatalogFileOptions::new(original_input, original_output, "en")
+        .with_input_path(selected_input)
+        .with_output_path(selected_output)
+        .with_source_format(CatalogFileFormat::Fcl)
+        .with_target_format(CatalogFileFormat::Po)
+        .with_source_mode(CatalogMode::IcuFcl)
+        .with_target_mode(CatalogMode::IcuPo)
+        .with_locale("de")
+        .with_order_by(OrderBy::Origin)
+        .with_po_serialize_options(serialize.clone());
+    assert_eq!(file_options.input_path, selected_input);
+    assert_eq!(file_options.output_path, selected_output);
+    assert_eq!(file_options.source_format, Some(CatalogFileFormat::Fcl));
+    assert_eq!(file_options.target_format, Some(CatalogFileFormat::Po));
+    assert_eq!(file_options.source_mode, Some(CatalogMode::IcuFcl));
+    assert_eq!(file_options.target_mode, Some(CatalogMode::IcuPo));
+    assert_eq!(file_options.locale, Some("de"));
+    assert_eq!(file_options.source_locale, "en");
+    assert_eq!(file_options.order_by, OrderBy::Origin);
+    assert_eq!(file_options.po_serialize, serialize);
+}
+
+#[test]
+fn conversion_rejects_invalid_content_and_blank_locales() {
+    let parse_error = convert_catalog(ConvertCatalogOptions::new(
+        "msgid \"ok\"\nmsgstr_ \"typo\"\n",
+        "en",
+        CatalogMode::IcuPo,
+        CatalogMode::IcuFcl,
+    ))
+    .expect_err("invalid PO");
+    assert!(matches!(parse_error, ApiError::Parse(_)));
+
+    let locale_error = convert_catalog(
+        ConvertCatalogOptions::new(
+            "msgid \"Hello\"\nmsgstr \"Hallo\"\n",
+            "en",
+            CatalogMode::IcuPo,
+            CatalogMode::IcuFcl,
+        )
+        .with_locale(" "),
+    )
+    .expect_err("blank locale");
+    assert!(matches!(
+        locale_error,
+        ApiError::InvalidArguments(message) if message.contains("locale must not be empty")
+    ));
+}
+
+#[test]
+fn file_conversion_rejects_empty_paths_and_unknown_formats() {
+    let empty = Path::new("");
+    let input = Path::new("input.po");
+    let output = Path::new("output.fcl");
+
+    let input_error = convert_catalog_file(ConvertCatalogFileOptions::new(empty, output, "en"))
+        .expect_err("empty input path");
+    assert!(matches!(
+        input_error,
+        ApiError::InvalidArguments(message) if message.contains("input_path")
+    ));
+
+    let output_error = convert_catalog_file(ConvertCatalogFileOptions::new(input, empty, "en"))
+        .expect_err("empty output path");
+    assert!(matches!(
+        output_error,
+        ApiError::InvalidArguments(message) if message.contains("output_path")
+    ));
+
+    let source_format_error = convert_catalog_file(ConvertCatalogFileOptions::new(
+        Path::new("input.unknown"),
+        output,
+        "en",
+    ))
+    .expect_err("unknown source format");
+    assert!(matches!(source_format_error, ApiError::Unsupported(_)));
+
+    let target_format_error = convert_catalog_file(ConvertCatalogFileOptions::new(
+        input,
+        Path::new("output.unknown"),
+        "en",
+    ))
+    .expect_err("unknown target format");
+    assert!(matches!(target_format_error, ApiError::Unsupported(_)));
 }
 
 #[test]
