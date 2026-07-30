@@ -54,7 +54,7 @@ msgstr "world"
 }
 ```
 
-For the common "merge fresh extracted messages into an existing catalog" workflow, `merge_catalog` is the lean Gettext-style entry point. For N-way catalog overlays and `msgcat`-style set operations, use `combine_catalogs`; when catalogs already live on disk, `combine_catalog_files` adds format inference and atomic output replacement around the same semantics. For release checks across a source catalog and target catalogs, use `audit_catalogs`. For dashboards or translator handoffs, use `measure_catalog_coverage` and `review_catalogs`. For application delivery, compile requested-locale artifacts with fallback and ICU diagnostics; use `compile_catalog_artifact_report` when host tooling also needs per-message resolution provenance without changing the runtime artifact shape.
+For the common "merge fresh extracted messages into an existing catalog" workflow, `merge_catalog` is the lean Gettext-style entry point. For N-way catalog overlays and `msgcat`-style set operations, use `combine_catalogs`; when catalogs already live on disk, `combine_catalog_files` adds format inference and atomic output replacement around the same semantics. Use `convert_catalog` or `convert_catalog_file` for explicit ICU-native PO ↔ FCL conversion without treating conversion as a one-input combine. For release checks across a source catalog and target catalogs, use `audit_catalogs`. For dashboards or translator handoffs, use `measure_catalog_coverage` and `review_catalogs`. For application delivery, compile requested-locale artifacts with fallback and ICU diagnostics; use `compile_catalog_artifact_report` when host tooling also needs per-message resolution provenance without changing the runtime artifact shape.
 
 Coverage, audit, and review inputs should be parsed with
 `parse_catalog_for_review`. It returns a normalized catalog that retains only
@@ -69,6 +69,7 @@ Beyond the basics, Ferrocat exposes byte-oriented and allocation-light borrowed 
 
 - **One reliable catalog core.** Keep source text, contexts, translations, notes, source origins such as `src/App.tsx#CheckoutButton` or `src/i18n.ts#formatInvoiceStatus`, plural forms, and obsolete entries in a model that application code can reason about.
 - **Predictable updates.** Merge newly extracted messages into existing catalogs without fuzzy guessing, hidden identity changes, or silent conflict resolution.
+- **Explicit format conversion.** Convert ICU-native PO and FCL content or files with separate source and target modes, message-level metadata preservation, and atomic file replacement.
 - **Lingui-compatible catalog order.** Sort message and context identities with the CLDR root order used by `Intl.Collator("en-US")` across PO, FCL, update, and combine output. PO can group by source origin while retaining the same identity tie-break; FCL always keeps its own collated line-order invariant.
 - **Release-ready QA.** Audit catalog sets for missing locales, missing translations, empty translations, stale target messages, ICU mistakes, metadata conflicts, and obsolete entries.
 - **Coverage and review reports.** Turn catalog state into completion counters, translator handoff diffs, and machine-managed value freshness checks instead of rebuilding those rules in every host tool.
@@ -131,7 +132,7 @@ At the high-level catalog layer, `ferrocat` supports three explicit combinations
 | ICU-native Gettext PO mode | Gettext PO | ICU MessageFormat | keep Gettext PO files and tooling, but author richer ICU plural/select/formatting messages |
 | ICU-native FCL catalog mode | FCL catalog storage | ICU MessageFormat | move to one-entry-per-line, tab-separated records that are easier to diff, merge, batch, and hand to external systems |
 
-There is intentionally no FCL + gettext-plural mode; gettext plural behavior stays a PO concern, while FCL is the ICU-native machine storage format for ICU-native catalogs. Generate FCL through the catalog layer by choosing `CatalogMode::IcuFcl` in `parse_catalog`, `update_catalog`, or file-based update flows; keep PO when external translator tools need gettext compatibility. The in-repo [FCL format specification](docs/fcl-format.md) documents the exact line format, escaping rules, and architecture decisions behind that storage mode.
+There is intentionally no FCL + gettext-plural mode; gettext plural behavior stays a PO concern, while FCL is the ICU-native machine storage format for ICU-native catalogs. Generate FCL through the catalog layer by choosing `CatalogMode::IcuFcl` in `parse_catalog`, `update_catalog`, conversion, or file-based update flows; keep PO when external translator tools need gettext compatibility. The in-repo [FCL format specification](docs/fcl-format.md) documents the exact line format, escaping rules, and architecture decisions behind that storage mode.
 
 ## Feature Profiles
 
@@ -139,9 +140,9 @@ The published crates default to the full current API surface. Use
 `default-features = false` when you want the low-level PO and ICU parsers without
 the catalog workflow layer.
 
-- `catalog` enables high-level catalog parsing, updates, combining, audits,
-  machine-translation metadata, plural handling, FCL storage, and runtime
-  artifact compilation.
+- `catalog` enables high-level catalog parsing, updates, combining, conversion,
+  audits, machine-translation metadata, plural handling, FCL storage, and
+  runtime artifact compilation.
 - `serde` enables serialization support for tooling, cache, schema, report, and
   runtime artifact shapes.
 - `compile`, `mt`, and `plurals` are reserved subsystem aliases that currently

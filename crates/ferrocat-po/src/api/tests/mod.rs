@@ -6,16 +6,17 @@ pub(super) use super::{
     CompileCatalogArtifactIcuOptions, CompileCatalogArtifactOptions,
     CompileCatalogArtifactReportOptions, CompileCatalogOptions,
     CompileSelectedCatalogArtifactOptions, CompiledCatalogIdIndex, CompiledCatalogResolutionKind,
-    CompiledCatalogTranslationKind, CompiledKeyStrategy, CompiledTranslation, DiagnosticSeverity,
-    EffectiveTranslation, EffectiveTranslationRef, ExtractedMessage, ExtractedPluralMessage,
-    ExtractedSingularMessage, IcuSyntaxPolicy, ObsoleteStrategy, OrderBy, ParseCatalogOptions,
-    PlaceholderCommentMode, PluralEncoding, PluralSource, RenderOptions, SourceExtractedMessage,
-    TranslationShape, UpdateCatalogFileOptions, UpdateCatalogOptions, audit_catalogs,
-    combine_catalog_files, combine_catalogs, compile::compiled_key_for, compile_catalog_artifact,
+    CompiledCatalogTranslationKind, CompiledKeyStrategy, CompiledTranslation,
+    ConvertCatalogFileOptions, ConvertCatalogOptions, DiagnosticSeverity, EffectiveTranslation,
+    EffectiveTranslationRef, ExtractedMessage, ExtractedPluralMessage, ExtractedSingularMessage,
+    IcuSyntaxPolicy, ObsoleteStrategy, OrderBy, ParseCatalogOptions, PlaceholderCommentMode,
+    PluralEncoding, PluralSource, RenderOptions, SourceExtractedMessage, TranslationShape,
+    UpdateCatalogFileOptions, UpdateCatalogOptions, audit_catalogs, combine_catalog_files,
+    combine_catalogs, compile::compiled_key_for, compile_catalog_artifact,
     compile_catalog_artifact_report, compile_catalog_artifact_selected, compiled_key,
-    compiled_key_with_policy, machine_translation_hash, measure_catalog_coverage, parse_catalog,
-    parse_catalog_for_review, plural::cached_icu_plural_categories_for, review_catalogs,
-    update_catalog, update_catalog_file,
+    compiled_key_with_policy, convert_catalog, convert_catalog_file, machine_translation_hash,
+    measure_catalog_coverage, parse_catalog, parse_catalog_for_review,
+    plural::cached_icu_plural_categories_for, review_catalogs, update_catalog, update_catalog_file,
 };
 pub(super) use crate::parse_po;
 pub(super) use std::collections::{BTreeMap, HashMap};
@@ -25,6 +26,7 @@ pub(super) use std::sync::Mutex;
 mod audit;
 mod catalog;
 mod compile;
+mod conversion;
 mod coverage;
 mod plural;
 mod review;

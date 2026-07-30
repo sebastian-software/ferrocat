@@ -17,9 +17,9 @@ This crate covers both the low-level PO surface and the higher-level catalog lay
 `ferrocat-po` enables `full` by default. `full` currently means `catalog`, so the
 default build exposes the complete current PO and catalog API surface.
 
-- `catalog`: high-level catalog parse, update, combine, audit, metadata, FCL,
-  plural, and runtime compile APIs, plus their hashing, tempfile, serde JSON,
-  ICU, and CLDR plural-data dependencies
+- `catalog`: high-level catalog parse, update, combine, conversion, audit,
+  metadata, FCL, plural, and runtime compile APIs, plus their hashing, tempfile,
+  serde JSON, ICU, and CLDR plural-data dependencies
 - `serde`: serde support for low-level PO document types; `catalog` also enables
   it for catalog-layer JSON/report shapes
 - `compile`, `mt`, and `plurals`: reserved subsystem aliases that currently
@@ -46,6 +46,7 @@ Use this crate when you want that surface directly:
 - `stringify_po` for PO serialization
 - `merge_catalog` for lightweight catalog merges
 - `parse_catalog`, `update_catalog`, and `NormalizedParsedCatalog::compile` for higher-level catalog workflows across Gettext PO and FCL storage
+- `convert_catalog` and `convert_catalog_file` for explicit ICU-native PO ↔ FCL conversion with message-level metadata preservation
 - `MachineMetadata` (integrity `lock` plus optional `AiProvenance`) and `machine_translation_hash` for marking machine-managed values in PO or FCL and detecting later by-hand edits
 - `audit_catalogs` for read-only release QA across source and target catalogs
 - `compile_catalog_artifact` for requested-locale runtime artifacts with fallback resolution and missing reports

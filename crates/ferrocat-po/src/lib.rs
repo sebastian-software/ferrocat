@@ -11,11 +11,11 @@
 //! The default feature set is `full`, which currently enables the `catalog`
 //! workflow layer.
 //!
-//! - `catalog` exposes high-level catalog parsing, updates, combining, audits,
-//!   machine-translation metadata, plural handling, FCL storage, and runtime
-//!   artifact compilation. It also enables the catalog-layer dependencies used
-//!   for hashing, atomic file updates, serde JSON output, ICU diagnostics, and
-//!   CLDR plural data.
+//! - `catalog` exposes high-level catalog parsing, updates, combining,
+//!   conversion, audits, machine-translation metadata, plural handling, FCL
+//!   storage, and runtime artifact compilation. It also enables the
+//!   catalog-layer dependencies used for hashing, atomic file updates, serde
+//!   JSON output, ICU diagnostics, and CLDR plural data.
 //! - `serde` enables serde implementations for low-level PO document types and
 //!   is also enabled by `catalog` for catalog-layer JSON/report shapes.
 //! - `compile`, `mt`, and `plurals` are reserved subsystem aliases. Today they
@@ -114,34 +114,36 @@ pub use api::{
     AiProvenance, ApiError, COMPILED_CATALOG_ARTIFACT_SCHEMA_VERSION, CatalogAuditChecks,
     CatalogAuditDiagnostic, CatalogAuditIcuOptions, CatalogAuditMessageRef, CatalogAuditOptions,
     CatalogAuditReport, CatalogAuditSummary, CatalogCombineInput, CatalogCombineResult,
-    CatalogCombineSelection, CatalogCombineStats, CatalogConflictStrategy, CatalogCoverageMessage,
-    CatalogCoverageOptions, CatalogCoverageReport, CatalogFileCombineResult, CatalogFileFormat,
-    CatalogLocaleCoverage, CatalogLocaleReview, CatalogMachineTranslationMessage,
-    CatalogMachineTranslationReview, CatalogMachineTranslationStatus, CatalogMessage,
-    CatalogMessageKey, CatalogMessageStatus, CatalogMode, CatalogOrigin, CatalogReviewOptions,
-    CatalogReviewReport, CatalogReviewSummary, CatalogReviewTranslation, CatalogSemantics,
-    CatalogSourceChange, CatalogSourceChangeKind, CatalogSourceChangeReport, CatalogStats,
-    CatalogStorageFormat, CatalogTranslationChange, CatalogTranslationChangeReport,
-    CatalogUpdateInput, CatalogUpdateResult, CombineCatalogFilesOptions, CombineCatalogOptions,
-    CompileCatalogArtifactIcuOptions, CompileCatalogArtifactOptions,
-    CompileCatalogArtifactReportOptions, CompileCatalogArtifactReportSelection,
-    CompileCatalogOptions, CompileSelectedCatalogArtifactOptions, CompiledCatalog,
-    CompiledCatalogArtifact, CompiledCatalogArtifactReport, CompiledCatalogDiagnostic,
-    CompiledCatalogIdDescription, CompiledCatalogIdIndex, CompiledCatalogMissingMessage,
-    CompiledCatalogProvenanceReport, CompiledCatalogPseudolocalizationOptions,
-    CompiledCatalogResolution, CompiledCatalogResolutionKind, CompiledCatalogTranslationKind,
-    CompiledCatalogUnavailableId, CompiledKeyStrategy, CompiledMessage, CompiledTranslation,
-    DescribeCompiledIdsReport, Diagnostic, DiagnosticSeverity, EffectiveTranslation,
-    EffectiveTranslationRef, ExtractedMessage, ExtractedPluralMessage, ExtractedSingularMessage,
-    IcuFormatterSupportPolicy, IcuPseudolocalizationOptions, IcuSyntaxPolicy, MachineMetadata,
-    NormalizedParsedCatalog, ObsoleteInfo, ObsoleteStrategy, OrderBy, ParseCatalogOptions,
-    ParsedCatalog, PlaceholderCommentMode, PluralEncoding, PluralSource, RenderOptions,
-    SourceExtractedMessage, TranslationShape, UpdateCatalogFileOptions, UpdateCatalogOptions,
-    audit_catalogs, canonicalize_icu_with_policy, combine_catalog_files, combine_catalogs,
-    compile_catalog_artifact, compile_catalog_artifact_report, compile_catalog_artifact_selected,
-    compiled_key, compiled_key_with_policy, machine_translation_hash, measure_catalog_coverage,
-    parse_catalog, parse_catalog_for_review, pseudolocalize_compiled_catalog_artifact,
-    review_catalogs, update_catalog, update_catalog_file,
+    CatalogCombineSelection, CatalogCombineStats, CatalogConflictStrategy, CatalogConvertResult,
+    CatalogCoverageMessage, CatalogCoverageOptions, CatalogCoverageReport,
+    CatalogFileCombineResult, CatalogFileConvertResult, CatalogFileFormat, CatalogLocaleCoverage,
+    CatalogLocaleReview, CatalogMachineTranslationMessage, CatalogMachineTranslationReview,
+    CatalogMachineTranslationStatus, CatalogMessage, CatalogMessageKey, CatalogMessageStatus,
+    CatalogMode, CatalogOrigin, CatalogReviewOptions, CatalogReviewReport, CatalogReviewSummary,
+    CatalogReviewTranslation, CatalogSemantics, CatalogSourceChange, CatalogSourceChangeKind,
+    CatalogSourceChangeReport, CatalogStats, CatalogStorageFormat, CatalogTranslationChange,
+    CatalogTranslationChangeReport, CatalogUpdateInput, CatalogUpdateResult,
+    CombineCatalogFilesOptions, CombineCatalogOptions, CompileCatalogArtifactIcuOptions,
+    CompileCatalogArtifactOptions, CompileCatalogArtifactReportOptions,
+    CompileCatalogArtifactReportSelection, CompileCatalogOptions,
+    CompileSelectedCatalogArtifactOptions, CompiledCatalog, CompiledCatalogArtifact,
+    CompiledCatalogArtifactReport, CompiledCatalogDiagnostic, CompiledCatalogIdDescription,
+    CompiledCatalogIdIndex, CompiledCatalogMissingMessage, CompiledCatalogProvenanceReport,
+    CompiledCatalogPseudolocalizationOptions, CompiledCatalogResolution,
+    CompiledCatalogResolutionKind, CompiledCatalogTranslationKind, CompiledCatalogUnavailableId,
+    CompiledKeyStrategy, CompiledMessage, CompiledTranslation, ConvertCatalogFileOptions,
+    ConvertCatalogOptions, DescribeCompiledIdsReport, Diagnostic, DiagnosticSeverity,
+    EffectiveTranslation, EffectiveTranslationRef, ExtractedMessage, ExtractedPluralMessage,
+    ExtractedSingularMessage, IcuFormatterSupportPolicy, IcuPseudolocalizationOptions,
+    IcuSyntaxPolicy, MachineMetadata, NormalizedParsedCatalog, ObsoleteInfo, ObsoleteStrategy,
+    OrderBy, ParseCatalogOptions, ParsedCatalog, PlaceholderCommentMode, PluralEncoding,
+    PluralSource, RenderOptions, SourceExtractedMessage, TranslationShape,
+    UpdateCatalogFileOptions, UpdateCatalogOptions, audit_catalogs, canonicalize_icu_with_policy,
+    combine_catalog_files, combine_catalogs, compile_catalog_artifact,
+    compile_catalog_artifact_report, compile_catalog_artifact_selected, compiled_key,
+    compiled_key_with_policy, convert_catalog, convert_catalog_file, machine_translation_hash,
+    measure_catalog_coverage, parse_catalog, parse_catalog_for_review,
+    pseudolocalize_compiled_catalog_artifact, review_catalogs, update_catalog, update_catalog_file,
 };
 pub use borrowed::{
     BorrowedHeader, BorrowedMsgStr, BorrowedPoFile, BorrowedPoItem, parse_po_borrowed,

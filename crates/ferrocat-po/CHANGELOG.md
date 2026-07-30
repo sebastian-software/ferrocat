@@ -20,6 +20,7 @@
 
 ### Features
 
+* **catalog:** add explicit PO/FCL conversion that preserves shared message metadata
 * **icu:** add policy-aware runtime apostrophe canonicalization and compiled-key derivation
 
 ### Bug Fixes

@@ -17,10 +17,12 @@ pub use ferrocat::CatalogCombineResult
 pub use ferrocat::CatalogCombineSelection
 pub use ferrocat::CatalogCombineStats
 pub use ferrocat::CatalogConflictStrategy
+pub use ferrocat::CatalogConvertResult
 pub use ferrocat::CatalogCoverageMessage
 pub use ferrocat::CatalogCoverageOptions
 pub use ferrocat::CatalogCoverageReport
 pub use ferrocat::CatalogFileCombineResult
+pub use ferrocat::CatalogFileConvertResult
 pub use ferrocat::CatalogFileFormat
 pub use ferrocat::CatalogLocaleCoverage
 pub use ferrocat::CatalogLocaleReview
@@ -70,6 +72,8 @@ pub use ferrocat::CompiledCatalogUnavailableId
 pub use ferrocat::CompiledKeyStrategy
 pub use ferrocat::CompiledMessage
 pub use ferrocat::CompiledTranslation
+pub use ferrocat::ConvertCatalogFileOptions
+pub use ferrocat::ConvertCatalogOptions
 pub use ferrocat::DescribeCompiledIdsReport
 pub use ferrocat::Diagnostic
 pub use ferrocat::DiagnosticCode
@@ -151,6 +155,8 @@ pub use ferrocat::compile_catalog_artifact_report
 pub use ferrocat::compile_catalog_artifact_selected
 pub use ferrocat::compiled_key
 pub use ferrocat::compiled_key_with_policy
+pub use ferrocat::convert_catalog
+pub use ferrocat::convert_catalog_file
 pub use ferrocat::derive_message_metadata_from_icu
 pub use ferrocat::escape_string
 pub use ferrocat::extract_argument_names
@@ -202,10 +208,12 @@ pub use ferrocat::catalog::CatalogCombineResult
 pub use ferrocat::catalog::CatalogCombineSelection
 pub use ferrocat::catalog::CatalogCombineStats
 pub use ferrocat::catalog::CatalogConflictStrategy
+pub use ferrocat::catalog::CatalogConvertResult
 pub use ferrocat::catalog::CatalogCoverageMessage
 pub use ferrocat::catalog::CatalogCoverageOptions
 pub use ferrocat::catalog::CatalogCoverageReport
 pub use ferrocat::catalog::CatalogFileCombineResult
+pub use ferrocat::catalog::CatalogFileConvertResult
 pub use ferrocat::catalog::CatalogFileFormat
 pub use ferrocat::catalog::CatalogLocaleCoverage
 pub use ferrocat::catalog::CatalogLocaleReview
@@ -255,6 +263,8 @@ pub use ferrocat::catalog::CompiledCatalogUnavailableId
 pub use ferrocat::catalog::CompiledKeyStrategy
 pub use ferrocat::catalog::CompiledMessage
 pub use ferrocat::catalog::CompiledTranslation
+pub use ferrocat::catalog::ConvertCatalogFileOptions
+pub use ferrocat::catalog::ConvertCatalogOptions
 pub use ferrocat::catalog::DescribeCompiledIdsReport
 pub use ferrocat::catalog::Diagnostic
 pub use ferrocat::catalog::DiagnosticCode
@@ -292,6 +302,8 @@ pub use ferrocat::catalog::compile_catalog_artifact_report
 pub use ferrocat::catalog::compile_catalog_artifact_selected
 pub use ferrocat::catalog::compiled_key
 pub use ferrocat::catalog::compiled_key_with_policy
+pub use ferrocat::catalog::convert_catalog
+pub use ferrocat::catalog::convert_catalog_file
 pub use ferrocat::catalog::diagnostic_codes
 pub use ferrocat::catalog::machine_translation_hash
 pub use ferrocat::catalog::measure_catalog_coverage

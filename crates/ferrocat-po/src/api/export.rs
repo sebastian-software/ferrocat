@@ -512,7 +512,7 @@ fn is_numeric_placeholder(name: &str) -> bool {
 
 /// Renders one generated placeholder comment, folding embedded newlines into
 /// spaces without an intermediate `String`.
-fn write_placeholder_comment(out: &mut String, name: &str, value: &str) {
+pub(super) fn write_placeholder_comment(out: &mut String, name: &str, value: &str) {
     out.push_str("placeholder {");
     out.push_str(name);
     out.push_str("}: ");

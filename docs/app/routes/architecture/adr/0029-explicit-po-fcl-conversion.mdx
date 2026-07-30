@@ -1,0 +1,89 @@
+---
+title: "ADR 0029: Add Explicit PO/FCL Catalog Conversion"
+description: "Accepted architecture decision record: cross-format conversion uses separate source and target modes, the canonical message model, and atomic file replacement."
+order: 290
+---
+
+# ADR 0029: Add Explicit PO/FCL Catalog Conversion
+
+- Status: Accepted
+- Date: 2026-07-30
+- Relates to: [ADR 0013](/architecture/adr/0013-rust-native-catalog-combine-api)
+- Relates to: [ADR 0014](/architecture/adr/0014-ferrocat-palamedes-boundary)
+- Relates to: [ADR 0027](/architecture/adr/0027-opaque-po-metadata-roundtrip)
+
+## Context
+
+Ferrocat has canonical PO and FCL import/export paths, but it did not expose a
+cross-format operation. The file combine API accepts one format because it
+combines catalogs under one parser and renderer. Supplying FCL as that format
+for a PO input asks the FCL parser to read PO; it does not express conversion.
+
+Host tools therefore had no correct thin orchestration path. Reimplementing
+conversion outside Ferrocat would duplicate its canonical ordering, opaque
+metadata transport, machine-metadata validation, and atomic file replacement.
+Changing `combine_catalog_files` to guess which side a format applies to would
+make its existing one-format contract ambiguous.
+
+## Decision
+
+Add `convert_catalog` and `convert_catalog_file` as separate catalog-layer
+operations.
+
+- In-memory conversion requires distinct `source_mode` and `target_mode`.
+  A mode already binds storage format, semantic model, and plural encoding.
+- File conversion resolves source and target formats independently from their
+  paths unless supplied explicitly. Optional source and target modes must match
+  the corresponding resolved format.
+- Conversion parses once through the canonical internal catalog with opaque
+  metadata capture enabled, then renders through the target exporter. It does
+  not call combine and does not reparse its rendered output.
+- ICU-native PO and FCL are compatible. Any change between ICU-native and
+  gettext-compatible semantics is rejected before rendering or writing.
+- The caller's optional locale is an expectation, not a parser override.
+  Ferrocat first reads the declared locale, rejects a mismatch, and only fills
+  the expected locale when the source omitted one. The source locale is
+  required and an FCL source declaration must match it.
+- Target rendering preserves all shared message-level state: identity,
+  singular and ICU plural values, extracted and translator comments,
+  placeholder hints, origins and scopes, opaque flags, obsolete metadata, and
+  valid machine metadata. Placeholder hints are materialized without the
+  update API's presentation limit.
+- FCL conversion validates serialized `(id, ctxt)` uniqueness before rendering.
+  This rejects PO states such as active and obsolete entries with the same
+  identity, which PO can carry but FCL cannot represent.
+- PO output uses the requested deterministic PO ordering and serializer
+  controls. FCL output always uses its canonical collated order and line shape.
+- The file API reads, validates, parses, and renders completely before atomic
+  replacement. The same path is safe for input and output, and every conversion
+  error leaves an existing destination unchanged.
+
+### Lossless boundary
+
+The cross-format lossless contract is the shared message model, not arbitrary
+PO document syntax. FCL has no general representation for custom PO headers or
+file-level comments. PO → FCL normalizes that document-level state to FCL's
+`source`, `locale`, and `order` header; FCL → PO creates the standard PO header
+set. Callers that require byte-for-byte PO document preservation should stay in
+PO and use the low-level PO API.
+
+## Consequences
+
+Positive:
+
+- hosts can implement catalog conversion as path/config orchestration instead
+  of owning codec behavior
+- conversion preserves the opaque `tc=`/`f=` bridge and other shared metadata
+  with one parse and one render
+- separate source and target choices prevent one format setting from
+  controlling both the input parser and output renderer
+- atomic replacement and preflight validation give conversion the same
+  no-partial-write guarantee as other disk workflows
+
+Negative:
+
+- format-specific PO document metadata is normalized when crossing through FCL
+- semantic migration remains a separate operation; conversion refuses to guess
+  how gettext plural slots should become ICU-native messages
+- conversion adds dedicated public option and result types instead of reusing
+  the superficially similar combine types

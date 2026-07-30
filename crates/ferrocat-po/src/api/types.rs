@@ -477,7 +477,7 @@ pub struct CatalogCombineResult {
     pub diagnostics: Vec<Diagnostic>,
 }
 
-/// File format used by disk-based catalog combine operations.
+/// File format used by disk-based catalog combine and conversion operations.
 ///
 /// This enum is non-exhaustive because Ferrocat can add additional catalog
 /// file formats over time.
@@ -676,6 +676,256 @@ pub struct CatalogFileCombineResult {
     /// Summary counters for the operation.
     pub stats: CatalogCombineStats,
     /// Non-fatal diagnostics collected during processing.
+    pub diagnostics: Vec<Diagnostic>,
+}
+
+/// Options for converting one in-memory catalog between explicit catalog modes.
+///
+/// The source and target modes are deliberately separate: a mode determines
+/// both storage format and semantic interpretation, so callers cannot
+/// accidentally ask one format to parse content from another. Conversion
+/// preserves the shared message-level PO/FCL model; format-specific PO headers
+/// and file-level comments are normalized when the target is FCL.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct ConvertCatalogOptions<'a> {
+    /// Source catalog content.
+    pub content: &'a str,
+    /// Optional expected catalog locale.
+    ///
+    /// When the source declares a locale, it must match this value. When the
+    /// source has no locale, this value is used for the target.
+    pub locale: Option<&'a str>,
+    /// Source locale used for source-side semantics and FCL header validation.
+    pub source_locale: &'a str,
+    /// Mode used to parse the source content.
+    pub source_mode: CatalogMode,
+    /// Mode used to render the target content.
+    pub target_mode: CatalogMode,
+    /// Sort order for canonical PO output.
+    ///
+    /// FCL always uses its canonical collated `(id, ctxt)` order.
+    pub order_by: OrderBy,
+    /// PO serializer controls for target PO output, e.g. width folding.
+    ///
+    /// FCL output has a canonical line shape and ignores these controls.
+    pub po_serialize: SerializeOptions,
+}
+
+impl<'a> ConvertCatalogOptions<'a> {
+    /// Creates in-memory conversion options with explicit source and target modes.
+    ///
+    /// Optional fields default to an inferred locale, `msgid` ordering, and
+    /// default PO serialization.
+    #[must_use]
+    pub fn new(
+        content: &'a str,
+        source_locale: &'a str,
+        source_mode: CatalogMode,
+        target_mode: CatalogMode,
+    ) -> Self {
+        Self {
+            content,
+            locale: None,
+            source_locale,
+            source_mode,
+            target_mode,
+            order_by: OrderBy::Msgid,
+            po_serialize: SerializeOptions::default(),
+        }
+    }
+
+    /// Returns options that expect or supply the given catalog locale.
+    #[must_use]
+    pub fn with_locale(mut self, locale: &'a str) -> Self {
+        self.locale = Some(locale);
+        self
+    }
+
+    /// Returns options that parse with the given source mode.
+    #[must_use]
+    pub fn with_source_mode(mut self, source_mode: CatalogMode) -> Self {
+        self.source_mode = source_mode;
+        self
+    }
+
+    /// Returns options that render with the given target mode.
+    #[must_use]
+    pub fn with_target_mode(mut self, target_mode: CatalogMode) -> Self {
+        self.target_mode = target_mode;
+        self
+    }
+
+    /// Returns options that render PO output with the given sort order.
+    #[must_use]
+    pub fn with_order_by(mut self, order_by: OrderBy) -> Self {
+        self.order_by = order_by;
+        self
+    }
+
+    /// Returns options that render PO output with the given serializer controls.
+    #[must_use]
+    pub fn with_po_serialize_options(mut self, po_serialize: SerializeOptions) -> Self {
+        self.po_serialize = po_serialize;
+        self
+    }
+}
+
+/// Result returned by an in-memory catalog conversion.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CatalogConvertResult {
+    /// Canonical target catalog content.
+    pub content: String,
+    /// Validated catalog locale, when one was declared or supplied.
+    pub locale: Option<String>,
+    /// Mode used to parse the source.
+    pub source_mode: CatalogMode,
+    /// Mode used to render the target.
+    pub target_mode: CatalogMode,
+    /// Number of converted messages, including obsolete entries.
+    pub message_count: usize,
+    /// Non-fatal diagnostics collected while parsing and rendering.
+    pub diagnostics: Vec<Diagnostic>,
+}
+
+/// Options for converting one catalog file to another format.
+///
+/// Source and target formats are inferred independently from their paths unless
+/// supplied explicitly. Their modes are also resolved independently and must
+/// match the corresponding format.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct ConvertCatalogFileOptions<'a> {
+    /// Input catalog path read before conversion.
+    pub input_path: &'a Path,
+    /// Output catalog path atomically replaced after successful conversion.
+    pub output_path: &'a Path,
+    /// Optional explicit source file format.
+    pub source_format: Option<CatalogFileFormat>,
+    /// Optional explicit target file format.
+    pub target_format: Option<CatalogFileFormat>,
+    /// Optional source mode. Defaults to the resolved source format's ICU mode.
+    pub source_mode: Option<CatalogMode>,
+    /// Optional target mode. Defaults to the resolved target format's ICU mode.
+    pub target_mode: Option<CatalogMode>,
+    /// Optional expected catalog locale.
+    ///
+    /// When the source declares a locale, it must match this value. When the
+    /// source has no locale, this value is used for the target.
+    pub locale: Option<&'a str>,
+    /// Source locale used for source-side semantics and FCL header validation.
+    pub source_locale: &'a str,
+    /// Sort order for canonical PO output.
+    ///
+    /// FCL always uses its canonical collated `(id, ctxt)` order.
+    pub order_by: OrderBy,
+    /// PO serializer controls for target PO output, e.g. width folding.
+    pub po_serialize: SerializeOptions,
+}
+
+impl<'a> ConvertCatalogFileOptions<'a> {
+    /// Creates file conversion options with formats inferred from the paths.
+    ///
+    /// Optional fields default to ICU-native modes, an inferred locale,
+    /// `msgid` ordering, and default PO serialization.
+    #[must_use]
+    pub fn new(input_path: &'a Path, output_path: &'a Path, source_locale: &'a str) -> Self {
+        Self {
+            input_path,
+            output_path,
+            source_format: None,
+            target_format: None,
+            source_mode: None,
+            target_mode: None,
+            locale: None,
+            source_locale,
+            order_by: OrderBy::Msgid,
+            po_serialize: SerializeOptions::default(),
+        }
+    }
+
+    /// Returns options that read from the given input path.
+    #[must_use]
+    pub fn with_input_path(mut self, input_path: &'a Path) -> Self {
+        self.input_path = input_path;
+        self
+    }
+
+    /// Returns options that atomically replace the given output path.
+    #[must_use]
+    pub fn with_output_path(mut self, output_path: &'a Path) -> Self {
+        self.output_path = output_path;
+        self
+    }
+
+    /// Returns options that use the given explicit source format.
+    #[must_use]
+    pub fn with_source_format(mut self, source_format: CatalogFileFormat) -> Self {
+        self.source_format = Some(source_format);
+        self
+    }
+
+    /// Returns options that use the given explicit target format.
+    #[must_use]
+    pub fn with_target_format(mut self, target_format: CatalogFileFormat) -> Self {
+        self.target_format = Some(target_format);
+        self
+    }
+
+    /// Returns options that parse with the given source mode.
+    #[must_use]
+    pub fn with_source_mode(mut self, source_mode: CatalogMode) -> Self {
+        self.source_mode = Some(source_mode);
+        self
+    }
+
+    /// Returns options that render with the given target mode.
+    #[must_use]
+    pub fn with_target_mode(mut self, target_mode: CatalogMode) -> Self {
+        self.target_mode = Some(target_mode);
+        self
+    }
+
+    /// Returns options that expect or supply the given catalog locale.
+    #[must_use]
+    pub fn with_locale(mut self, locale: &'a str) -> Self {
+        self.locale = Some(locale);
+        self
+    }
+
+    /// Returns options that render PO output with the given sort order.
+    #[must_use]
+    pub fn with_order_by(mut self, order_by: OrderBy) -> Self {
+        self.order_by = order_by;
+        self
+    }
+
+    /// Returns options that render PO output with the given serializer controls.
+    #[must_use]
+    pub fn with_po_serialize_options(mut self, po_serialize: SerializeOptions) -> Self {
+        self.po_serialize = po_serialize;
+        self
+    }
+}
+
+/// Result returned by a catalog file conversion.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CatalogFileConvertResult {
+    /// Output path replaced by the operation.
+    pub output_path: PathBuf,
+    /// Resolved source file format.
+    pub source_format: CatalogFileFormat,
+    /// Resolved target file format.
+    pub target_format: CatalogFileFormat,
+    /// Resolved source mode.
+    pub source_mode: CatalogMode,
+    /// Resolved target mode.
+    pub target_mode: CatalogMode,
+    /// Validated catalog locale, when one was declared or supplied.
+    pub locale: Option<String>,
+    /// Number of converted messages, including obsolete entries.
+    pub message_count: usize,
+    /// Non-fatal diagnostics collected while parsing and rendering.
     pub diagnostics: Vec<Diagnostic>,
 }
 
@@ -989,9 +1239,9 @@ pub enum IcuSyntaxPolicy {
 /// Valid high-level catalog mode combinations.
 ///
 /// This type groups the storage format, semantic model, and plural encoding
-/// choices that must be kept in sync for catalog parse, update, and combine
-/// operations. It is non-exhaustive so future supported catalog modes can be
-/// added without breaking downstream matches.
+/// choices that must be kept in sync for catalog parse, update, combine, and
+/// conversion operations. It is non-exhaustive so future supported catalog
+/// modes can be added without breaking downstream matches.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 #[non_exhaustive]
 pub enum CatalogMode {
