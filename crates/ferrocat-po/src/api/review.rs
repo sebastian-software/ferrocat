@@ -222,8 +222,10 @@ pub enum CatalogMachineTranslationStatus {
 /// Target status rollups reuse [`CatalogMessageStatus`] and therefore match
 /// [`super::audit_catalogs`] and [`super::measure_catalog_coverage`] semantics.
 /// Translation change details are limited to source identities whose current
-/// target status is [`CatalogMessageStatus::Translated`]; missing, empty,
-/// fuzzy, and obsolete current entries are surfaced by the coverage counters.
+/// target has a non-empty active translation. Fuzzy translations remain
+/// eligible because their review marker and value change are independent
+/// signals; missing, empty, and obsolete current entries are surfaced by the
+/// coverage counters.
 ///
 /// # Examples
 ///
@@ -397,8 +399,10 @@ fn translation_change_report(
     let mut report = CatalogTranslationChangeReport::default();
 
     for source_key in current_source_keys {
-        if classify_expected_message(current_target, source_key) != CatalogMessageStatus::Translated
-        {
+        if !matches!(
+            classify_expected_message(current_target, source_key),
+            CatalogMessageStatus::Translated | CatalogMessageStatus::Fuzzy
+        ) {
             continue;
         }
         let Some(previous_message) = previous_target

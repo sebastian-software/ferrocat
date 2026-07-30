@@ -44,7 +44,7 @@ fn review_report_exposes_public_summary_and_detail_api() {
 }
 
 #[test]
-fn review_report_uses_fuzzy_coverage_and_skips_fuzzy_translation_changes() {
+fn review_report_keeps_fuzzy_coverage_and_reports_translation_changes() {
     let source = normalized_catalog(
         "msgid \"Hello\"\nmsgstr \"Hello\"\n",
         Some("en"),
@@ -70,5 +70,7 @@ fn review_report_uses_fuzzy_coverage_and_skips_fuzzy_translation_changes() {
 
     assert_eq!(report.locales[0].coverage.translated, 0);
     assert_eq!(report.locales[0].coverage.fuzzy(), 1);
-    assert_eq!(report.locales[0].translations.changed, 0);
+    assert_eq!(report.summary.translation_changed, 1);
+    assert_eq!(report.locales[0].translations.changed, 1);
+    assert_eq!(report.locales[0].translations.details.len(), 1);
 }
