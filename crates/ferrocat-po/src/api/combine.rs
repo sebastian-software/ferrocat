@@ -7,6 +7,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 
+use crate::SerializeOptions;
 use crate::diagnostic_codes;
 
 use super::catalog::{
@@ -40,10 +41,11 @@ struct CombineConfig<'a> {
     order_by: OrderBy,
     include_origins: bool,
     include_obsolete: bool,
+    po_serialize: &'a SerializeOptions,
 }
 
 impl<'a> CombineConfig<'a> {
-    fn from_options(options: &CombineCatalogOptions<'a>) -> Self {
+    fn from_options(options: &'a CombineCatalogOptions<'a>) -> Self {
         Self {
             locale: options.locale,
             source_locale: options.source_locale,
@@ -53,10 +55,11 @@ impl<'a> CombineConfig<'a> {
             order_by: options.order_by,
             include_origins: options.include_origins,
             include_obsolete: options.include_obsolete,
+            po_serialize: &options.po_serialize,
         }
     }
 
-    fn from_file_options(options: &CombineCatalogFilesOptions<'a>, mode: CatalogMode) -> Self {
+    fn from_file_options(options: &'a CombineCatalogFilesOptions<'a>, mode: CatalogMode) -> Self {
         Self {
             locale: options.locale,
             source_locale: options.source_locale,
@@ -66,6 +69,7 @@ impl<'a> CombineConfig<'a> {
             order_by: options.order_by,
             include_origins: options.include_origins,
             include_obsolete: options.include_obsolete,
+            po_serialize: &options.po_serialize,
         }
     }
 }
@@ -648,6 +652,7 @@ fn export_catalog_content_for_combine(
             include_origins: config.include_origins,
             print_placeholders_in_comments: PlaceholderCommentMode::default(),
             custom_header_attributes: None,
+            po_serialize: config.po_serialize.clone(),
         },
         ..UpdateCatalogOptions::new(config.source_locale, CatalogUpdateInput::default())
     };

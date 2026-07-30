@@ -446,6 +446,7 @@ pub ferrocat_po::CombineCatalogFilesOptions::locale: core::option::Option<&'a st
 pub ferrocat_po::CombineCatalogFilesOptions::mode: core::option::Option<ferrocat_po::CatalogMode>
 pub ferrocat_po::CombineCatalogFilesOptions::order_by: ferrocat_po::OrderBy
 pub ferrocat_po::CombineCatalogFilesOptions::output_path: &'a std::path::Path
+pub ferrocat_po::CombineCatalogFilesOptions::po_serialize: ferrocat_po::SerializeOptions
 pub ferrocat_po::CombineCatalogFilesOptions::selection: ferrocat_po::CatalogCombineSelection
 pub ferrocat_po::CombineCatalogFilesOptions::source_locale: &'a str
 impl<'a> ferrocat_po::CombineCatalogFilesOptions<'a>
@@ -459,6 +460,7 @@ pub fn ferrocat_po::CombineCatalogFilesOptions<'a>::with_locale(self, &'a str) -
 pub fn ferrocat_po::CombineCatalogFilesOptions<'a>::with_mode(self, ferrocat_po::CatalogMode) -> Self
 pub fn ferrocat_po::CombineCatalogFilesOptions<'a>::with_order_by(self, ferrocat_po::OrderBy) -> Self
 pub fn ferrocat_po::CombineCatalogFilesOptions<'a>::with_output_path(self, &'a std::path::Path) -> Self
+pub fn ferrocat_po::CombineCatalogFilesOptions<'a>::with_po_serialize_options(self, ferrocat_po::SerializeOptions) -> Self
 pub fn ferrocat_po::CombineCatalogFilesOptions<'a>::with_selection(self, ferrocat_po::CatalogCombineSelection) -> Self
 #[non_exhaustive] pub struct ferrocat_po::CombineCatalogOptions<'a>
 pub ferrocat_po::CombineCatalogOptions::conflict_strategy: ferrocat_po::CatalogConflictStrategy
@@ -468,6 +470,7 @@ pub ferrocat_po::CombineCatalogOptions::inputs: &'a [ferrocat_po::CatalogCombine
 pub ferrocat_po::CombineCatalogOptions::locale: core::option::Option<&'a str>
 pub ferrocat_po::CombineCatalogOptions::mode: ferrocat_po::CatalogMode
 pub ferrocat_po::CombineCatalogOptions::order_by: ferrocat_po::OrderBy
+pub ferrocat_po::CombineCatalogOptions::po_serialize: ferrocat_po::SerializeOptions
 pub ferrocat_po::CombineCatalogOptions::selection: ferrocat_po::CatalogCombineSelection
 pub ferrocat_po::CombineCatalogOptions::source_locale: &'a str
 impl<'a> ferrocat_po::CombineCatalogOptions<'a>
@@ -479,6 +482,7 @@ pub fn ferrocat_po::CombineCatalogOptions<'a>::with_inputs(self, &'a [ferrocat_p
 pub fn ferrocat_po::CombineCatalogOptions<'a>::with_locale(self, &'a str) -> Self
 pub fn ferrocat_po::CombineCatalogOptions<'a>::with_mode(self, ferrocat_po::CatalogMode) -> Self
 pub fn ferrocat_po::CombineCatalogOptions<'a>::with_order_by(self, ferrocat_po::OrderBy) -> Self
+pub fn ferrocat_po::CombineCatalogOptions<'a>::with_po_serialize_options(self, ferrocat_po::SerializeOptions) -> Self
 pub fn ferrocat_po::CombineCatalogOptions<'a>::with_selection(self, ferrocat_po::CatalogCombineSelection) -> Self
 #[non_exhaustive] pub struct ferrocat_po::CompileCatalogArtifactIcuOptions
 pub ferrocat_po::CompileCatalogArtifactIcuOptions::formatter_support: core::option::Option<ferrocat_po::IcuFormatterSupportPolicy>
@@ -792,12 +796,14 @@ impl<T> core::iter::traits::marker::FusedIterator for ferrocat_po::PoVecIntoIter
 pub ferrocat_po::RenderOptions::custom_header_attributes: core::option::Option<&'a alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>>
 pub ferrocat_po::RenderOptions::include_origins: bool
 pub ferrocat_po::RenderOptions::order_by: ferrocat_po::OrderBy
+pub ferrocat_po::RenderOptions::po_serialize: ferrocat_po::SerializeOptions
 pub ferrocat_po::RenderOptions::print_placeholders_in_comments: ferrocat_po::PlaceholderCommentMode
 impl<'a> ferrocat_po::RenderOptions<'a>
 pub fn ferrocat_po::RenderOptions<'a>::with_custom_header_attributes(self, &'a alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>) -> Self
 pub fn ferrocat_po::RenderOptions<'a>::with_include_origins(self, bool) -> Self
 pub fn ferrocat_po::RenderOptions<'a>::with_order_by(self, ferrocat_po::OrderBy) -> Self
 pub fn ferrocat_po::RenderOptions<'a>::with_placeholder_comments(self, ferrocat_po::PlaceholderCommentMode) -> Self
+pub fn ferrocat_po::RenderOptions<'a>::with_po_serialize_options(self, ferrocat_po::SerializeOptions) -> Self
 impl core::default::Default for ferrocat_po::RenderOptions<'_>
 pub fn ferrocat_po::RenderOptions<'_>::default() -> Self
 #[non_exhaustive] pub struct ferrocat_po::SerializeOptions

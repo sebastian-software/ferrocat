@@ -220,6 +220,12 @@ Typical use cases:
 - generating PO content from your own tooling
 - normalizing formatting after edits
 
+`SerializeOptions` controls the output shape, for example
+`with_fold_length(0)` to disable automatic width folding. The same options
+also flow through the high-level update and combine flows via
+`RenderOptions::po_serialize`, so a host does not need to re-serialize
+finished catalog output just to change its shape.
+
 ## Catalog Workflows
 
 The high-level catalog request structs are now intentionally borrowing-first:
@@ -777,6 +783,16 @@ sorts serialized `id`, then `ctxt`, with this collation and declares
 in its original bytewise order. The compact built-in repertoire and its Unicode
 limits are documented in
 [ADR 0026](/architecture/adr/0026-cldr-root-catalog-order).
+
+`RenderOptions::po_serialize` exposes the low-level PO serializer controls to
+the same high-level flows, so hosts no longer need a parse/stringify post-pass
+to change the output shape. `combine_catalogs` and `combine_catalog_files`
+accept the same value directly as `po_serialize`. For example,
+`RenderOptions::default().with_po_serialize_options(SerializeOptions::default().with_fold_length(0))`
+disables automatic width folding for an update. Embedded newline characters
+still render as valid multiline PO syntax, and default output stays
+byte-identical to previous releases. FCL output has a canonical line shape and
+ignores these controls.
 
 Like parsing, updates should normally choose one `CatalogMode`. PO with ICU-native semantics remains the default. FCL storage uses a single `%FCL1` header line plus one tab-separated entry per line.
 

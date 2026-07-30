@@ -1,5 +1,7 @@
 use super::*;
 
+use crate::SerializeOptions;
+
 const POLISH_PLURAL_FORMS: &str = "nplurals=3; plural=(n == 1 ? 0 : (n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 10 || n % 100 >= 20)) ? 1 : 2);";
 
 #[test]
@@ -1923,6 +1925,124 @@ fn combine_catalogs_use_last_preserves_non_empty_plural_slots_when_later_slot_is
     assert_eq!(parsed.items[0].msgstr[0], "Teil");
     assert_eq!(parsed.items[0].msgstr[1], "Dinge");
     assert_eq!(result.stats.conflicts_resolved, 1);
+}
+
+const LONG_TRANSLATION: &str = "This translation is deliberately much longer than eighty characters so the default serializer folds it.";
+
+#[test]
+fn update_catalog_can_disable_po_width_folding() {
+    let existing = format!(
+        "msgid \"Hello\"\nmsgstr \"{LONG_TRANSLATION}\"\n\nmsgid \"Multi\"\nmsgstr \"line1\\nline2\"\n"
+    );
+    let build_options = |render: RenderOptions<'static>| UpdateCatalogOptions {
+        locale: Some("de"),
+        render,
+        input: structured_input(vec![
+            ExtractedMessage::Singular(ExtractedSingularMessage {
+                msgid: "Hello".to_owned(),
+                ..ExtractedSingularMessage::default()
+            }),
+            ExtractedMessage::Singular(ExtractedSingularMessage {
+                msgid: "Multi".to_owned(),
+                ..ExtractedSingularMessage::default()
+            }),
+        ]),
+        ..UpdateCatalogOptions::new("en", CatalogUpdateInput::default())
+    };
+
+    let folded = update_catalog(UpdateCatalogOptions {
+        existing: Some(&existing),
+        ..build_options(RenderOptions::default())
+    })
+    .expect("update with default folding");
+    assert!(
+        !folded
+            .content
+            .contains(&format!("msgstr \"{LONG_TRANSLATION}\"")),
+        "default output should fold the long translation across lines"
+    );
+
+    let unfolded = update_catalog(UpdateCatalogOptions {
+        existing: Some(&existing),
+        ..build_options(
+            RenderOptions::default()
+                .with_po_serialize_options(SerializeOptions::default().with_fold_length(0)),
+        )
+    })
+    .expect("update without width folding");
+    assert!(
+        unfolded
+            .content
+            .contains(&format!("msgstr \"{LONG_TRANSLATION}\"\n")),
+        "disabling width folding must keep the long translation on one line"
+    );
+    assert!(
+        unfolded.content.contains("msgstr \"line1\\n\"\n\"line2\""),
+        "embedded newlines must keep valid multiline PO syntax without width folding"
+    );
+
+    let reparsed = parse_po(&unfolded.content).expect("reparse unfolded output");
+    let multi = reparsed
+        .items
+        .iter()
+        .find(|item| item.msgid == "Multi")
+        .expect("multi entry");
+    assert_eq!(multi.msgstr[0], "line1\nline2");
+}
+
+#[test]
+fn combine_catalogs_can_disable_po_width_folding() {
+    let existing = format!("msgid \"Hello\"\nmsgstr \"{LONG_TRANSLATION}\"\n");
+    let inputs = [CatalogCombineInput::labeled(&existing, "existing.po")];
+
+    let result = combine_catalogs(
+        CombineCatalogOptions {
+            inputs: &inputs,
+            source_locale: "en",
+            locale: Some("de"),
+            ..CombineCatalogOptions::new(&[], "en")
+        }
+        .with_po_serialize_options(SerializeOptions::default().with_fold_length(0)),
+    )
+    .expect("combine without width folding");
+
+    assert!(
+        result
+            .content
+            .contains(&format!("msgstr \"{LONG_TRANSLATION}\"\n")),
+        "combine output must respect the disabled width folding"
+    );
+}
+
+#[test]
+fn combine_catalog_files_can_disable_po_width_folding() {
+    let temp_dir = unique_catalog_temp_dir("combine-files-fold");
+    let ours = temp_dir.join("ours.po");
+    fs::write(
+        &ours,
+        format!("msgid \"Hello\"\nmsgstr \"{LONG_TRANSLATION}\"\n"),
+    )
+    .expect("write ours");
+    let input_paths = vec![ours.clone()];
+
+    let result = combine_catalog_files(
+        CombineCatalogFilesOptions {
+            input_paths: &input_paths,
+            output_path: &ours,
+            locale: Some("de"),
+            ..CombineCatalogFilesOptions::new(&[], &ours, "en")
+        }
+        .with_po_serialize_options(SerializeOptions::default().with_fold_length(0)),
+    )
+    .expect("combine files without width folding");
+
+    let output = fs::read_to_string(&result.output_path).expect("read output");
+    assert!(
+        output.contains(&format!("msgstr \"{LONG_TRANSLATION}\"\n")),
+        "file combine output must respect the disabled width folding"
+    );
+
+    let _ = fs::remove_dir_all(temp_dir);
 }
 
 #[test]
