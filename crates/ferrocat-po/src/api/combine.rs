@@ -5,7 +5,6 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
-use std::mem;
 use std::path::{Path, PathBuf};
 
 use crate::SerializeOptions;
@@ -467,19 +466,12 @@ fn merge_combine_message(
     // value composed from several definitions (a partial plural fill) is owned
     // by none of them, so its metadata clears.
     if translation_merge.changed {
-        if translation_merge.matches_source {
-            entry.message.translator_comments = mem::take(&mut message.translator_comments);
-            entry.message.flags = mem::take(&mut message.flags);
-        } else {
-            entry.message.translator_comments = Vec::new();
-            entry.message.flags = Vec::new();
-        }
-    } else if translation_merge.matches_source
-        && entry.message.translator_comments.is_empty()
-        && entry.message.flags.is_empty()
-    {
-        entry.message.translator_comments = mem::take(&mut message.translator_comments);
-        entry.message.flags = mem::take(&mut message.flags);
+        entry.message.opaque = translation_merge
+            .matches_source
+            .then(|| message.opaque.take())
+            .flatten();
+    } else if translation_merge.matches_source && entry.message.opaque.is_none() {
+        entry.message.opaque = message.opaque.take();
     }
 
     merge_combine_metadata(&mut entry.message, message);

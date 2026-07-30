@@ -10,7 +10,8 @@ use std::borrow::Cow;
 use std::collections::{BTreeMap, BTreeSet};
 
 use super::catalog::{
-    CanonicalMessage, CanonicalTranslation, Catalog, parse_origin, split_placeholder_comments,
+    CanonicalMessage, CanonicalTranslation, Catalog, OpaqueMetadata, parse_origin,
+    split_placeholder_comments,
 };
 use super::collation::{CollationKey, CollationPrefix, collation_key, collation_prefix};
 use super::export::for_each_placeholder_comment;
@@ -186,10 +187,10 @@ fn write_entry(out: &mut String, message: &CanonicalMessage, render: &RenderOpti
 
     // Translator-owned notes and flags stay separate from `c` and keep their
     // stored order; the catalog layer never interprets either.
-    for comment in &message.translator_comments {
+    for comment in message.translator_comments() {
         write_tag(out, "tc", comment);
     }
-    for flag in &message.flags {
+    for flag in message.flags() {
         write_tag(out, "f", flag);
     }
 
@@ -478,8 +479,7 @@ fn parse_entry(line: &str) -> Result<CanonicalMessage, ApiError> {
         msgctxt,
         translation: CanonicalTranslation::Singular { value },
         comments,
-        translator_comments,
-        flags,
+        opaque: OpaqueMetadata::from_parts(translator_comments, flags),
         origins,
         placeholders,
         obsolete,
@@ -776,8 +776,7 @@ mod tests {
                 value: "Hallo {0}".to_owned(),
             },
             comments: vec!["Translator note".to_owned()],
-            translator_comments: Vec::new(),
-            flags: Vec::new(),
+            opaque: None,
             origins: vec![
                 super::CatalogOrigin {
                     file: "src/app.rs".to_owned(),
@@ -973,8 +972,7 @@ mod tests {
                 variable: "count".to_owned(),
             },
             comments: Vec::new(),
-            translator_comments: Vec::new(),
-            flags: Vec::new(),
+            opaque: None,
             origins: super::PoVec::new(),
             placeholders: std::collections::BTreeMap::new(),
             obsolete: None,
@@ -1026,8 +1024,7 @@ mod tests {
                 value: "Hallo".to_owned(),
             },
             comments: Vec::new(),
-            translator_comments: Vec::new(),
-            flags: Vec::new(),
+            opaque: None,
             origins: super::PoVec::new(),
             placeholders: std::collections::BTreeMap::new(),
             obsolete: None,

@@ -47,14 +47,14 @@ pub(super) struct Catalog {
 
 /// One catalog entry in the canonical internal model.
 ///
-/// `translator_comments` and `flags` are deliberately internal: the catalog
-/// layer gives them no semantics (see
+/// `opaque` is deliberately internal: the catalog layer gives translator
+/// comments and flags no semantics (see
 /// [ADR 0027](/architecture/adr/0027-opaque-po-metadata-roundtrip)), it only
 /// keeps them attached to the `(msgctxt, msgid)` identity so a source-first
 /// update does not destroy translator-owned metadata. They are not projected
 /// into the public [`CatalogMessage`].
 ///
-/// Do not shrink the other fields to "compensate" for the extra ones:
+/// Do not shrink the other fields to "compensate" for the extra one:
 /// `size_of::<CanonicalMessage>()` must stay `>= size_of::<CatalogMessage>()`
 /// or std's in-place-collect specialization in `parse_catalog` silently stops
 /// reusing the allocation.
@@ -64,14 +64,55 @@ pub(super) struct CanonicalMessage {
     pub(super) msgctxt: Option<String>,
     pub(super) translation: CanonicalTranslation,
     pub(super) comments: Vec<String>,
-    /// Translator-owned `#` comments, preserved opaquely across updates.
-    pub(super) translator_comments: Vec<String>,
-    /// Per-entry `#,` flags, preserved opaquely and never interpreted.
-    pub(super) flags: Vec<String>,
+    /// Opaque PO round-trip metadata; `None` for the overwhelming majority of
+    /// messages, so the common case costs one pointer instead of two inline
+    /// vectors taxing every message move.
+    pub(super) opaque: Option<Box<OpaqueMetadata>>,
     pub(super) origins: PoVec<CatalogOrigin>,
     pub(super) placeholders: BTreeMap<String, Vec<String>>,
     pub(super) obsolete: Option<ObsoleteInfo>,
     pub(super) machine: Option<MachineMetadata>,
+}
+
+/// Translator-owned `#` comments and per-entry `#,` flags, preserved opaquely
+/// across updates and never interpreted (ADR 0027).
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub(super) struct OpaqueMetadata {
+    pub(super) translator_comments: Vec<String>,
+    pub(super) flags: Vec<String>,
+}
+
+impl CanonicalMessage {
+    /// Translator-owned `#` comments from the opaque block; empty when absent.
+    pub(super) fn translator_comments(&self) -> &[String] {
+        self.opaque
+            .as_deref()
+            .map_or(&[], |opaque| opaque.translator_comments.as_slice())
+    }
+
+    /// Per-entry `#,` flags from the opaque block; empty when absent.
+    pub(super) fn flags(&self) -> &[String] {
+        self.opaque
+            .as_deref()
+            .map_or(&[], |opaque| opaque.flags.as_slice())
+    }
+}
+
+impl OpaqueMetadata {
+    /// Boxes the metadata when any of it exists; empty metadata stays `None`.
+    pub(super) fn from_parts(
+        translator_comments: Vec<String>,
+        flags: Vec<String>,
+    ) -> Option<Box<Self>> {
+        if translator_comments.is_empty() && flags.is_empty() {
+            None
+        } else {
+            Some(Box::new(Self {
+                translator_comments,
+                flags,
+            }))
+        }
+    }
 }
 
 /// PO metadata key carrying the obsolete-since date (see [`ObsoleteInfo`]).
@@ -600,15 +641,14 @@ fn merge_message(
     // one, so keep only what the merge reuses and drop the rest here. The
     // opaque translator metadata is identity-stable: it moves across for a
     // matched entry and a new identity starts empty, never inheriting.
-    let (previous_translation, machine, translator_comments, flags) = match previous {
+    let (previous_translation, machine, opaque) = match previous {
         Some(CanonicalMessage {
             translation,
             machine,
-            translator_comments,
-            flags,
+            opaque,
             ..
-        }) => (Some(translation), machine, translator_comments, flags),
-        None => (None, None, Vec::new(), Vec::new()),
+        }) => (Some(translation), machine, opaque),
+        None => (None, None, None),
     };
     let had_previous = previous_translation.is_some();
 
@@ -699,8 +739,7 @@ fn merge_message(
             msgctxt,
             translation,
             comments,
-            translator_comments,
-            flags,
+            opaque,
             origins,
             placeholders,
             obsolete: None,
@@ -1002,8 +1041,7 @@ fn import_message_from_po(
         msgctxt: item.msgctxt.map(Cow::into_owned),
         translation,
         comments,
-        translator_comments,
-        flags,
+        opaque: OpaqueMetadata::from_parts(translator_comments, flags),
         origins,
         placeholders,
         obsolete: import_obsolete(item.obsolete, &item.metadata),
@@ -1387,8 +1425,7 @@ mod tests {
                 value: String::new(),
             },
             comments: Vec::new(),
-            translator_comments: Vec::new(),
-            flags: Vec::new(),
+            opaque: None,
             origins: PoVec::from(vec![CatalogOrigin {
                 file: file.to_owned(),
                 scope: None,

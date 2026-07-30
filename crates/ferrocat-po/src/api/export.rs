@@ -120,13 +120,9 @@ fn estimate_catalog_po_capacity(catalog: &Catalog) -> usize {
                 + message
                     .comments
                     .iter()
-                    .chain(message.translator_comments.iter())
+                    .chain(message.translator_comments())
+                    .chain(message.flags())
                     .map(|comment| comment.len() + COMMENT_LINE_OVERHEAD)
-                    .sum::<usize>()
-                + message
-                    .flags
-                    .iter()
-                    .map(|flag| flag.len() + COMMENT_LINE_OVERHEAD)
                     .sum::<usize>()
                 + message
                     .origins
@@ -309,7 +305,7 @@ fn write_catalog_po_metadata(
 ) {
     // gettext canonical order: translator `#` comments, extracted `#.` comments,
     // `#@` metadata, `#:` references, then the `#,` flag line.
-    for comment in &message.translator_comments {
+    for comment in message.translator_comments() {
         write_prefixed_line(out, obsolete_prefix, "#", comment);
     }
     for comment in &message.comments {
@@ -339,7 +335,7 @@ fn write_catalog_po_metadata(
         write_origin_references(out, obsolete_prefix, message.origins.as_slice());
     }
 
-    write_flags(out, obsolete_prefix, &message.flags);
+    write_flags(out, obsolete_prefix, message.flags());
 }
 
 /// Writes the single `#, flag1, flag2` line for one message.
@@ -544,8 +540,7 @@ mod tests {
             msgctxt: None,
             translation,
             comments: Vec::new(),
-            translator_comments: Vec::new(),
-            flags: Vec::new(),
+            opaque: None,
             origins: vec![CatalogOrigin {
                 file: "src/lib.rs".to_owned(),
                 scope: None,
