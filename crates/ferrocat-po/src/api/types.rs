@@ -922,8 +922,9 @@ pub enum IcuSyntaxPolicy {
     ///
     /// Use this when a downstream runtime accepts messages such as `you're`
     /// and `We've got {count, plural, one {...} other {...}}` without requiring
-    /// translators to double every literal apostrophe.
-    /// Callers that rely on ICU apostrophe quoting should keep [`Self::Strict`].
+    /// translators to double every literal apostrophe. Existing ICU quoting
+    /// remains meaningful: a single apostrophe starts a quote before `{`, `}`,
+    /// or `#` inside a plural or selectordinal branch.
     RuntimeLiteralApostrophes,
 }
 

@@ -38,6 +38,7 @@ Use the umbrella crate when you want one dependency for the full catalog workflo
 - AI translation metadata for machine-generated entries, including stale-metadata cleanup after manual edits
 - release QA through structured audit reports
 - rich-message diagnostics for placeholders, plural/select logic, formatters, and tags
+- policy-aware ICU apostrophe canonicalization and matching compiled-key derivation
 - host-neutral runtime artifact compilation
 
 At the catalog layer, `ferrocat` supports three explicit modes:

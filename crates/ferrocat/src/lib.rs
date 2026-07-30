@@ -112,11 +112,13 @@ pub mod catalog {
         IcuSyntaxPolicy, MachineMetadata, NormalizedParsedCatalog, ObsoleteInfo, ObsoleteStrategy,
         OrderBy, ParseCatalogOptions, ParsedCatalog, PlaceholderCommentMode, PluralEncoding,
         PluralSource, PoVec, RenderOptions, SourceExtractedMessage, TranslationShape,
-        UpdateCatalogFileOptions, UpdateCatalogOptions, audit_catalogs, combine_catalog_files,
-        combine_catalogs, compile_catalog_artifact, compile_catalog_artifact_report,
-        compile_catalog_artifact_selected, compiled_key, machine_translation_hash,
-        measure_catalog_coverage, parse_catalog, pseudolocalize_compiled_catalog_artifact,
-        review_catalogs, update_catalog, update_catalog_file,
+        UpdateCatalogFileOptions, UpdateCatalogOptions, audit_catalogs,
+        canonicalize_icu_with_policy, combine_catalog_files, combine_catalogs,
+        compile_catalog_artifact, compile_catalog_artifact_report,
+        compile_catalog_artifact_selected, compiled_key, compiled_key_with_policy,
+        machine_translation_hash, measure_catalog_coverage, parse_catalog,
+        pseudolocalize_compiled_catalog_artifact, review_catalogs, update_catalog,
+        update_catalog_file,
     };
 }
 
@@ -202,11 +204,11 @@ pub use ferrocat_po::{
     IcuSyntaxPolicy, MachineMetadata, NormalizedParsedCatalog, ObsoleteInfo, ObsoleteStrategy,
     OrderBy, ParseCatalogOptions, ParsedCatalog, PlaceholderCommentMode, PluralEncoding,
     PluralSource, RenderOptions, SourceExtractedMessage, TranslationShape,
-    UpdateCatalogFileOptions, UpdateCatalogOptions, audit_catalogs, combine_catalog_files,
-    combine_catalogs, compile_catalog_artifact, compile_catalog_artifact_report,
-    compile_catalog_artifact_selected, compiled_key, machine_translation_hash,
-    measure_catalog_coverage, parse_catalog, pseudolocalize_compiled_catalog_artifact,
-    review_catalogs, update_catalog, update_catalog_file,
+    UpdateCatalogFileOptions, UpdateCatalogOptions, audit_catalogs, canonicalize_icu_with_policy,
+    combine_catalog_files, combine_catalogs, compile_catalog_artifact,
+    compile_catalog_artifact_report, compile_catalog_artifact_selected, compiled_key,
+    compiled_key_with_policy, machine_translation_hash, measure_catalog_coverage, parse_catalog,
+    pseudolocalize_compiled_catalog_artifact, review_catalogs, update_catalog, update_catalog_file,
 };
 pub use ferrocat_po::{
     BorrowedHeader, BorrowedMsgStr, BorrowedPoFile, BorrowedPoItem, Header, MergeMessageInput,

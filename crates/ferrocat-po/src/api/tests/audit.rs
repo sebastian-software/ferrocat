@@ -274,6 +274,24 @@ fn audit_runtime_literal_apostrophes_policy_still_reports_compatibility_changes(
 }
 
 #[test]
+fn audit_runtime_literal_apostrophes_policy_keeps_quoted_braces_literal() {
+    let source = catalog("msgid \"L'{title}\"\nmsgstr \"L'{title}\"\n", "en");
+    let target = catalog("msgid \"L'{title}\"\nmsgstr \"L'{name}\"\n", "de");
+
+    let report = audit_catalogs(
+        &[&source, &target],
+        &CatalogAuditOptions::new("en").with_icu_options(
+            CatalogAuditIcuOptions::new()
+                .with_syntax_policy(IcuSyntaxPolicy::RuntimeLiteralApostrophes),
+        ),
+    )
+    .expect("audit");
+
+    assert!(!diagnostic_codes(&report).contains(&"icu.missing_argument"));
+    assert!(!diagnostic_codes(&report).contains(&"icu.unexpected_argument"));
+}
+
+#[test]
 fn audit_reuses_icu_compatibility_codes() {
     let source = catalog("msgid \"Hello {name}\"\nmsgstr \"Hello {name}\"\n", "en");
     let target = catalog("msgid \"Hello {name}\"\nmsgstr \"Hallo\"\n", "de");

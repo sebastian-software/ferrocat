@@ -34,6 +34,16 @@ Use this layer when you want:
 - typed runtime-oriented payloads
 - no locale fallback resolution yet
 
+Both compile layers use strict ICU syntax by default. For a runtime that treats
+natural apostrophes as literal while preserving ICU quotes, set
+`IcuSyntaxPolicy::RuntimeLiteralApostrophes`. Ferrocat then canonicalizes
+message text and compiled IDs together. Use `compiled_key_with_policy` in host
+transforms and `CompiledCatalogIdIndex::new_with_policy` for selected
+compilation; a policy-mismatched ID is rejected. On the lower
+`NormalizedParsedCatalog::compile` layer, non-strict ICU policies require
+`CatalogSemantics::IcuNative` because structured gettext branch values are not
+ICU patterns.
+
 ## 2. Compile a requested-locale artifact
 
 Use `compile_catalog_artifact` when downstream tooling wants a fully resolved locale-specific runtime map, including fallback resolution and missing-message reporting.
@@ -71,6 +81,7 @@ Use this layer when you need:
 - explicit missing-message reporting for non-source locales
 - final ICU-string validation diagnostics
 - optional ICU source/translation compatibility diagnostics with `icu_compatibility`
+- policy-consistent canonical runtime strings, compiled IDs, and selected-ID indexes
 
 `strict_icu` and `icu_compatibility` solve different problems. `strict_icu`
 turns invalid final ICU syntax into a hard compile error. `icu_compatibility`

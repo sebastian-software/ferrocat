@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Features
+
+* **icu:** expose policy-aware runtime apostrophe canonicalization and compiled-key derivation
+
 ## [3.1.0](https://github.com/sebastian-software/ferrocat/compare/ferrocat-v3.0.1...ferrocat-v3.1.0) (2026-07-30)
 
 

@@ -14,7 +14,7 @@ use sha2::{Digest, Sha256};
 
 use crate::diagnostic_codes;
 
-use super::icu_syntax::parse_icu_with_syntax_policy;
+use super::icu_syntax::{canonicalize_icu_with_policy, parse_icu_with_syntax_policy};
 use super::plural::synthesize_icu_plural;
 use super::{
     ApiError, CatalogMessage, CatalogMessageKey, CatalogSemantics,
@@ -25,7 +25,7 @@ use super::{
     CompiledCatalogIdIndex, CompiledCatalogMissingMessage, CompiledCatalogProvenanceReport,
     CompiledCatalogResolution, CompiledCatalogResolutionKind, CompiledCatalogTranslationKind,
     CompiledKeyStrategy, CompiledMessage, CompiledTranslation, DiagnosticSeverity,
-    EffectiveTranslation, NormalizedParsedCatalog, TranslationShape,
+    EffectiveTranslation, IcuSyntaxPolicy, NormalizedParsedCatalog, TranslationShape,
 };
 
 impl NormalizedParsedCatalog {
@@ -39,7 +39,8 @@ impl NormalizedParsedCatalog {
     /// # Errors
     ///
     /// Returns [`ApiError::InvalidArguments`] when source fallback is enabled
-    /// without a `source_locale`, or [`ApiError::Conflict`] when two source
+    /// without a `source_locale`, when a runtime ICU syntax policy is requested
+    /// for structured gettext output, or [`ApiError::Conflict`] when two source
     /// messages compile to the same derived key.
     ///
     /// ```rust
@@ -61,7 +62,9 @@ impl NormalizedParsedCatalog {
         &self,
         options: &CompileCatalogOptions<'_>,
     ) -> Result<CompiledCatalog, ApiError> {
-        self.compile_with_key_generator(options, compiled_key_for)
+        self.compile_with_key_generator(options, |strategy, key| {
+            compiled_key_for_with_policy(strategy, key, options.syntax_policy)
+        })
     }
 
     /// Shared compile core used by the public API and collision-focused tests.
@@ -74,6 +77,14 @@ impl NormalizedParsedCatalog {
         F: FnMut(CompiledKeyStrategy, &CatalogMessageKey) -> String,
     {
         validate_compiled_catalog_semantics(self, options.semantics)?;
+        if options.semantics != CatalogSemantics::IcuNative
+            && options.syntax_policy != IcuSyntaxPolicy::Strict
+        {
+            return Err(ApiError::InvalidArguments(format!(
+                "compile_catalog syntax policy {:?} requires IcuNative semantics; structured GettextCompat branch values are not ICU message patterns",
+                options.syntax_policy
+            )));
+        }
         let source_locale = if options.source_fallback {
             Some(options.source_locale.ok_or_else(|| {
                 ApiError::InvalidArguments(
@@ -103,6 +114,7 @@ impl NormalizedParsedCatalog {
                     source_key.msgid
                 ))
             })?;
+            let translation = canonicalize_compiled_translation(translation, options.syntax_policy);
             let compiled_key = key_generator(options.key_strategy, source_key);
             let compiled_message = CompiledMessage {
                 key: compiled_key.clone(),
@@ -196,6 +208,8 @@ pub fn compile_catalog_artifact_selected(
         index,
         options.compiled_ids,
         "compile_catalog_artifact_selected",
+        artifact_options.key_strategy,
+        artifact_options.icu_options.syntax_policy,
     )?;
 
     compile_catalog_artifact_from_source_keys(
@@ -244,6 +258,8 @@ pub fn compile_catalog_artifact_report(
             index,
             compiled_ids,
             "compile_catalog_artifact_report",
+            artifact_options.key_strategy,
+            options.icu_options.syntax_policy,
         )?,
     };
 
@@ -298,19 +314,56 @@ pub fn compiled_key(msgid: &str, msgctxt: Option<&str>) -> String {
     )
 }
 
+/// Derives the stable runtime lookup key after policy-canonicalizing `msgid`.
+///
+/// This preserves [`compiled_key`] as the strict `FerrocatV1` contract while
+/// allowing runtimes with lenient apostrophe quoting to derive the same ID as
+/// policy-aware compilation. `msgctxt` is a plain disambiguation string and is
+/// never ICU-canonicalized.
+///
+/// ```rust
+/// use ferrocat_po::{IcuSyntaxPolicy, compiled_key, compiled_key_with_policy};
+///
+/// let runtime_key = compiled_key_with_policy(
+///     "Don't greet {name}",
+///     None,
+///     IcuSyntaxPolicy::RuntimeLiteralApostrophes,
+/// );
+/// assert_eq!(runtime_key, compiled_key("Don''t greet {name}", None));
+/// ```
+#[must_use]
+pub fn compiled_key_with_policy(
+    msgid: &str,
+    msgctxt: Option<&str>,
+    syntax_policy: IcuSyntaxPolicy,
+) -> String {
+    let canonical = canonicalize_icu_with_policy(msgid, syntax_policy);
+    ferrocat_v1_compiled_key(canonical.as_ref(), msgctxt)
+}
+
 pub(super) fn compiled_key_for(strategy: CompiledKeyStrategy, key: &CatalogMessageKey) -> String {
+    compiled_key_for_with_policy(strategy, key, IcuSyntaxPolicy::Strict)
+}
+
+pub(super) fn compiled_key_for_with_policy(
+    strategy: CompiledKeyStrategy,
+    key: &CatalogMessageKey,
+    syntax_policy: IcuSyntaxPolicy,
+) -> String {
     match strategy {
-        CompiledKeyStrategy::FerrocatV1 => ferrocat_v1_compiled_key(key),
+        CompiledKeyStrategy::FerrocatV1 => {
+            let canonical = canonicalize_icu_with_policy(&key.msgid, syntax_policy);
+            ferrocat_v1_compiled_key(canonical.as_ref(), key.msgctxt.as_deref())
+        }
     }
 }
 
-fn ferrocat_v1_compiled_key(key: &CatalogMessageKey) -> String {
-    let mut payload = Vec::with_capacity(
-        16 + 1 + 4 + key.msgctxt.as_ref().map_or(0, String::len) + 1 + 4 + key.msgid.len(),
-    );
+fn ferrocat_v1_compiled_key(msgid: &str, msgctxt: Option<&str>) -> String {
+    let mut payload =
+        Vec::with_capacity(16 + 1 + 4 + msgctxt.map_or(0, str::len) + 1 + 4 + msgid.len());
     payload.extend_from_slice(b"ferrocat:compile:v1");
-    push_compiled_key_component(&mut payload, key.msgctxt.as_deref());
-    push_compiled_key_component(&mut payload, Some(key.msgid.as_str()));
+    push_compiled_key_component(&mut payload, msgctxt);
+    push_compiled_key_component(&mut payload, Some(msgid));
     let digest = Sha256::digest(&payload);
     base64_url_no_pad(&digest[..8])
 }
@@ -529,6 +582,8 @@ fn selected_compiled_catalog_artifact_source_keys(
     index: &CompiledCatalogIdIndex,
     compiled_ids: &[&str],
     function_name: &str,
+    key_strategy: CompiledKeyStrategy,
+    syntax_policy: IcuSyntaxPolicy,
 ) -> Result<BTreeSet<CatalogMessageKey>, ApiError> {
     let mut source_keys = BTreeSet::new();
     for compiled_id in compiled_ids {
@@ -538,6 +593,13 @@ fn selected_compiled_catalog_artifact_source_keys(
                 "{function_name} received unknown compiled ID {compiled_id:?}"
             ))
         })?;
+        let policy_compiled_id =
+            compiled_key_for_with_policy(key_strategy, source_key, syntax_policy);
+        if policy_compiled_id != compiled_id {
+            return Err(ApiError::InvalidArguments(format!(
+                "{function_name} received compiled ID {compiled_id:?}, but that source identity derives {policy_compiled_id:?} with {syntax_policy:?}"
+            )));
+        }
         if !compiled_catalog_artifact_catalogs_contain_key(locales, source_key) {
             return Err(ApiError::InvalidArguments(format!(
                 "{function_name} compiled ID {compiled_id:?} was not present in the provided catalog set"
@@ -617,7 +679,11 @@ where
     let mut provenance = provenance;
 
     for source_key in source_keys {
-        let compiled_key = compiled_key_for(options.key_strategy, &source_key);
+        let compiled_key = compiled_key_for_with_policy(
+            options.key_strategy,
+            &source_key,
+            icu_options.syntax_policy,
+        );
         if let Some(existing) = compiled_keys.insert(compiled_key.clone(), source_key.clone()) {
             return Err(ApiError::Conflict(format!(
                 "compiled catalog key collision for {:?} / {:?} and {:?} / {:?} using key {}",
@@ -651,13 +717,14 @@ where
             }
         }
 
-        let Some(resolved) = resolved else {
+        let Some(mut resolved) = resolved else {
             continue;
         };
+        resolved.message = canonicalize_owned_icu(resolved.message, icu_options.syntax_policy);
 
         let resolved_icu = match parse_icu_with_syntax_policy(
             &resolved.message,
-            icu_options.syntax_policy,
+            IcuSyntaxPolicy::Strict,
         ) {
             Ok(message) => Some(message),
             Err(error) => {
@@ -706,6 +773,31 @@ where
     }
 
     Ok(artifact)
+}
+
+fn canonicalize_compiled_translation(
+    translation: CompiledTranslation,
+    syntax_policy: IcuSyntaxPolicy,
+) -> CompiledTranslation {
+    match translation {
+        CompiledTranslation::Singular(value) => {
+            CompiledTranslation::Singular(canonicalize_owned_icu(value, syntax_policy))
+        }
+        CompiledTranslation::Plural(values) => CompiledTranslation::Plural(
+            values
+                .into_iter()
+                .map(|(selector, value)| (selector, canonicalize_owned_icu(value, syntax_policy)))
+                .collect(),
+        ),
+    }
+}
+
+fn canonicalize_owned_icu(value: String, syntax_policy: IcuSyntaxPolicy) -> String {
+    if syntax_policy == IcuSyntaxPolicy::Strict || !value.contains('\'') {
+        value
+    } else {
+        canonicalize_icu_with_policy(&value, syntax_policy).into_owned()
+    }
 }
 
 fn compiled_catalog_resolution_kind(

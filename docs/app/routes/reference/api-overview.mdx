@@ -165,6 +165,8 @@ find a stable named container, emit the file alone and leave `scope` empty.
 | Summarize per-locale catalog completeness | `measure_catalog_coverage` |
 | Compare catalog states for translator review handoffs | `review_catalogs` |
 | Derive the default stable runtime key from `msgid` and `msgctxt` | `compiled_key` |
+| Canonicalize runtime-lenient ICU apostrophe quoting | `canonicalize_icu_with_policy` |
+| Derive a runtime key from policy-canonical ICU text | `compiled_key_with_policy` |
 | Compile a normalized catalog into runtime lookup entries | `NormalizedParsedCatalog::compile` |
 | Compile a requested-locale runtime artifact with fallbacks and missing reports | `compile_catalog_artifact` |
 | Compile only a selected subset of compiled runtime IDs | `compile_catalog_artifact_selected` |
@@ -422,6 +424,13 @@ accepts ordinary literal apostrophes in messages can set
 `CatalogAuditOptions::with_icu_options` with `CatalogAuditIcuOptions` set to
 `IcuSyntaxPolicy::RuntimeLiteralApostrophes`; this keeps real ICU syntax errors
 visible while accepting runtime-valid strings such as `you're available`.
+The runtime policy remains quote-aware: `L'{title}` keeps `{title}` literal,
+`''` means one apostrophe, and `'#'` keeps `#` literal inside plural branches.
+
+Use `canonicalize_icu_with_policy` when extraction or host transforms need the
+same canonical text before handing a message to another strict ICU consumer.
+It returns `Cow::Borrowed` for strict input and runtime-policy input without
+apostrophes, and its runtime canonical form is idempotent.
 
 Diagnostics are machine-readable. Examples include:
 
@@ -624,6 +633,12 @@ only has `msgid` and optional `msgctxt` available.
 This is the public, host-facing helper for the current default key contract.
 It corresponds to `CompiledKeyStrategy::FerrocatV1`.
 
+Use `compiled_key_with_policy` when the source message uses
+`IcuSyntaxPolicy::RuntimeLiteralApostrophes`. It canonicalizes `msgid` with
+`canonicalize_icu_with_policy` before applying the unchanged `FerrocatV1`
+contract; `msgctxt` is never ICU-canonicalized. Plain `compiled_key` remains
+strict and unchanged.
+
 ### `compile_catalog_artifact`
 
 Use this when you want the final host-neutral runtime artifact for one requested locale instead of one catalog's typed lookup payload.
@@ -684,7 +699,8 @@ Important semantics:
   default; set `CompileCatalogArtifactOptions::with_icu_options` with
   `CompileCatalogArtifactIcuOptions` set to
   `IcuSyntaxPolicy::RuntimeLiteralApostrophes` when the runtime accepts ordinary
-  literal apostrophes
+  literal apostrophes; under that policy, artifact messages and IDs use the
+  same canonical text as audit and public key derivation
 - runtime-specific formatter support diagnostics are opt-in with
   `CompileCatalogArtifactIcuOptions::with_formatter_support`; the callback
   decides which ICU formatter kinds and styles are supported while Ferrocat
@@ -713,6 +729,12 @@ This is the narrower companion to `compile_catalog_artifact`:
 - return the same `CompiledCatalogArtifact` shape, but filtered to the requested subset
 
 Choose this when a bundler/plugin layer has already mapped modules or chunks to the exact message IDs they require.
+
+For runtime-literal apostrophe syntax, create the index with
+`CompiledCatalogIdIndex::new_with_policy` so its IDs use canonical message
+text. During selected compilation, Ferrocat recomputes every requested ID from
+its mapped source identity under the active policy and rejects incompatibly
+derived IDs instead of silently emitting different ones.
 
 Like the broader artifact API, the request struct borrows locale data and selection slices, so callers can reuse existing vectors or arrays of compiled IDs without another owned wrapper.
 

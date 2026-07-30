@@ -63,6 +63,14 @@ to both artifact APIs through `icu_compatibility`. This is separate from
 while compatibility diagnostics report risky authoring drift such as missing
 arguments, tag mismatches, formatter changes, and select/plural branch changes.
 
+The runtime apostrophe policy later gained context-sensitive canonicalization.
+When `IcuSyntaxPolicy::RuntimeLiteralApostrophes` is selected, artifact values
+and compiled IDs use the same idempotent canonical text as audit,
+compatibility checks, pseudolocalization, and the public policy-aware key
+helper. Strict remains the default and preserves the original compiled-key
+contract. Selected artifact compilation recomputes each requested ID under the
+active policy and rejects IDs derived incompatibly.
+
 Artifact compilation semantics are explicit:
 
 - only non-obsolete messages participate
@@ -72,6 +80,8 @@ Artifact compilation semantics are explicit:
 - plural messages are emitted as final ICU plural strings using the preserved plural variable
 - invalid final ICU strings are diagnostics by default and hard errors in strict mode
 - ICU source/translation compatibility diagnostics are opt-in
+- runtime-lenient apostrophe handling preserves existing ICU quoting and emits
+  canonical strict-ICU artifact text
 
 `fuzzy` remains passthrough metadata only and has no special runtime-artifact semantics in this first version.
 
