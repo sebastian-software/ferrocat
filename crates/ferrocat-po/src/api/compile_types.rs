@@ -354,6 +354,11 @@ pub struct CompileCatalogArtifactReportOptions<'a> {
     /// Shared artifact compile options applied to the generated artifact.
     pub options: CompileCatalogArtifactOptions<'a>,
     /// ICU-specific options applied while validating final runtime messages.
+    ///
+    /// This is the authoritative value during report compilation. The builder
+    /// methods keep it synchronized with [`Self::options`]; if callers mutate
+    /// the public fields independently, this field preserves the pre-existing
+    /// report behavior.
     pub icu_options: CompileCatalogArtifactIcuOptions,
     /// Source identity selection for the generated artifact and provenance report.
     pub selection: CompileCatalogArtifactReportSelection<'a>,
@@ -389,15 +394,24 @@ impl<'a> CompileCatalogArtifactReportOptions<'a> {
     }
 
     /// Returns report options that use the given shared artifact compile options.
+    ///
+    /// This also synchronizes the report-level ICU options so report compilation
+    /// uses the same syntax and formatter-support policy as ordinary artifact
+    /// compilation.
     #[must_use]
     pub fn with_options(mut self, options: CompileCatalogArtifactOptions<'a>) -> Self {
+        self.icu_options = options.icu_options;
         self.options = options;
         self
     }
 
     /// Returns report options that use the given ICU validation options.
+    ///
+    /// This also updates the nested artifact options to keep subsequent builder
+    /// composition policy-consistent.
     #[must_use]
     pub fn with_icu_options(mut self, icu_options: CompileCatalogArtifactIcuOptions) -> Self {
+        self.options.icu_options = icu_options;
         self.icu_options = icu_options;
         self
     }
@@ -980,24 +994,37 @@ mod tests {
             index: &index,
             compiled_ids: &other_ids,
         };
+        let runtime_icu_options = CompileCatalogArtifactIcuOptions::new()
+            .with_syntax_policy(IcuSyntaxPolicy::RuntimeLiteralApostrophes);
         let report = CompileCatalogArtifactReportOptions::new("de", "en")
             .with_options(artifact.clone())
-            .with_icu_options(
-                CompileCatalogArtifactIcuOptions::new()
-                    .with_syntax_policy(IcuSyntaxPolicy::RuntimeLiteralApostrophes),
-            )
+            .with_icu_options(runtime_icu_options)
             .with_selection(selection);
 
-        assert_eq!(report.options, artifact);
+        assert_eq!(
+            report.options,
+            artifact.clone().with_icu_options(runtime_icu_options)
+        );
         assert_eq!(
             report.icu_options.syntax_policy,
             IcuSyntaxPolicy::RuntimeLiteralApostrophes
         );
+        assert_eq!(report.options.icu_options, report.icu_options);
         assert!(matches!(
             report.selection,
             CompileCatalogArtifactReportSelection::Selected { compiled_ids, .. }
                 if compiled_ids == other_ids.as_slice()
         ));
+
+        let report_with_artifact_options_last =
+            CompileCatalogArtifactReportOptions::new("de", "en")
+                .with_icu_options(runtime_icu_options)
+                .with_options(artifact.clone());
+        assert_eq!(report_with_artifact_options_last.options, artifact);
+        assert_eq!(
+            report_with_artifact_options_last.icu_options,
+            artifact.icu_options
+        );
     }
 
     #[test]

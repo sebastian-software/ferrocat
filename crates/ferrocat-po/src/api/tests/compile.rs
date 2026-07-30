@@ -645,6 +645,62 @@ fn compile_catalog_artifact_report_can_select_compiled_ids() {
 }
 
 #[test]
+fn compile_catalog_artifact_report_preserves_runtime_policy_for_full_and_selected_outputs() {
+    let source = normalized_catalog(
+        "msgid \"Don't greet {name}\"\nmsgstr \"Don't greet {name}\"\n",
+        Some("en"),
+        PluralEncoding::Icu,
+    );
+    let requested = normalized_catalog(
+        "msgid \"Don't greet {name}\"\nmsgstr \"Sag don't zu {name}\"\n",
+        Some("de"),
+        PluralEncoding::Icu,
+    );
+    let icu_options = CompileCatalogArtifactIcuOptions::new()
+        .with_syntax_policy(IcuSyntaxPolicy::RuntimeLiteralApostrophes);
+    let artifact_options =
+        CompileCatalogArtifactOptions::new("de", "en").with_icu_options(icu_options);
+    let expected =
+        compile_catalog_artifact(&[&requested, &source], &artifact_options).expect("artifact");
+    let report_options =
+        CompileCatalogArtifactReportOptions::new("de", "en").with_options(artifact_options.clone());
+    let report = compile_catalog_artifact_report(&[&requested, &source], &report_options)
+        .expect("full artifact report");
+
+    assert_eq!(report.artifact, expected);
+    let id = compiled_key_with_policy(
+        "Don't greet {name}",
+        None,
+        IcuSyntaxPolicy::RuntimeLiteralApostrophes,
+    );
+    assert_eq!(
+        report.artifact.messages.get(&id).map(String::as_str),
+        Some("Sag don''t zu {name}")
+    );
+
+    let index = CompiledCatalogIdIndex::new_with_policy(
+        &[&requested, &source],
+        CompiledKeyStrategy::FerrocatV1,
+        IcuSyntaxPolicy::RuntimeLiteralApostrophes,
+    )
+    .expect("runtime-policy index");
+    let selected_ids = [id.as_str()];
+    let selected_options = CompileSelectedCatalogArtifactOptions::new("de", "en", &selected_ids)
+        .with_options(artifact_options.clone());
+    let expected_selected =
+        compile_catalog_artifact_selected(&[&requested, &source], &index, &selected_options)
+            .expect("selected artifact");
+    let selected_report_options =
+        CompileCatalogArtifactReportOptions::selected("de", "en", &index, &selected_ids)
+            .with_options(artifact_options);
+    let selected_report =
+        compile_catalog_artifact_report(&[&requested, &source], &selected_report_options)
+            .expect("selected artifact report");
+
+    assert_eq!(selected_report.artifact, expected_selected);
+}
+
+#[test]
 fn compile_catalog_artifact_report_rejects_unknown_selected_ids() {
     let source = normalized_catalog(
         "msgid \"Hello\"\nmsgstr \"Hello\"\n",
