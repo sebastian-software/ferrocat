@@ -2946,3 +2946,25 @@ fn combine_catalog_files_keeps_the_winning_definition_opaque_metadata() {
 
     let _ = fs::remove_dir_all(temp_dir);
 }
+
+#[test]
+fn update_catalog_roundtrips_opaque_metadata_through_fcl_tags() {
+    let existing = "%FCL1\tsource=en\tlocale=de\torder=collated\n\
+         Hello\tbutton\tHallo\tc=extracted note\ttc=translator note\tf=fuzzy\tf=x-custom\n";
+    let result = update_catalog(UpdateCatalogOptions {
+        source_locale: "en",
+        locale: Some("de"),
+        existing: Some(existing),
+        mode: CatalogMode::IcuFcl,
+        input: structured_input(vec![extracted(
+            "Hello",
+            Some("button"),
+            vec!["extracted note".to_owned()],
+        )]),
+        ..UpdateCatalogOptions::new("en", CatalogUpdateInput::default())
+    })
+    .expect("update");
+
+    assert_eq!(result.content, existing);
+    assert!(!result.updated);
+}
