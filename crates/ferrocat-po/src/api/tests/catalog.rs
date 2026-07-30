@@ -2914,6 +2914,70 @@ fn combine_catalogs_does_not_union_opaque_metadata_across_inputs() {
 }
 
 #[test]
+fn combine_catalogs_does_not_adopt_metadata_from_a_losing_definition() {
+    // `UseFirst` keeps the first non-empty translation. The later definition
+    // loses the conflict, so its opaque metadata must not attach to a value it
+    // does not own -- even though the winner carries no metadata of its own.
+    let ours = "msgid \"Hello\"\nmsgstr \"Hallo\"\n";
+    let theirs = "# theirs note\n#, x-theirs\nmsgid \"Hello\"\nmsgstr \"Servus\"\n";
+    let inputs = [
+        CatalogCombineInput::labeled(ours, "ours.po"),
+        CatalogCombineInput::labeled(theirs, "theirs.po"),
+    ];
+
+    let combined = combine_catalogs(CombineCatalogOptions {
+        locale: Some("de"),
+        ..CombineCatalogOptions::new(&inputs, "en")
+    })
+    .expect("combine");
+
+    let parsed = parse_po(&combined.content).expect("parse combined");
+    assert_eq!(parsed.items[0].msgstr[0], "Hallo");
+    assert!(parsed.items[0].comments.is_empty());
+    assert!(parsed.items[0].flags.is_empty());
+}
+
+#[test]
+fn combine_catalogs_clears_metadata_for_composite_plural_values() {
+    // Each input fills a different plural slot, so the final value is a
+    // composite no single definition owns. Like the machine block, the opaque
+    // metadata clears instead of crediting either input.
+    let ours = concat!(
+        "# ours note\n",
+        "#, x-ours\n",
+        "msgid \"book\"\n",
+        "msgid_plural \"books\"\n",
+        "msgstr[0] \"Buch\"\n",
+        "msgstr[1] \"\"\n",
+    );
+    let theirs = concat!(
+        "# theirs note\n",
+        "#, x-theirs\n",
+        "msgid \"book\"\n",
+        "msgid_plural \"books\"\n",
+        "msgstr[0] \"\"\n",
+        "msgstr[1] \"Buecher\"\n",
+    );
+    let inputs = [
+        CatalogCombineInput::labeled(ours, "ours.po"),
+        CatalogCombineInput::labeled(theirs, "theirs.po"),
+    ];
+
+    let combined = combine_catalogs(CombineCatalogOptions {
+        locale: Some("de"),
+        mode: CatalogMode::GettextPo,
+        ..CombineCatalogOptions::new(&inputs, "en")
+    })
+    .expect("combine");
+
+    let parsed = parse_po(&combined.content).expect("parse combined");
+    assert_eq!(parsed.items[0].msgstr[0], "Buch");
+    assert_eq!(parsed.items[0].msgstr[1], "Buecher");
+    assert!(parsed.items[0].comments.is_empty());
+    assert!(parsed.items[0].flags.is_empty());
+}
+
+#[test]
 fn combine_catalog_files_keeps_the_winning_definition_opaque_metadata() {
     let temp_dir = unique_catalog_temp_dir("combine-files-opaque-metadata");
     let template = temp_dir.join("messages.pot");

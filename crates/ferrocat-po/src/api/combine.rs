@@ -461,9 +461,22 @@ fn merge_combine_message(
 
     // Opaque translator metadata belongs to whichever definition ends up owning
     // the entry value, and moves as one block. Unioning it across inputs would
-    // invent comments and flags no single catalog ever declared.
-    if translation_merge.changed
-        || (entry.message.translator_comments.is_empty() && entry.message.flags.is_empty())
+    // invent comments and flags no single catalog ever declared. Ownership
+    // mirrors the machine-metadata rule above: the incoming definition owns the
+    // value only when the merged translation equals its translation, and a
+    // value composed from several definitions (a partial plural fill) is owned
+    // by none of them, so its metadata clears.
+    if translation_merge.changed {
+        if translation_merge.matches_source {
+            entry.message.translator_comments = mem::take(&mut message.translator_comments);
+            entry.message.flags = mem::take(&mut message.flags);
+        } else {
+            entry.message.translator_comments = Vec::new();
+            entry.message.flags = Vec::new();
+        }
+    } else if translation_merge.matches_source
+        && entry.message.translator_comments.is_empty()
+        && entry.message.flags.is_empty()
     {
         entry.message.translator_comments = mem::take(&mut message.translator_comments);
         entry.message.flags = mem::take(&mut message.flags);
