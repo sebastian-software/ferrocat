@@ -26,6 +26,13 @@
 - Active PO and FCL fuzzy entries no longer count as translated, including in
   the coverage rollups embedded in review reports.
 
+## [3.2.1](https://github.com/sebastian-software/ferrocat/compare/ferrocat-v3.2.0...ferrocat-v3.2.1) (2026-07-30)
+
+
+### Bug Fixes
+
+* **fcl:** validate identities at export boundary ([#285](https://github.com/sebastian-software/ferrocat/issues/285)) ([a04ef3f](https://github.com/sebastian-software/ferrocat/commit/a04ef3f61295ef077627fcdda740d4f075707f61))
+
 ## [3.2.0](https://github.com/sebastian-software/ferrocat/compare/ferrocat-v3.1.0...ferrocat-v3.2.0) (2026-07-30)
 
 
