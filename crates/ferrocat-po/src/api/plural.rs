@@ -690,10 +690,10 @@ pub(super) fn synthesize_icu_plural_source(variable: &str, source: &PluralSource
 /// Renders already-ordered `(category, value)` branches, presizing the output so
 /// the buffer never has to grow.
 fn render_icu_plural(variable: &str, branches: &[(&str, &str)]) -> String {
-    // `{` + variable + `, plural,` + branches + `}`, where every branch costs
-    // ` ` + category + ` {` + value + `}`.
+    // `{` + variable + `, plural,` + branches + `}` is 11 fixed bytes plus the
+    // variable, where every branch costs ` ` + category + ` {` + value + `}`.
     let capacity = variable.len()
-        + 10
+        + 11
         + branches
             .iter()
             .map(|(category, value)| category.len() + value.len() + 4)
@@ -1236,6 +1236,12 @@ mod tests {
             ),
             "{count, plural, other {# files}}"
         );
+
+        // The capacity estimate must cover the rendered output exactly, so the
+        // synthesis buffer never grows. `String::with_capacity` keeps the
+        // requested capacity when no reallocation happens, so equality with the
+        // final length pins the no-growth contract.
+        assert_eq!(synthesized.capacity(), synthesized.len());
 
         assert!(matches!(
             project_icu_plural("{count, plural, offset:1 one {# file} other {# files}}"),
