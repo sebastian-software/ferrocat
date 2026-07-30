@@ -71,6 +71,13 @@ helper. Strict remains the default and preserves the original compiled-key
 contract. Selected artifact compilation recomputes each requested ID under the
 active policy and rejects IDs derived incompatibly.
 
+This changes the artifact contract for callers that already used
+`RuntimeLiteralApostrophes` with Ferrocat 3.1.0 or earlier. Those releases
+parsed with the runtime policy but derived IDs from raw `msgid` text and emitted
+the uncanonicalized message. Callers must regenerate runtime artifacts and
+`CompiledCatalogIdIndex` values together rather than mixing cached pre-change
+IDs with canonicalized output.
+
 Artifact compilation semantics are explicit:
 
 - only non-obsolete messages participate

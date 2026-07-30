@@ -44,6 +44,14 @@ compilation; a policy-mismatched ID is rejected. On the lower
 `CatalogSemantics::IcuNative` because structured gettext branch values are not
 ICU patterns.
 
+### Migrating runtime-policy artifacts
+
+If you already compiled with `RuntimeLiteralApostrophes` on Ferrocat 3.1.0 or
+earlier, regenerate every runtime artifact and `CompiledCatalogIdIndex` after
+upgrading. Older releases hashed the raw `msgid` and emitted uncanonicalized
+message text, so their cached IDs do not match the new canonical contract.
+Rebuild artifacts and indexes together before deploying either one.
+
 ## 2. Compile a requested-locale artifact
 
 Use `compile_catalog_artifact` when downstream tooling wants a fully resolved locale-specific runtime map, including fallback resolution and missing-message reporting.

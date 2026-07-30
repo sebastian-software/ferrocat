@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+### ⚠ BREAKING CHANGES
+
+- Compiling with `IcuSyntaxPolicy::RuntimeLiteralApostrophes` now
+  canonicalizes both artifact messages and compiled IDs. Regenerate runtime
+  artifacts and `CompiledCatalogIdIndex` values created with Ferrocat 3.1.0 or
+  earlier; previously cached IDs do not match the canonicalized contract.
+
 ### Features
 
 * **icu:** expose policy-aware runtime apostrophe canonicalization and compiled-key derivation
