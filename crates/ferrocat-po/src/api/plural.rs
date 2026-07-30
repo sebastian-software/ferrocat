@@ -5,6 +5,7 @@
 //! fall back to predictable synthetic category sets instead of guessing.
 
 use std::collections::{BTreeMap, HashMap};
+use std::mem;
 use std::sync::{Mutex, OnceLock};
 
 use ferrocat_icu::{IcuMessage, IcuNode, IcuPluralKind, parse_icu};
@@ -342,21 +343,6 @@ impl PluralProfile {
         self.categories.len().max(1)
     }
 
-    pub(super) fn materialize_translation(
-        &self,
-        translation: &BTreeMap<String, String>,
-    ) -> BTreeMap<String, String> {
-        self.categories
-            .iter()
-            .map(|category| {
-                (
-                    (*category).to_owned(),
-                    translation.get(*category).cloned().unwrap_or_default(),
-                )
-            })
-            .collect()
-    }
-
     /// Materializes a translation and fills missing or empty categories from the
     /// source forms in a single pass.
     pub(super) fn source_fallback_translation(
@@ -375,6 +361,34 @@ impl PluralProfile {
                 ((*category).to_owned(), value)
             })
             .collect()
+    }
+
+    /// Materializes an existing translation map against this profile's
+    /// categories without rebuilding it when it already matches.
+    ///
+    /// Returns whether the map changed. The merge path uses that to classify a
+    /// message as unchanged instead of comparing against a retained copy.
+    pub(super) fn materialize_translation_in_place(
+        &self,
+        translation: &mut BTreeMap<String, String>,
+    ) -> bool {
+        if translation.len() == self.categories.len()
+            && self
+                .categories
+                .iter()
+                .all(|category| translation.contains_key(*category))
+        {
+            return false;
+        }
+
+        let mut previous = mem::take(translation);
+        for category in &self.categories {
+            let (key, value) = previous
+                .remove_entry(*category)
+                .unwrap_or_else(|| ((*category).to_owned(), String::new()));
+            translation.insert(key, value);
+        }
+        true
     }
 
     pub(super) fn source_locale_translation(
@@ -1050,16 +1064,16 @@ mod tests {
         let profile = profiles.for_slots(Some(2)).clone();
         assert_eq!(profile.nplurals(), 2);
         assert_eq!(profile.categories(), &["one", "other"]);
+        let mut sparse = BTreeMap::from([("other".to_owned(), "autres".to_owned())]);
+        assert!(profile.materialize_translation_in_place(&mut sparse));
         assert_eq!(
-            profile.materialize_translation(&BTreeMap::from([(
-                "other".to_owned(),
-                "autres".to_owned(),
-            )])),
+            sparse,
             BTreeMap::from([
                 ("one".to_owned(), String::new()),
                 ("other".to_owned(), "autres".to_owned()),
             ])
         );
+        assert!(!profile.materialize_translation_in_place(&mut sparse));
         assert_eq!(
             profile.source_locale_translation(&super::PluralSource {
                 one: Some("one-file".to_owned()),

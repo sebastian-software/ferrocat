@@ -418,7 +418,6 @@ fn merge_catalogs(
         .is_none_or(|value| value == context.source_locale);
     let mut stats = CatalogStats::default();
 
-    let mut matched = vec![false; existing.messages.len()];
     let mut messages = Vec::with_capacity(normalized.len() + existing.messages.len());
 
     // `locale` and `semantics` are constant for the whole merge, so build the
@@ -429,6 +428,10 @@ fn merge_catalogs(
         PluralProfile::for_locale(context.locale)
     };
 
+    // Resolve identities first, while the previous messages are still borrowable
+    // as index keys. The merge below then moves matched entries out of
+    // `existing.messages` instead of cloning their payloads.
+    let mut matched_indexes = Vec::with_capacity(normalized.len());
     {
         let mut existing_index = FxHashMap::<(&str, Option<&str>), usize>::with_capacity_and_hasher(
             existing.messages.len(),
@@ -438,38 +441,46 @@ fn merge_catalogs(
             existing_index.insert((message.msgid.as_str(), message.msgctxt.as_deref()), index);
         }
 
-        for next in normalized {
-            let previous = if let Some(&index) =
-                existing_index.get(&(next.msgid.as_str(), next.msgctxt.as_deref()))
-            {
-                matched[index] = true;
-                Some(&existing.messages[index])
-            } else {
-                None
-            };
-            let merged = merge_message(
-                previous,
-                next,
-                is_source_locale,
-                &plural_profile,
-                context.overwrite_source_translations,
-                diagnostics,
+        for next in &normalized {
+            matched_indexes.push(
+                existing_index
+                    .get(&(next.msgid.as_str(), next.msgctxt.as_deref()))
+                    .copied(),
             );
-            if previous.is_none() {
-                stats.added += 1;
-            } else if previous == Some(&merged) {
-                stats.unchanged += 1;
-            } else {
-                stats.changed += 1;
-            }
-            messages.push(merged);
         }
     }
 
-    for (index, message) in existing.messages.into_iter().enumerate() {
-        if matched[index] {
-            continue;
+    // `None` slots are the entries claimed by an extracted message; whatever is
+    // left is what the obsolete strategy applies to below.
+    let mut previous_messages = existing
+        .messages
+        .into_iter()
+        .map(Some)
+        .collect::<Vec<Option<CanonicalMessage>>>();
+
+    for (next, matched_index) in normalized.into_iter().zip(matched_indexes) {
+        let previous = matched_index.map(|index| {
+            previous_messages[index]
+                .take()
+                .expect("each existing message is claimed by at most one extracted message")
+        });
+        let (merged, outcome) = merge_message(
+            previous,
+            next,
+            is_source_locale,
+            &plural_profile,
+            context.overwrite_source_translations,
+            diagnostics,
+        );
+        match outcome {
+            MergeOutcome::Added => stats.added += 1,
+            MergeOutcome::Unchanged => stats.unchanged += 1,
+            MergeOutcome::Changed => stats.changed += 1,
         }
+        messages.push(merged);
+    }
+
+    for message in previous_messages.into_iter().flatten() {
         match &context.obsolete_strategy {
             ObsoleteStrategy::Delete => {
                 stats.obsolete_removed += 1;
@@ -525,18 +536,31 @@ fn mark_obsolete(message: &mut CanonicalMessage, now: Option<&str>, stats: &mut 
     }
 }
 
+/// How one merged message is counted in [`CatalogStats`].
+///
+/// `merge_message` consumes the previous message so its payload can be moved
+/// into the merged one, which means the counters cannot be derived from a
+/// `previous == merged` comparison afterwards. The variants below are decided
+/// field by field instead and must stay equivalent to that comparison.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum MergeOutcome {
+    Added,
+    Unchanged,
+    Changed,
+}
+
 /// Resolves the final canonical message for one gettext identity.
 ///
 /// This is the central place where source-locale overwrite rules, plural
 /// variable inference, and locale-aware plural category materialization meet.
 fn merge_message(
-    previous: Option<&CanonicalMessage>,
+    previous: Option<CanonicalMessage>,
     next: NormalizedMessage,
     is_source_locale: bool,
     plural_profile: &PluralProfile,
     overwrite_source_translations: bool,
     diagnostics: &mut Vec<Diagnostic>,
-) -> CanonicalMessage {
+) -> (CanonicalMessage, MergeOutcome) {
     let NormalizedMessage {
         msgid,
         msgctxt,
@@ -546,44 +570,81 @@ fn merge_message(
         placeholders,
     } = next;
 
-    let translation = match (kind, previous) {
-        (NormalizedKind::Singular, Some(previous))
-            if matches!(previous.translation, CanonicalTranslation::Singular { .. })
-                && !(is_source_locale && overwrite_source_translations) =>
+    // Decide the non-translation half of "did this message change?" while the
+    // previous payload is still around. `msgid`/`msgctxt` always match because
+    // they are the identity the previous message was looked up by, and `machine`
+    // is carried over verbatim, so only these fields can differ.
+    let payload_changed = previous.as_ref().is_some_and(|previous| {
+        previous.obsolete.is_some()
+            || previous.comments != comments
+            || previous.origins != origins
+            || previous.placeholders != placeholders
+    });
+
+    // Everything else in the previous message is superseded by the extracted
+    // one, so keep only what the merge reuses and drop the rest here.
+    let (previous_translation, machine) = match previous {
+        Some(CanonicalMessage {
+            translation,
+            machine,
+            ..
+        }) => (Some(translation), machine),
+        None => (None, None),
+    };
+    let had_previous = previous_translation.is_some();
+
+    let (translation, translation_changed) = match (kind, previous_translation) {
+        (NormalizedKind::Singular, Some(previous @ CanonicalTranslation::Singular { .. }))
+            if !(is_source_locale && overwrite_source_translations) =>
         {
-            previous.translation.clone()
+            (previous, false)
         }
-        (NormalizedKind::Singular, _) => CanonicalTranslation::Singular {
-            value: if is_source_locale {
-                msgid.clone()
-            } else {
-                String::new()
-            },
-        },
+        (NormalizedKind::Singular, previous) => {
+            let translation = CanonicalTranslation::Singular {
+                value: if is_source_locale {
+                    msgid.clone()
+                } else {
+                    String::new()
+                },
+            };
+            let changed = previous.is_none_or(|previous| previous != translation);
+            (translation, changed)
+        }
         // Reuse an existing plural translation when the source plural is
         // unchanged and we're not overwriting source-locale text. Binding the
         // inner `Plural` here means a non-plural previous simply falls through
         // to the rebuild arm below.
         (
             NormalizedKind::Plural { source, variable },
-            Some(CanonicalMessage {
-                translation:
-                    CanonicalTranslation::Plural {
-                        translation_by_category,
-                        variable: previous_variable,
-                        ..
-                    },
-                ..
+            Some(CanonicalTranslation::Plural {
+                source: previous_source,
+                translation_by_category: mut previous_translation_by_category,
+                variable: previous_variable,
             }),
-        ) if !(is_source_locale && overwrite_source_translations) => CanonicalTranslation::Plural {
-            source,
-            translation_by_category: plural_profile
-                .materialize_translation(translation_by_category),
-            variable: variable.unwrap_or_else(|| previous_variable.clone()),
-        },
+        ) if !(is_source_locale && overwrite_source_translations) => {
+            let categories_changed = plural_profile
+                .materialize_translation_in_place(&mut previous_translation_by_category);
+            let source_changed = source != previous_source;
+            let (variable, variable_changed) = match variable {
+                Some(variable) => {
+                    let changed = variable != previous_variable;
+                    (variable, changed)
+                }
+                None => (previous_variable, false),
+            };
+
+            (
+                CanonicalTranslation::Plural {
+                    source,
+                    translation_by_category: previous_translation_by_category,
+                    variable,
+                },
+                categories_changed || source_changed || variable_changed,
+            )
+        }
         (NormalizedKind::Plural { source, variable }, previous) => {
             let variable = variable
-                .or_else(|| previous.and_then(extract_plural_variable))
+                .or_else(|| extract_plural_variable(previous.as_ref()))
                 .or_else(|| derive_plural_variable(&placeholders))
                 .unwrap_or_else(|| {
                     diagnostics.push(
@@ -603,33 +664,43 @@ fn merge_message(
                 plural_profile.empty_translation()
             };
 
-            CanonicalTranslation::Plural {
+            let translation = CanonicalTranslation::Plural {
                 source,
                 translation_by_category,
                 variable,
-            }
+            };
+            let changed = previous.is_none_or(|previous| previous != translation);
+            (translation, changed)
         }
     };
 
-    let (machine, obsolete) =
-        previous.map_or_else(|| (None, None), |message| (message.machine.clone(), None));
+    let outcome = if !had_previous {
+        MergeOutcome::Added
+    } else if payload_changed || translation_changed {
+        MergeOutcome::Changed
+    } else {
+        MergeOutcome::Unchanged
+    };
 
-    CanonicalMessage {
-        msgid,
-        msgctxt,
-        translation,
-        comments,
-        origins,
-        placeholders,
-        obsolete,
-        machine,
-    }
+    (
+        CanonicalMessage {
+            msgid,
+            msgctxt,
+            translation,
+            comments,
+            origins,
+            placeholders,
+            obsolete: None,
+            machine,
+        },
+        outcome,
+    )
 }
 
-fn extract_plural_variable(message: &CanonicalMessage) -> Option<String> {
-    match &message.translation {
-        CanonicalTranslation::Plural { variable, .. } => Some(variable.clone()),
-        CanonicalTranslation::Singular { .. } => None,
+fn extract_plural_variable(translation: Option<&CanonicalTranslation>) -> Option<String> {
+    match translation {
+        Some(CanonicalTranslation::Plural { variable, .. }) => Some(variable.clone()),
+        Some(CanonicalTranslation::Singular { .. }) | None => None,
     }
 }
 
