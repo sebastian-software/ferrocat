@@ -63,7 +63,7 @@ not count as translated. The ordinary `parse_catalog` path continues to skip
 opaque flags and translator comments for high-throughput consumers that do not
 request report state.
 
-Beyond the basics, Ferrocat exposes byte-oriented and allocation-light borrowed parsers for hot paths, ICU analysis and source/translation compatibility checks (`analyze_icu`, `compare_icu_messages`, `validate_icu_formatter_support`), ICU-aware pseudolocalization, semantic metadata normalization around `msgid + msgctxt`, and AI-translation metadata that high-level writers clear automatically once a human edits the text. ICU scope is MessageFormat v1; MessageFormat 2 is tracked as a future standard but is not a near-term target.
+Beyond the basics, Ferrocat exposes byte-oriented and allocation-light borrowed parsers for hot paths, ICU analysis and source/translation compatibility checks (`analyze_icu`, `compare_icu_messages`, `validate_icu_formatter_support`), policy-aware apostrophe canonicalization and compiled-key derivation, ICU-aware pseudolocalization, semantic metadata normalization around `msgid + msgctxt`, and AI-translation metadata that high-level writers clear automatically once a human edits the text. ICU scope is MessageFormat v1; MessageFormat 2 is tracked as a future standard but is not a near-term target.
 
 ## What Ferrocat Gives You
 

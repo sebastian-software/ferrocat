@@ -4,6 +4,10 @@
 
 ### ⚠ BREAKING CHANGES
 
+- Compiling with `IcuSyntaxPolicy::RuntimeLiteralApostrophes` now
+  canonicalizes both artifact messages and compiled IDs. Regenerate runtime
+  artifacts and `CompiledCatalogIdIndex` values created with Ferrocat 3.1.0 or
+  earlier; previously cached IDs do not match the canonicalized contract.
 - `measure_catalog_coverage`, default fuzzy-enabled `audit_catalogs`, and
   current target catalogs passed to `review_catalogs` now require normalized
   inputs from `parse_catalog_for_review` (or programmatic catalogs explicitly
@@ -13,6 +17,10 @@
   `CatalogAuditChecks::fuzzy_flags`, and the `catalog.fuzzy_flag` diagnostic are
   restored. The derived accessor keeps the externally constructible coverage
   struct semver-compatible.
+
+### Features
+
+* **icu:** add policy-aware runtime apostrophe canonicalization and compiled-key derivation
 
 ### Bug Fixes
 

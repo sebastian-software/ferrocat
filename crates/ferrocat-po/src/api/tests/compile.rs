@@ -133,6 +133,50 @@ fn compiled_key_matches_compiled_catalog_entries() {
 }
 
 #[test]
+fn runtime_policy_compiled_key_hashes_canonical_message_text_only() {
+    assert_eq!(
+        compiled_key_with_policy(
+            "Don't greet {name}",
+            Some("don't touch"),
+            IcuSyntaxPolicy::RuntimeLiteralApostrophes,
+        ),
+        compiled_key("Don''t greet {name}", Some("don't touch"))
+    );
+    assert_eq!(
+        compiled_key_with_policy("don't", None, IcuSyntaxPolicy::Strict),
+        compiled_key("don't", None)
+    );
+}
+
+#[test]
+fn compile_catalog_runtime_policy_uses_canonical_key_and_translation() {
+    let normalized = normalized_catalog(
+        "msgid \"Don't greet\"\nmsgstr \"You're ready\"\n",
+        Some("de"),
+        PluralEncoding::Icu,
+    );
+
+    let compiled = normalized
+        .compile(
+            &CompileCatalogOptions::new()
+                .with_syntax_policy(IcuSyntaxPolicy::RuntimeLiteralApostrophes),
+        )
+        .expect("compile");
+    let expected_key = compiled_key_with_policy(
+        "Don't greet",
+        None,
+        IcuSyntaxPolicy::RuntimeLiteralApostrophes,
+    );
+    let (actual_key, message) = compiled.iter().next().expect("compiled message");
+
+    assert_eq!(actual_key, expected_key);
+    assert!(matches!(
+        &message.translation,
+        CompiledTranslation::Singular(value) if value == "You''re ready"
+    ));
+}
+
+#[test]
 fn compile_catalog_preserves_plural_translation_shape() {
     let normalized = normalized_catalog(
         concat!(
@@ -166,6 +210,32 @@ fn compile_catalog_preserves_plural_translation_shape() {
         }
         other => panic!("expected plural translation, got {other:?}"),
     }
+}
+
+#[test]
+fn compile_catalog_rejects_runtime_icu_policy_for_structured_gettext_output() {
+    let normalized = normalized_catalog(
+        concat!(
+            "msgid \"file\"\n",
+            "msgid_plural \"files\"\n",
+            "msgstr[0] \"don't touch\"\n",
+            "msgstr[1] \"don't touch\"\n",
+        ),
+        Some("de"),
+        PluralEncoding::Gettext,
+    );
+
+    let error = normalized
+        .compile(
+            &CompileCatalogOptions::new()
+                .with_semantics(CatalogSemantics::GettextCompat)
+                .with_syntax_policy(IcuSyntaxPolicy::RuntimeLiteralApostrophes),
+        )
+        .expect_err("runtime ICU policy must not rewrite gettext branch text");
+
+    assert!(
+        matches!(error, ApiError::InvalidArguments(message) if message.contains("RuntimeLiteralApostrophes") && message.contains("IcuNative"))
+    );
 }
 
 #[test]
@@ -575,6 +645,62 @@ fn compile_catalog_artifact_report_can_select_compiled_ids() {
 }
 
 #[test]
+fn compile_catalog_artifact_report_preserves_runtime_policy_for_full_and_selected_outputs() {
+    let source = normalized_catalog(
+        "msgid \"Don't greet {name}\"\nmsgstr \"Don't greet {name}\"\n",
+        Some("en"),
+        PluralEncoding::Icu,
+    );
+    let requested = normalized_catalog(
+        "msgid \"Don't greet {name}\"\nmsgstr \"Sag don't zu {name}\"\n",
+        Some("de"),
+        PluralEncoding::Icu,
+    );
+    let icu_options = CompileCatalogArtifactIcuOptions::new()
+        .with_syntax_policy(IcuSyntaxPolicy::RuntimeLiteralApostrophes);
+    let artifact_options =
+        CompileCatalogArtifactOptions::new("de", "en").with_icu_options(icu_options);
+    let expected =
+        compile_catalog_artifact(&[&requested, &source], &artifact_options).expect("artifact");
+    let report_options =
+        CompileCatalogArtifactReportOptions::new("de", "en").with_options(artifact_options.clone());
+    let report = compile_catalog_artifact_report(&[&requested, &source], &report_options)
+        .expect("full artifact report");
+
+    assert_eq!(report.artifact, expected);
+    let id = compiled_key_with_policy(
+        "Don't greet {name}",
+        None,
+        IcuSyntaxPolicy::RuntimeLiteralApostrophes,
+    );
+    assert_eq!(
+        report.artifact.messages.get(&id).map(String::as_str),
+        Some("Sag don''t zu {name}")
+    );
+
+    let index = CompiledCatalogIdIndex::new_with_policy(
+        &[&requested, &source],
+        CompiledKeyStrategy::FerrocatV1,
+        IcuSyntaxPolicy::RuntimeLiteralApostrophes,
+    )
+    .expect("runtime-policy index");
+    let selected_ids = [id.as_str()];
+    let selected_options = CompileSelectedCatalogArtifactOptions::new("de", "en", &selected_ids)
+        .with_options(artifact_options.clone());
+    let expected_selected =
+        compile_catalog_artifact_selected(&[&requested, &source], &index, &selected_options)
+            .expect("selected artifact");
+    let selected_report_options =
+        CompileCatalogArtifactReportOptions::selected("de", "en", &index, &selected_ids)
+            .with_options(artifact_options);
+    let selected_report =
+        compile_catalog_artifact_report(&[&requested, &source], &selected_report_options)
+            .expect("selected artifact report");
+
+    assert_eq!(selected_report.artifact, expected_selected);
+}
+
+#[test]
 fn compile_catalog_artifact_report_rejects_unknown_selected_ids() {
     let source = normalized_catalog(
         "msgid \"Hello\"\nmsgstr \"Hello\"\n",
@@ -892,6 +1018,66 @@ fn compile_catalog_artifact_runtime_literal_apostrophes_policy_accepts_runtime_v
 }
 
 #[test]
+fn compile_catalog_artifact_runtime_policy_emits_canonical_text_and_key() {
+    let source = normalized_catalog(
+        "msgid \"Don't greet {name}\"\nmsgstr \"Don't greet {name}\"\n",
+        Some("en"),
+        PluralEncoding::Icu,
+    );
+    let requested = normalized_catalog(
+        "msgid \"Don't greet {name}\"\nmsgstr \"L'{title}\"\n",
+        Some("de"),
+        PluralEncoding::Icu,
+    );
+    let policy = IcuSyntaxPolicy::RuntimeLiteralApostrophes;
+
+    let artifact = compile_catalog_artifact(
+        &[&requested, &source],
+        &CompileCatalogArtifactOptions::new("de", "en")
+            .with_icu_options(CompileCatalogArtifactIcuOptions::new().with_syntax_policy(policy)),
+    )
+    .expect("compile artifact");
+    let expected_key = compiled_key_with_policy("Don't greet {name}", None, policy);
+
+    assert_eq!(
+        artifact.messages.get(&expected_key).map(String::as_str),
+        Some("L'{title}'")
+    );
+    assert!(
+        !artifact
+            .messages
+            .contains_key(&compiled_key("Don't greet {name}", None))
+    );
+}
+
+#[test]
+fn compile_catalog_artifact_runtime_policy_keeps_quoted_braces_literal_for_compatibility() {
+    let source = normalized_catalog(
+        "msgid \"L'{title}\"\nmsgstr \"L'{title}\"\n",
+        Some("en"),
+        PluralEncoding::Icu,
+    );
+    let requested = normalized_catalog(
+        "msgid \"L'{title}\"\nmsgstr \"L'{name}\"\n",
+        Some("de"),
+        PluralEncoding::Icu,
+    );
+
+    let artifact = compile_catalog_artifact(
+        &[&requested, &source],
+        &CompileCatalogArtifactOptions::new("de", "en")
+            .with_icu_compatibility(true)
+            .with_icu_options(
+                CompileCatalogArtifactIcuOptions::new()
+                    .with_syntax_policy(IcuSyntaxPolicy::RuntimeLiteralApostrophes),
+            ),
+    )
+    .expect("compile artifact");
+
+    assert!(artifact.diagnostics.is_empty());
+}
+
+#[test]
 fn compile_catalog_artifact_selected_uses_runtime_literal_apostrophes_policy() {
     let source = normalized_catalog(
         "msgid \"Hours\"\nmsgstr \"Hours\"\n",
@@ -903,9 +1089,12 @@ fn compile_catalog_artifact_selected_uses_runtime_literal_apostrophes_policy() {
         Some("de"),
         PluralEncoding::Icu,
     );
-    let index =
-        CompiledCatalogIdIndex::new(&[&requested, &source], CompiledKeyStrategy::FerrocatV1)
-            .expect("index");
+    let index = CompiledCatalogIdIndex::new_with_policy(
+        &[&requested, &source],
+        CompiledKeyStrategy::FerrocatV1,
+        IcuSyntaxPolicy::RuntimeLiteralApostrophes,
+    )
+    .expect("index");
     let compiled_ids = index.iter().map(|(id, _)| id).collect::<Vec<_>>();
 
     let artifact = compile_catalog_artifact_selected(
@@ -1298,6 +1487,109 @@ fn compiled_catalog_id_index_indexes_non_obsolete_compiled_ids() {
         Some(&CatalogMessageKey::new("Hello", None))
     );
     assert!(!index.contains_id(&obsolete_key));
+}
+
+#[test]
+fn compiled_catalog_id_index_and_selected_compile_share_runtime_policy() {
+    let source = normalized_catalog(
+        "msgid \"Don't greet {name}\"\nmsgstr \"Don't greet {name}\"\n",
+        Some("en"),
+        PluralEncoding::Icu,
+    );
+    let requested = normalized_catalog(
+        "msgid \"Don't greet {name}\"\nmsgstr \"You're ready, {name}\"\n",
+        Some("de"),
+        PluralEncoding::Icu,
+    );
+    let policy = IcuSyntaxPolicy::RuntimeLiteralApostrophes;
+    let index = CompiledCatalogIdIndex::new_with_policy(
+        &[&requested, &source],
+        CompiledKeyStrategy::FerrocatV1,
+        policy,
+    )
+    .expect("compiled id index");
+    let compiled_id = compiled_key_with_policy("Don't greet {name}", None, policy);
+
+    let artifact = compile_catalog_artifact_selected(
+        &[&requested, &source],
+        &index,
+        &CompileSelectedCatalogArtifactOptions {
+            compiled_ids: &[compiled_id.as_str()],
+            options: CompileCatalogArtifactOptions::new("de", "en").with_icu_options(
+                CompileCatalogArtifactIcuOptions::new().with_syntax_policy(policy),
+            ),
+        },
+    )
+    .expect("compile selected artifact");
+
+    assert_eq!(
+        artifact.messages.get(&compiled_id).map(String::as_str),
+        Some("You''re ready, {name}")
+    );
+}
+
+#[test]
+#[cfg(feature = "serde")]
+fn policy_aware_compiled_id_index_survives_serde_roundtrip() {
+    let source = normalized_catalog(
+        "msgid \"Don't greet {name}\"\nmsgstr \"Don't greet {name}\"\n",
+        Some("en"),
+        PluralEncoding::Icu,
+    );
+    let policy = IcuSyntaxPolicy::RuntimeLiteralApostrophes;
+    let index = CompiledCatalogIdIndex::new_with_policy(
+        &[&source],
+        CompiledKeyStrategy::FerrocatV1,
+        policy,
+    )
+    .expect("compiled id index");
+    let encoded = serde_json::to_string(&index).expect("serialize index");
+    let decoded: CompiledCatalogIdIndex =
+        serde_json::from_str(&encoded).expect("deserialize index");
+    let compiled_id = compiled_key_with_policy("Don't greet {name}", None, policy);
+
+    let artifact = compile_catalog_artifact_selected(
+        &[&source],
+        &decoded,
+        &CompileSelectedCatalogArtifactOptions {
+            compiled_ids: &[compiled_id.as_str()],
+            options: CompileCatalogArtifactOptions::new("en", "en").with_icu_options(
+                CompileCatalogArtifactIcuOptions::new().with_syntax_policy(policy),
+            ),
+        },
+    )
+    .expect("compile selected artifact");
+
+    assert!(artifact.messages.contains_key(&compiled_id));
+}
+
+#[test]
+fn selected_compile_rejects_an_index_built_with_a_different_syntax_policy() {
+    let source = normalized_catalog(
+        "msgid \"Don't greet {name}\"\nmsgstr \"Don't greet {name}\"\n",
+        Some("en"),
+        PluralEncoding::Icu,
+    );
+    let index = CompiledCatalogIdIndex::new(&[&source], CompiledKeyStrategy::FerrocatV1)
+        .expect("strict compiled id index");
+    let strict_id = compiled_key("Don't greet {name}", None);
+
+    let error = compile_catalog_artifact_selected(
+        &[&source],
+        &index,
+        &CompileSelectedCatalogArtifactOptions {
+            compiled_ids: &[strict_id.as_str()],
+            options: CompileCatalogArtifactOptions::new("en", "en").with_icu_options(
+                CompileCatalogArtifactIcuOptions::new()
+                    .with_syntax_policy(IcuSyntaxPolicy::RuntimeLiteralApostrophes),
+            ),
+        },
+    )
+    .expect_err("policy mismatch");
+
+    assert!(
+        matches!(error, ApiError::InvalidArguments(message) if message.contains("compiled ID") && message.contains("derives") && message.contains("RuntimeLiteralApostrophes"))
+    );
 }
 
 #[test]

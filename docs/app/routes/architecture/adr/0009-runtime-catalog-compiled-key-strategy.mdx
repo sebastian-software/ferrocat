@@ -41,6 +41,25 @@ that accepts `msgid` and optional `msgctxt`, so downstream transforms and host
 adapters can derive the exact same runtime identity without reimplementing the
 algorithm locally.
 
+The strict `compiled_key(msgid, msgctxt)` contract remains byte-for-byte
+unchanged. Hosts that opt into `IcuSyntaxPolicy::RuntimeLiteralApostrophes` use
+the additive `compiled_key_with_policy` helper. It canonicalizes only the ICU
+`msgid` before applying the same `FerrocatV1` payload and hash:
+
+- ordinary literal apostrophes are doubled
+- existing ICU quotes before `{`, `}`, and plural/selectordinal `#` keep their
+  meaning
+- escaped `''` remains one escaped apostrophe
+- unterminated runtime quotes are closed in the canonical form
+- `msgctxt` remains untouched because it is a plain disambiguation string
+
+The canonicalization is idempotent and is also exposed through
+`canonicalize_icu_with_policy`. Policy-aware catalog compilation and
+`CompiledCatalogIdIndex::new_with_policy` derive IDs from that same canonical
+text. Selected compilation recomputes each requested ID from its mapped source
+identity under the active key strategy and syntax policy, rejecting an
+incompatibly derived ID instead of silently emitting a different output ID.
+
 Collision handling is strict:
 
 - if two distinct source identities produce the same compiled key, compilation fails
@@ -57,6 +76,8 @@ Positive:
 
 - keys are short enough for runtime bundles and generated artifacts
 - the format is easy to reproduce in other ecosystems
+- runtime-dialect host adapters can share canonical text and IDs with catalog
+  compilation without reimplementing apostrophe handling
 - no visible version prefix wastes output bytes
 - SHA-256 is a familiar and low-surprise choice for downstream implementers
 - hard collision failure keeps the contract trustworthy
@@ -66,6 +87,8 @@ Negative:
 - keys are opaque and not intended for human inspection
 - truncating to 64 bits accepts a very small theoretical collision risk
 - callers that want fallback-filled runtime artifacts must opt in explicitly
+- callers using policy-aware selected compilation must request IDs derived
+  from the same canonical text
 
 ## Alternatives Considered
 

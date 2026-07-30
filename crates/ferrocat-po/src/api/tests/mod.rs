@@ -13,8 +13,9 @@ pub(super) use super::{
     TranslationShape, UpdateCatalogFileOptions, UpdateCatalogOptions, audit_catalogs,
     combine_catalog_files, combine_catalogs, compile::compiled_key_for, compile_catalog_artifact,
     compile_catalog_artifact_report, compile_catalog_artifact_selected, compiled_key,
-    machine_translation_hash, measure_catalog_coverage, parse_catalog, parse_catalog_for_review,
-    plural::cached_icu_plural_categories_for, review_catalogs, update_catalog, update_catalog_file,
+    compiled_key_with_policy, machine_translation_hash, measure_catalog_coverage, parse_catalog,
+    parse_catalog_for_review, plural::cached_icu_plural_categories_for, review_catalogs,
+    update_catalog, update_catalog_file,
 };
 pub(super) use crate::parse_po;
 pub(super) use std::collections::{BTreeMap, HashMap};

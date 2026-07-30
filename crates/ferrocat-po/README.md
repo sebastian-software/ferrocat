@@ -50,6 +50,7 @@ Use this crate when you want that surface directly:
 - `audit_catalogs` for read-only release QA across source and target catalogs
 - `compile_catalog_artifact` for requested-locale runtime artifacts with fallback resolution and missing reports
 - `compile_catalog_artifact_selected` for selected compiled-ID subsets of those runtime artifacts
+- `canonicalize_icu_with_policy` and `compiled_key_with_policy` for host adapters that use runtime-lenient ICU apostrophe quoting
 
 `audit_catalogs` answers whether a catalog set is ready to ship without rewriting
 anything. The default report checks completeness, target-only stale messages,
