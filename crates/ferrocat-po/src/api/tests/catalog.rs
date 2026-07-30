@@ -1995,13 +1995,15 @@ fn combine_catalogs_can_disable_po_width_folding() {
     let existing = format!("msgid \"Hello\"\nmsgstr \"{LONG_TRANSLATION}\"\n");
     let inputs = [CatalogCombineInput::labeled(&existing, "existing.po")];
 
-    let result = combine_catalogs(CombineCatalogOptions {
-        inputs: &inputs,
-        source_locale: "en",
-        locale: Some("de"),
-        po_serialize: SerializeOptions::default().with_fold_length(0),
-        ..CombineCatalogOptions::new(&[], "en")
-    })
+    let result = combine_catalogs(
+        CombineCatalogOptions {
+            inputs: &inputs,
+            source_locale: "en",
+            locale: Some("de"),
+            ..CombineCatalogOptions::new(&[], "en")
+        }
+        .with_po_serialize_options(SerializeOptions::default().with_fold_length(0)),
+    )
     .expect("combine without width folding");
 
     assert!(
@@ -2023,13 +2025,15 @@ fn combine_catalog_files_can_disable_po_width_folding() {
     .expect("write ours");
     let input_paths = vec![ours.clone()];
 
-    let result = combine_catalog_files(CombineCatalogFilesOptions {
-        input_paths: &input_paths,
-        output_path: &ours,
-        locale: Some("de"),
-        po_serialize: SerializeOptions::default().with_fold_length(0),
-        ..CombineCatalogFilesOptions::new(&[], &ours, "en")
-    })
+    let result = combine_catalog_files(
+        CombineCatalogFilesOptions {
+            input_paths: &input_paths,
+            output_path: &ours,
+            locale: Some("de"),
+            ..CombineCatalogFilesOptions::new(&[], &ours, "en")
+        }
+        .with_po_serialize_options(SerializeOptions::default().with_fold_length(0)),
+    )
     .expect("combine files without width folding");
 
     let output = fs::read_to_string(&result.output_path).expect("read output");
