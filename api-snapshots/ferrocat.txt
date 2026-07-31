@@ -144,6 +144,7 @@ pub use ferrocat::SourceExtractedMessage
 pub use ferrocat::TranslationShape
 pub use ferrocat::UpdateCatalogFileOptions
 pub use ferrocat::UpdateCatalogOptions
+pub use ferrocat::WriteDurability
 pub use ferrocat::analyze_icu
 pub use ferrocat::audit_catalogs
 pub use ferrocat::canonicalize_icu_with_policy
@@ -293,6 +294,7 @@ pub use ferrocat::catalog::SourceExtractedMessage
 pub use ferrocat::catalog::TranslationShape
 pub use ferrocat::catalog::UpdateCatalogFileOptions
 pub use ferrocat::catalog::UpdateCatalogOptions
+pub use ferrocat::catalog::WriteDurability
 pub use ferrocat::catalog::audit_catalogs
 pub use ferrocat::catalog::canonicalize_icu_with_policy
 pub use ferrocat::catalog::combine_catalog_files

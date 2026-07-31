@@ -138,11 +138,11 @@ pub use api::{
     IcuSyntaxPolicy, MachineMetadata, NormalizedParsedCatalog, ObsoleteInfo, ObsoleteStrategy,
     OrderBy, ParseCatalogOptions, ParsedCatalog, PlaceholderCommentMode, PluralEncoding,
     PluralSource, RenderOptions, SourceExtractedMessage, TranslationShape,
-    UpdateCatalogFileOptions, UpdateCatalogOptions, audit_catalogs, canonicalize_icu_with_policy,
-    combine_catalog_files, combine_catalogs, compile_catalog_artifact,
-    compile_catalog_artifact_report, compile_catalog_artifact_selected, compiled_key,
-    compiled_key_with_policy, convert_catalog, convert_catalog_file, machine_translation_hash,
-    measure_catalog_coverage, parse_catalog, parse_catalog_for_review,
+    UpdateCatalogFileOptions, UpdateCatalogOptions, WriteDurability, audit_catalogs,
+    canonicalize_icu_with_policy, combine_catalog_files, combine_catalogs,
+    compile_catalog_artifact, compile_catalog_artifact_report, compile_catalog_artifact_selected,
+    compiled_key, compiled_key_with_policy, convert_catalog, convert_catalog_file,
+    machine_translation_hash, measure_catalog_coverage, parse_catalog, parse_catalog_for_review,
     pseudolocalize_compiled_catalog_artifact, review_catalogs, update_catalog, update_catalog_file,
 };
 pub use borrowed::{

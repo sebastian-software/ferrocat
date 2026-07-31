@@ -5,7 +5,7 @@ use ferrocat::{
         CatalogMode, CatalogUpdateInput, CombineCatalogOptions, CompileCatalogArtifactOptions,
         CompileSelectedCatalogArtifactOptions, CompiledCatalogIdIndex, CompiledKeyStrategy,
         EffectiveTranslation, EffectiveTranslationRef, ParseCatalogOptions, SourceExtractedMessage,
-        audit_catalogs, combine_catalogs, compile_catalog_artifact,
+        WriteDurability, audit_catalogs, combine_catalogs, compile_catalog_artifact,
         compile_catalog_artifact_selected, parse_catalog, parse_catalog_for_review,
     },
     icu, parse_po_bytes, po,
@@ -13,6 +13,7 @@ use ferrocat::{
 
 #[test]
 fn umbrella_crate_reexports_po_and_icu_surfaces() {
+    assert_eq!(WriteDurability::Rename, ferrocat::WriteDurability::Rename);
     let mut file = po::parse_po(
         r#"
 msgid "hello"

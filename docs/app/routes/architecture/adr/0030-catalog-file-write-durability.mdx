@@ -1,0 +1,66 @@
+---
+title: "ADR 0030: Make Catalog File Write Durability Explicit"
+description: "Accepted architecture decision record: update_catalog_file keeps fully synced writes by default and offers atomic rename without sync barriers for regenerable artifacts."
+order: 300
+---
+
+# ADR 0030: Make Catalog File Write Durability Explicit
+
+- Status: Accepted
+- Date: 2026-07-31
+- Relates to: [ADR 0014](/architecture/adr/0014-ferrocat-palamedes-boundary)
+- Relates to: [ADR 0029](/architecture/adr/0029-explicit-po-fcl-conversion)
+
+## Context
+
+`update_catalog_file` writes changed catalogs through a unique temporary file
+in the target directory and atomically replaces the destination. Before this
+decision, every write also synchronized the temporary file and, on Unix,
+synchronized the containing directory after replacement.
+
+That policy provides strong crash durability, but its filesystem barriers have
+a significant fixed cost on macOS. Catalogs produced by developer tooling are
+often regenerable, version-controlled artifacts. Their callers may prefer a
+lower-latency atomic replacement even when a system crash can leave an old or
+missing durable file.
+
+Moving the write outside Ferrocat would let a host choose its own durability,
+but it would duplicate the file API's read, merge, conditional-render, and
+write-only-when-changed workflow.
+
+## Decision
+
+Add the public `WriteDurability` policy to `UpdateCatalogFileOptions`.
+
+- `Full` remains the default. Ferrocat synchronizes the temporary file before
+  replacement and synchronizes the containing directory afterward where the
+  platform supports it.
+- `Rename` writes through a unique temporary file in the destination directory
+  and atomically replaces the target without requesting either synchronization.
+- The policy is used only when `update_catalog_file` produces changed content.
+  Reading, parsing, merging, validation, rendering, and conditional-write
+  behavior do not change.
+- Other file APIs retain their existing full-durability behavior. The policy is
+  exposed only where a confirmed host workflow needs the tradeoff.
+
+`Rename` preserves atomic visibility during normal operation. It does not
+promise persistence across a system crash or power loss. Callers must select it
+only for artifacts they can regenerate safely.
+
+## Consequences
+
+Positive:
+
+- existing callers retain the current durability contract
+- watch-mode and save-time tools can avoid per-catalog sync barriers explicitly
+- callers keep Ferrocat's merge and conditional-write workflow
+- tests can verify the requested synchronization operations without relying on
+  timing or platform-specific filesystem behavior
+
+Negative:
+
+- `Rename` callers accept weaker crash and power-loss recovery
+- adding another public option requires hosts to make the durability tradeoff
+  explicit when they want lower latency
+- other file APIs remain fully synchronized and may need separate policy work
+  if a demonstrated use case appears

@@ -1,10 +1,43 @@
 use std::fs;
+use std::io;
 use std::io::Write;
 use std::path::Path;
 
-use super::ApiError;
+use super::{ApiError, WriteDurability};
 
 pub(super) fn atomic_write(path: &Path, content: &str) -> Result<(), ApiError> {
+    atomic_write_with_durability(path, content, WriteDurability::Full)
+}
+
+pub(super) fn atomic_write_with_durability(
+    path: &Path,
+    content: &str,
+    durability: WriteDurability,
+) -> Result<(), ApiError> {
+    atomic_write_with_sync(
+        path,
+        content,
+        durability,
+        fs::File::sync_all,
+        sync_directory,
+    )
+}
+
+fn atomic_write_with_sync<FileSync, DirectorySync>(
+    path: &Path,
+    content: &str,
+    durability: WriteDurability,
+    file_sync: FileSync,
+    directory_sync: DirectorySync,
+) -> Result<(), ApiError>
+where
+    FileSync: FnOnce(&fs::File) -> io::Result<()>,
+    DirectorySync: FnOnce(&Path) -> io::Result<()>,
+{
+    let should_sync = match durability {
+        WriteDurability::Full => true,
+        WriteDurability::Rename => false,
+    };
     let directory = path.parent().unwrap_or_else(|| Path::new("."));
     fs::create_dir_all(directory).map_err(|error| ApiError::io_with_path(directory, error))?;
 
@@ -18,38 +51,37 @@ pub(super) fn atomic_write(path: &Path, content: &str) -> Result<(), ApiError> {
     temp_file
         .write_all(content.as_bytes())
         .map_err(|error| ApiError::io_with_path(path, error))?;
-    temp_file
-        .as_file()
-        .sync_all()
-        .map_err(|error| ApiError::io_with_path(path, error))?;
+    if should_sync {
+        file_sync(temp_file.as_file()).map_err(|error| ApiError::io_with_path(path, error))?;
+    }
     temp_file
         .persist(path)
         .map_err(|error| ApiError::io_with_path(path, error.error))?;
-    sync_directory(directory)?;
+    if should_sync {
+        directory_sync(directory).map_err(|error| ApiError::io_with_path(directory, error))?;
+    }
     Ok(())
 }
 
 #[cfg(unix)]
-fn sync_directory(directory: &Path) -> Result<(), ApiError> {
-    fs::File::open(directory)
-        .and_then(|file| file.sync_all())
-        .map_err(|error| ApiError::io_with_path(directory, error))?;
-    Ok(())
+fn sync_directory(directory: &Path) -> io::Result<()> {
+    fs::File::open(directory).and_then(|file| file.sync_all())
 }
 
 #[cfg(not(unix))]
-fn sync_directory(_directory: &Path) -> Result<(), ApiError> {
+fn sync_directory(_directory: &Path) -> io::Result<()> {
     Ok(())
 }
 
 #[cfg(test)]
 mod tests {
+    use std::cell::Cell;
     use std::fs;
     use std::path::Path;
     use std::time::{SystemTime, UNIX_EPOCH};
 
-    use super::atomic_write;
-    use crate::api::ApiError;
+    use super::{atomic_write, atomic_write_with_sync};
+    use crate::api::{ApiError, WriteDurability};
 
     fn unique_temp_path(name: &str) -> std::path::PathBuf {
         let nanos = SystemTime::now()
@@ -108,5 +140,61 @@ mod tests {
             error,
             ApiError::InvalidArguments(message) if message.contains("file name")
         ));
+    }
+
+    #[test]
+    fn atomic_write_requests_syncs_only_for_full_durability() {
+        let target = unique_temp_path("atomic-write-durability").join("catalog.po");
+        let full_file_syncs = Cell::new(0);
+        let full_directory_syncs = Cell::new(0);
+
+        atomic_write_with_sync(
+            &target,
+            "full",
+            WriteDurability::Full,
+            |_| {
+                full_file_syncs.set(full_file_syncs.get() + 1);
+                Ok(())
+            },
+            |_| {
+                full_directory_syncs.set(full_directory_syncs.get() + 1);
+                Ok(())
+            },
+        )
+        .expect("full durability write");
+
+        assert_eq!(full_file_syncs.get(), 1);
+        assert_eq!(full_directory_syncs.get(), 1);
+
+        let rename_file_syncs = Cell::new(0);
+        let rename_directory_syncs = Cell::new(0);
+        atomic_write_with_sync(
+            &target,
+            "rename",
+            WriteDurability::Rename,
+            |_| {
+                rename_file_syncs.set(rename_file_syncs.get() + 1);
+                Ok(())
+            },
+            |_| {
+                rename_directory_syncs.set(rename_directory_syncs.get() + 1);
+                Ok(())
+            },
+        )
+        .expect("rename durability write");
+
+        assert_eq!(rename_file_syncs.get(), 0);
+        assert_eq!(rename_directory_syncs.get(), 0);
+        assert_eq!(fs::read_to_string(&target).expect("read target"), "rename");
+
+        let parent = target.parent().expect("parent");
+        let files = fs::read_dir(parent)
+            .expect("read parent")
+            .map(|entry| entry.expect("dir entry").file_name())
+            .collect::<Vec<_>>();
+        assert_eq!(files, vec![std::ffi::OsString::from("catalog.po")]);
+
+        let root = target.ancestors().nth(1).expect("temp root").to_path_buf();
+        fs::remove_dir_all(root).expect("cleanup");
     }
 }

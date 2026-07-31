@@ -735,6 +735,7 @@ fn update_catalog_file_writes_only_when_changed() {
 
     let first = update_catalog_file(UpdateCatalogFileOptions {
         target_path: &path,
+        durability: WriteDurability::Full,
         options: UpdateCatalogOptions {
             locale: Some("en"),
             input: structured_input(vec![ExtractedMessage::Singular(ExtractedSingularMessage {
@@ -749,6 +750,7 @@ fn update_catalog_file_writes_only_when_changed() {
 
     let second = update_catalog_file(UpdateCatalogFileOptions {
         target_path: &path,
+        durability: WriteDurability::Full,
         options: UpdateCatalogOptions {
             locale: Some("en"),
             input: structured_input(vec![ExtractedMessage::Singular(ExtractedSingularMessage {
@@ -773,6 +775,7 @@ fn update_catalog_file_read_error_includes_path_context() {
 
     let error = update_catalog_file(UpdateCatalogFileOptions {
         target_path: &temp_dir,
+        durability: WriteDurability::Full,
         options: UpdateCatalogOptions {
             locale: Some("en"),
             ..UpdateCatalogOptions::new(
@@ -1471,6 +1474,7 @@ msgstr "Zebra"
 fn update_catalog_file_rejects_empty_target_path() {
     let error = update_catalog_file(UpdateCatalogFileOptions {
         target_path: std::path::Path::new(""),
+        durability: WriteDurability::Full,
         options: UpdateCatalogOptions::new("en", structured_input(Vec::new())),
     })
     .expect_err("empty path should fail");

@@ -74,7 +74,7 @@ pub use self::types::{
     ExtractedSingularMessage, IcuSyntaxPolicy, NormalizedParsedCatalog, ObsoleteInfo,
     ObsoleteStrategy, OrderBy, ParseCatalogOptions, ParsedCatalog, PlaceholderCommentMode,
     PluralEncoding, PluralSource, RenderOptions, SourceExtractedMessage, TranslationShape,
-    UpdateCatalogFileOptions, UpdateCatalogOptions,
+    UpdateCatalogFileOptions, UpdateCatalogOptions, WriteDurability,
 };
 fn validate_source_locale(source_locale: &str) -> Result<(), ApiError> {
     if source_locale.trim().is_empty() {

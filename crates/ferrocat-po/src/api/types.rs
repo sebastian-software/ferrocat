@@ -1545,6 +1545,24 @@ impl<'a> UpdateCatalogOptions<'a> {
     }
 }
 
+/// Durability policy for an atomic catalog file write.
+///
+/// [`WriteDurability::Full`] is the default and preserves Ferrocat's existing
+/// crash-durability behavior. [`WriteDurability::Rename`] is intended for
+/// regenerable artifacts whose callers prefer lower write latency over
+/// filesystem-barrier guarantees.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[non_exhaustive]
+pub enum WriteDurability {
+    /// Syncs the temporary file, atomically replaces the target, and then
+    /// syncs the containing directory where the platform supports it.
+    #[default]
+    Full,
+    /// Atomically replaces the target through a unique temporary file without
+    /// syncing the file or containing directory.
+    Rename,
+}
+
 /// Options for updating a catalog file on disk.
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
@@ -1553,6 +1571,10 @@ pub struct UpdateCatalogFileOptions<'a> {
     pub target_path: &'a Path,
     /// In-memory update options applied to the file content.
     pub options: UpdateCatalogOptions<'a>,
+    /// Durability policy used when the updated catalog is written.
+    ///
+    /// Defaults to [`WriteDurability::Full`].
+    pub durability: WriteDurability,
 }
 
 impl<'a> UpdateCatalogFileOptions<'a> {
@@ -1569,6 +1591,7 @@ impl<'a> UpdateCatalogFileOptions<'a> {
         Self {
             target_path,
             options: UpdateCatalogOptions::new(source_locale, input),
+            durability: WriteDurability::Full,
         }
     }
 
@@ -1576,6 +1599,13 @@ impl<'a> UpdateCatalogFileOptions<'a> {
     #[must_use]
     pub fn with_options(mut self, options: UpdateCatalogOptions<'a>) -> Self {
         self.options = options;
+        self
+    }
+
+    /// Returns file update options that use the given write durability policy.
+    #[must_use]
+    pub fn with_durability(mut self, durability: WriteDurability) -> Self {
+        self.durability = durability;
         self
     }
 }
@@ -1874,6 +1904,7 @@ mod tests {
         EffectiveTranslationRef, NormalizedParsedCatalog, ObsoleteStrategy, OrderBy,
         ParseCatalogOptions, ParsedCatalog, PlaceholderCommentMode, PluralEncoding, PluralSource,
         RenderOptions, TranslationShape, UpdateCatalogFileOptions, UpdateCatalogOptions,
+        WriteDurability,
     };
     use crate::ParseError;
 
@@ -2049,6 +2080,7 @@ mod tests {
             Vec::<super::SourceExtractedMessage>::new(),
         );
         assert_eq!(update_file.target_path, Path::new("locale/de.po"));
+        assert_eq!(update_file.durability, WriteDurability::Full);
         assert_eq!(update_file.options.mode, CatalogMode::IcuPo);
         assert_eq!(update_file.options.source_locale, "en");
         assert!(matches!(
@@ -2191,10 +2223,12 @@ mod tests {
             "en",
             CatalogUpdateInput::default(),
         )
-        .with_options(update.clone());
+        .with_options(update.clone())
+        .with_durability(WriteDurability::Rename);
 
         assert_eq!(file_update.target_path, Path::new("messages.po"));
         assert_eq!(file_update.options, update);
+        assert_eq!(file_update.durability, WriteDurability::Rename);
     }
 
     #[test]

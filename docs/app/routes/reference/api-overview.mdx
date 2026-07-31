@@ -1014,6 +1014,40 @@ Like `update_catalog`, it accepts `CatalogUpdateInput`, so extractor tooling can
 
 `UpdateCatalogFileOptions` borrows both the path and the locale/header inputs, so file-based automation can call it without constructing throwaway owned request objects.
 
+File updates use `WriteDurability::Full` by default. This syncs the temporary
+file before the atomic replacement and syncs the containing directory where the
+platform supports it. Existing callers keep this crash-durability behavior.
+
+Regenerable, version-controlled artifacts can opt into
+`WriteDurability::Rename`:
+
+```rust
+use std::path::Path;
+
+use ferrocat::{
+    CatalogUpdateInput, UpdateCatalogFileOptions, WriteDurability,
+    update_catalog_file,
+};
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    update_catalog_file(
+        UpdateCatalogFileOptions::new(
+            Path::new("locales/de.po"),
+            "en",
+            CatalogUpdateInput::default(),
+        )
+        .with_durability(WriteDurability::Rename),
+    )?;
+
+    Ok(())
+}
+```
+
+`Rename` still writes through a unique temporary file in the target directory
+and atomically replaces the destination. It skips both sync barriers, so a
+system crash can leave the old file or no durable replacement. Use it only when
+the catalog can be regenerated safely.
+
 ## ICU MessageFormat
 
 Ferrocat's ICU APIs currently target ICU MessageFormat v1. MessageFormat 2 is
