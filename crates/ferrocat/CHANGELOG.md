@@ -27,6 +27,13 @@
 - Active PO and FCL fuzzy entries no longer count as translated, including in
   the coverage rollups embedded in review reports.
 
+## [3.3.0](https://github.com/sebastian-software/ferrocat/compare/ferrocat-v3.2.2...ferrocat-v3.3.0) (2026-07-31)
+
+
+### Features
+
+* **po:** add catalog write durability option ([#288](https://github.com/sebastian-software/ferrocat/issues/288)) ([db325ec](https://github.com/sebastian-software/ferrocat/commit/db325ec31719ed91e7b75e5680bf081c34d1838a))
+
 ## [3.2.2](https://github.com/sebastian-software/ferrocat/compare/ferrocat-v3.2.1...ferrocat-v3.2.2) (2026-07-30)
 
 
