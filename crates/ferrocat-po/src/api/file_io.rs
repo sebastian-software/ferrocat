@@ -145,46 +145,40 @@ mod tests {
     #[test]
     fn atomic_write_requests_syncs_only_for_full_durability() {
         let target = unique_temp_path("atomic-write-durability").join("catalog.po");
-        let full_file_syncs = Cell::new(0);
-        let full_directory_syncs = Cell::new(0);
+        let file_syncs = Cell::new(0);
+        let directory_syncs = Cell::new(0);
+        let file_sync = |_: &fs::File| {
+            file_syncs.set(file_syncs.get() + 1);
+            Ok(())
+        };
+        let directory_sync = |_: &Path| {
+            directory_syncs.set(directory_syncs.get() + 1);
+            Ok(())
+        };
 
         atomic_write_with_sync(
             &target,
             "full",
             WriteDurability::Full,
-            |_| {
-                full_file_syncs.set(full_file_syncs.get() + 1);
-                Ok(())
-            },
-            |_| {
-                full_directory_syncs.set(full_directory_syncs.get() + 1);
-                Ok(())
-            },
+            file_sync,
+            directory_sync,
         )
         .expect("full durability write");
 
-        assert_eq!(full_file_syncs.get(), 1);
-        assert_eq!(full_directory_syncs.get(), 1);
+        assert_eq!(file_syncs.get(), 1);
+        assert_eq!(directory_syncs.get(), 1);
 
-        let rename_file_syncs = Cell::new(0);
-        let rename_directory_syncs = Cell::new(0);
         atomic_write_with_sync(
             &target,
             "rename",
             WriteDurability::Rename,
-            |_| {
-                rename_file_syncs.set(rename_file_syncs.get() + 1);
-                Ok(())
-            },
-            |_| {
-                rename_directory_syncs.set(rename_directory_syncs.get() + 1);
-                Ok(())
-            },
+            file_sync,
+            directory_sync,
         )
         .expect("rename durability write");
 
-        assert_eq!(rename_file_syncs.get(), 0);
-        assert_eq!(rename_directory_syncs.get(), 0);
+        assert_eq!(file_syncs.get(), 1);
+        assert_eq!(directory_syncs.get(), 1);
         assert_eq!(fs::read_to_string(&target).expect("read target"), "rename");
 
         let parent = target.parent().expect("parent");
