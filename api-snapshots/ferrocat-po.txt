@@ -883,11 +883,16 @@ pub ferrocat_po::SourceExtractedMessage::msgctxt: core::option::Option<alloc::st
 pub ferrocat_po::SourceExtractedMessage::msgid: alloc::string::String
 pub ferrocat_po::SourceExtractedMessage::origin: alloc::vec::Vec<ferrocat_po::CatalogOrigin>
 pub ferrocat_po::SourceExtractedMessage::placeholders: alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::vec::Vec<alloc::string::String>>
+#[non_exhaustive] pub enum ferrocat_po::WriteDurability
+pub ferrocat_po::WriteDurability::Full
+pub ferrocat_po::WriteDurability::Rename
 #[non_exhaustive] pub struct ferrocat_po::UpdateCatalogFileOptions<'a>
+pub ferrocat_po::UpdateCatalogFileOptions::durability: ferrocat_po::WriteDurability
 pub ferrocat_po::UpdateCatalogFileOptions::options: ferrocat_po::UpdateCatalogOptions<'a>
 pub ferrocat_po::UpdateCatalogFileOptions::target_path: &'a std::path::Path
 impl<'a> ferrocat_po::UpdateCatalogFileOptions<'a>
 pub fn ferrocat_po::UpdateCatalogFileOptions<'a>::new(&'a std::path::Path, &'a str, impl core::convert::Into<ferrocat_po::CatalogUpdateInput>) -> Self
+pub fn ferrocat_po::UpdateCatalogFileOptions<'a>::with_durability(self, ferrocat_po::WriteDurability) -> Self
 pub fn ferrocat_po::UpdateCatalogFileOptions<'a>::with_options(self, ferrocat_po::UpdateCatalogOptions<'a>) -> Self
 #[non_exhaustive] pub struct ferrocat_po::UpdateCatalogOptions<'a>
 pub ferrocat_po::UpdateCatalogOptions::existing: core::option::Option<&'a str>

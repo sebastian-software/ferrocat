@@ -16,6 +16,7 @@
 ### Features
 
 * **catalog:** add explicit PO/FCL conversion that preserves shared message metadata
+* **po:** expose opt-in rename-only durability for catalog file updates
 * **icu:** expose policy-aware runtime apostrophe canonicalization and compiled-key derivation
 
 ### Bug Fixes

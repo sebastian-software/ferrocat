@@ -15,7 +15,7 @@ use crate::diagnostic_codes;
 
 use super::collation::{apply_order, collate_indices, sort_messages_collated};
 use super::export::export_catalog_content;
-use super::file_io::atomic_write;
+use super::file_io::atomic_write_with_durability;
 use super::helpers::{
     dedupe_origins, dedupe_placeholders, dedupe_strings, merge_placeholders, merge_unique_origins,
     merge_unique_strings,
@@ -271,6 +271,11 @@ pub fn update_catalog(
 /// Updates a catalog on disk and only writes the file when the rendered
 /// output changes.
 ///
+/// Writes use [`super::WriteDurability::Full`] by default. Callers that manage
+/// regenerable artifacts can select [`super::WriteDurability::Rename`] through
+/// [`UpdateCatalogFileOptions::with_durability`] to retain atomic replacement
+/// while skipping filesystem sync barriers.
+///
 /// # Errors
 ///
 /// Returns [`ApiError`] when the input is invalid, when the existing file
@@ -296,7 +301,7 @@ pub fn update_catalog_file(
     let result = update_catalog(update_options)?;
 
     if result.created || result.updated {
-        atomic_write(options.target_path, &result.content)?;
+        atomic_write_with_durability(options.target_path, &result.content, options.durability)?;
     }
 
     Ok(result)
