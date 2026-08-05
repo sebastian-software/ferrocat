@@ -138,9 +138,11 @@ pub mod catalog {
 pub mod combine {
     /// Combine resolved a conflicting translation according to the chosen strategy.
     pub const CONFLICT_RESOLVED: &str = "combine.conflict_resolved";
+    /// Three-way merge resolved a modify/delete conflict according to the chosen strategy.
+    pub const MODIFY_DELETE_RESOLVED: &str = "combine.modify_delete_resolved";
 
     /// All catalog combine diagnostic codes emitted by this crate.
-    pub const ALL: &[&str] = &[CONFLICT_RESOLVED];
+    pub const ALL: &[&str] = &[CONFLICT_RESOLVED, MODIFY_DELETE_RESOLVED];
 }
 
 /// Runtime compilation diagnostic codes.

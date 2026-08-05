@@ -17,11 +17,12 @@ use super::export::export_catalog_content;
 use super::file_io::atomic_write;
 use super::helpers::{merge_placeholders, merge_unique_origins, merge_unique_strings};
 use super::{
-    ApiError, CatalogCombineResult, CatalogCombineSelection, CatalogCombineStats,
-    CatalogConflictStrategy, CatalogFileCombineResult, CatalogFileFormat, CatalogMode,
-    CatalogStorageFormat, CatalogUpdateInput, CombineCatalogFilesOptions, CombineCatalogOptions,
-    Diagnostic, DiagnosticSeverity, ObsoleteInfo, ObsoleteStrategy, OrderBy,
-    PlaceholderCommentMode, RenderOptions, UpdateCatalogOptions,
+    ApiError, CatalogCombineInput, CatalogCombineResult, CatalogCombineSelection,
+    CatalogCombineStats, CatalogConflictStrategy, CatalogFileCombineResult, CatalogFileFormat,
+    CatalogMergeSide, CatalogMessageKey, CatalogMode, CatalogStorageFormat, CatalogUpdateInput,
+    CombineCatalogFilesOptions, CombineCatalogOptions, Diagnostic, DiagnosticSeverity,
+    MergeCatalogsThreeWayOptions, ObsoleteInfo, ObsoleteStrategy, OrderBy, PlaceholderCommentMode,
+    RenderOptions, UpdateCatalogOptions,
 };
 
 #[derive(Debug, Clone, PartialEq)]
@@ -69,6 +70,20 @@ impl<'a> CombineConfig<'a> {
             order_by: options.order_by,
             include_origins: options.include_origins,
             include_obsolete: options.include_obsolete,
+            po_serialize: &options.po_serialize,
+        }
+    }
+
+    fn from_three_way_options(options: &'a MergeCatalogsThreeWayOptions<'a>) -> Self {
+        Self {
+            locale: options.locale,
+            source_locale: options.source_locale,
+            mode: options.mode,
+            conflict_strategy: options.conflict_strategy,
+            selection: CatalogCombineSelection::All,
+            order_by: options.order_by,
+            include_origins: options.include_origins,
+            include_obsolete: true,
             po_serialize: &options.po_serialize,
         }
     }
@@ -231,6 +246,45 @@ impl CombineState {
     }
 }
 
+#[derive(Debug)]
+struct ThreeWayCatalog {
+    catalog: Catalog,
+    entries: BTreeMap<CatalogMessageKey, Vec<usize>>,
+}
+
+impl ThreeWayCatalog {
+    fn parse(input: CatalogCombineInput<'_>, config: CombineConfig<'_>) -> Result<Self, ApiError> {
+        let catalog = parse_combine_catalog(input.content, config)?;
+        let mut entries = BTreeMap::<CatalogMessageKey, Vec<usize>>::new();
+        for (message_index, message) in catalog.messages.iter().enumerate() {
+            entries
+                .entry(canonical_message_key(message))
+                .or_default()
+                .push(message_index);
+        }
+        Ok(Self { catalog, entries })
+    }
+
+    fn definition_count(&self) -> usize {
+        self.catalog.messages.len()
+    }
+
+    fn into_filtered_catalog(mut self, selected: &BTreeSet<CatalogMessageKey>) -> Catalog {
+        self.catalog
+            .messages
+            .retain(|message| selected.contains(&canonical_message_key(message)));
+        self.catalog
+    }
+
+    fn entry_matches(&self, indexes: &[usize], other: &Self, other_indexes: &[usize]) -> bool {
+        indexes.len() == other_indexes.len()
+            && indexes
+                .iter()
+                .zip(other_indexes)
+                .all(|(left, right)| self.catalog.messages[*left] == other.catalog.messages[*right])
+    }
+}
+
 /// Combines multiple catalogs into one deterministic catalog.
 ///
 /// This is Ferrocat's Rust-native N-way catalog combine API. It covers the
@@ -295,6 +349,148 @@ pub fn combine_catalogs(
     }
 
     state.finish(config)
+}
+
+/// Merges an ancestor and two current catalogs with deletion-aware semantics.
+///
+/// Message identity is `msgid` plus optional `msgctxt`. Entries deleted from
+/// both current sides stay deleted. A one-sided deletion also wins when the
+/// other side still matches the ancestor. Modify/delete conflicts and
+/// independently modified translations follow
+/// [`CatalogConflictStrategy`]. Retained entries use the same metadata
+/// ownership and rendering rules as [`combine_catalogs`].
+///
+/// The operation is deterministic and performs no filesystem or environment
+/// access. Hosts remain responsible for assigning Git or other version-control
+/// roles to the explicit ancestor, ours, and theirs inputs.
+///
+/// # Errors
+///
+/// Returns [`ApiError`] when the source locale is invalid, a catalog cannot be
+/// parsed or rendered, message shapes conflict, or the selected conflict
+/// strategy rejects a translation or modify/delete conflict.
+///
+/// # Examples
+///
+/// ```rust
+/// use ferrocat_po::{
+///     CatalogCombineInput, MergeCatalogsThreeWayOptions, merge_catalogs_three_way,
+/// };
+///
+/// let ancestor = CatalogCombineInput::labeled(
+///     "msgid \"Removed\"\nmsgstr \"Alt\"\n",
+///     "ancestor",
+/// );
+/// let ours = CatalogCombineInput::labeled("", "ours");
+/// let theirs = CatalogCombineInput::labeled("", "theirs");
+/// let merged = merge_catalogs_three_way(MergeCatalogsThreeWayOptions::new(
+///     ancestor, ours, theirs, "en",
+/// ))?;
+///
+/// assert!(!merged.content.contains("Removed"));
+/// # Ok::<(), ferrocat_po::ApiError>(())
+/// ```
+#[expect(
+    clippy::needless_pass_by_value,
+    reason = "Public API takes owned option structs so callers can build and move them ergonomically."
+)]
+pub fn merge_catalogs_three_way(
+    options: MergeCatalogsThreeWayOptions<'_>,
+) -> Result<CatalogCombineResult, ApiError> {
+    super::validate_source_locale(options.source_locale)?;
+    let config = CombineConfig::from_three_way_options(&options);
+    let mut ancestor = ThreeWayCatalog::parse(options.ancestor, config)?;
+    let ours = ThreeWayCatalog::parse(options.ours, config)?;
+    let theirs = ThreeWayCatalog::parse(options.theirs, config)?;
+    let definitions =
+        ancestor.definition_count() + ours.definition_count() + theirs.definition_count();
+
+    let mut all_keys = BTreeSet::new();
+    all_keys.extend(ancestor.entries.keys().cloned());
+    all_keys.extend(ours.entries.keys().cloned());
+    all_keys.extend(theirs.entries.keys().cloned());
+
+    let mut ours_selected = BTreeSet::new();
+    let mut theirs_selected = BTreeSet::new();
+    let mut modify_delete_diagnostics = Vec::new();
+    for key in &all_keys {
+        let ancestor_entry = ancestor.entries.get(key);
+        let ours_entry = ours.entries.get(key);
+        let theirs_entry = theirs.entries.get(key);
+        match (ancestor_entry, ours_entry, theirs_entry) {
+            (_, Some(ours_entry), Some(theirs_entry))
+                if ours.entry_matches(ours_entry, &theirs, theirs_entry) =>
+            {
+                ours_selected.insert(key.clone());
+            }
+            (Some(ancestor_entry), Some(ours_entry), Some(_))
+                if ours.entry_matches(ours_entry, &ancestor, ancestor_entry) =>
+            {
+                theirs_selected.insert(key.clone());
+            }
+            (Some(ancestor_entry), Some(_), Some(theirs_entry))
+                if theirs.entry_matches(theirs_entry, &ancestor, ancestor_entry) =>
+            {
+                ours_selected.insert(key.clone());
+            }
+            (_, Some(_), Some(_)) => {
+                ours_selected.insert(key.clone());
+                theirs_selected.insert(key.clone());
+            }
+            (None, Some(_), None) => {
+                ours_selected.insert(key.clone());
+            }
+            (None, None, Some(_)) => {
+                theirs_selected.insert(key.clone());
+            }
+            (Some(ancestor_entry), Some(ours_entry), None)
+                if ours.entry_matches(ours_entry, &ancestor, ancestor_entry) => {}
+            (Some(ancestor_entry), None, Some(theirs_entry))
+                if theirs.entry_matches(theirs_entry, &ancestor, ancestor_entry) => {}
+            (Some(_), Some(_), None) => resolve_modify_delete(
+                key,
+                CatalogMergeSide::Ours,
+                options.conflict_strategy,
+                &mut ours_selected,
+                &mut theirs_selected,
+                &mut modify_delete_diagnostics,
+            )?,
+            (Some(_), None, Some(_)) => resolve_modify_delete(
+                key,
+                CatalogMergeSide::Theirs,
+                options.conflict_strategy,
+                &mut ours_selected,
+                &mut theirs_selected,
+                &mut modify_delete_diagnostics,
+            )?,
+            (Some(_), None, None) | (None, None, None) => {}
+        }
+    }
+
+    let ancestor_diagnostics = std::mem::take(&mut ancestor.catalog.diagnostics);
+    let ours_catalog = ours.into_filtered_catalog(&ours_selected);
+    let theirs_catalog = theirs.into_filtered_catalog(&theirs_selected);
+    let mut state = CombineState::new(3, options.locale);
+    state.diagnostics.extend(ancestor_diagnostics);
+    state.stats.conflicts_resolved += modify_delete_diagnostics.len();
+    state.diagnostics.extend(modify_delete_diagnostics);
+    state.push_catalog(
+        ours_catalog,
+        0,
+        role_label(options.ours.label, "ours"),
+        config,
+    )?;
+    state.push_catalog(
+        theirs_catalog,
+        1,
+        role_label(options.theirs.label, "theirs"),
+        config,
+    )?;
+
+    let mut result = state.finish(config)?;
+    result.stats.definitions = definitions;
+    result.stats.skipped = all_keys.len().saturating_sub(result.stats.total);
+    Ok(result)
 }
 
 /// Combines catalog files and atomically replaces the requested output path.
@@ -400,6 +596,62 @@ fn catalog_mode_for_file_format(
 
 fn input_label(label: Option<&str>, index: usize) -> String {
     label.map_or_else(|| format!("input {}", index + 1), str::to_owned)
+}
+
+fn role_label(label: Option<&str>, fallback: &str) -> String {
+    label.unwrap_or(fallback).to_owned()
+}
+
+fn canonical_message_key(message: &CanonicalMessage) -> CatalogMessageKey {
+    CatalogMessageKey::new(message.msgid.clone(), message.msgctxt.clone())
+}
+
+fn resolve_modify_delete(
+    key: &CatalogMessageKey,
+    modified_side: CatalogMergeSide,
+    strategy: CatalogConflictStrategy,
+    ours_selected: &mut BTreeSet<CatalogMessageKey>,
+    theirs_selected: &mut BTreeSet<CatalogMessageKey>,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> Result<(), ApiError> {
+    let deleted_side = match modified_side {
+        CatalogMergeSide::Ours => CatalogMergeSide::Theirs,
+        CatalogMergeSide::Theirs => CatalogMergeSide::Ours,
+    };
+    let winner = match strategy {
+        CatalogConflictStrategy::UseFirst => CatalogMergeSide::Ours,
+        CatalogConflictStrategy::UseLast => CatalogMergeSide::Theirs,
+        CatalogConflictStrategy::Error => {
+            return Err(ApiError::ModifyDeleteConflict {
+                msgid: key.msgid.clone(),
+                msgctxt: key.msgctxt.clone(),
+                modified_side,
+                deleted_side,
+            });
+        }
+    };
+    if winner == modified_side {
+        match modified_side {
+            CatalogMergeSide::Ours => {
+                ours_selected.insert(key.clone());
+            }
+            CatalogMergeSide::Theirs => {
+                theirs_selected.insert(key.clone());
+            }
+        }
+    }
+    diagnostics.push(
+        Diagnostic::new(
+            DiagnosticSeverity::Warning,
+            diagnostic_codes::combine::MODIFY_DELETE_RESOLVED,
+            format!(
+                "Resolved modify/delete conflict: {modified_side} modified the entry, \
+                 {deleted_side} deleted it, and {winner} won using {strategy:?}."
+            ),
+        )
+        .with_identity(&key.msgid, key.msgctxt.as_deref()),
+    );
+    Ok(())
 }
 
 fn merge_combine_message(

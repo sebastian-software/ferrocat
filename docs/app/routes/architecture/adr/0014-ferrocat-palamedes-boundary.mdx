@@ -61,6 +61,10 @@ Concretely:
   can populate from JS/TS extraction without Ferrocat owning that extraction.
 - Ferrocat should expose catalog audit reports that Palamedes can use for CI
   and release workflows without Palamedes reimplementing generic catalog QA.
+- Ferrocat should own host-neutral ancestor/ours/theirs catalog semantics,
+  including deletion and modify/delete behavior. Palamedes should map Git merge
+  and rebase roles, resolve application configuration, and expose the result
+  through its CLI and N-API surfaces.
 - Ferrocat should keep storage and semantic contracts documented in ADRs and
   rustdoc.
 - Palamedes should own JS/TS extraction, transforms, routing conventions,

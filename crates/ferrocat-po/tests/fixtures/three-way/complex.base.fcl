@@ -1,0 +1,11 @@
+%FCL1	source=en	locale=de
+Delete unchanged		Alt
+Hello		Alt	r=src/base.rs	c=base greeting	tc=base translator note
+Machine		Alt
+Metadata		Wert	r=src/base.rs	c=base metadata
+Modify delete		Alt
+Obsolete		Veraltet	o
+Open		Oeffnen
+Open	menu	Menue
+Removed		Entfernt
+{count, plural, one {One file} other {# files}}		{count, plural, one {Eine Datei} other {# Dateien}}

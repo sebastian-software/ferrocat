@@ -29,7 +29,7 @@ pub use self::audit::{
 pub use self::catalog::{
     parse_catalog, parse_catalog_for_review, update_catalog, update_catalog_file,
 };
-pub use self::combine::{combine_catalog_files, combine_catalogs};
+pub use self::combine::{combine_catalog_files, combine_catalogs, merge_catalogs_three_way};
 pub use self::compile::{
     compile_catalog_artifact, compile_catalog_artifact_report, compile_catalog_artifact_selected,
     compiled_key, compiled_key_with_policy,
@@ -66,15 +66,16 @@ pub use self::review::{
 pub use self::types::{
     ApiError, CatalogCombineInput, CatalogCombineResult, CatalogCombineSelection,
     CatalogCombineStats, CatalogConflictStrategy, CatalogConvertResult, CatalogFileCombineResult,
-    CatalogFileConvertResult, CatalogFileFormat, CatalogMessage, CatalogMessageKey, CatalogMode,
-    CatalogOrigin, CatalogSemantics, CatalogStats, CatalogStorageFormat, CatalogUpdateInput,
-    CatalogUpdateResult, CombineCatalogFilesOptions, CombineCatalogOptions,
-    ConvertCatalogFileOptions, ConvertCatalogOptions, Diagnostic, DiagnosticSeverity,
-    EffectiveTranslation, EffectiveTranslationRef, ExtractedMessage, ExtractedPluralMessage,
-    ExtractedSingularMessage, IcuSyntaxPolicy, NormalizedParsedCatalog, ObsoleteInfo,
-    ObsoleteStrategy, OrderBy, ParseCatalogOptions, ParsedCatalog, PlaceholderCommentMode,
-    PluralEncoding, PluralSource, RenderOptions, SourceExtractedMessage, TranslationShape,
-    UpdateCatalogFileOptions, UpdateCatalogOptions, WriteDurability,
+    CatalogFileConvertResult, CatalogFileFormat, CatalogMergeSide, CatalogMessage,
+    CatalogMessageKey, CatalogMode, CatalogOrigin, CatalogSemantics, CatalogStats,
+    CatalogStorageFormat, CatalogUpdateInput, CatalogUpdateResult, CombineCatalogFilesOptions,
+    CombineCatalogOptions, ConvertCatalogFileOptions, ConvertCatalogOptions, Diagnostic,
+    DiagnosticSeverity, EffectiveTranslation, EffectiveTranslationRef, ExtractedMessage,
+    ExtractedPluralMessage, ExtractedSingularMessage, IcuSyntaxPolicy,
+    MergeCatalogsThreeWayOptions, NormalizedParsedCatalog, ObsoleteInfo, ObsoleteStrategy, OrderBy,
+    ParseCatalogOptions, ParsedCatalog, PlaceholderCommentMode, PluralEncoding, PluralSource,
+    RenderOptions, SourceExtractedMessage, TranslationShape, UpdateCatalogFileOptions,
+    UpdateCatalogOptions, WriteDurability,
 };
 fn validate_source_locale(source_locale: &str) -> Result<(), ApiError> {
     if source_locale.trim().is_empty() {

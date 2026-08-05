@@ -1,0 +1,12 @@
+%FCL1	source=en	locale=de	order=collated
+{count, plural, one {One file} other {# files}}		{count, plural, one {Ein Dokument} other {# Dokumente}}
+Hello		Guten Tag	r=src/ours.rs	r=src/theirs.rs	c=ours greeting	c=theirs greeting	tc=ours translator note	f=fuzzy	f=custom-ours
+Machine		Automatisch	lock={{LOCK}}	ai=example/model:0.75
+Metadata		Wert	r=src/ours.rs	r=src/theirs.rs	c=ours metadata	c=theirs metadata
+Modify delete		Geaendert
+New both		Unser neu
+New ours		Nur unser
+New theirs		Nur ihr
+Obsolete		Veraltet	o
+Open		Aufmachen
+Open	menu	Navigation

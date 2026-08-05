@@ -1,0 +1,40 @@
+msgid ""
+msgstr ""
+"Language: de\n"
+"X-Branch: base\n"
+
+msgid "Delete unchanged"
+msgstr "Alt"
+
+#. base greeting
+# base translator note
+#: src/base.rs
+msgid "Hello"
+msgstr "Alt"
+
+msgid "Machine"
+msgstr "Alt"
+
+#. base metadata
+#: src/base.rs
+msgid "Metadata"
+msgstr "Wert"
+
+msgid "Modify delete"
+msgstr "Alt"
+
+#~ msgid "Obsolete"
+#~ msgstr "Veraltet"
+
+msgid "Open"
+msgstr "Oeffnen"
+
+msgctxt "menu"
+msgid "Open"
+msgstr "Menue"
+
+msgid "Removed"
+msgstr "Entfernt"
+
+msgid "{count, plural, one {One file} other {# files}}"
+msgstr "{count, plural, one {Eine Datei} other {# Dateien}}"

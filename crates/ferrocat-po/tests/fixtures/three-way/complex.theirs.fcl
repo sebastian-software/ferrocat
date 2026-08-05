@@ -1,0 +1,10 @@
+%FCL1	source=en	locale=de
+Hello		Servus	r=src/theirs.rs	c=theirs greeting	tc=theirs translator note
+Machine		Alt
+Metadata		Wert	r=src/theirs.rs	c=theirs metadata
+New both		Ihr neu
+New theirs		Nur ihr
+Obsolete		Veraltet	o
+Open		Oeffnen
+Open	menu	Navigation
+{count, plural, one {One file} other {# files}}		{count, plural, one {Ein Dokument} other {# Dokumente}}

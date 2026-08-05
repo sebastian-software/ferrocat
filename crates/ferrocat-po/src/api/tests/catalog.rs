@@ -1551,6 +1551,183 @@ fn combine_catalogs_rejects_empty_inputs() {
 }
 
 #[test]
+fn three_way_merge_preserves_deletions_and_entries_new_on_either_side() {
+    let ancestor = CatalogCombineInput::labeled(
+        concat!(
+            "msgid \"Deleted by both\"\nmsgstr \"Alt\"\n\n",
+            "msgid \"Deleted by theirs\"\nmsgstr \"Alt\"\n",
+        ),
+        "ancestor",
+    );
+    let ours = CatalogCombineInput::labeled(
+        concat!(
+            "msgid \"Deleted by theirs\"\nmsgstr \"Alt\"\n\n",
+            "msgid \"New ours\"\nmsgstr \"Unser\"\n",
+        ),
+        "ours",
+    );
+    let theirs = CatalogCombineInput::labeled("msgid \"New theirs\"\nmsgstr \"Ihr\"\n", "theirs");
+
+    let result = merge_catalogs_three_way(
+        MergeCatalogsThreeWayOptions::new(ancestor, ours, theirs, "en").with_locale("de"),
+    )
+    .expect("three-way merge");
+
+    assert!(!result.content.contains("Deleted by both"));
+    assert!(!result.content.contains("Deleted by theirs"));
+    assert!(result.content.contains("New ours"));
+    assert!(result.content.contains("New theirs"));
+    assert_eq!(result.stats.inputs, 3);
+    assert_eq!(result.stats.definitions, 5);
+    assert_eq!(result.stats.skipped, 2);
+}
+
+#[test]
+fn three_way_merge_takes_a_one_sided_change_without_reporting_a_conflict() {
+    let ancestor = CatalogCombineInput::labeled("msgid \"Hello\"\nmsgstr \"Alt\"\n", "ancestor");
+    let ours = CatalogCombineInput::labeled("msgid \"Hello\"\nmsgstr \"Alt\"\n", "ours");
+    let theirs = CatalogCombineInput::labeled("msgid \"Hello\"\nmsgstr \"Neu\"\n", "theirs");
+
+    let result = merge_catalogs_three_way(
+        MergeCatalogsThreeWayOptions::new(ancestor, ours, theirs, "en")
+            .with_locale("de")
+            .with_conflict_strategy(CatalogConflictStrategy::Error),
+    )
+    .expect("one-sided change");
+
+    assert!(result.content.contains("msgstr \"Neu\""));
+    assert_eq!(result.stats.conflicts_resolved, 0);
+}
+
+#[test]
+fn three_way_modify_delete_conflicts_follow_the_selected_logical_side() {
+    let ancestor = CatalogCombineInput::labeled("msgid \"Hello\"\nmsgstr \"Alt\"\n", "ancestor");
+    let ours = CatalogCombineInput::labeled("msgid \"Hello\"\nmsgstr \"Neu\"\n", "ours");
+    let theirs = CatalogCombineInput::labeled("", "theirs");
+
+    let use_first = merge_catalogs_three_way(
+        MergeCatalogsThreeWayOptions::new(ancestor, ours, theirs, "en").with_locale("de"),
+    )
+    .expect("use first");
+    assert!(use_first.content.contains("msgstr \"Neu\""));
+    assert!(use_first.diagnostics.iter().any(|diagnostic| {
+        diagnostic.code == "combine.modify_delete_resolved"
+            && diagnostic.msgid.as_deref() == Some("Hello")
+    }));
+
+    let use_last = merge_catalogs_three_way(
+        MergeCatalogsThreeWayOptions::new(ancestor, ours, theirs, "en")
+            .with_locale("de")
+            .with_conflict_strategy(CatalogConflictStrategy::UseLast),
+    )
+    .expect("use last");
+    assert!(!use_last.content.contains("msgid \"Hello\""));
+
+    let error = merge_catalogs_three_way(
+        MergeCatalogsThreeWayOptions::new(ancestor, ours, theirs, "en")
+            .with_locale("de")
+            .with_conflict_strategy(CatalogConflictStrategy::Error),
+    )
+    .expect_err("error strategy");
+    assert!(matches!(
+        error,
+        ApiError::ModifyDeleteConflict {
+            modified_side: CatalogMergeSide::Ours,
+            deleted_side: CatalogMergeSide::Theirs,
+            ..
+        }
+    ));
+
+    let ours = CatalogCombineInput::labeled("", "ours");
+    let theirs = CatalogCombineInput::labeled("msgid \"Hello\"\nmsgstr \"Neu\"\n", "theirs");
+    let use_first = merge_catalogs_three_way(
+        MergeCatalogsThreeWayOptions::new(ancestor, ours, theirs, "en").with_locale("de"),
+    )
+    .expect("use first deletion");
+    assert!(!use_first.content.contains("msgid \"Hello\""));
+
+    let use_last = merge_catalogs_three_way(
+        MergeCatalogsThreeWayOptions::new(ancestor, ours, theirs, "en")
+            .with_locale("de")
+            .with_conflict_strategy(CatalogConflictStrategy::UseLast),
+    )
+    .expect("use last modification");
+    assert!(use_last.content.contains("msgstr \"Neu\""));
+}
+
+#[test]
+fn three_way_merge_applies_the_same_deletion_rules_to_fcl() {
+    let ancestor =
+        CatalogCombineInput::labeled("%FCL1\tsource=en\tlocale=de\nRemoved\t\tAlt\n", "ancestor");
+    let ours =
+        CatalogCombineInput::labeled("%FCL1\tsource=en\tlocale=de\nNew ours\t\tUnser\n", "ours");
+    let theirs =
+        CatalogCombineInput::labeled("%FCL1\tsource=en\tlocale=de\nNew theirs\t\tIhr\n", "theirs");
+
+    let result = merge_catalogs_three_way(
+        MergeCatalogsThreeWayOptions::new(ancestor, ours, theirs, "en")
+            .with_locale("de")
+            .with_mode(CatalogMode::IcuFcl),
+    )
+    .expect("FCL three-way merge");
+
+    assert!(!result.content.contains("Removed"));
+    assert!(result.content.contains("New ours\t\tUnser"));
+    assert!(result.content.contains("New theirs\t\tIhr"));
+}
+
+#[test]
+fn three_way_merge_preserves_owned_state_in_po_and_fcl_golden_fixtures() {
+    let lock = machine_translation_hash(EffectiveTranslationRef::Singular("Automatisch"));
+    let fixtures = [
+        (
+            CatalogMode::IcuPo,
+            include_str!("../../../tests/fixtures/three-way/complex.base.po"),
+            include_str!("../../../tests/fixtures/three-way/complex.ours.po"),
+            include_str!("../../../tests/fixtures/three-way/complex.theirs.po"),
+            include_str!("../../../tests/fixtures/three-way/complex.expected.po"),
+        ),
+        (
+            CatalogMode::IcuFcl,
+            include_str!("../../../tests/fixtures/three-way/complex.base.fcl"),
+            include_str!("../../../tests/fixtures/three-way/complex.ours.fcl"),
+            include_str!("../../../tests/fixtures/three-way/complex.theirs.fcl"),
+            include_str!("../../../tests/fixtures/three-way/complex.expected.fcl"),
+        ),
+    ];
+
+    for (mode, ancestor, ours, theirs, expected) in fixtures {
+        let ancestor = ancestor.replace("{{LOCK}}", &lock);
+        let ours = ours.replace("{{LOCK}}", &lock);
+        let theirs = theirs.replace("{{LOCK}}", &lock);
+        let expected = expected.replace("{{LOCK}}", &lock);
+        let result = merge_catalogs_three_way(
+            MergeCatalogsThreeWayOptions::new(
+                CatalogCombineInput::labeled(&ancestor, "ancestor"),
+                CatalogCombineInput::labeled(&ours, "ours"),
+                CatalogCombineInput::labeled(&theirs, "theirs"),
+                "en",
+            )
+            .with_locale("de")
+            .with_mode(mode),
+        )
+        .expect("complex three-way merge");
+
+        assert_eq!(result.content, expected);
+        assert_eq!(result.stats.inputs, 3);
+        assert_eq!(result.stats.conflicts_resolved, 3);
+        assert_eq!(
+            result
+                .diagnostics
+                .iter()
+                .filter(|diagnostic| diagnostic.code == "combine.modify_delete_resolved")
+                .count(),
+            1
+        );
+    }
+}
+
+#[test]
 fn combine_catalogs_renders_valid_fcl_through_shared_export() {
     let first = "%FCL1\tsource=en\tlocale=de\torder=collated\nHello\t\tHallo\n";
     let second = "%FCL1\tsource=en\tlocale=de\torder=collated\nNew\t\tNeu\n";
