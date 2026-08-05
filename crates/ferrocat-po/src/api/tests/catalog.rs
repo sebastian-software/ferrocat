@@ -1555,6 +1555,7 @@ fn three_way_merge_preserves_deletions_and_entries_new_on_either_side() {
     let ancestor = CatalogCombineInput::labeled(
         concat!(
             "msgid \"Deleted by both\"\nmsgstr \"Alt\"\n\n",
+            "msgid \"Deleted by ours\"\nmsgstr \"Alt\"\n\n",
             "msgid \"Deleted by theirs\"\nmsgstr \"Alt\"\n",
         ),
         "ancestor",
@@ -1566,7 +1567,13 @@ fn three_way_merge_preserves_deletions_and_entries_new_on_either_side() {
         ),
         "ours",
     );
-    let theirs = CatalogCombineInput::labeled("msgid \"New theirs\"\nmsgstr \"Ihr\"\n", "theirs");
+    let theirs = CatalogCombineInput::labeled(
+        concat!(
+            "msgid \"Deleted by ours\"\nmsgstr \"Alt\"\n\n",
+            "msgid \"New theirs\"\nmsgstr \"Ihr\"\n",
+        ),
+        "theirs",
+    );
 
     let result = merge_catalogs_three_way(
         MergeCatalogsThreeWayOptions::new(ancestor, ours, theirs, "en").with_locale("de"),
@@ -1574,12 +1581,13 @@ fn three_way_merge_preserves_deletions_and_entries_new_on_either_side() {
     .expect("three-way merge");
 
     assert!(!result.content.contains("Deleted by both"));
+    assert!(!result.content.contains("Deleted by ours"));
     assert!(!result.content.contains("Deleted by theirs"));
     assert!(result.content.contains("New ours"));
     assert!(result.content.contains("New theirs"));
     assert_eq!(result.stats.inputs, 3);
-    assert_eq!(result.stats.definitions, 5);
-    assert_eq!(result.stats.skipped, 2);
+    assert_eq!(result.stats.definitions, 7);
+    assert_eq!(result.stats.skipped, 3);
 }
 
 #[test]
@@ -1653,6 +1661,21 @@ fn three_way_modify_delete_conflicts_follow_the_selected_logical_side() {
     )
     .expect("use last modification");
     assert!(use_last.content.contains("msgstr \"Neu\""));
+
+    let error = merge_catalogs_three_way(
+        MergeCatalogsThreeWayOptions::new(ancestor, ours, theirs, "en")
+            .with_locale("de")
+            .with_conflict_strategy(CatalogConflictStrategy::Error),
+    )
+    .expect_err("error strategy for reverse conflict");
+    assert!(matches!(
+        error,
+        ApiError::ModifyDeleteConflict {
+            modified_side: CatalogMergeSide::Theirs,
+            deleted_side: CatalogMergeSide::Ours,
+            ..
+        }
+    ));
 }
 
 #[test]
@@ -1700,7 +1723,7 @@ fn three_way_merge_preserves_owned_state_in_po_and_fcl_golden_fixtures() {
         let ancestor = ancestor.replace("{{LOCK}}", &lock);
         let ours = ours.replace("{{LOCK}}", &lock);
         let theirs = theirs.replace("{{LOCK}}", &lock);
-        let expected = expected.replace("{{LOCK}}", &lock);
+        let expected = expected.replace("\r\n", "\n").replace("{{LOCK}}", &lock);
         let result = merge_catalogs_three_way(
             MergeCatalogsThreeWayOptions::new(
                 CatalogCombineInput::labeled(&ancestor, "ancestor"),

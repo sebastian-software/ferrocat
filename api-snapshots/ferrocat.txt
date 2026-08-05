@@ -29,6 +29,7 @@ pub use ferrocat::CatalogLocaleReview
 pub use ferrocat::CatalogMachineTranslationMessage
 pub use ferrocat::CatalogMachineTranslationReview
 pub use ferrocat::CatalogMachineTranslationStatus
+pub use ferrocat::CatalogMergeSide
 pub use ferrocat::CatalogMessage
 pub use ferrocat::CatalogMessageKey
 pub use ferrocat::CatalogMessageStatus
@@ -109,6 +110,7 @@ pub use ferrocat::IcuStyleKind
 pub use ferrocat::IcuSyntaxPolicy
 pub use ferrocat::IcuTagSummary
 pub use ferrocat::MachineMetadata
+pub use ferrocat::MergeCatalogsThreeWayOptions
 pub use ferrocat::MergeMessageInput
 pub use ferrocat::MessageArgumentFormatMetadata
 pub use ferrocat::MessageArgumentKind
@@ -172,6 +174,7 @@ pub use ferrocat::has_tag
 pub use ferrocat::machine_translation_hash
 pub use ferrocat::measure_catalog_coverage
 pub use ferrocat::merge_catalog
+pub use ferrocat::merge_catalogs_three_way
 pub use ferrocat::normalize_message_metadata
 pub use ferrocat::parse_catalog
 pub use ferrocat::parse_catalog_for_review
@@ -221,6 +224,7 @@ pub use ferrocat::catalog::CatalogLocaleReview
 pub use ferrocat::catalog::CatalogMachineTranslationMessage
 pub use ferrocat::catalog::CatalogMachineTranslationReview
 pub use ferrocat::catalog::CatalogMachineTranslationStatus
+pub use ferrocat::catalog::CatalogMergeSide
 pub use ferrocat::catalog::CatalogMessage
 pub use ferrocat::catalog::CatalogMessageKey
 pub use ferrocat::catalog::CatalogMessageStatus
@@ -279,6 +283,7 @@ pub use ferrocat::catalog::IcuFormatterSupportPolicy
 pub use ferrocat::catalog::IcuPseudolocalizationOptions
 pub use ferrocat::catalog::IcuSyntaxPolicy
 pub use ferrocat::catalog::MachineMetadata
+pub use ferrocat::catalog::MergeCatalogsThreeWayOptions
 pub use ferrocat::catalog::NormalizedParsedCatalog
 pub use ferrocat::catalog::ObsoleteInfo
 pub use ferrocat::catalog::ObsoleteStrategy
@@ -309,6 +314,7 @@ pub use ferrocat::catalog::convert_catalog_file
 pub use ferrocat::catalog::diagnostic_codes
 pub use ferrocat::catalog::machine_translation_hash
 pub use ferrocat::catalog::measure_catalog_coverage
+pub use ferrocat::catalog::merge_catalogs_three_way
 pub use ferrocat::catalog::parse_catalog
 pub use ferrocat::catalog::parse_catalog_for_review
 pub use ferrocat::catalog::pseudolocalize_compiled_catalog_artifact
