@@ -2043,13 +2043,13 @@ mod tests {
 
     use super::{
         ApiError, CatalogCombineInput, CatalogCombineSelection, CatalogConflictStrategy,
-        CatalogFileFormat, CatalogMessage, CatalogMessageKey, CatalogMode, CatalogSemantics,
-        CatalogStorageFormat, CatalogUpdateInput, CombineCatalogFilesOptions,
+        CatalogFileFormat, CatalogMergeSide, CatalogMessage, CatalogMessageKey, CatalogMode,
+        CatalogSemantics, CatalogStorageFormat, CatalogUpdateInput, CombineCatalogFilesOptions,
         CombineCatalogOptions, Diagnostic, DiagnosticSeverity, EffectiveTranslation,
-        EffectiveTranslationRef, NormalizedParsedCatalog, ObsoleteStrategy, OrderBy,
-        ParseCatalogOptions, ParsedCatalog, PlaceholderCommentMode, PluralEncoding, PluralSource,
-        RenderOptions, TranslationShape, UpdateCatalogFileOptions, UpdateCatalogOptions,
-        WriteDurability,
+        EffectiveTranslationRef, MergeCatalogsThreeWayOptions, NormalizedParsedCatalog,
+        ObsoleteStrategy, OrderBy, ParseCatalogOptions, ParsedCatalog, PlaceholderCommentMode,
+        PluralEncoding, PluralSource, RenderOptions, TranslationShape, UpdateCatalogFileOptions,
+        UpdateCatalogOptions, WriteDurability,
     };
     use crate::ParseError;
 
@@ -2363,6 +2363,29 @@ mod tests {
         assert!(!combine.include_origins);
         assert!(combine.include_obsolete);
 
+        let three_way = MergeCatalogsThreeWayOptions::new(
+            CatalogCombineInput::new("ancestor"),
+            CatalogCombineInput::new("ours"),
+            CatalogCombineInput::new("theirs"),
+            "en",
+        )
+        .with_locale("de")
+        .with_mode(CatalogMode::IcuFcl)
+        .with_conflict_strategy(CatalogConflictStrategy::UseLast)
+        .with_order_by(OrderBy::Origin)
+        .with_include_origins(false)
+        .with_po_serialize_options(crate::SerializeOptions::default().with_fold_length(0));
+
+        assert_eq!(three_way.locale, Some("de"));
+        assert_eq!(three_way.mode, CatalogMode::IcuFcl);
+        assert_eq!(
+            three_way.conflict_strategy,
+            CatalogConflictStrategy::UseLast
+        );
+        assert_eq!(three_way.order_by, OrderBy::Origin);
+        assert!(!three_way.include_origins);
+        assert_eq!(three_way.po_serialize.fold_length, 0);
+
         let file_update = UpdateCatalogFileOptions::new(
             Path::new("messages.po"),
             "en",
@@ -2496,6 +2519,19 @@ mod tests {
             ApiError::Unsupported("unsupported".to_owned()).to_string(),
             "unsupported"
         );
+
+        let modify_delete = ApiError::ModifyDeleteConflict {
+            msgid: "Hello".to_owned(),
+            msgctxt: Some("button".to_owned()),
+            modified_side: CatalogMergeSide::Ours,
+            deleted_side: CatalogMergeSide::Theirs,
+        };
+        assert_eq!(
+            modify_delete.to_string(),
+            "catalog entry \"Hello\" with context Some(\"button\") was modified on ours and deleted on theirs"
+        );
+        assert!(modify_delete.source().is_none());
+        assert_eq!(modify_delete.path(), None);
     }
 
     #[cfg(feature = "serde")]

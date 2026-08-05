@@ -17,6 +17,7 @@ pub const ferrocat_po::diagnostic_codes::catalog::OBSOLETE_ENTRY: &str
 pub mod ferrocat_po::diagnostic_codes::combine
 pub const ferrocat_po::diagnostic_codes::combine::ALL: &[&str]
 pub const ferrocat_po::diagnostic_codes::combine::CONFLICT_RESOLVED: &str
+pub const ferrocat_po::diagnostic_codes::combine::MODIFY_DELETE_RESOLVED: &str
 pub mod ferrocat_po::diagnostic_codes::compile
 pub const ferrocat_po::diagnostic_codes::compile::ALL: &[&str]
 pub const ferrocat_po::diagnostic_codes::compile::INVALID_ICU_MESSAGE: &str
@@ -65,6 +66,11 @@ pub const ferrocat_po::diagnostic_codes::plural::UNSUPPORTED_GETTEXT_EXPORT: &st
 pub ferrocat_po::ApiError::Conflict(alloc::string::String)
 pub ferrocat_po::ApiError::InvalidArguments(alloc::string::String)
 pub ferrocat_po::ApiError::Io(std::io::error::Error)
+pub ferrocat_po::ApiError::ModifyDeleteConflict
+pub ferrocat_po::ApiError::ModifyDeleteConflict::deleted_side: ferrocat_po::CatalogMergeSide
+pub ferrocat_po::ApiError::ModifyDeleteConflict::modified_side: ferrocat_po::CatalogMergeSide
+pub ferrocat_po::ApiError::ModifyDeleteConflict::msgctxt: core::option::Option<alloc::string::String>
+pub ferrocat_po::ApiError::ModifyDeleteConflict::msgid: alloc::string::String
 pub ferrocat_po::ApiError::Parse(ferrocat_po::ParseError)
 pub ferrocat_po::ApiError::Unsupported(alloc::string::String)
 impl ferrocat_po::ApiError
@@ -93,6 +99,11 @@ pub enum ferrocat_po::CatalogConflictStrategy
 pub ferrocat_po::CatalogConflictStrategy::Error
 pub ferrocat_po::CatalogConflictStrategy::UseFirst
 pub ferrocat_po::CatalogConflictStrategy::UseLast
+pub enum ferrocat_po::CatalogMergeSide
+pub ferrocat_po::CatalogMergeSide::Ours
+pub ferrocat_po::CatalogMergeSide::Theirs
+impl core::fmt::Display for ferrocat_po::CatalogMergeSide
+pub fn ferrocat_po::CatalogMergeSide::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 #[non_exhaustive] pub enum ferrocat_po::CatalogFileFormat
 pub ferrocat_po::CatalogFileFormat::Fcl
 pub ferrocat_po::CatalogFileFormat::Po
@@ -707,6 +718,25 @@ pub ferrocat_po::Header::value: alloc::string::String
 pub struct ferrocat_po::MachineMetadata
 pub ferrocat_po::MachineMetadata::ai: core::option::Option<ferrocat_po::AiProvenance>
 pub ferrocat_po::MachineMetadata::lock: alloc::string::String
+#[non_exhaustive] pub struct ferrocat_po::MergeCatalogsThreeWayOptions<'a>
+pub ferrocat_po::MergeCatalogsThreeWayOptions::ancestor: ferrocat_po::CatalogCombineInput<'a>
+pub ferrocat_po::MergeCatalogsThreeWayOptions::conflict_strategy: ferrocat_po::CatalogConflictStrategy
+pub ferrocat_po::MergeCatalogsThreeWayOptions::include_origins: bool
+pub ferrocat_po::MergeCatalogsThreeWayOptions::locale: core::option::Option<&'a str>
+pub ferrocat_po::MergeCatalogsThreeWayOptions::mode: ferrocat_po::CatalogMode
+pub ferrocat_po::MergeCatalogsThreeWayOptions::order_by: ferrocat_po::OrderBy
+pub ferrocat_po::MergeCatalogsThreeWayOptions::ours: ferrocat_po::CatalogCombineInput<'a>
+pub ferrocat_po::MergeCatalogsThreeWayOptions::po_serialize: ferrocat_po::SerializeOptions
+pub ferrocat_po::MergeCatalogsThreeWayOptions::source_locale: &'a str
+pub ferrocat_po::MergeCatalogsThreeWayOptions::theirs: ferrocat_po::CatalogCombineInput<'a>
+impl<'a> ferrocat_po::MergeCatalogsThreeWayOptions<'a>
+pub fn ferrocat_po::MergeCatalogsThreeWayOptions<'a>::new(ferrocat_po::CatalogCombineInput<'a>, ferrocat_po::CatalogCombineInput<'a>, ferrocat_po::CatalogCombineInput<'a>, &'a str) -> Self
+pub fn ferrocat_po::MergeCatalogsThreeWayOptions<'a>::with_conflict_strategy(self, ferrocat_po::CatalogConflictStrategy) -> Self
+pub fn ferrocat_po::MergeCatalogsThreeWayOptions<'a>::with_include_origins(self, bool) -> Self
+pub fn ferrocat_po::MergeCatalogsThreeWayOptions<'a>::with_locale(self, &'a str) -> Self
+pub fn ferrocat_po::MergeCatalogsThreeWayOptions<'a>::with_mode(self, ferrocat_po::CatalogMode) -> Self
+pub fn ferrocat_po::MergeCatalogsThreeWayOptions<'a>::with_order_by(self, ferrocat_po::OrderBy) -> Self
+pub fn ferrocat_po::MergeCatalogsThreeWayOptions<'a>::with_po_serialize_options(self, ferrocat_po::SerializeOptions) -> Self
 pub struct ferrocat_po::MergeMessageInput<'a>
 pub ferrocat_po::MergeMessageInput::extracted_comments: alloc::vec::Vec<alloc::borrow::Cow<'a, str>>
 pub ferrocat_po::MergeMessageInput::flags: alloc::vec::Vec<alloc::borrow::Cow<'a, str>>
@@ -931,6 +961,7 @@ pub fn ferrocat_po::extract_quoted_cow(&str) -> core::result::Result<alloc::borr
 pub fn ferrocat_po::machine_translation_hash(ferrocat_po::EffectiveTranslationRef<'_>) -> alloc::string::String
 pub fn ferrocat_po::measure_catalog_coverage(&[&ferrocat_po::NormalizedParsedCatalog], &ferrocat_po::CatalogCoverageOptions<'_>) -> core::result::Result<ferrocat_po::CatalogCoverageReport, ferrocat_po::ApiError>
 pub fn ferrocat_po::merge_catalog<'a>(&'a str, &[ferrocat_po::MergeMessageInput<'a>]) -> core::result::Result<alloc::string::String, ferrocat_po::ParseError>
+pub fn ferrocat_po::merge_catalogs_three_way(ferrocat_po::MergeCatalogsThreeWayOptions<'_>) -> core::result::Result<ferrocat_po::CatalogCombineResult, ferrocat_po::ApiError>
 pub fn ferrocat_po::parse_catalog(ferrocat_po::ParseCatalogOptions<'_>) -> core::result::Result<ferrocat_po::ParsedCatalog, ferrocat_po::ApiError>
 pub fn ferrocat_po::parse_catalog_for_review(ferrocat_po::ParseCatalogOptions<'_>) -> core::result::Result<ferrocat_po::NormalizedParsedCatalog, ferrocat_po::ApiError>
 pub fn ferrocat_po::parse_po(&str) -> core::result::Result<ferrocat_po::PoFile, ferrocat_po::ParseError>
