@@ -1,0 +1,43 @@
+msgid ""
+msgstr ""
+"Language: de\n"
+"X-Branch: ours\n"
+
+#. ours greeting
+# ours translator note
+#: src/ours.rs
+#, fuzzy, custom-ours
+msgid "Hello"
+msgstr "Guten Tag"
+
+#@ lock: {{LOCK}}
+#@ ai: example/model:0.75
+msgid "Machine"
+msgstr "Automatisch"
+
+#. ours metadata
+#: src/ours.rs
+msgid "Metadata"
+msgstr "Wert"
+
+msgid "Modify delete"
+msgstr "Geaendert"
+
+msgid "New both"
+msgstr "Unser neu"
+
+msgid "New ours"
+msgstr "Nur unser"
+
+#~ msgid "Obsolete"
+#~ msgstr "Veraltet"
+
+msgid "Open"
+msgstr "Aufmachen"
+
+msgctxt "menu"
+msgid "Open"
+msgstr "Menue"
+
+msgid "{count, plural, one {One file} other {# files}}"
+msgstr "{count, plural, one {Eine Datei} other {# Dateien}}"

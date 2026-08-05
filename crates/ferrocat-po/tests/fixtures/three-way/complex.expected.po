@@ -1,0 +1,54 @@
+msgid ""
+msgstr ""
+"Content-Transfer-Encoding: 8bit\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Language: de\n"
+"MIME-Version: 1.0\n"
+"X-Branch: ours\n"
+"X-Generator: ferrocat\n"
+
+msgid "{count, plural, one {One file} other {# files}}"
+msgstr "{count, plural, one {Ein Dokument} other {# Dokumente}}"
+
+# ours translator note
+#. ours greeting
+#. theirs greeting
+#: src/ours.rs
+#: src/theirs.rs
+#, fuzzy, custom-ours
+msgid "Hello"
+msgstr "Guten Tag"
+
+#@ lock: {{LOCK}}
+#@ ai: example/model:0.75
+msgid "Machine"
+msgstr "Automatisch"
+
+#. ours metadata
+#. theirs metadata
+#: src/ours.rs
+#: src/theirs.rs
+msgid "Metadata"
+msgstr "Wert"
+
+msgid "Modify delete"
+msgstr "Geaendert"
+
+msgid "New both"
+msgstr "Unser neu"
+
+msgid "New ours"
+msgstr "Nur unser"
+
+msgid "New theirs"
+msgstr "Nur ihr"
+
+#~ msgid "Obsolete"
+#~ msgstr "Veraltet"
+
+msgid "Open"
+msgstr "Aufmachen"
+
+msgctxt "menu"
+msgid "Open"
+msgstr "Navigation"

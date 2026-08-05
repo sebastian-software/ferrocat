@@ -45,6 +45,7 @@ Use this crate when you want that surface directly:
 - `parse_po` / `parse_po_borrowed` for raw PO parsing
 - `stringify_po` for PO serialization
 - `merge_catalog` for lightweight catalog merges
+- `combine_catalogs` for deterministic N-way overlays and `merge_catalogs_three_way` for deletion-aware ancestor/ours/theirs merges
 - `parse_catalog`, `update_catalog`, and `NormalizedParsedCatalog::compile` for higher-level catalog workflows across Gettext PO and FCL storage
 - `convert_catalog` and `convert_catalog_file` for explicit ICU-native PO ↔ FCL conversion with message-level metadata preservation
 - `MachineMetadata` (integrity `lock` plus optional `AiProvenance`) and `machine_translation_hash` for marking machine-managed values in PO or FCL and detecting later by-hand edits

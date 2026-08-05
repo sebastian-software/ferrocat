@@ -4,9 +4,10 @@ use ferrocat::{
         CatalogAuditIcuOptions, CatalogAuditOptions, CatalogCombineInput, CatalogMessageKey,
         CatalogMode, CatalogUpdateInput, CombineCatalogOptions, CompileCatalogArtifactOptions,
         CompileSelectedCatalogArtifactOptions, CompiledCatalogIdIndex, CompiledKeyStrategy,
-        EffectiveTranslation, EffectiveTranslationRef, ParseCatalogOptions, SourceExtractedMessage,
-        WriteDurability, audit_catalogs, combine_catalogs, compile_catalog_artifact,
-        compile_catalog_artifact_selected, parse_catalog, parse_catalog_for_review,
+        EffectiveTranslation, EffectiveTranslationRef, MergeCatalogsThreeWayOptions,
+        ParseCatalogOptions, SourceExtractedMessage, WriteDurability, audit_catalogs,
+        combine_catalogs, compile_catalog_artifact, compile_catalog_artifact_selected,
+        merge_catalogs_three_way, parse_catalog, parse_catalog_for_review,
     },
     icu, parse_po_bytes, po,
 };
@@ -54,6 +55,14 @@ msgstr "world"
     let combined = combine_catalogs(CombineCatalogOptions::new(&combine_inputs, "en"))
         .expect("combine catalogs");
     assert!(combined.content.contains(r#"msgid "bye""#));
+    let three_way = merge_catalogs_three_way(MergeCatalogsThreeWayOptions::new(
+        CatalogCombineInput::new("msgid \"removed\"\nmsgstr \"old\"\n"),
+        CatalogCombineInput::new(""),
+        CatalogCombineInput::new(""),
+        "en",
+    ))
+    .expect("merge catalogs three-way");
+    assert!(!three_way.content.contains("removed"));
 
     let message =
         icu::parse_icu("{count, selectordinal, one {#st} other {#th}}").expect("parse icu");

@@ -34,7 +34,7 @@ dependency effect as enabling `catalog`.
 Use the umbrella crate when you want one dependency for the full catalog workflow:
 
 - translator-friendly catalog parsing and serialization
-- deterministic catalog updates and combination
+- deterministic catalog updates, N-way combination, and deletion-aware three-way merges
 - explicit ICU-native PO ↔ FCL conversion for content and files
 - AI translation metadata for machine-generated entries, including stale-metadata cleanup after manual edits
 - release QA through structured audit reports

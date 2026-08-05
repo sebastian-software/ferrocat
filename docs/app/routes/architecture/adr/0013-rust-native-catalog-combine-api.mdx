@@ -44,6 +44,17 @@ combine semantics, but owns host-neutral file orchestration:
 - callers can override the default file-to-mode mapping when PO files need `GettextCompat`
 - output replacement is atomic and happens only after validation, parsing, and combining succeed
 
+Add `merge_catalogs_three_way` for host-neutral version-control workflows.
+The API receives explicit ancestor, ours, and theirs roles and applies
+deletion-aware identity rules before delegating retained definitions to the
+ordinary combine ownership logic. One-sided changes apply without conflict;
+modify/delete and independently changed values follow
+`CatalogConflictStrategy`. The `Error` strategy exposes modify/delete as a
+structured `ApiError::ModifyDeleteConflict`.
+
+Ferrocat does not infer Git state. A host maps merge or rebase roles before it
+calls the API and owns any filesystem transaction around the in-memory result.
+
 ## Consequences
 
 Positive:
@@ -53,12 +64,14 @@ Positive:
 - the implementation stays in the high-level catalog layer, preserving the PO-core/catalog split
 - the same explicit `IcuNative` and `GettextCompat` semantics apply as in parse/update APIs
 - file-based host integrations can avoid duplicating safe-write and format-inference glue
+- version-control hosts can share one deletion-aware PO/FCL merge contract without reimplementing catalog metadata ownership
 
 Negative:
 
 - this is not a byte-for-byte `msgcat` clone
 - callers that expect GNU fuzzy conflict-marker translations must handle diagnostics instead
 - the API introduces another public catalog workflow surface that needs docs, tests, and benchmarks
+- hosts still need to map version-control-specific roles and decide how to write the in-memory result
 - `.json` inference is a compatibility alias for Ferrocat NDJSON, not support for arbitrary JSON catalog shapes
 
 ## Follow-Up Roadmap

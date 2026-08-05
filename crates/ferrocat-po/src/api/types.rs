@@ -383,7 +383,7 @@ pub struct CatalogUpdateResult {
     pub diagnostics: Vec<Diagnostic>,
 }
 
-/// One catalog input passed to [`super::combine_catalogs`].
+/// One catalog input passed to catalog combine and merge workflows.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CatalogCombineInput<'a> {
     /// Catalog content to parse and include in the combine operation.
@@ -424,6 +424,24 @@ pub enum CatalogConflictStrategy {
     Error,
 }
 
+/// Logical side of a three-way catalog merge.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CatalogMergeSide {
+    /// The current side whose value wins with [`CatalogConflictStrategy::UseFirst`].
+    Ours,
+    /// The incoming side whose value wins with [`CatalogConflictStrategy::UseLast`].
+    Theirs,
+}
+
+impl fmt::Display for CatalogMergeSide {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Ours => formatter.write_str("ours"),
+            Self::Theirs => formatter.write_str("theirs"),
+        }
+    }
+}
+
 /// Selection rule used after definitions from all inputs have been counted.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum CatalogCombineSelection {
@@ -458,15 +476,15 @@ pub struct CatalogCombineStats {
     pub definitions: usize,
     /// Message identities written to the final catalog.
     pub selected: usize,
-    /// Message identities removed by the selection rule.
+    /// Message identities excluded by selection or three-way deletion rules.
     pub skipped: usize,
-    /// Translation conflicts resolved according to the selected strategy.
+    /// Translation or modify/delete conflicts resolved according to the selected strategy.
     pub conflicts_resolved: usize,
     /// Total messages in the final catalog.
     pub total: usize,
 }
 
-/// Result returned by catalog combine operations.
+/// Result returned by catalog combine and three-way merge operations.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CatalogCombineResult {
     /// Final catalog content after combining the inputs.
@@ -1640,6 +1658,109 @@ pub struct CombineCatalogOptions<'a> {
     pub po_serialize: SerializeOptions,
 }
 
+/// Options for a deletion-aware three-way catalog merge.
+///
+/// The three input roles are explicit. [`Self::ours`] has precedence with
+/// [`CatalogConflictStrategy::UseFirst`], while [`Self::theirs`] has
+/// precedence with [`CatalogConflictStrategy::UseLast`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct MergeCatalogsThreeWayOptions<'a> {
+    /// Common ancestor catalog.
+    pub ancestor: CatalogCombineInput<'a>,
+    /// Current-side catalog.
+    pub ours: CatalogCombineInput<'a>,
+    /// Incoming-side catalog.
+    pub theirs: CatalogCombineInput<'a>,
+    /// Locale of the merged catalog. When `None`, Ferrocat uses the current-side locale.
+    pub locale: Option<&'a str>,
+    /// Source locale used for source-side semantics and validation.
+    pub source_locale: &'a str,
+    /// High-level catalog mode used when reading inputs and rendering the result.
+    pub mode: CatalogMode,
+    /// Strategy for resolving translation and modify/delete conflicts.
+    pub conflict_strategy: CatalogConflictStrategy,
+    /// Sort order for the final rendered catalog.
+    pub order_by: OrderBy,
+    /// Whether source origins should be rendered as references.
+    pub include_origins: bool,
+    /// PO serializer controls for the rendered output, e.g. width folding.
+    ///
+    /// This only affects PO rendering; FCL output has a canonical line shape
+    /// and ignores these controls.
+    pub po_serialize: SerializeOptions,
+}
+
+impl<'a> MergeCatalogsThreeWayOptions<'a> {
+    /// Creates three-way merge options with explicit catalog roles.
+    ///
+    /// Optional fields default to an inferred current-side locale, ICU-native
+    /// PO mode, current-side conflict resolution, `msgid` ordering, rendered
+    /// origins, and default PO serialization.
+    #[must_use]
+    pub fn new(
+        ancestor: CatalogCombineInput<'a>,
+        ours: CatalogCombineInput<'a>,
+        theirs: CatalogCombineInput<'a>,
+        source_locale: &'a str,
+    ) -> Self {
+        Self {
+            ancestor,
+            ours,
+            theirs,
+            locale: None,
+            source_locale,
+            mode: CatalogMode::default(),
+            conflict_strategy: CatalogConflictStrategy::UseFirst,
+            order_by: OrderBy::Msgid,
+            include_origins: true,
+            po_serialize: SerializeOptions::default(),
+        }
+    }
+
+    /// Returns options that use the given merged catalog locale.
+    #[must_use]
+    pub fn with_locale(mut self, locale: &'a str) -> Self {
+        self.locale = Some(locale);
+        self
+    }
+
+    /// Returns options that read and render with the given catalog mode.
+    #[must_use]
+    pub fn with_mode(mut self, mode: CatalogMode) -> Self {
+        self.mode = mode;
+        self
+    }
+
+    /// Returns options that resolve conflicts with the given strategy.
+    #[must_use]
+    pub fn with_conflict_strategy(mut self, conflict_strategy: CatalogConflictStrategy) -> Self {
+        self.conflict_strategy = conflict_strategy;
+        self
+    }
+
+    /// Returns options that render the merged catalog with the given sort order.
+    #[must_use]
+    pub fn with_order_by(mut self, order_by: OrderBy) -> Self {
+        self.order_by = order_by;
+        self
+    }
+
+    /// Returns options that enable or disable rendered source origins.
+    #[must_use]
+    pub fn with_include_origins(mut self, include_origins: bool) -> Self {
+        self.include_origins = include_origins;
+        self
+    }
+
+    /// Returns options that render PO output with the given serializer controls.
+    #[must_use]
+    pub fn with_po_serialize_options(mut self, po_serialize: SerializeOptions) -> Self {
+        self.po_serialize = po_serialize;
+        self
+    }
+}
+
 impl<'a> CombineCatalogOptions<'a> {
     /// Creates combine options with required fields set.
     ///
@@ -1798,6 +1919,17 @@ pub enum ApiError {
     InvalidArguments(String),
     /// The requested operation encountered conflicting catalog state.
     Conflict(String),
+    /// One side modified an ancestor entry while the other side deleted it.
+    ModifyDeleteConflict {
+        /// Source message identity.
+        msgid: String,
+        /// Optional gettext context.
+        msgctxt: Option<String>,
+        /// Side that changed the ancestor entry.
+        modified_side: CatalogMergeSide,
+        /// Side that removed the ancestor entry.
+        deleted_side: CatalogMergeSide,
+    },
     /// The requested behavior cannot be represented safely.
     Unsupported(String),
 }
@@ -1810,6 +1942,15 @@ impl fmt::Display for ApiError {
             Self::InvalidArguments(message)
             | Self::Conflict(message)
             | Self::Unsupported(message) => f.write_str(message),
+            Self::ModifyDeleteConflict {
+                msgid,
+                msgctxt,
+                modified_side,
+                deleted_side,
+            } => write!(
+                f,
+                "catalog entry {msgid:?} with context {msgctxt:?} was modified on {modified_side} and deleted on {deleted_side}"
+            ),
         }
     }
 }
@@ -1819,7 +1960,10 @@ impl std::error::Error for ApiError {
         match self {
             Self::Parse(error) => Some(error),
             Self::Io(error) => Some(error),
-            Self::InvalidArguments(_) | Self::Conflict(_) | Self::Unsupported(_) => None,
+            Self::InvalidArguments(_)
+            | Self::Conflict(_)
+            | Self::ModifyDeleteConflict { .. }
+            | Self::Unsupported(_) => None,
         }
     }
 }
@@ -1849,6 +1993,7 @@ impl ApiError {
             Self::Parse(_)
             | Self::InvalidArguments(_)
             | Self::Conflict(_)
+            | Self::ModifyDeleteConflict { .. }
             | Self::Unsupported(_) => None,
         }
     }
