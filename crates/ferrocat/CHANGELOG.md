@@ -27,6 +27,19 @@
 - Active PO and FCL fuzzy entries no longer count as translated, including in
   the coverage rollups embedded in review reports.
 
+## [3.4.0](https://github.com/sebastian-software/ferrocat/compare/ferrocat-v3.3.0...ferrocat-v3.4.0) (2026-08-06)
+
+
+### Features
+
+* **catalog:** add deletion-aware three-way merge ([4aee589](https://github.com/sebastian-software/ferrocat/commit/4aee5891de1fc70a58e5a173b909b4b2eef9d06b))
+
+
+### Bug Fixes
+
+* **catalog:** stabilize three-way merge checks ([c86ad49](https://github.com/sebastian-software/ferrocat/commit/c86ad49398c2c94dba7a695e8a24ff4c44067286))
+* **deps:** update lucide monorepo to v1.28.0 ([cb33d55](https://github.com/sebastian-software/ferrocat/commit/cb33d5597a65b493f802f63ed5a0c21f69ccc2b8))
+
 ## [3.3.0](https://github.com/sebastian-software/ferrocat/compare/ferrocat-v3.2.2...ferrocat-v3.3.0) (2026-07-31)
 
 
