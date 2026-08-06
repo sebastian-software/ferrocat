@@ -1,6 +1,6 @@
 [package]
 name = "ferrocat"
-version = "3.3.0"
+version = "3.4.0"
 edition.workspace = true
 homepage.workspace = true
 license.workspace = true
@@ -53,8 +53,8 @@ plurals = ["catalog", "ferrocat-po/plurals"]
 serde = ["ferrocat-po/serde", "ferrocat-icu/serde"]
 
 [dependencies]
-ferrocat-icu = { version = "3.3.0", path = "crates/ferrocat-icu", default-features = false }
-ferrocat-po = { version = "3.3.0", path = "crates/ferrocat-po", default-features = false }
+ferrocat-icu = { version = "3.4.0", path = "crates/ferrocat-icu", default-features = false }
+ferrocat-po = { version = "3.4.0", path = "crates/ferrocat-po", default-features = false }
 
 [package.metadata.docs.rs]
 all-features = true
