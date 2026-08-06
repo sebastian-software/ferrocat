@@ -11,6 +11,7 @@ documentation = "https://docs.rs/ferrocat-icu"
 readme = "README.md"
 keywords = ["ferrocat", "icu", "messageformat", "i18n", "parser"]
 categories = ["internationalization", "localization", "parser-implementations"]
+exclude = ["tests/conformance_icu.rs"]
 
 [lib]
 path = "src/lib.rs"

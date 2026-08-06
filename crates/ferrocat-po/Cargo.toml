@@ -11,6 +11,7 @@ documentation = "https://docs.rs/ferrocat-po"
 readme = "README.md"
 keywords = ["ferrocat", "gettext", "po", "i18n", "parser"]
 categories = ["internationalization", "localization", "parser-implementations"]
+exclude = ["tests/conformance_merge.rs", "tests/conformance_po.rs"]
 
 [lib]
 path = "src/lib.rs"
