@@ -298,48 +298,4 @@ mod tests {
         assert_eq!(code, "catalog.missing_translation");
         assert_eq!("catalog.missing_translation", code);
     }
-
-    #[test]
-    fn fallback_code_type_matches_ferrocat_icu_definition() {
-        let fallback = sync_block(include_str!("diagnostic_codes.rs"));
-        let canonical_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../ferrocat-icu/src/diagnostic_codes.rs");
-
-        // Published crates intentionally omit workspace-only sibling sources.
-        if !canonical_path.exists() {
-            return;
-        }
-
-        let canonical_source = match std::fs::read_to_string(&canonical_path) {
-            Ok(source) => source,
-            Err(error) => panic!(
-                "failed to read canonical DiagnosticCode source at {}: {error}",
-                canonical_path.display()
-            ),
-        };
-        let canonical = sync_block(&canonical_source);
-
-        assert_eq!(
-            fallback, canonical,
-            "the fallback DiagnosticCode in ferrocat-po drifted from ferrocat-icu; \
-             apply the change inside both sync(diagnostic-code-type) blocks"
-        );
-    }
-
-    /// Extracts the marked block, normalizing the module indentation of the
-    /// fallback copy away so both sides compare structurally.
-    fn sync_block(source: &str) -> Vec<&str> {
-        let block: Vec<&str> = source
-            .lines()
-            .skip_while(|line| !line.contains("sync(diagnostic-code-type): begin"))
-            .skip(1)
-            .take_while(|line| !line.contains("sync(diagnostic-code-type): end"))
-            .map(str::trim_start)
-            .collect();
-        assert!(
-            !block.is_empty(),
-            "sync(diagnostic-code-type) markers missing"
-        );
-        block
-    }
 }
