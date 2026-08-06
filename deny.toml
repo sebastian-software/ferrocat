@@ -18,10 +18,8 @@ multiple-versions = "deny"
 wildcards = "allow"
 highlight = "all"
 deny = []
-# tempfile pulls getrandom, which currently includes both wasi preview 2 and
-# preview 3 dependency paths with different wit-bindgen versions.
 skip = [
-  { crate = "wit-bindgen@0.51.0", reason = "transitive WASI preview dependency split via getrandom" },
+  { crate = "syn@2.0.119", reason = "ICU4X 2.2 proc macros still require syn 2 while serde_derive 1.0.229 uses syn 3" },
 ]
 skip-tree = []
 
