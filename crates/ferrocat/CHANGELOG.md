@@ -27,6 +27,13 @@
 - Active PO and FCL fuzzy entries no longer count as translated, including in
   the coverage rollups embedded in review reports.
 
+## [3.4.1](https://github.com/sebastian-software/ferrocat/compare/ferrocat-v3.4.0...ferrocat-v3.4.1) (2026-08-06)
+
+
+### Bug Fixes
+
+* **ci:** allow intentional syn major duplication ([cc7b80a](https://github.com/sebastian-software/ferrocat/commit/cc7b80af8fcd0ba05a1fb56b812dfa03a7dc7db2))
+
 ## [3.4.0](https://github.com/sebastian-software/ferrocat/compare/ferrocat-v3.3.0...ferrocat-v3.4.0) (2026-08-06)
 
 
