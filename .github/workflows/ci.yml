@@ -123,8 +123,8 @@ jobs:
       - name: Cache Rust build artifacts
         uses: Swatinem/rust-cache@v2
 
-      - name: Package published crates
-        run: cargo package -p ferrocat-icu -p ferrocat-po -p ferrocat -p ferrocat-cli --locked
+      - name: Package and test published crates
+        run: scripts/test-packaged-crates.sh
 
   semver:
     name: Semver compatibility (${{ matrix.crate }})

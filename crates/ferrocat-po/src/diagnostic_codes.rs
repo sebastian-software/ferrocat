@@ -302,7 +302,22 @@ mod tests {
     #[test]
     fn fallback_code_type_matches_ferrocat_icu_definition() {
         let fallback = sync_block(include_str!("diagnostic_codes.rs"));
-        let canonical = sync_block(include_str!("../../ferrocat-icu/src/diagnostic_codes.rs"));
+        let canonical_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../ferrocat-icu/src/diagnostic_codes.rs");
+
+        // Published crates intentionally omit workspace-only sibling sources.
+        if !canonical_path.exists() {
+            return;
+        }
+
+        let canonical_source = match std::fs::read_to_string(&canonical_path) {
+            Ok(source) => source,
+            Err(error) => panic!(
+                "failed to read canonical DiagnosticCode source at {}: {error}",
+                canonical_path.display()
+            ),
+        };
+        let canonical = sync_block(&canonical_source);
 
         assert_eq!(
             fallback, canonical,
