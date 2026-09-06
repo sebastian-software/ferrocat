@@ -1,0 +1,41 @@
+name: Feature request
+description: Suggest an API, workflow, documentation, or tooling improvement.
+title: "feat: "
+labels:
+  - "type:feature"
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: Which workflow, use case, or limitation are you trying to solve?
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed direction
+      description: What would you like ferrocat to provide?
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: What are you doing today instead?
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Include API sketches, fixture examples, benchmark concerns, or compatibility notes when helpful.
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Triage checklist
+      options:
+        - label: I searched the existing issues for duplicates.
+          required: true

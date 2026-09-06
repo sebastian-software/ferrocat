@@ -1,0 +1,66 @@
+name: Bug report
+description: Report a parser, catalog, runtime-compile, or benchmark problem.
+title: "bug: "
+labels:
+  - "type:bug"
+body:
+  - type: input
+    id: summary
+    attributes:
+      label: Summary
+      description: What went wrong?
+      placeholder: A short description of the unexpected behavior
+    validations:
+      required: true
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: The affected crate, version, Rust version, OS, architecture, and relevant feature flags.
+      placeholder: |
+        ferrocat-po 3.4.2
+        rustc 1.98.1
+        Linux x86_64
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction
+      description: The smallest command, input, or code sample that reproduces the problem.
+      render: shell
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: Include the full error output or log where you have one.
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Include fixture examples, API sketches, benchmark profile, or before/after numbers when helpful.
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Triage checklist
+      options:
+        - label: I searched the existing issues for duplicates.
+          required: true
+        - label: I removed credentials and private data from this report.
+          required: true
