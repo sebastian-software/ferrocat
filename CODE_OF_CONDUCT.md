@@ -1,35 +1,47 @@
 # Code of Conduct
 
-## Our Standard
+This project is committed to a respectful, welcoming, and technically generous
+community.
 
-This project is committed to a respectful, welcoming, and technically generous community.
+## Expected behavior
 
-Examples of behavior that contribute to a positive environment include:
+- Show empathy and patience in technical discussions.
+- Give and receive feedback constructively, about the work rather than about a
+  person's worth or identity.
+- Assume good intent while still being clear about problems.
+- Keep discussions focused on the project, its users, and its documented goals.
+- Help newcomers and contributors from adjacent ecosystems feel welcome.
+- Accept correction gracefully and help make the next contribution easier.
 
-- showing empathy and patience in technical discussions
-- giving and receiving feedback constructively
-- assuming good intent while still being clear about problems
-- focusing criticism on code, ideas, and behavior rather than people
-- helping newcomers and contributors from adjacent ecosystems feel welcome
+## Unacceptable behavior
 
-Examples of unacceptable behavior include:
+Harassment, insults, personal attacks, discriminatory or exclusionary language,
+intimidation, dogpiling, sustained disruption, doxxing, sexualized language or
+attention, and bad-faith engagement that blocks collaboration are not
+acceptable. Do not publish private information, credentials, or material you are
+not allowed to share.
 
-- harassment, insults, or personal attacks
-- discriminatory language or exclusionary behavior
-- deliberate intimidation, dogpiling, or sustained disruption
-- publishing private information without permission
-- bad-faith engagement that blocks collaboration
+## Scope and enforcement
 
-## Scope
-
-This Code of Conduct applies in project spaces, including GitHub issues, pull requests, discussions, review comments, and other public or private interactions directly tied to project collaboration.
+This code applies in project spaces, including GitHub issues, pull requests,
+discussions, review comments, and other communication directly tied to project
+collaboration. Maintainers may remove comments, close discussions, reject
+contributions, or restrict participation when that is needed to protect the
+community and the project.
 
 ## Reporting
 
-If you experience or witness unacceptable behavior, please contact the maintainers privately through GitHub rather than escalating in public.
+Report unacceptable behavior privately rather than opening a public issue. Two
+routes are available:
 
-Reports will be reviewed promptly and handled with as much confidentiality as practical. Maintainers may remove comments, reject contributions, temporarily limit interaction, or take other actions needed to protect the project community.
+- **The repository maintainers**, through GitHub — for everyday reports about
+  behavior in project spaces.
+- **security@sebastian-software.de** — a private inbox at Sebastian Software
+  GmbH, independent of any individual repository maintainer. Use it when the
+  report concerns a maintainer, or whenever you would rather not write to the
+  maintainers directly. It is the same address as for security reports; conduct
+  reports sent there are handled confidentially as conduct reports.
 
-## Enforcement
-
-Project maintainers are responsible for clarifying and enforcing this Code of Conduct and may take any action they deem appropriate in response to unacceptable behavior.
+Reports are reviewed as promptly and confidentially as practical. Include links,
+dates, and relevant context, but no credentials and no data you are not allowed
+to share.
