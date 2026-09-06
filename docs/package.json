@@ -6,11 +6,12 @@
   "type": "module",
   "scripts": {
     "dev": "react-router dev",
-    "build": "react-router build",
+    "build": "node ../scripts/check-docs-links.mjs && react-router build",
+    "check:links": "node ../scripts/check-docs-links.mjs",
     "preview": "vite preview"
   },
   "dependencies": {
-    "ardo": "^3.6.1",
+    "ardo": "^4.2.0",
     "isbot": "^5.1.44",
     "lucide-react": "^1.22.0",
     "react": "^19.2.8",

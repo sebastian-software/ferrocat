@@ -2,6 +2,8 @@
 
 [![crates.io](https://img.shields.io/crates/v/ferrocat.svg)](https://crates.io/crates/ferrocat)
 [![docs.rs](https://img.shields.io/docsrs/ferrocat)](https://docs.rs/ferrocat)
+[![license](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue.svg)](https://github.com/sebastian-software/ferrocat/blob/main/LICENSE-MIT)
+[![MSRV](https://img.shields.io/badge/MSRV-1.93.0-blue.svg)](https://github.com/sebastian-software/ferrocat#compatibility-snapshot)
 
 Public umbrella crate for the `ferrocat` workspace.
 
@@ -56,3 +58,7 @@ Repository, docs, and contribution guidelines:
 
 - <https://github.com/sebastian-software/ferrocat>
 - <https://docs.rs/ferrocat>
+
+Part of the Ferramenta family of Rust-native developer tools: https://ferramenta.dev
+
+Siblings: ferroni, ferriki, ferromark, ferrolex, ferralk, palamedes
