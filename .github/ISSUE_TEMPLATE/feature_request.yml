@@ -1,6 +1,6 @@
 name: Feature request
-description: Propose a focused improvement.
-title: "[Feature]: "
+description: Suggest an API, workflow, documentation, or tooling improvement.
+title: "feat: "
 labels:
   - "type:feature"
 body:
@@ -8,15 +8,15 @@ body:
     id: problem
     attributes:
       label: Problem
-      description: Which user or maintainer problem would this solve?
+      description: Which workflow, use case, or limitation are you trying to solve?
     validations:
       required: true
 
   - type: textarea
     id: proposal
     attributes:
-      label: Proposed solution
-      description: The smallest focused behavior, API, or option that would address the problem.
+      label: Proposed direction
+      description: What would you like ferrocat to provide?
     validations:
       required: true
 
@@ -24,7 +24,13 @@ body:
     id: alternatives
     attributes:
       label: Alternatives considered
-      description: Which existing commands, APIs, or workflows did you try first?
+      description: What are you doing today instead?
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Include API sketches, fixture examples, benchmark concerns, or compatibility notes when helpful.
 
   - type: checkboxes
     id: checks

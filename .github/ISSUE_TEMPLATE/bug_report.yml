@@ -1,6 +1,6 @@
 name: Bug report
-description: Report a reproducible defect.
-title: "[Bug]: "
+description: Report a parser, catalog, runtime-compile, or benchmark problem.
+title: "bug: "
 labels:
   - "type:bug"
 body:
@@ -17,11 +17,11 @@ body:
     id: environment
     attributes:
       label: Environment
-      description: Version or commit, operating system, and the toolchain or runtime version you used.
+      description: The affected crate, version, Rust version, OS, architecture, and relevant feature flags.
       placeholder: |
-        version 1.2.3
-        Linux 6.12
-        Node 24
+        ferrocat-po 3.4.2
+        rustc 1.98.1
+        Linux x86_64
     validations:
       required: true
 
@@ -48,6 +48,12 @@ body:
       description: Include the full error output or log where you have one.
     validations:
       required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Include fixture examples, API sketches, benchmark profile, or before/after numbers when helpful.
 
   - type: checkboxes
     id: checks
