@@ -1,6 +1,7 @@
 [package]
 name = "ferrocat-po"
 version = "3.4.2"
+authors.workspace = true
 edition.workspace = true
 homepage.workspace = true
 license.workspace = true
@@ -9,7 +10,7 @@ rust-version.workspace = true
 description = "Performance-first PO parsing, serialization, and catalog update primitives for ferrocat."
 documentation = "https://docs.rs/ferrocat-po"
 readme = "README.md"
-keywords = ["ferrocat", "gettext", "po", "i18n", "parser"]
+keywords = ["ferramenta", "gettext", "po", "i18n", "parser"]
 categories = ["internationalization", "localization", "parser-implementations"]
 exclude = [
     "tests/conformance_merge.rs",
