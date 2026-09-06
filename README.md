@@ -7,7 +7,7 @@ Rust-native translation catalog engine for Gettext PO, ICU MessageFormat, and FC
 [![CI](https://github.com/sebastian-software/ferrocat/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/sebastian-software/ferrocat/actions/workflows/ci.yml)
 [![codecov](https://codecov.io/github/sebastian-software/ferrocat/graph/badge.svg?branch=main)](https://app.codecov.io/github/sebastian-software/ferrocat)
 [![license](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue.svg)](LICENSE-MIT)
-[![MSRV](https://img.shields.io/badge/MSRV-1.93.0-blue.svg)](#compatibility-snapshot)
+[![MSRV](https://img.shields.io/badge/MSRV-1.94.0-blue.svg)](#compatibility-snapshot)
 
 `ferrocat` is a Rust-native translation catalog engine. It treats localized copy as product data: parse it, update it, review it, measure it, audit it, and compile it into runtime payloads your application can ship with confidence.
 
@@ -192,6 +192,7 @@ If you already know what kind of question you have, these are the fastest entry 
 - [Contributing guide](https://github.com/sebastian-software/ferrocat/blob/main/CONTRIBUTING.md)
 - [Security policy](https://github.com/sebastian-software/ferrocat/blob/main/SECURITY.md)
 - [Code of Conduct](https://github.com/sebastian-software/ferrocat/blob/main/CODE_OF_CONDUCT.md)
+- [Support guide](https://github.com/sebastian-software/ferrocat/blob/main/SUPPORT.md)
 
 <!-- ferramenta-family:start -->
 ## The Ferramenta family
@@ -214,6 +215,7 @@ ferrocat and ferrolex are also the Rust foundation of [Palamedes](https://github
 ---
 
 <!-- sebastian-software-branding:start -->
+
 <p align="center">
   <a href="https://oss.sebastian-software.com">
     <img src="https://sebastian-brand.vercel.app/sebastian-software/logo-software.svg" alt="Sebastian Software" width="240" />
@@ -226,4 +228,5 @@ ferrocat and ferrolex are also the Rust foundation of [Palamedes](https://github
 </p>
 
 <p align="center">Copyright &copy; 2026 Sebastian Software GmbH</p>
+
 <!-- sebastian-software-branding:end -->

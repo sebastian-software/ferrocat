@@ -1,0 +1,80 @@
+name: Bug report
+description: Report a reproducible defect.
+title: "[Bug]: "
+labels:
+  - "type:bug"
+body:
+  - type: input
+    id: summary
+    attributes:
+      label: Summary
+      description: What went wrong?
+      placeholder: A short description of the unexpected behavior
+    validations:
+      required: true
+
+  - type: dropdown
+    id: component
+    attributes:
+      label: Affected component
+      description: Where does the problem show up?
+      options:
+        - ferrocat
+        - ferrocat-po
+        - ferrocat-icu
+        - ferrocat-cli
+        - benchmark harness
+        - documentation
+        - not sure
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Crate version or commit, Rust version (`rustc --version`), and operating system or architecture.
+      placeholder: |
+        ferrocat-po 0.3.1
+        rustc 1.93.0
+        Linux 6.12 x86_64
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction
+      description: The smallest command, catalog input, or code sample that reproduces the problem.
+      render: shell
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: Include the full error output or log where you have one.
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: For a performance report, include before and after numbers and the benchmark profile you used.
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Triage checklist
+      options:
+        - label: I searched the existing issues for duplicates.
+          required: true
+        - label: I removed credentials and private data from this report.
+          required: true
