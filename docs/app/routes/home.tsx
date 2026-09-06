@@ -1,3 +1,5 @@
+import type { MetaFunction } from "react-router";
+
 import {
   ArrowRight,
   BookOpenText,
@@ -18,10 +20,9 @@ import {
   Regex,
   ScanSearch,
   ShieldCheck,
-  Spline,
   SpellCheck,
+  Spline,
 } from "lucide-react";
-import type { MetaFunction } from "react-router";
 import { Link } from "react-router";
 
 export const meta: MetaFunction = () => [
@@ -403,7 +404,9 @@ export default function HomePage() {
                 <span className="ferro-family-icon">{tool.icon}</span>
                 <span className="ferro-family-name">
                   {tool.name}
-                  {tool.tag ? <span className="ferro-family-tag">{tool.tag}</span> : null}
+                  {tool.tag === undefined ? null : (
+                    <span className="ferro-family-tag">{tool.tag}</span>
+                  )}
                 </span>
                 <span className="ferro-family-role">{tool.role}</span>
                 <span className="ferro-family-body">{tool.body}</span>

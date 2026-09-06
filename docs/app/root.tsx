@@ -1,3 +1,5 @@
+import type { MetaFunction } from "react-router";
+
 import {
   ArdoFooter,
   ArdoGeneratedSidebar,
@@ -8,9 +10,6 @@ import {
   ArdoSidebar,
   ArdoSidebarSection,
 } from "ardo/ui";
-import config from "virtual:ardo/config";
-import type { MetaFunction } from "react-router";
-import { ferrocatReleaseVersion } from "../release-version";
 import {
   BookOpen,
   Box,
@@ -21,7 +20,11 @@ import {
   Settings,
   Wrench,
 } from "lucide-react";
+import config from "virtual:ardo/config";
+
+import { ferrocatReleaseVersion } from "../release-version";
 import "ardo/ui/styles.css";
+
 import "./styles/site.css";
 
 export { ArdoRootLayout as Layout } from "ardo/ui";

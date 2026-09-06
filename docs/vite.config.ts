@@ -1,5 +1,6 @@
-import { defineConfig } from "vite";
 import { ardo } from "ardo/vite";
+import { defineConfig } from "vite";
+
 import { ferrocatReleaseVersion } from "./release-version";
 
 export default defineConfig({

@@ -1,0 +1,22 @@
+{
+  "version": "0.2",
+  "ignorePaths": [".standards/"],
+  "words": [
+    "ardo",
+    "ferramenta",
+    "ferro",
+    "ferrocat",
+    "forgejo",
+    "lockfile",
+    "memchr",
+    "msgmerge",
+    "oxfmt",
+    "oxlint",
+    "palamedes",
+    "pnpm",
+    "pofile",
+    "polib",
+    "repometa",
+    "unforked"
+  ]
+}

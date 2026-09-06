@@ -82,6 +82,9 @@ Docs site:
 ```bash
 cd docs
 pnpm install --frozen-lockfile
+pnpm lint
+pnpm format:check
+pnpm typecheck
 pnpm build
 ```
 
@@ -102,6 +105,15 @@ gitignored. Do not edit or commit it manually.
 
 The docs package pins pnpm in `docs/package.json`. Run pnpm commands from the
 `docs/` directory so Corepack resolves the docs package metadata.
+
+`docs/` is declared as a standards workspace in `.repometa.json#workspaces`, so
+it receives the org Node configuration: `docs/.oxfmtrc.json` is managed by
+`@sebastian-software/standards` and is never hand-edited; `eslint.config.ts`,
+`oxlint.config.ts`, `tsconfig.json` and `cspell.json` next to it were seeded
+once and are this repository's to change. `benchmark/node/` is deliberately not
+declared: it is a local comparison harness for the benchmark runs, installed by
+`benchmark/setup.sh` alongside the Python and PHP adapters, and neither built
+nor linted by the repository's gate.
 
 ADRs live under `docs/app/routes/architecture/adr/` as MDX files with
 frontmatter. When adding an ADR, also add it to
