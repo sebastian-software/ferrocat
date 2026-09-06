@@ -59,6 +59,8 @@ Repository, docs, and contribution guidelines:
 - <https://github.com/sebastian-software/ferrocat>
 - <https://docs.rs/ferrocat>
 
-Part of the Ferramenta family of Rust-native developer tools: https://ferramenta.dev
+<!-- ferramenta-family:start -->
+**ferrocat** is part of the [Ferramenta](https://ferramenta.dev) family — Rust-native developer tools that keep the APIs the ecosystem already knows.
 
-Siblings: ferroni, ferriki, ferromark, ferrolex, ferralk, palamedes
+Siblings: [ferroni](https://sebastian-software.github.io/ferroni/) · [ferriki](https://github.com/sebastian-software/ferriki) · [ferromark](https://sebastian-software.github.io/ferromark/) · [ferrolex](https://github.com/sebastian-software/ferrolex) · [palamedes](https://palamedes.dev) · [ferrovia](https://github.com/sebastian-software/ferrovia) · [ferralk](https://github.com/sebastian-software/ferralk) · [ferrugo](https://github.com/sebastian-software/ferrugo).
+<!-- ferramenta-family:end -->

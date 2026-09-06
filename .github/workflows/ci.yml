@@ -65,6 +65,9 @@ jobs:
         working-directory: docs
         run: pnpm build
 
+      - name: Check the Ferramenta family block
+        run: scripts/check-readme-family.sh
+
       - name: Check published benchmark numbers
         run: node scripts/check-published-numbers.mjs
 
