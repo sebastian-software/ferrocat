@@ -5,9 +5,12 @@ import {
   ExternalLink,
   FileCheck2,
   FileText,
+  FileType,
   Flame,
+  FolderSearch,
   GitBranch,
   GitMerge,
+  Globe,
   Hammer,
   Languages,
   Package,
@@ -34,7 +37,11 @@ const GITHUB = "https://github.com/sebastian-software/ferrocat"
 const COMPANY = "https://sebastian-software.com/"
 const OSS = "https://oss.sebastian-software.com/"
 
-// ── The Ferro family: every tool forged in Rust ──
+// ── The Ferramenta family: every tool forged in Rust ──
+//
+// Mirrors the family registry (packages/ardo-config/src/family.ts in
+// sebastian-software/ferramenta). Keep this list in step with it until the
+// shared `@ferramenta/family` package can supply it directly.
 
 type FamilyTool = {
   name: string
@@ -42,8 +49,11 @@ type FamilyTool = {
   body: string
   icon: React.ReactNode
   href: string
+  tag?: string
   current?: boolean
 }
+
+const FAMILY_SITE = "https://ferramenta.dev"
 
 const family: FamilyTool[] = [
   {
@@ -52,42 +62,65 @@ const family: FamilyTool[] = [
     body: "PO, FCL, and ICU MessageFormat with merge, review, and audit. Parses several times faster than Node catalog tooling, and merges faster still.",
     icon: <Languages size={19} />,
     href: GITHUB,
+    tag: "you are here",
     current: true,
-  },
-  {
-    name: "ferromark",
-    role: "Markdown to HTML",
-    body: "CommonMark and every GFM extension at 309 MiB/s. Faster than pulldown-cmark and md4c.",
-    icon: <FileText size={19} />,
-    href: "https://github.com/sebastian-software/ferromark",
   },
   {
     name: "ferroni",
     role: "Regex engine",
-    body: "Pure-Rust, Oniguruma-compatible. Same feature class, faster hot path, no C toolchain.",
+    body: "Pure-Rust and Oniguruma-compatible: the same feature class, the same behavior, and no C toolchain in the build.",
     icon: <Regex size={19} />,
     href: "https://github.com/sebastian-software/ferroni",
   },
   {
-    name: "ferrovia",
-    role: "SVG optimizer",
-    body: "SVGO-compatible output, verified differentially against svgo 4 on every build.",
-    icon: <Spline size={19} />,
-    href: "https://github.com/sebastian-software/ferrovia",
-  },
-  {
     name: "ferriki",
     role: "Syntax highlighting",
-    body: "Shiki-compatible themes and grammars on a leaner Rust core, with Node bindings.",
+    body: "Shiki-compatible themes and grammars on a native Rust core, with Node bindings instead of JavaScript and WASM.",
     icon: <Palette size={19} />,
     href: "https://github.com/sebastian-software/ferriki",
   },
   {
+    name: "ferromark",
+    role: "Markdown to HTML",
+    body: "CommonMark plus every GFM extension, with sanitized output, in a Rust renderer built for throughput.",
+    icon: <FileText size={19} />,
+    href: "https://github.com/sebastian-software/ferromark",
+  },
+  {
     name: "ferrolex",
-    role: "Spelling and dictionaries",
-    body: "Spell, dictionary, and brand-term validation for code and localization workflows.",
+    role: "Spell checking",
+    body: "Reads Hunspell dictionaries, then adds compiled dictionaries, deterministic suggestions, and code-aware checking.",
     icon: <SpellCheck size={19} />,
     href: "https://github.com/sebastian-software/ferrolex",
+  },
+  {
+    name: "ferrovia",
+    role: "SVG optimizer",
+    body: "SVGO's plugin model rebuilt in Rust and checked byte for byte against svgo as each piece lands.",
+    icon: <Spline size={19} />,
+    href: "https://github.com/sebastian-software/ferrovia",
+  },
+  {
+    name: "ferralk",
+    role: "Glob matching",
+    body: "Byte-first glob matching and parallel filesystem walking in pure Rust, held to a frozen zlob reference.",
+    icon: <FolderSearch size={19} />,
+    href: "https://github.com/sebastian-software/ferralk",
+  },
+  {
+    name: "ferrugo",
+    role: "PDF previews",
+    body: "Renders untrusted PDFs under explicit memory and time limits, without embedding a browser-sized engine.",
+    icon: <FileType size={19} />,
+    href: "https://github.com/sebastian-software/ferrugo",
+  },
+  {
+    name: "palamedes",
+    role: "i18n framework",
+    body: "The JavaScript and TypeScript application layer on top of Ferrocat: extraction, macros, bindings, and framework integration.",
+    icon: <Globe size={19} />,
+    href: "https://github.com/sebastian-software/palamedes",
+    tag: "application",
   },
 ]
 
@@ -263,7 +296,7 @@ export default function HomePage() {
         <div className="ferro-hero-glow" aria-hidden="true" />
         <p className="ferro-eyebrow ferro-hero-kicker">
           <Hammer size={14} />
-          Part of the Ferro family · forged in Rust
+          Part of the Ferramenta family · forged in Rust
         </p>
         <h1 className="ferro-hero-title">
           Make broken translations a build error, not a support ticket.
@@ -306,7 +339,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* ── The Ferro family ── */}
+      {/* ── The Ferramenta family ── */}
       <section className="ferro-family ferro-reveal">
         <div className="ferro-family-intro">
           <h2>
@@ -314,9 +347,14 @@ export default function HomePage() {
             here is forged in Rust.
           </h2>
           <p className="ferro-sublead">
-            Ferrocat is one of six focused tools from the same workshop. Shared
-            engineering, shared release discipline, each one replacing a slower
-            or heavier dependency in the JavaScript and Rust toolchain.
+            Ferrocat is one tool in{" "}
+            <a className="ferro-inline-link" href={FAMILY_SITE}>
+              Ferramenta
+            </a>
+            , a workshop of Rust-native developer tools with shared engineering
+            and shared release discipline, each one replacing a slower or
+            heavier dependency in the JavaScript and Rust toolchain. Palamedes
+            is the i18n application built on top of them.
           </p>
         </div>
         <ul className="ferro-family-grid">
@@ -333,8 +371,8 @@ export default function HomePage() {
                 <span className="ferro-family-icon">{tool.icon}</span>
                 <span className="ferro-family-name">
                   {tool.name}
-                  {tool.current ? (
-                    <span className="ferro-family-tag">you are here</span>
+                  {tool.tag ? (
+                    <span className="ferro-family-tag">{tool.tag}</span>
                   ) : null}
                 </span>
                 <span className="ferro-family-role">{tool.role}</span>
@@ -645,7 +683,7 @@ export default function HomePage() {
           <p className="ferro-eyebrow">Maintained by Sebastian Software</p>
           <h2>An independent studio shipping open source for the long run.</h2>
           <p className="ferro-sublead">
-            Ferrocat and the Ferro family are built and maintained by{" "}
+            Ferrocat and the rest of the Ferramenta family are built and maintained by{" "}
             <a className="ferro-inline-link" href={COMPANY}>
               Sebastian Software
             </a>

@@ -62,3 +62,7 @@ and obsolete entries.
 `parse_po_borrowed` keeps many fields as references into the input buffer and accepts the same LF, CRLF, and bare CR line-ending forms as the owned `parse_po` parser.
 
 If you want the umbrella dependency instead, use [`ferrocat`](https://docs.rs/ferrocat).
+
+Part of the Ferramenta family of Rust-native developer tools: https://ferramenta.dev
+
+Siblings: ferroni, ferriki, ferromark, ferrolex, ferralk, palamedes
