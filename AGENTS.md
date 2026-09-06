@@ -34,6 +34,7 @@ Examples:
   - `cargo package -p ferrocat-icu -p ferrocat-po -p ferrocat -p ferrocat-cli --locked`
   - from `docs/`: `pnpm install --frozen-lockfile`
   - from `docs/`: `pnpm build`
+  - `scripts/check-readme-family.sh`
 - The coverage gate reports the umbrella `ferrocat` crate but intentionally
   does not enforce a threshold for it while it only re-exports lower-level APIs
   plus smoke tests. Add an explicit threshold in `scripts/coverage.sh` when
@@ -59,6 +60,12 @@ Examples:
 - Run docs-site checks from `docs/`:
   - `pnpm install --frozen-lockfile`
   - `pnpm build`
+- The `<!-- ferramenta-family:start -->` block in `README.md` and in the four
+  published crate READMEs is generated from the family registry in
+  sebastian-software/ferramenta. Never hand-edit it; run
+  `scripts/check-readme-family.sh --write` instead, and see
+  `CONTRIBUTING.md#the-ferramenta-family-block` for bumping the pinned registry
+  commit.
 
 ## Packaging
 

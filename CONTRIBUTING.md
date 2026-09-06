@@ -85,6 +85,12 @@ pnpm install --frozen-lockfile
 pnpm build
 ```
 
+Ferramenta family block:
+
+```bash
+scripts/check-readme-family.sh
+```
+
 ## Documentation Site
 
 The documentation site content lives in `docs/app/routes/` as `.mdx` and `.tsx`
@@ -100,6 +106,26 @@ The docs package pins pnpm in `docs/package.json`. Run pnpm commands from the
 ADRs live under `docs/app/routes/architecture/adr/` as MDX files with
 frontmatter. When adding an ADR, also add it to
 `docs/app/routes/architecture/adr/index.mdx`.
+
+## The Ferramenta Family Block
+
+The `<!-- ferramenta-family:start -->` block in `README.md` and in the four
+published crate READMEs is generated, not hand-written. Its content comes from
+the family registry in
+[sebastian-software/ferramenta](https://github.com/sebastian-software/ferramenta),
+so a renamed tool, a reworded job, or a moved link is fixed once there instead
+of in every sibling repository.
+
+`scripts/check-readme-family.sh` renders it. Run it without arguments (or with
+`--check`) to verify, and with `--write` to regenerate the blocks in place. CI
+runs the check in the docs job, next to `scripts/check-docs-links.mjs`.
+
+The script pins the generator to one ferramenta commit in `FERRAMENTA_PIN`, so
+the same run renders the same block today and next month. A registry change
+reaches this repository by bumping that pin and re-running the script with
+`--write`; the block is generated, so the resulting diff shows exactly what the
+registry moved. Do not edit the block between the markers by hand — the check
+fails on the next run.
 
 ## Compatibility Policy
 
