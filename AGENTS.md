@@ -29,16 +29,17 @@ Examples:
   - `cargo test --workspace --all-features --locked`
   - `RUSTDOCFLAGS="-D warnings" cargo doc --workspace --all-features --no-deps --locked`
   - `cargo +1.93.0 check --workspace --all-targets --all-features --locked`
-  - `cargo llvm-cov --workspace --all-features --locked --lcov --output-path target/lcov.info --ignore-filename-regex 'crates/ferrocat-(bench|conformance)/'`
-  - `cargo llvm-cov report --json --summary-only --output-path target/coverage-summary.json --ignore-filename-regex 'crates/ferrocat-(bench|conformance)/'`
-  - `node scripts/coverage-gate.mjs target/coverage-summary.json ferrocat-po=95 ferrocat-icu=95`
+  - `scripts/coverage.sh` (single source for the llvm-cov filters and the
+    per-crate thresholds; CI runs the same script)
   - `cargo package -p ferrocat-icu -p ferrocat-po -p ferrocat -p ferrocat-cli --locked`
   - from `docs/`: `pnpm install --frozen-lockfile`
   - from `docs/`: `pnpm build`
 - The coverage gate reports the umbrella `ferrocat` crate but intentionally
   does not enforce a threshold for it while it only re-exports lower-level APIs
-  plus smoke tests. Add an explicit threshold when executable umbrella code
-  grows.
+  plus smoke tests. Add an explicit threshold in `scripts/coverage.sh` when
+  executable umbrella code grows.
+- Workflow actions must be pinned to a full commit SHA with a trailing version
+  comment; `scripts/check-workflow-pins.sh` enforces this and runs in CI.
 - If you add or change dependencies, make sure `Cargo.lock` is updated and the locked checks still pass before push.
 - Keep the declared MSRV in `Cargo.toml` covered by CI. The MSRV policy is to align with OXC when practical, while avoiding churn from tracking only the newest stable toolchain. Before `1.0`, raising the MSRV is allowed in a minor release when the changelog calls it out; patch releases should not raise the MSRV.
 

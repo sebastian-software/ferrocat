@@ -8,7 +8,12 @@ This directory stores the first hermetic conformance snapshot for `ferrocat`.
 - Fixtures are compact semantic adaptations of upstream tests unless noted otherwise.
 - Small structured expectations are stored inline in the Rust case definitions; external fixtures are reserved for realistic inputs and full text outputs.
 - GNU `gettext` is intentionally excluded from phase 1.
-- Current snapshot size on 2026-05-12: `60` cases / `454` assertions.
+- Current snapshot size: `61` cases / `457` assertions.
+
+Every count on this page is produced by the harness. Run
+`cargo run -p ferrocat-bench -- conformance-report` for the current numbers; the
+`conformance_sources_match_snapshot` test fails the build when this file and the
+harness disagree.
 
 ## Upstream Sources
 
@@ -37,7 +42,7 @@ This directory stores the first hermetic conformance snapshot for `ferrocat`.
   - Upstream: <https://github.com/unicode-org/icu>
   - License: Unicode License
   - Role: official MessageFormat parser reference for `ferrocat-icu`
-  - Snapshot here: `11` cases / `29` assertions
+  - Snapshot here: `12` cases / `32` assertions
   - Coverage here: simple arguments, plural/selectordinal, nested tags, skeleton formatters, nested select/plural, apostrophe escaping, and parser-visible failure cases
 
 - `formatjs/messageformat`
