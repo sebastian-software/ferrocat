@@ -1,3 +1,5 @@
+import type { MetaFunction } from "react-router";
+
 import {
   ArdoFooter,
   ArdoGeneratedSidebar,
@@ -7,10 +9,7 @@ import {
   ArdoRoot,
   ArdoSidebar,
   ArdoSidebarSection,
-} from "ardo/ui"
-import config from "virtual:ardo/config"
-import type { MetaFunction } from "react-router"
-import { ferrocatReleaseVersion } from "../release-version"
+} from "ardo/ui";
 import {
   BookOpen,
   Box,
@@ -20,13 +19,17 @@ import {
   Package,
   Settings,
   Wrench,
-} from "lucide-react"
-import "ardo/ui/styles.css"
-import "./styles/site.css"
+} from "lucide-react";
+import config from "virtual:ardo/config";
 
-export { ArdoRootLayout as Layout } from "ardo/ui"
+import { ferrocatReleaseVersion } from "../release-version";
+import "ardo/ui/styles.css";
 
-export const meta: MetaFunction = () => [{ title: config.title }]
+import "./styles/site.css";
+
+export { ArdoRootLayout as Layout } from "ardo/ui";
+
+export const meta: MetaFunction = () => [{ title: config.title }];
 
 /*
  * Sidebar rail sections, in the order declared as `sidebar.sectionOrder` in
@@ -47,7 +50,7 @@ const sections = [
   { id: "architecture", label: "Architecture", to: "/architecture", icon: FileCode },
   { id: "notes", label: "Notes", to: "/notes", icon: FileText },
   { id: "archive", label: "Archive", to: "/archive", icon: Package },
-] as const
+] as const;
 
 export default function Root() {
   return (
@@ -78,14 +81,16 @@ export default function Root() {
       <ArdoFooter>
         <p className="ferro-footer-note">
           Ferrocat v{ferrocatReleaseVersion}
-          <span>Performance-first localization tooling for Gettext, ICU MessageFormat, and JSON-oriented delivery.</span>
+          <span>
+            Performance-first localization tooling for Gettext, ICU MessageFormat, and JSON-oriented
+            delivery.
+          </span>
         </p>
         <p className="ferro-footer-family">
-          Part of <a href="https://ferramenta.dev">Ferramenta</a>, the family of
-          Rust-native developer tools by{" "}
-          <a href="https://oss.sebastian-software.com">Sebastian Software</a>.
+          Part of <a href="https://ferramenta.dev">Ferramenta</a>, the family of Rust-native
+          developer tools by <a href="https://oss.sebastian-software.com">Sebastian Software</a>.
         </p>
       </ArdoFooter>
     </ArdoRoot>
-  )
+  );
 }

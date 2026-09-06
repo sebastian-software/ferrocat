@@ -1,34 +1,35 @@
-import type { EntryContext } from "react-router"
-import { ServerRouter } from "react-router"
-import { renderToReadableStream } from "react-dom/server"
-import { isbot } from "isbot"
+import type { EntryContext } from "react-router";
+
+import { isbot } from "isbot";
+import { renderToReadableStream } from "react-dom/server";
+import { ServerRouter } from "react-router";
 
 export default async function handleRequest(
   request: Request,
   responseStatusCode: number,
   responseHeaders: Headers,
-  routerContext: EntryContext
+  routerContext: EntryContext,
 ) {
-  const userAgent = request.headers.get("user-agent")
+  const userAgent = request.headers.get("user-agent");
 
   const stream = await renderToReadableStream(
     <ServerRouter context={routerContext} url={request.url} />,
     {
       onError(error: unknown) {
-        console.error(error)
-        responseStatusCode = 500
+        console.error(error);
+        responseStatusCode = 500;
       },
-    }
-  )
+    },
+  );
 
-  if (userAgent && isbot(userAgent)) {
-    await stream.allReady
+  if (userAgent !== null && isbot(userAgent)) {
+    await stream.allReady;
   }
 
-  responseHeaders.set("Content-Type", "text/html")
+  responseHeaders.set("Content-Type", "text/html");
 
   return new Response(stream, {
     status: responseStatusCode,
     headers: responseHeaders,
-  })
+  });
 }

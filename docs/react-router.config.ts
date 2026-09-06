@@ -1,4 +1,4 @@
-import type { Config } from "@react-router/dev/config"
+import type { Config } from "@react-router/dev/config";
 
 export default {
   ssr: false,
@@ -7,4 +7,4 @@ export default {
   // basename must stay "/". detectGitHubBasename() would derive "/ferrocat/"
   // from the repo name, which only fits the github.io/<repo>/ project URL.
   basename: "/",
-} satisfies Config
+} satisfies Config;

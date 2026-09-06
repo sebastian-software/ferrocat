@@ -17,11 +17,11 @@ Keeping those choices explicit makes migrations safer, runtime compilation clear
 
 ## The three supported modes
 
-| Mode | Storage format | Message model | Use when you want to... |
-|---|---|---|---|
-| Classic Gettext catalog mode | Gettext PO | Gettext-compatible plurals | stay close to existing PO catalogs and traditional plural workflows |
-| ICU-native Gettext PO mode | Gettext PO | ICU MessageFormat | keep translator-facing PO files, comments, and tooling, but author richer messages with placeholders, plural/select logic, and formatting |
-| ICU-native FCL catalog mode | FCL catalog storage | ICU MessageFormat | store catalogs as one-entry-per-line, tab-separated records that are easier to diff, merge, batch, and hand to external services |
+| Mode                         | Storage format      | Message model              | Use when you want to...                                                                                                                   |
+| ---------------------------- | ------------------- | -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| Classic Gettext catalog mode | Gettext PO          | Gettext-compatible plurals | stay close to existing PO catalogs and traditional plural workflows                                                                       |
+| ICU-native Gettext PO mode   | Gettext PO          | ICU MessageFormat          | keep translator-facing PO files, comments, and tooling, but author richer messages with placeholders, plural/select logic, and formatting |
+| ICU-native FCL catalog mode  | FCL catalog storage | ICU MessageFormat          | store catalogs as one-entry-per-line, tab-separated records that are easier to diff, merge, batch, and hand to external services          |
 
 There is intentionally no FCL + gettext-plural mode; gettext plural behavior belongs to PO-shaped catalogs, while FCL is the ICU-native machine storage path for catalog records.
 

@@ -24,7 +24,7 @@ three problems:
   current translation, i.e. current vs stale). `model`, `confidence`, and
   `modified` are never read by Ferrocat logic — they are provenance passed
   through for hosts and dashboards.
-- **The hash is not really about *translation*.** Its job is integrity: a
+- **The hash is not really about _translation_.** Its job is integrity: a
   machine set this value, and a later by-hand edit should be detectable. A
   translation memory system or any automation manages values the same way, so
   binding the hash to a `mt.` namespace is too narrow.
@@ -33,7 +33,7 @@ three problems:
   is a timestamp that churns every regenerated line and poisons merges.
 
 At the same time Ferrocat should position itself as AI-native: it should
-*understand* a small, engine-neutral provenance vocabulary across engines
+_understand_ a small, engine-neutral provenance vocabulary across engines
 (Palamedes, a TMS, other AI providers), rather than treat the data as opaque
 host-specific bytes.
 

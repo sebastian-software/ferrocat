@@ -15,14 +15,14 @@ order: 270
 
 [ADR 0023](/architecture/adr/0023-drop-gettext-flags-merge-comments) removed the
 gettext flag concept from the catalog layer and collapsed the two comment kinds
-into one notes list. That decision was about *semantics*, and it still holds:
+into one notes list. That decision was about _semantics_, and it still holds:
 Ferrocat did not produce a `fuzzy` status, and printf format flags say nothing
 about an ICU catalog. ADR 0028 later narrows the first statement: an opt-in
 report projection recognizes the exact `fuzzy` marker without exposing the
 general flag list.
 
 It also had a side effect that was not the point of the decision. Because the
-catalog model had nowhere to put them, a high-level update *destroyed* this
+catalog model had nowhere to put them, a high-level update _destroyed_ this
 metadata: translator-written `#` comments were rewritten as extractor-owned
 `#.` comments, and per-entry flags disappeared. A hand-maintained PO file lost
 information every time a source-first update ran.
