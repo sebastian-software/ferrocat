@@ -1090,6 +1090,22 @@
   font-size: 0.86rem;
 }
 
+.ferro-footer-family {
+  margin: 0.55rem 0 0;
+  font-size: 0.86rem;
+  color: var(--ferro-meta);
+}
+
+.ferro-footer-family a {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 0.18em;
+}
+
+.ferro-footer-family a:hover {
+  color: var(--ferro-ember-strong);
+}
+
 /* ── Motion ── */
 
 @keyframes ferro-ember {
