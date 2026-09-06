@@ -25,3 +25,7 @@ Exit codes:
 
 Use `--format json` when CI should consume the structured
 `CatalogAuditReport`.
+
+Part of the Ferramenta family of Rust-native developer tools: https://ferramenta.dev
+
+Siblings: ferroni, ferriki, ferromark, ferrolex, ferralk, palamedes

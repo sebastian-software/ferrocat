@@ -1,9 +1,13 @@
-# ferrocat
+# Ferrocat
+
+Rust-native translation catalog engine for Gettext PO, ICU MessageFormat, and FCL catalogs.
 
 [![crates.io](https://img.shields.io/crates/v/ferrocat.svg)](https://crates.io/crates/ferrocat)
 [![docs.rs](https://img.shields.io/docsrs/ferrocat)](https://docs.rs/ferrocat)
 [![CI](https://github.com/sebastian-software/ferrocat/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/sebastian-software/ferrocat/actions/workflows/ci.yml)
 [![codecov](https://codecov.io/github/sebastian-software/ferrocat/graph/badge.svg?branch=main)](https://app.codecov.io/github/sebastian-software/ferrocat)
+[![license](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![MSRV](https://img.shields.io/badge/MSRV-1.93.0-blue.svg)](#compatibility-snapshot)
 
 `ferrocat` is a Rust-native translation catalog engine. It treats localized copy as product data: parse it, update it, review it, measure it, audit it, and compile it into runtime payloads your application can ship with confidence.
 
@@ -121,7 +125,7 @@ The Node baseline is [pofile-ts](https://github.com/sebastian-software/pofile-ts
 
 The full catalog update row is Ferrocat's high-level `update_catalog` on the same files: on top of the plain update it analyzes ICU message structure, tracks placeholders, and produces deterministic output. The comparison now includes Babel's real `Catalog.update` path for Python; even with that extra work, Ferrocat's full update runs about 3.4x ahead of the fastest non-Ferrocat workflow update and roughly 31x ahead of GNU `msgmerge`.
 
-See the [benchmark methodology](https://sebastian-software.github.io/ferrocat/performance/benchmarking) and the checked-in reports under [`benchmark/results/`](benchmark/results) for host details, fixture definitions, noise handling, and the full matrix.
+See the [benchmark methodology](https://ferrocat.dev/performance/benchmarking) and the checked-in reports under [`benchmark/results/`](benchmark/results) for host details, fixture definitions, noise handling, and the full matrix.
 
 ## Catalog Modes
 
@@ -149,7 +153,7 @@ the catalog workflow layer.
 - `compile`, `mt`, and `plurals` are reserved subsystem aliases that currently
   imply `catalog`; they do not reduce or split the catalog API surface yet.
 
-See the [API overview](https://sebastian-software.github.io/ferrocat/reference/api-overview#feature-profiles)
+See the [API overview](https://ferrocat.dev/reference/api-overview#feature-profiles)
 for the crate-by-crate feature profile details.
 
 ## Compatibility Snapshot
@@ -166,19 +170,20 @@ for the crate-by-crate feature profile details.
 
 If you already know what kind of question you have, these are the fastest entry points:
 
-- [Getting started](https://sebastian-software.github.io/ferrocat/guide/getting-started) for installation, quick start, and the main next steps
-- [Catalog modes](https://sebastian-software.github.io/ferrocat/guide/catalog-modes) for choosing PO or FCL storage with gettext or ICU message semantics
+- [Getting started](https://ferrocat.dev/guide/getting-started) for installation, quick start, and the main next steps
+- [Catalog modes](https://ferrocat.dev/guide/catalog-modes) for choosing PO or FCL storage with gettext or ICU message semantics
 - [FCL format specification](docs/fcl-format.md) for the repository-local line format and escaping reference
-- [Ferrocat and Palamedes](https://sebastian-software.github.io/ferrocat/guide/palamedes) for the relationship between the catalog engine and the JS/TS i18n framework
-- [Releases and upgrading](https://sebastian-software.github.io/ferrocat/guide/upgrading) for changelogs, lockstep versions, and safe upgrades
-- [API overview](https://sebastian-software.github.io/ferrocat/reference/api-overview) for choosing between PO core, catalog workflows, and ICU helpers
-- [Gettext task landscape](https://sebastian-software.github.io/ferrocat/reference/gettext-task-landscape) for the workflow-level map across GNU gettext, common libraries, and Ferrocat
-- [Performance docs](https://sebastian-software.github.io/ferrocat/performance) for benchmark methodology, fixtures, and history
-- [Quality docs](https://sebastian-software.github.io/ferrocat/quality) for conformance and coverage
-- [ADR index](https://sebastian-software.github.io/ferrocat/architecture/adr) for architecture decisions and longer-term technical direction
+- [Ferrocat and Palamedes](https://ferrocat.dev/guide/palamedes) for the relationship between the catalog engine and the JS/TS i18n framework
+- [Releases and upgrading](https://ferrocat.dev/guide/upgrading) for changelogs, lockstep versions, and safe upgrades
+- [API overview](https://ferrocat.dev/reference/api-overview) for choosing between PO core, catalog workflows, and ICU helpers
+- [Gettext task landscape](https://ferrocat.dev/reference/gettext-task-landscape) for the workflow-level map across GNU gettext, common libraries, and Ferrocat
+- [Performance docs](https://ferrocat.dev/performance) for benchmark methodology, fixtures, and history
+- [Quality docs](https://ferrocat.dev/quality) for conformance and coverage
+- [ADR index](https://ferrocat.dev/architecture/adr) for architecture decisions and longer-term technical direction
 
 ## Core Links
 
+- [Documentation site](https://ferrocat.dev)
 - [docs.rs crate docs](https://docs.rs/ferrocat)
 - [`ferrocat` changelog](https://github.com/sebastian-software/ferrocat/blob/main/crates/ferrocat/CHANGELOG.md)
 - [GitHub Releases](https://github.com/sebastian-software/ferrocat/releases)

@@ -62,3 +62,7 @@ fn main() -> Result<(), ferrocat_icu::IcuParseError> {
 ```
 
 If you want the combined public entry point instead, use [`ferrocat`](https://docs.rs/ferrocat).
+
+Part of the Ferramenta family of Rust-native developer tools: https://ferramenta.dev
+
+Siblings: ferroni, ferriki, ferromark, ferrolex, ferralk, palamedes

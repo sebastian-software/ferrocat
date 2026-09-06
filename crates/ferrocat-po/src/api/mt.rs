@@ -12,7 +12,7 @@ const MACHINE_TRANSLATION_HASH_NAMESPACE: &[u8] = b"ferrocat:mt:v1";
 
 /// Metadata for a catalog value that was set or managed by a machine.
 ///
-/// See [ADR 0022](https://sebastian-software.github.io/ferrocat/architecture/adr/0022-machine-managed-value-integrity-and-ai-provenance).
+/// See [ADR 0022](https://ferrocat.dev/architecture/adr/0022-machine-managed-value-integrity-and-ai-provenance).
 /// The presence of this metadata marks the value as machine-managed (by an AI
 /// engine, a translation memory system, a script, …). [`lock`](Self::lock) is an
 /// integrity fingerprint of the value at that time: when it no longer matches the

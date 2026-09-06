@@ -6,7 +6,8 @@
   "type": "module",
   "scripts": {
     "dev": "react-router dev",
-    "build": "react-router build",
+    "build": "node ../scripts/check-docs-links.mjs && react-router build",
+    "check:links": "node ../scripts/check-docs-links.mjs",
     "preview": "vite preview"
   },
   "dependencies": {
