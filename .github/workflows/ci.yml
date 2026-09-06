@@ -195,16 +195,30 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Set up Rust 1.93.0
+      # `rust-version` in Cargo.toml is the only place the MSRV is declared;
+      # reading it here keeps the lane from drifting behind a bump.
+      - name: Read MSRV from Cargo.toml
+        id: msrv
+        run: |
+          version="$(sed -n 's/^rust-version = "\(.*\)"$/\1/p' Cargo.toml | head -n 1)"
+          if [ -z "$version" ]; then
+            echo "Could not read rust-version from Cargo.toml" >&2
+            exit 1
+          fi
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Rust ${{ steps.msrv.outputs.version }}
         uses: dtolnay/rust-toolchain@d1031067263f94b142dd6c0ce24c5eb9d02d52a0 # master
         with:
-          toolchain: 1.93.0
+          toolchain: ${{ steps.msrv.outputs.version }}
 
       - name: Cache Rust build artifacts
         uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
 
       - name: Test workspace with MSRV
-        run: cargo +1.93.0 test --workspace --all-features --locked
+        env:
+          MSRV: ${{ steps.msrv.outputs.version }}
+        run: cargo "+${MSRV}" test --workspace --all-features --locked
 
   musl:
     name: Linux musl target

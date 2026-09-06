@@ -1,6 +1,7 @@
 [package]
 name = "ferrocat-cli"
 version = "3.4.2"
+authors.workspace = true
 edition.workspace = true
 homepage.workspace = true
 license.workspace = true
@@ -9,7 +10,7 @@ rust-version.workspace = true
 description = "Command-line interface for Ferrocat catalog audit workflows."
 documentation = "https://docs.rs/ferrocat-cli"
 readme = "README.md"
-keywords = ["ferrocat", "gettext", "po", "i18n", "cli"]
+keywords = ["ferramenta", "gettext", "po", "i18n", "cli"]
 categories = ["command-line-utilities", "internationalization", "localization"]
 
 [[bin]]
@@ -26,6 +27,7 @@ tempfile = "3.23.0"
 
 [package.metadata.docs.rs]
 all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
 
 [lints]
 workspace = true

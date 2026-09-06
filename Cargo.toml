@@ -1,12 +1,13 @@
 [package]
 name = "ferrocat"
 version = "3.4.2"
+authors.workspace = true
 edition.workspace = true
 homepage.workspace = true
 license.workspace = true
 repository.workspace = true
 rust-version.workspace = true
-description = "Rust-first gettext and ICU toolkit for PO parsing, catalog updates, and MessageFormat parsing."
+description = "Rust-native translation catalog engine for Gettext PO, ICU MessageFormat, and FCL catalogs."
 documentation = "https://docs.rs/ferrocat"
 readme = "crates/ferrocat/README.md"
 include = [
@@ -17,7 +18,7 @@ include = [
     "crates/ferrocat/CHANGELOG.md",
     "LICENSE",
 ]
-keywords = ["ferrocat", "gettext", "po", "icu", "i18n"]
+keywords = ["ferramenta", "gettext", "po", "icu", "i18n"]
 categories = ["internationalization", "localization", "parser-implementations"]
 
 [lib]
@@ -83,11 +84,12 @@ exclude = ["fuzz"]
 resolver = "2"
 
 [workspace.package]
+authors = ["Sebastian Software GmbH"]
 edition = "2024"
-homepage = "https://github.com/sebastian-software/ferrocat"
+homepage = "https://ferrocat.dev"
 license = "MIT"
 repository = "https://github.com/sebastian-software/ferrocat"
-rust-version = "1.93.0"
+rust-version = "1.94.0"
 
 [workspace.lints.rust]
 unsafe_op_in_unsafe_fn = "deny"

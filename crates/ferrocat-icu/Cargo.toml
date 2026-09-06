@@ -1,6 +1,7 @@
 [package]
 name = "ferrocat-icu"
 version = "3.4.2"
+authors.workspace = true
 edition.workspace = true
 homepage.workspace = true
 license.workspace = true
@@ -9,7 +10,7 @@ rust-version.workspace = true
 description = "Compact, Rust-native ICU MessageFormat parsing primitives for ferrocat."
 documentation = "https://docs.rs/ferrocat-icu"
 readme = "README.md"
-keywords = ["ferrocat", "icu", "messageformat", "i18n", "parser"]
+keywords = ["ferramenta", "icu", "messageformat", "i18n", "parser"]
 categories = ["internationalization", "localization", "parser-implementations"]
 exclude = ["tests/conformance_icu.rs"]
 
@@ -26,6 +27,7 @@ serde = { version = "1.0.228", features = ["derive"], optional = true }
 
 [package.metadata.docs.rs]
 all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
 
 [dev-dependencies]
 ferrocat-conformance = { path = "../ferrocat-conformance" }

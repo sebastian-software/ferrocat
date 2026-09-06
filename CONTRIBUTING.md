@@ -48,7 +48,7 @@ RUSTDOCFLAGS="-D warnings" cargo doc --workspace --all-features --no-deps --lock
 MSRV check:
 
 ```bash
-cargo +1.93.0 check --workspace --all-targets --all-features --locked
+cargo +1.94.0 check --workspace --all-targets --all-features --locked
 ```
 
 Coverage gate:

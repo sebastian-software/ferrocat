@@ -28,7 +28,7 @@ Examples:
   - `cargo clippy --workspace --all-targets --all-features --locked -- -D warnings`
   - `cargo test --workspace --all-features --locked`
   - `RUSTDOCFLAGS="-D warnings" cargo doc --workspace --all-features --no-deps --locked`
-  - `cargo +1.93.0 check --workspace --all-targets --all-features --locked`
+  - `cargo +1.94.0 check --workspace --all-targets --all-features --locked`
   - `scripts/coverage.sh` (single source for the llvm-cov filters and the
     per-crate thresholds; CI runs the same script)
   - `cargo package -p ferrocat-icu -p ferrocat-po -p ferrocat -p ferrocat-cli --locked`
