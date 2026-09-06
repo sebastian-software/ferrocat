@@ -1430,8 +1430,8 @@ mod tests {
     use ferrocat_po::{CatalogMessage, CatalogMode, ParseCatalogOptions, parse_catalog};
 
     use super::{
-        evaluate_all_cases, fixture_by_name, fixture_parsed_catalog, load_assertion_counts,
-        render_fcl_catalog, render_po_catalog, summarize_evaluations,
+        evaluate_all_cases, fixture_by_name, fixture_parsed_catalog, load_all_manifests,
+        load_assertion_counts, render_fcl_catalog, render_po_catalog, summarize_evaluations,
     };
 
     #[test]
@@ -1474,6 +1474,66 @@ mod tests {
             missing.is_empty(),
             "docs/app/routes/quality/conformance.mdx is stale; update these lines:\n{}",
             missing.join("\n")
+        );
+    }
+
+    /// `conformance/SOURCES.md` publishes the same counts as the site page, so
+    /// it is generated from the harness too instead of being hand-maintained.
+    #[test]
+    fn conformance_sources_match_snapshot() {
+        let assertion_counts = load_assertion_counts().expect("load assertion counts");
+        let manifests = load_all_manifests().expect("load conformance manifests");
+
+        let mut total_cases = 0usize;
+        let mut total_assertions = 0usize;
+        let mut per_source = Vec::new();
+        for manifest in &manifests {
+            let assertions = manifest
+                .cases
+                .iter()
+                .map(|case| *assertion_counts.get(&case.id).unwrap_or(&1))
+                .sum::<usize>();
+            total_cases += manifest.cases.len();
+            total_assertions += assertions;
+            per_source.push((
+                manifest.source.clone(),
+                format!(
+                    "  - Snapshot here: `{}` cases / `{assertions}` assertions",
+                    manifest.cases.len()
+                ),
+            ));
+        }
+
+        let sources_path = concat!(env!("CARGO_MANIFEST_DIR"), "/../../conformance/SOURCES.md");
+        let sources = fs::read_to_string(sources_path).expect("read conformance sources");
+
+        let mut stale = Vec::new();
+        let total_line = format!(
+            "- Current snapshot size: `{total_cases}` cases / `{total_assertions}` assertions."
+        );
+        if !sources.contains(&total_line) {
+            stale.push(total_line);
+        }
+
+        for (source, expected_line) in per_source {
+            let heading = format!("- `{source}`");
+            let Some(start) = sources.find(&heading) else {
+                stale.push(format!("missing section for {heading}"));
+                continue;
+            };
+            // Each upstream source is one bullet block; the next block starts at
+            // the next top-level `- \`` bullet, so bound the search to this one.
+            let rest = &sources[start + heading.len()..];
+            let end = rest.find("\n- `").map_or(rest.len(), |offset| offset + 1);
+            if !rest[..end].contains(&expected_line) {
+                stale.push(format!("{heading}: {}", expected_line.trim()));
+            }
+        }
+
+        assert!(
+            stale.is_empty(),
+            "conformance/SOURCES.md is stale; update these lines:\n{}",
+            stale.join("\n")
         );
     }
 

@@ -1,5 +1,8 @@
 # Changelog
 
+> Version 3.0.0 was published and then yanked; 2.2.0 superseded it without the
+> breaking change, so the 2.2.0 compare links below run backwards from 3.0.0.
+
 ## Unreleased
 
 ### ⚠ BREAKING CHANGES

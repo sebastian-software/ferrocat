@@ -1,5 +1,8 @@
 # Changelog
 
+> Version 3.0.0 was published and then yanked; 2.2.0 superseded it without the
+> breaking change, so the 2.2.0 compare links below run backwards from 3.0.0.
+
 ## [2.2.0](https://github.com/sebastian-software/ferrocat/compare/ferrocat-conformance-v3.0.0...ferrocat-conformance-v2.2.0) (2026-07-05)
 
 

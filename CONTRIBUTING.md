@@ -54,10 +54,12 @@ cargo +1.94.0 check --workspace --all-targets --all-features --locked
 Coverage gate:
 
 ```bash
-cargo llvm-cov --workspace --all-features --locked --lcov --output-path target/lcov.info --ignore-filename-regex 'crates/ferrocat-(bench|conformance)/'
-cargo llvm-cov report --json --summary-only --output-path target/coverage-summary.json --ignore-filename-regex 'crates/ferrocat-(bench|conformance)/'
-node scripts/coverage-gate.mjs target/coverage-summary.json ferrocat-po=95 ferrocat-icu=95
+scripts/coverage.sh
 ```
+
+`scripts/coverage.sh` is the single source for the llvm-cov filters and the
+per-crate thresholds. CI runs the same script, so the numbers cannot drift
+between this page and the workflow; change the thresholds there.
 
 Published crate packaging:
 
@@ -72,8 +74,8 @@ packaging.
 
 The coverage gate reports the umbrella `ferrocat` crate but intentionally does
 not enforce a threshold for it while that crate only re-exports lower-level
-APIs plus smoke tests. Add an explicit threshold when executable umbrella code
-grows.
+APIs plus smoke tests. Add an explicit threshold in `scripts/coverage.sh` when
+executable umbrella code grows.
 
 Docs site:
 
