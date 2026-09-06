@@ -205,3 +205,20 @@ This project is part of [Ferramenta](https://ferramenta.dev) — the family of R
 
 ferrocat and ferrolex are also the Rust foundation of [Palamedes](https://github.com/sebastian-software/palamedes), i18n tooling for JavaScript and TypeScript teams that want one translation model to survive framework changes.
 <!-- ferramenta-family:end -->
+
+---
+
+<!-- sebastian-software-branding:start -->
+<p align="center">
+  <a href="https://oss.sebastian-software.com">
+    <img src="https://sebastian-brand.vercel.app/sebastian-software/logo-software.svg" alt="Sebastian Software" width="240" />
+  </a>
+</p>
+
+<p align="center">
+  <strong>Built by Sebastian Software</strong> — consulting for TypeScript, React &amp; Rust.<br />
+  <a href="https://sebastian-software.de">Work with us</a> · <a href="https://oss.sebastian-software.com">More open source</a>
+</p>
+
+<p align="center">Copyright &copy; 2026 Sebastian Software GmbH</p>
+<!-- sebastian-software-branding:end -->
