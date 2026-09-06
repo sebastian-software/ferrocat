@@ -8,6 +8,9 @@ importers:
 
   .:
     dependencies:
+      '@ferramenta/family':
+        specifier: github:sebastian-software/ferramenta#5b84af1676b12b4b45661d5be4a42b11275a72da&path:/packages/family
+        version: https://codeload.github.com/sebastian-software/ferramenta/tar.gz/5b84af1676b12b4b45661d5be4a42b11275a72da#path:/packages/family(react@19.2.8)
       ardo:
         specifier: ^4.2.0
         version: 4.2.0(@react-router/dev@8.3.0(react-router@8.3.0(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(supports-color@9.4.0)(typescript@6.0.3)(vite@8.1.5(@types/node@26.3.0)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.0)))(@types/node@26.3.0)(@types/react@19.2.17)(esbuild@0.28.2)(jiti@2.7.0)(lucide-react@1.28.0(react@19.2.8))(react-dom@19.2.8(react@19.2.8))(react-router@8.3.0(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(react@19.2.8)(rollup@4.59.0)(supports-color@9.4.0)(typescript@6.0.3)(vite@8.1.5(@types/node@26.3.0)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.0))
@@ -737,6 +740,13 @@ packages:
   '@eslint/plugin-kit@0.7.3':
     resolution: {integrity: sha512-IkO+/KEUvwbVpiURZg+P7zF74z5Jxe0UgJxVni+RtoHQ6IZieXaO02kmadomap/q+l6bc/jdPGGqTjhuZnuz1Q==}
     engines: {node: ^20.19.0 || ^22.13.0 || >=24}
+
+  '@ferramenta/family@https://codeload.github.com/sebastian-software/ferramenta/tar.gz/5b84af1676b12b4b45661d5be4a42b11275a72da#path:/packages/family':
+    resolution: {gitHosted: true, path: /packages/family, tarball: https://codeload.github.com/sebastian-software/ferramenta/tar.gz/5b84af1676b12b4b45661d5be4a42b11275a72da}
+    version: 0.1.0
+    hasBin: true
+    peerDependencies:
+      react: '>=19.0.0 <20.0.0'
 
   '@floating-ui/core@1.8.0':
     resolution: {integrity: sha512-0CIZ5itps/8x7BG8dEIhs53BvCUH2PCoogtakwRTut+Arm58sJooJ0AuZhLw2HJYIR5cMLNPBSS728sPho2khQ==}
@@ -5287,6 +5297,10 @@ snapshots:
     dependencies:
       '@eslint/core': 1.2.1
       levn: 0.4.1
+
+  '@ferramenta/family@https://codeload.github.com/sebastian-software/ferramenta/tar.gz/5b84af1676b12b4b45661d5be4a42b11275a72da#path:/packages/family(react@19.2.8)':
+    dependencies:
+      react: 19.2.8
 
   '@floating-ui/core@1.8.0':
     dependencies:

@@ -115,6 +115,17 @@ declared: it is a local comparison harness for the benchmark runs, installed by
 `benchmark/setup.sh` alongside the Python and PHP adapters, and neither built
 nor linted by the repository's gate.
 
+The site header and footer are the shared family chrome from
+`@ferramenta/family`, pinned to a ferramenta commit in `docs/package.json`.
+`docs/app/root.tsx` renders `SiteHeader`/`SiteFooter` around the Ardo root and
+turns Ardo's own header and footer off with `handle = { chrome: false }`; Ardo's
+sidebar rail and generated navigation stay. The family stylesheets load in the
+order the package documents (`tokens` → `fonts` → `theme` → `site.css` →
+`chrome.css` last), and the home page reads every sibling's name, job, proof and
+link from `@ferramenta/family` — never hardcode a sibling here. Bump the pin in
+`docs/package.json` and in `scripts/check-readme-family.sh` together, so the
+site and the README block describe the same registry.
+
 ADRs live under `docs/app/routes/architecture/adr/` as MDX files with
 frontmatter. When adding an ADR, also add it to
 `docs/app/routes/architecture/adr/index.mdx`.

@@ -1,27 +1,20 @@
 import type { MetaFunction } from "react-router";
 
+import { FAMILY_SITE, familyGroups, isEngine, Mark } from "@ferramenta/family";
 import {
   ArrowRight,
   BookOpenText,
   Boxes,
   ExternalLink,
   FileCheck2,
-  FileText,
-  FileType,
   Flame,
-  FolderSearch,
   GitBranch,
   GitMerge,
-  Globe,
   Hammer,
   Languages,
   Package,
-  Palette,
-  Regex,
   ScanSearch,
   ShieldCheck,
-  SpellCheck,
-  Spline,
 } from "lucide-react";
 import { Link } from "react-router";
 
@@ -40,90 +33,19 @@ const OSS = "https://oss.sebastian-software.com/";
 
 // ── The Ferramenta family: every tool forged in Rust ──
 //
-// Mirrors the family registry (packages/ardo-config/src/family.ts in
-// sebastian-software/ferramenta). Keep this list in step with it until the
-// shared `@ferramenta/family` package can supply it directly.
+// Names, jobs, proofs and links come from the shared registry
+// (@ferramenta/family, ferramenta ADR-0001). Nothing about a sibling is
+// written down here, so a new member or a moved docs URL arrives with the
+// next pin bump instead of going stale in this file.
 
-type FamilyTool = {
-  name: string;
-  role: string;
-  body: string;
-  icon: React.ReactNode;
-  href: string;
-  tag?: string;
-  current?: boolean;
-};
-
-const FAMILY_SITE = "https://ferramenta.dev";
-
-const family: FamilyTool[] = [
-  {
-    name: "ferrocat",
-    role: "Translation catalogs",
-    body: "PO, FCL, and ICU MessageFormat with merge, review, and audit. Parses several times faster than Node catalog tooling, and merges faster still.",
-    icon: <Languages size={19} />,
-    href: GITHUB,
-    tag: "you are here",
-    current: true,
-  },
-  {
-    name: "ferroni",
-    role: "Regex engine",
-    body: "Pure-Rust and Oniguruma-compatible: the same feature class, the same behavior, and no C toolchain in the build.",
-    icon: <Regex size={19} />,
-    href: "https://github.com/sebastian-software/ferroni",
-  },
-  {
-    name: "ferriki",
-    role: "Syntax highlighting",
-    body: "Shiki-compatible themes and grammars on a native Rust core, with Node bindings instead of JavaScript and WASM.",
-    icon: <Palette size={19} />,
-    href: "https://github.com/sebastian-software/ferriki",
-  },
-  {
-    name: "ferromark",
-    role: "Markdown to HTML",
-    body: "CommonMark plus every GFM extension, with sanitized output, in a Rust renderer built for throughput.",
-    icon: <FileText size={19} />,
-    href: "https://github.com/sebastian-software/ferromark",
-  },
-  {
-    name: "ferrolex",
-    role: "Spell checking",
-    body: "Reads Hunspell dictionaries, then adds compiled dictionaries, deterministic suggestions, and code-aware checking.",
-    icon: <SpellCheck size={19} />,
-    href: "https://github.com/sebastian-software/ferrolex",
-  },
-  {
-    name: "ferrovia",
-    role: "SVG optimizer",
-    body: "SVGO's plugin model rebuilt in Rust and checked byte for byte against svgo as each piece lands.",
-    icon: <Spline size={19} />,
-    href: "https://github.com/sebastian-software/ferrovia",
-  },
-  {
-    name: "ferralk",
-    role: "Glob matching",
-    body: "Byte-first glob matching and parallel filesystem walking in pure Rust, held to a frozen zlob reference.",
-    icon: <FolderSearch size={19} />,
-    href: "https://github.com/sebastian-software/ferralk",
-  },
-  {
-    name: "ferrugo",
-    role: "PDF previews",
-    body: "Renders untrusted PDFs under explicit memory and time limits, without embedding a browser-sized engine.",
-    icon: <FileType size={19} />,
-    href: "https://github.com/sebastian-software/ferrugo",
-  },
-  {
-    name: "palamedes",
-    role: "i18n framework",
-    body: "The JavaScript and TypeScript application layer on top of Ferrocat: extraction, macros, bindings, and framework integration.",
-    icon: <Globe size={19} />,
-    href: "https://github.com/sebastian-software/palamedes",
-    tag: "application",
-  },
-];
+const familyDisplayGroups = (() => {
+  const { language, pipeline, workbench } = familyGroups();
+  return [
+    { label: "Content pipeline", tools: pipeline },
+    { label: "Language workshop", tools: language },
+    { label: "Workbench", tools: workbench },
+  ];
+})();
 
 // ── What the catalog engine does for you ──
 
@@ -394,26 +316,40 @@ export default function HomePage() {
             toolchain. Palamedes is the i18n application built on top of them.
           </p>
         </div>
-        <ul className="ferro-family-grid">
-          {family.map((tool) => (
-            <li key={tool.name}>
-              <a
-                className={tool.current ? "ferro-family-card is-current" : "ferro-family-card"}
-                href={tool.href}
-              >
-                <span className="ferro-family-icon">{tool.icon}</span>
-                <span className="ferro-family-name">
-                  {tool.name}
-                  {tool.tag === undefined ? null : (
-                    <span className="ferro-family-tag">{tool.tag}</span>
-                  )}
-                </span>
-                <span className="ferro-family-role">{tool.role}</span>
-                <span className="ferro-family-body">{tool.body}</span>
-              </a>
-            </li>
+        <div className="ferro-family-groups">
+          {familyDisplayGroups.map((group) => (
+            <section className="ferro-family-group" key={group.label}>
+              <h3>{group.label}</h3>
+              <ul className="ferro-family-grid">
+                {group.tools.map((tool) => {
+                  const current = tool.name === "ferrocat";
+                  const tag = current ? "you are here" : isEngine(tool) ? undefined : "application";
+                  return (
+                    <li key={tool.name}>
+                      <a
+                        className={current ? "ferro-family-card is-current" : "ferro-family-card"}
+                        href={tool.docs ?? tool.repo}
+                        aria-current={current ? "page" : undefined}
+                      >
+                        <span className="ferro-family-icon">
+                          <Mark name={tool.name} size={26} />
+                        </span>
+                        <span className="ferro-family-name">
+                          {tool.name}
+                          {tag === undefined ? null : (
+                            <span className="ferro-family-tag">{tag}</span>
+                          )}
+                        </span>
+                        <span className="ferro-family-role">{tool.shortJob}</span>
+                        <span className="ferro-family-body">{tool.proof}</span>
+                      </a>
+                    </li>
+                  );
+                })}
+              </ul>
+            </section>
           ))}
-        </ul>
+        </div>
       </section>
 
       {/* ── Problem to outcome ── */}
