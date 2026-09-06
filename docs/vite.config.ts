@@ -3,15 +3,14 @@ import { ardo } from 'ardo/vite'
 import { ferrocatReleaseVersion } from './release-version'
 
 export default defineConfig({
-  // Served from the custom apex domain ferrocat.dev at the root path. Setting
-  // base explicitly disables ardo's GitHub Pages auto-detection, which would
-  // otherwise prefix every asset URL with "/ferrocat/" (the repo name) and
-  // break the site when it is not served from github.io/ferrocat/.
+  // Served from the custom apex domain ferrocat.dev at the root path, so every
+  // asset URL has to stay at "/".
   base: '/',
   plugins: [
     ardo({
       title: 'Ferrocat',
       description: 'Performance-first translation catalogs for Gettext, ICU MessageFormat, and JSON-friendly runtime workflows.',
+      siteUrl: 'https://ferrocat.dev',
       project: {
         name: 'Ferrocat',
         version: ferrocatReleaseVersion,
@@ -19,7 +18,11 @@ export default defineConfig({
 
       // typedoc: true, // Uncomment to enable API docs
 
-      // GitHub Pages: base path auto-detected from git remote
+      // Turn off ardo's GitHub Pages auto-detection: it derives the base path
+      // from the git remote and would prefix every asset URL with "/ferrocat/"
+      // (the repo name), which only fits the github.io/<repo>/ project URL.
+      // See also `basename` in react-router.config.ts.
+      githubPages: false,
 
       sidebar: {
         sectionOrder: [
