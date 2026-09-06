@@ -28,7 +28,7 @@ Examples:
   - `cargo clippy --workspace --all-targets --all-features --locked -- -D warnings`
   - `cargo test --workspace --all-features --locked`
   - `RUSTDOCFLAGS="-D warnings" cargo doc --workspace --all-features --no-deps --locked`
-  - `cargo +1.93.0 check --workspace --all-targets --all-features --locked`
+  - `cargo +1.94.0 check --workspace --all-targets --all-features --locked`
   - `cargo llvm-cov --workspace --all-features --locked --lcov --output-path target/lcov.info --ignore-filename-regex 'crates/ferrocat-(bench|conformance)/'`
   - `cargo llvm-cov report --json --summary-only --output-path target/coverage-summary.json --ignore-filename-regex 'crates/ferrocat-(bench|conformance)/'`
   - `node scripts/coverage-gate.mjs target/coverage-summary.json ferrocat-po=95 ferrocat-icu=95`

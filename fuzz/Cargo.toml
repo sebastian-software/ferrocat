@@ -2,7 +2,7 @@
 name = "ferrocat-fuzz"
 version = "0.0.0"
 edition = "2024"
-rust-version = "1.93.0"
+rust-version = "1.94.0"
 publish = false
 
 [package.metadata]

@@ -7,7 +7,7 @@ homepage.workspace = true
 license.workspace = true
 repository.workspace = true
 rust-version.workspace = true
-description = "Rust-first gettext and ICU toolkit for PO parsing, catalog updates, and MessageFormat parsing."
+description = "Rust-native translation catalog engine for Gettext PO, ICU MessageFormat, and FCL catalogs."
 documentation = "https://docs.rs/ferrocat"
 readme = "crates/ferrocat/README.md"
 include = [
@@ -89,7 +89,7 @@ edition = "2024"
 homepage = "https://ferrocat.dev"
 license = "MIT"
 repository = "https://github.com/sebastian-software/ferrocat"
-rust-version = "1.93.0"
+rust-version = "1.94.0"
 
 [workspace.lints.rust]
 unsafe_op_in_unsafe_fn = "deny"

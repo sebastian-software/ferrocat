@@ -154,7 +154,7 @@ for the crate-by-crate feature profile details.
 
 ## Compatibility Snapshot
 
-- **MSRV:** Rust `1.93.0`
+- **MSRV:** Rust `1.94.0`
 - **MSRV policy:** align with OXC when practical, while avoiding churn from tracking only the newest stable toolchain
 - **MSRV bumps:** raising the MSRV is treated as a minor-version change and called out in the changelog; patch releases do not raise the MSRV
 - **Prebuilt CLI target:** `x86_64-unknown-linux-musl` is validated in CI and published as a smoke-tested GitHub Release archive for `ferrocat-cli`
