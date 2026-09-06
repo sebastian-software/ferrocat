@@ -15,8 +15,8 @@
 - [ ] `cargo test --workspace --all-features --locked`
 - [ ] `RUSTDOCFLAGS="-D warnings" cargo doc --workspace --all-features --no-deps --locked`
 - [ ] MSRV check with the toolchain named by `rust-version` in `Cargo.toml`
-- [ ] coverage gate (`cargo llvm-cov` plus `node scripts/coverage-gate.mjs`), when Rust code changed
-- [ ] `cargo package --locked` for the published crates, when crate metadata or packaging changed
+- [ ] `scripts/coverage.sh`, when Rust code changed
+- [ ] `cargo package -p ferrocat-icu -p ferrocat-po -p ferrocat -p ferrocat-cli --locked`, when crate metadata or packaging changed
 - [ ] `pnpm install --frozen-lockfile && pnpm build` from `docs/`, when the docs site changed
 
 ## Issue
