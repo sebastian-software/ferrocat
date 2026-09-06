@@ -6,7 +6,7 @@ Rust-native translation catalog engine for Gettext PO, ICU MessageFormat, and FC
 [![docs.rs](https://img.shields.io/docsrs/ferrocat)](https://docs.rs/ferrocat)
 [![CI](https://github.com/sebastian-software/ferrocat/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/sebastian-software/ferrocat/actions/workflows/ci.yml)
 [![codecov](https://codecov.io/github/sebastian-software/ferrocat/graph/badge.svg?branch=main)](https://app.codecov.io/github/sebastian-software/ferrocat)
-[![license](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![license](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue.svg)](LICENSE-MIT)
 [![MSRV](https://img.shields.io/badge/MSRV-1.93.0-blue.svg)](#compatibility-snapshot)
 
 `ferrocat` is a Rust-native translation catalog engine. It treats localized copy as product data: parse it, update it, review it, measure it, audit it, and compile it into runtime payloads your application can ship with confidence.
@@ -158,7 +158,7 @@ for the crate-by-crate feature profile details.
 
 ## Compatibility Snapshot
 
-- **MSRV:** Rust `1.93.0`
+- **MSRV:** Rust `1.94.0`
 - **MSRV policy:** align with OXC when practical, while avoiding churn from tracking only the newest stable toolchain
 - **MSRV bumps:** raising the MSRV is treated as a minor-version change and called out in the changelog; patch releases do not raise the MSRV
 - **Prebuilt CLI target:** `x86_64-unknown-linux-musl` is validated in CI and published as a smoke-tested GitHub Release archive for `ferrocat-cli`

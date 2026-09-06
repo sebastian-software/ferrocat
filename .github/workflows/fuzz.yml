@@ -62,7 +62,7 @@ jobs:
 
       - name: Run bounded fuzz target
         run: >-
-          cargo fuzz run ${{ matrix.target }} fuzz/corpus/${{ matrix.target }}
+          cargo +nightly fuzz run ${{ matrix.target }} fuzz/corpus/${{ matrix.target }}
           --
           -max_total_time="${FUZZ_MAX_TOTAL_TIME}"
           -timeout=10

@@ -1,0 +1,7 @@
+# Contributors, Git hooks, and CI resolve the same toolchain shape: current
+# stable plus the components the lint jobs need. Jobs that deliberately use a
+# different toolchain (the MSRV job, the nightly public-API snapshot job) pass
+# `+<toolchain>` explicitly, which overrides this file.
+[toolchain]
+channel = "stable"
+components = ["clippy", "rustfmt"]

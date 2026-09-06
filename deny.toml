@@ -7,10 +7,17 @@ ignore = []
 
 [licenses]
 confidence-threshold = 0.8
+# The allow-list is the shared Ferramenta baseline, so entries that no
+# current dependency happens to use are expected rather than drift.
+unused-allowed-license = "allow"
 allow = [
   "Apache-2.0",
+  "BSD-2-Clause",
+  "BSD-3-Clause",
+  "ISC",
   "MIT",
   "Unicode-3.0",
+  "Zlib",
 ]
 
 [bans]
