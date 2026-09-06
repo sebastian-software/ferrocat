@@ -16,6 +16,7 @@
     "typecheck": "react-router typegen && tsc --noEmit"
   },
   "dependencies": {
+    "@ferramenta/family": "github:sebastian-software/ferramenta#5b84af1676b12b4b45661d5be4a42b11275a72da&path:/packages/family",
     "ardo": "^4.2.0",
     "isbot": "^5.1.44",
     "lucide-react": "^1.22.0",

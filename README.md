@@ -9,6 +9,8 @@ Rust-native translation catalog engine for Gettext PO, ICU MessageFormat, and FC
 [![license](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue.svg)](LICENSE-MIT)
 [![MSRV](https://img.shields.io/badge/MSRV-1.94.0-blue.svg)](#compatibility-snapshot)
 
+Documentation: **[ferrocat.dev](https://ferrocat.dev)** — guides, API overview, benchmarks, and architecture decisions.
+
 `ferrocat` is a Rust-native translation catalog engine. It treats localized copy as product data: parse it, update it, review it, measure it, audit it, and compile it into runtime payloads your application can ship with confidence.
 
 The practical problem is simple: translations change constantly, and most projects need more than "load a JSON file at runtime." Teams need source identity, translator context, reviewable diffs, coverage numbers, release checks, fallback behavior, and a runtime shape that does not hide catalog problems until production. Ferrocat is built for that middle layer.

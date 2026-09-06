@@ -1,5 +1,13 @@
 :root {
   --ferro-page-max: 1200px;
+  /*
+   * The shared family header bar is 4rem tall (`.bar` in
+   * @ferramenta/family/chrome.css). Ardo derives its sticky offsets and the
+   * table-of-contents height from --ardo-layout-headerHeight, so raising it
+   * here keeps every Ardo measurement aligned with the chrome that replaced
+   * Ardo's own header.
+   */
+  --ardo-layout-headerHeight: 4rem;
   --ferro-ink: #122238;
   --ferro-body: #41566d;
   --ferro-line: rgba(17, 34, 56, 0.1);
@@ -18,7 +26,6 @@
   --ferro-button-primary-text: #fff;
   --ferro-button-secondary-bg: rgba(255, 255, 255, 0.74);
   --ferro-button-border: rgba(21, 59, 90, 0.18);
-  --ferro-entry-icon-bg: rgba(21, 59, 90, 0.07);
   --ferro-card-shadow: rgba(17, 34, 56, 0.08);
   --ferro-sans: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --ferro-mono:
@@ -67,7 +74,6 @@
   --ferro-button-primary-text: #08131d;
   --ferro-button-secondary-bg: rgba(158, 211, 247, 0.12);
   --ferro-button-border: rgba(158, 211, 247, 0.38);
-  --ferro-entry-icon-bg: rgba(158, 211, 247, 0.14);
   --ferro-card-shadow: rgba(0, 0, 0, 0.28);
   --ardo-color-brand: oklch(83% 0.085 246);
   --ardo-color-brandLight: oklch(91% 0.055 246);
@@ -94,8 +100,54 @@
   --ardo-color-codeBorder: oklch(40% 0.012 246);
 }
 
-[class*="Layout_home__"] [class*="Layout_main__"] {
-  background: var(--ferro-warm);
+/*
+ * ── The Ardo shell inside the family chrome ──
+ *
+ * Ardo's docs layout is an application shell: a fixed header, a 100vh frame
+ * that never scrolls, and an inner <main> that does. The family footer lives
+ * below that frame, so the page has to be what scrolls instead. These rules
+ * hand the scrolling back to the document and pin the two rails that relied on
+ * the inner scroll container. The wrapper class comes from app/root.tsx; the
+ * inner hooks are Ardo's stable ones (#main-content, .ardo-sidebar) or a
+ * direct-child path, because Ardo's own layout class names are hashed.
+ */
+
+.ferro-shell > div {
+  height: auto;
+  min-height: 100vh;
+  overflow: visible;
+}
+
+/*
+ * The layout container reserves room for a fixed header; ours is sticky. The
+ * gradient continues the sidebar rail past the sticky column, so a page
+ * shorter than the viewport does not end it in a visible seam.
+ */
+.ferro-shell > div > div {
+  padding-top: 0;
+  background: linear-gradient(to right, var(--ardo-color-sidebarRailBg) 0 4rem, transparent 4rem);
+}
+
+@media (max-width: 1024px) {
+  .ferro-shell > div > div {
+    background: none;
+  }
+}
+
+.ferro-shell #main-content {
+  overflow: visible;
+}
+
+.ferro-shell .ardo-sidebar {
+  position: sticky;
+  top: var(--ardo-layout-headerHeight);
+  align-self: flex-start;
+  height: calc(100vh - var(--ardo-layout-headerHeight));
+}
+
+/* "On this page": its sticky offset assumed a scroll container, not the page. */
+.ferro-shell #main-content > div > aside {
+  top: calc(var(--ardo-layout-headerHeight) + var(--ardo-space-xl));
 }
 
 /* ── Main container ── */
@@ -105,7 +157,7 @@
   margin: 0 auto;
   display: grid;
   gap: clamp(5rem, 9vw, 8.5rem);
-  padding: calc(var(--ardo-layout-headerHeight) + 4.5rem) 0 6rem;
+  padding: 4.5rem 0 6rem;
   color: var(--ferro-ink);
   font-family: var(--ferro-sans);
   overflow-x: clip;
@@ -337,6 +389,26 @@
   font-weight: 800;
 }
 
+.ferro-family-groups {
+  display: grid;
+  gap: 2.4rem;
+}
+
+.ferro-family-group {
+  display: grid;
+  gap: 1.1rem;
+}
+
+.ferro-family-group > h3 {
+  margin: 0;
+  font-family: var(--ferro-sans);
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ferro-eyebrow);
+}
+
 .ferro-family-grid {
   list-style: none;
   margin: 0;
@@ -374,9 +446,6 @@
   justify-content: center;
   width: 2.3rem;
   height: 2.3rem;
-  border-radius: 11px;
-  color: var(--ferro-accent);
-  background: var(--ferro-entry-icon-bg);
 }
 
 .ferro-family-name {
@@ -423,15 +492,6 @@
 .ferro-family-card.is-current {
   border-color: color-mix(in oklab, var(--ferro-ember) 55%, transparent);
   background: linear-gradient(180deg, var(--ferro-ember-tint), var(--ferro-surface) 60%);
-}
-
-.ferro-family-card.is-current .ferro-family-icon {
-  color: #fff;
-  background: var(--ferro-ember);
-}
-
-.dark .ferro-family-card.is-current .ferro-family-icon {
-  color: #1a0f08;
 }
 
 /* ── Shift (before → after) ── */
@@ -1048,34 +1108,131 @@
   font-size: clamp(1.5rem, 2.6vw, 2rem);
 }
 
-/* ── Footer ── */
+/*
+ * ── Docs controls inside the family header ──
+ *
+ * SiteHeader offers one slot (`themeToggle`, at the end of the bar). Search and
+ * the section menu Ardo's own header used to carry ride in it, so nothing the
+ * documentation needs is lost with that header gone. Both are styled against
+ * the iron band, not against the page.
+ */
 
-.ferro-footer-note {
-  margin: 0;
-  font-size: 0.92rem;
-  color: var(--ferro-body);
+/*
+ * Ardo colors the search field and its result popover from its own tokens; it
+ * keeps them here, so only the width is ours.
+ */
+.ferro-header-search {
+  width: clamp(12rem, 22vw, 20rem);
 }
 
-.ferro-footer-note span {
-  display: block;
-  margin-top: 0.25rem;
-  font-size: 0.86rem;
+.ferro-header-search input {
+  width: 100%;
 }
 
-.ferro-footer-family {
-  margin: 0.55rem 0 0;
-  font-size: 0.86rem;
-  color: var(--ferro-meta);
-}
-
-.ferro-footer-family a {
+/*
+ * Ardo's global rule paints every <a> in the brand color, which outranks the
+ * color the chrome links inherit from their iron band. Named element by element
+ * so the search popover, which also lives in the header, keeps Ardo's colors.
+ */
+.site-header .lockup,
+.site-header .ghlink,
+.flyout a,
+.site-footer a {
   color: inherit;
-  text-decoration: underline;
-  text-underline-offset: 0.18em;
 }
 
-.ferro-footer-family a:hover {
-  color: var(--ferro-ember-strong);
+/*
+ * The section menu names what the sidebar rail can only draw as icons, and it
+ * is the only way into the documentation below 1024px, where Ardo hides the
+ * rail entirely.
+ */
+.ferro-sections {
+  position: relative;
+}
+
+.ferro-sections > summary {
+  list-style: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0.4rem 0.45rem;
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+.ferro-sections > summary::-webkit-details-marker {
+  display: none;
+}
+
+.ferro-sections[open] > summary svg.chev {
+  transform: scaleY(-1);
+}
+
+.ferro-sections-flyout {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 0.85rem);
+  z-index: 60;
+  display: grid;
+  min-width: 13rem;
+  padding: 0.5rem;
+  background: var(--iron);
+  border: 1px solid var(--iron-line);
+  border-top: 2px solid var(--rust);
+  box-shadow: 0 18px 44px -16px rgba(0, 0, 0, 0.55);
+}
+
+.ferro-sections-flyout a {
+  display: flex;
+  gap: 0.6rem;
+  align-items: center;
+  padding: 0.55rem 0.6rem;
+  font-size: 0.95rem;
+  color: inherit;
+  text-decoration: none;
+}
+
+.ferro-sections-flyout a:hover {
+  background: var(--iron-2);
+  color: var(--ember);
+}
+
+/*
+ * On a phone the bar runs out of room. Search drops to a full-width second row
+ * rather than disappearing — a documentation site without search is the worse
+ * trade — and the GitHub link steps aside, since the footer and the tool
+ * switcher both still carry it.
+ */
+@media (max-width: 640px) {
+  .site-header .bar {
+    height: auto;
+    gap: 0.75rem;
+    padding-block: 0.55rem 3.5rem;
+  }
+
+  .site-header .lockup {
+    font-size: 1.25rem;
+  }
+
+  .site-header nav.site {
+    gap: 0.25rem;
+  }
+
+  .site-header .ghlink {
+    display: none;
+  }
+
+  .ferro-header-search {
+    position: absolute;
+    right: 0;
+    bottom: 0.5rem;
+    left: 0;
+    width: auto;
+  }
 }
 
 /* ── Motion ── */
@@ -1170,7 +1327,7 @@
 @media (max-width: 720px) {
   .ferro-home {
     width: min(var(--ferro-page-max), calc(100% - 28px));
-    padding-top: calc(var(--ardo-layout-headerHeight) + 2rem);
+    padding-top: 2rem;
   }
 
   .ferro-hero-title {
