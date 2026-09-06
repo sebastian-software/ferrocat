@@ -13,7 +13,7 @@ Accepted
 ## Context
 
 Some upstream PO parser/writer libraries preserve catalogs that omit the header
- entry entirely:
+entry entirely:
 
 ```po
 #, fuzzy
@@ -33,8 +33,8 @@ msgstr "Speichern"
 ```
 
 This differs from byte-preserving roundtrip behavior, but it reflects the
- canonical PO shape used by most gettext-oriented tooling and makes later
- header population straightforward.
+canonical PO shape used by most gettext-oriented tooling and makes later
+header population straightforward.
 
 ## Decision
 
@@ -60,5 +60,5 @@ This is intentional normalization behavior, not a compatibility bug.
 - Preserve headerless files exactly on write.
 
 This would improve diff stability for that narrow case, but it would keep a
- less canonical PO shape and make `ferrocat-po` less opinionated about output
- normalization.
+less canonical PO shape and make `ferrocat-po` less opinionated about output
+normalization.

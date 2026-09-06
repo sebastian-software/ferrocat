@@ -26,15 +26,15 @@ Ferrocat CLI, or their own host-specific binding layer.
 
 ## Division Of Responsibility
 
-| Layer | Palamedes | Ferrocat |
-|---|---|---|
-| Authoring | Macros, message collection, framework-facing developer experience | Stable message identity inputs and catalog semantics |
-| Extraction | JavaScript/TypeScript transforms and host-aware source scanning | Adapter-ready catalog update inputs, placeholder hints, and semantic metadata validation |
-| Host bindings | `palamedes-node`, JS/TS package surfaces, and host packaging | Pure Rust crates and host-neutral data contracts |
-| Catalog storage | Uses catalogs as part of the app workflow | PO, ICU-native PO, and FCL catalog modes |
-| Catalog maintenance | CLI workflows and project conventions | Parse, serialize, merge, combine, update, audit, and validate |
-| Runtime delivery | Framework adapters, bundler integration, client/server loading | Host-neutral compiled catalog artifacts and fallback semantics |
-| Future scaling | Chunk-aware sidecars and app-specific delivery policy | Stable compiled IDs and locale-resolved payload generation |
+| Layer               | Palamedes                                                         | Ferrocat                                                                                 |
+| ------------------- | ----------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| Authoring           | Macros, message collection, framework-facing developer experience | Stable message identity inputs and catalog semantics                                     |
+| Extraction          | JavaScript/TypeScript transforms and host-aware source scanning   | Adapter-ready catalog update inputs, placeholder hints, and semantic metadata validation |
+| Host bindings       | `palamedes-node`, JS/TS package surfaces, and host packaging      | Pure Rust crates and host-neutral data contracts                                         |
+| Catalog storage     | Uses catalogs as part of the app workflow                         | PO, ICU-native PO, and FCL catalog modes                                                 |
+| Catalog maintenance | CLI workflows and project conventions                             | Parse, serialize, merge, combine, update, audit, and validate                            |
+| Runtime delivery    | Framework adapters, bundler integration, client/server loading    | Host-neutral compiled catalog artifacts and fallback semantics                           |
+| Future scaling      | Chunk-aware sidecars and app-specific delivery policy             | Stable compiled IDs and locale-resolved payload generation                               |
 
 ## Why The Split Matters
 

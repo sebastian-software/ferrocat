@@ -10,7 +10,7 @@ order: 230
 - Date: 2026-06-30
 
 > [ADR 0027](/architecture/adr/0027-opaque-po-metadata-roundtrip) supersedes the
-> *lossy* half of this record. Flags and the comment-kind split still carry no
+> _lossy_ half of this record. Flags and the comment-kind split still carry no
 > semantic meaning in the catalog layer, but they are no longer discarded: they
 > are preserved opaquely against the message identity through update and
 > combine, and FCL regains `tc=` and `f=` tags for them. Everything below about
@@ -65,7 +65,7 @@ Trim the catalog model to what Ferrocat understands:
 
 ### Faithful low-level PO is unchanged
 
-This is a *catalog-layer* decision. The low-level `parse_po` / `stringify_po`
+This is a _catalog-layer_ decision. The low-level `parse_po` / `stringify_po`
 round-trip still preserves `PoItem::flags` and both comment kinds verbatim, so
 raw PO I/O stays lossless. Only the opinionated catalog/FCL layer stops elevating
 flags and stops distinguishing comment kinds.

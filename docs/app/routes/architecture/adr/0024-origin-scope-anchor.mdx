@@ -17,7 +17,7 @@ numbers from catalog origins because they shift on every edit above a message an
 add diff and merge churn without identifying anything the `(msgid, msgctxt)` key
 does not. That left origins as file-only.
 
-A line number is volatile, but the *enclosing symbol* — the component or function
+A line number is volatile, but the _enclosing symbol_ — the component or function
 a message appears in — is stable across edits and genuinely useful: it gives
 translators and tooling context ("this string lives in `Checkout`") and helps
 distinguish the same text used in different places. Producers such as Palamedes
@@ -42,7 +42,7 @@ pub struct CatalogOrigin {
 ```
 
 The model stays typed (scope is its own field, not smuggled into `file`), while
-the *wire form* is a single anchor token, shared by both formats so a scope always
+the _wire form_ is a single anchor token, shared by both formats so a scope always
 travels with its file:
 
 - PO: `#: src/Button.tsx#Button`
@@ -73,7 +73,7 @@ Positive:
 
 Negative:
 
-- a `#` literally present in a file path *with no scope* would be misread as a
+- a `#` literally present in a file path _with no scope_ would be misread as a
   scope boundary — as rare as a `:` in a path was for `file:line`, and accepted
 - it requires producer support to populate `scope`, so the value is `None` until
   extractors emit it

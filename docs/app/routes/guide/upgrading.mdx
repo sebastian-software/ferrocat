@@ -88,12 +88,12 @@ renames or construction changes with direct replacements.
 
 ### Renamed entry points
 
-| Before | After |
-| --- | --- |
-| `catalog_review` | `review_catalogs` |
-| `catalog_coverage` | `measure_catalog_coverage` |
-| `has_selectordinal` | `has_select_ordinal` |
-| `MergeExtractedMessage` | `MergeMessageInput` |
+| Before                  | After                      |
+| ----------------------- | -------------------------- |
+| `catalog_review`        | `review_catalogs`          |
+| `catalog_coverage`      | `measure_catalog_coverage` |
+| `has_selectordinal`     | `has_select_ordinal`       |
+| `MergeExtractedMessage` | `MergeMessageInput`        |
 
 Search for the old name in compiler errors and replace it with the matching new
 name. The `MergeExtractedMessage` compatibility alias was removed, so direct type

@@ -4,7 +4,7 @@ A line-oriented, machine-owned catalog format. You don't have to trade speed for
 safety to get it: compared with the same catalog stored as PO, FCL parses about
 25% faster, takes roughly 12% less disk, and gives git one canonical line per
 entry so ordinary 3-way merges preserve untouched translations. One entry per
-line, deterministically sorted. It is *not* meant for hand editing; the only
+line, deterministically sorted. It is _not_ meant for hand editing; the only
 non-API writer it must tolerate is git's 3-way line merge.
 
 FCL is **ICU-native only**. Plurals live inside the ICU message string
@@ -19,12 +19,12 @@ translator-facing files when external tools need gettext compatibility.
 
 git's 3-way merge is purely line-textual and has no notion of an entry. PO
 entries span multiple lines with many repeated anchor lines (`msgstr ""`, blank
-separators), so diff3 mis-anchors and silently drops *unchanged* translations
+separators), so diff3 mis-anchors and silently drops _unchanged_ translations
 on merge. FCL removes this by construction:
 
 - **One entry == one line** → git can never split or interleave an entry.
 - **Sorted by a stable key** → independent edits touch distant lines and
-  auto-merge; only edits to the *same* entry conflict (correctly, both sides
+  auto-merge; only edits to the _same_ entry conflict (correctly, both sides
   visible). An entry neither side touched is byte-identical in all three
   versions, so ordinary 3-way merges preserve it.
 - **Deterministic writer** → unchanged entries serialize byte-identically, so a
@@ -58,10 +58,10 @@ tag     = key "=" value | flag-key       ; flag-key has no '='
 
 ### Header tags
 
-| tag | required | meaning |
-|---|---|---|
-| `source=` | writer-required | source locale used by the catalog |
-| `locale=` | optional | target locale |
+| tag              | required        | meaning                                                                                                       |
+| ---------------- | --------------- | ------------------------------------------------------------------------------------------------------------- |
+| `source=`        | writer-required | source locale used by the catalog                                                                             |
+| `locale=`        | optional        | target locale                                                                                                 |
 | `order=collated` | writer-required | use the CLDR root order described in [ADR 0026](app/routes/architecture/adr/0026-cldr-root-catalog-order.mdx) |
 
 The writer always emits `order=collated`. Omitting `order` identifies a legacy
@@ -77,7 +77,7 @@ documented in ADR 0026.
 Applied to every field and every tag value. Nothing else is escaped:
 
 | char | escape |
-|------|--------|
+| ---- | ------ |
 | `\`  | `\\`   |
 | tab  | `\t`   |
 | LF   | `\n`   |
@@ -86,15 +86,15 @@ A field containing no `\` is taken verbatim (zero-copy borrow on parse).
 
 ### Tags
 
-| tag | source field | meaning | cardinality |
-|-----|--------------|---------|-------------|
-| `r=`       | `origin` (`CatalogOrigin`) | source reference `file` or `file#scope` (no line numbers) | 0..n |
-| `c=`       | `comments`                 | extractor-owned note (`#.` in PO)      | 0..n |
-| `tc=`      | `translator_comments`      | translator-owned note (`#` in PO)      | 0..n |
-| `f=`       | `flags`                    | one opaque per-entry flag (`#,` in PO) | 0..n |
-| `o`        | `obsolete`                 | obsolete marker (flag, no value)       | 0..1 |
-| `lock=`    | `machine.lock`             | integrity hash; presence marks the value as machine-managed | 0..1 |
-| `ai=`      | `machine.ai`               | AI provenance, `model[:confidence]`    | 0..1 |
+| tag     | source field               | meaning                                                     | cardinality |
+| ------- | -------------------------- | ----------------------------------------------------------- | ----------- |
+| `r=`    | `origin` (`CatalogOrigin`) | source reference `file` or `file#scope` (no line numbers)   | 0..n        |
+| `c=`    | `comments`                 | extractor-owned note (`#.` in PO)                           | 0..n        |
+| `tc=`   | `translator_comments`      | translator-owned note (`#` in PO)                           | 0..n        |
+| `f=`    | `flags`                    | one opaque per-entry flag (`#,` in PO)                      | 0..n        |
+| `o`     | `obsolete`                 | obsolete marker (flag, no value)                            | 0..1        |
+| `lock=` | `machine.lock`             | integrity hash; presence marks the value as machine-managed | 0..1        |
+| `ai=`   | `machine.ai`               | AI provenance, `model[:confidence]`                         | 0..1        |
 
 Canonical tag order: `r` (sorted), `c`, `tc`, `f`, `o`, `lock`, `ai`.
 
@@ -102,12 +102,12 @@ Canonical tag order: `r` (sorted), `c`, `tc`, `f`, `o`, `lock`, `ai`.
 the source file; the scope identifies the nearest stable named source container.
 Use names a developer would recognize in source code:
 
-| Origin | Typical scope |
-|---|---|
-| `src/App.tsx#CheckoutButton` | component name |
-| `src/i18n.ts#formatInvoiceStatus` | function name |
-| `src/routes/settings.tsx#SettingsPage` | route component or route handler |
-| `src/domain/invoice.ts#InvoiceStatus` | class, enum, or module-level authoring unit |
+| Origin                                 | Typical scope                               |
+| -------------------------------------- | ------------------------------------------- |
+| `src/App.tsx#CheckoutButton`           | component name                              |
+| `src/i18n.ts#formatInvoiceStatus`      | function name                               |
+| `src/routes/settings.tsx#SettingsPage` | route component or route handler            |
+| `src/domain/invoice.ts#InvoiceStatus`  | class, enum, or module-level authoring unit |
 
 Scope is metadata for review and tooling, not message identity, and it is not a
 replacement for gettext context / `msgctxt`; downstream tools should not derive
@@ -164,7 +164,7 @@ therefore leaves an existing destination unchanged.
 
 Entry tags are additive the same way the `order=collated` header tag was: a
 reader that knows a tag accepts files with and without it, but a file that
-*carries* a newer tag is rejected by an older reader, because unknown keys are
+_carries_ a newer tag is rejected by an older reader, because unknown keys are
 an error by design. `tc=` and `f=` were added this way; a file written without
 them parses under any reader that understands the rest of `%FCL1`.
 

@@ -85,6 +85,7 @@ diagnostics carry machine-readable `code` values, and severities serialize as
 
 See [ADR 0019](/architecture/adr/0019-versioned-artifact-json-contract) for the
 compatibility rules around the compiled artifact JSON contract.
+
 ## API Compatibility
 
 Growth-prone public enums are deliberately marked as non-exhaustive where new variants are realistic, so new variants can be added without a breaking change within a normal major line. Downstream code should keep fallback match arms for ICU AST nodes, catalog storage formats, compiled key strategies, and API-level error categories.
@@ -95,6 +96,7 @@ or struct literals; fields stay public for inspection, but external crates
 should not depend on exhaustive field lists.
 
 Semantically closed option enums such as `CatalogSemantics` and `PluralEncoding` remain exhaustive so callers can continue to match every documented mode directly.
+
 ## Umbrella Crate Namespaces
 
 When depending on the umbrella `ferrocat` crate, prefer the namespaced modules
@@ -112,11 +114,11 @@ catalog updates versus inputs for the PO merge helper.
 
 At the high-level catalog layer, `ferrocat` supports three explicit combinations of storage format and message semantics:
 
-| Mode | Storage format | Message model |
-|---|---|---|
-| `CatalogMode::GettextPo` | Gettext PO | Gettext-compatible plurals |
-| `CatalogMode::IcuPo` | Gettext PO | ICU MessageFormat |
-| `CatalogMode::IcuFcl` | FCL catalog storage | ICU MessageFormat |
+| Mode                     | Storage format      | Message model              |
+| ------------------------ | ------------------- | -------------------------- |
+| `CatalogMode::GettextPo` | Gettext PO          | Gettext-compatible plurals |
+| `CatalogMode::IcuPo`     | Gettext PO          | ICU MessageFormat          |
+| `CatalogMode::IcuFcl`    | FCL catalog storage | ICU MessageFormat          |
 
 There is intentionally no FCL + gettext-plural mode; gettext plural behavior belongs to PO, while FCL is the ICU-native machine storage path. In API terms, that means `CatalogStorageFormat::Fcl` is only available with `CatalogSemantics::IcuNative`.
 
@@ -128,12 +130,12 @@ Catalog origins answer "where did this message come from?" with a source `file`
 plus an optional `scope`. The serialized form is either `file` or `file#scope`.
 Use the scope for the name a developer would naturally point to in code:
 
-| Origin | Meaning |
-|---|---|
-| `src/App.tsx#CheckoutButton` | the text appears inside the `CheckoutButton` component |
-| `src/i18n.ts#formatInvoiceStatus` | the text is authored in the `formatInvoiceStatus` function |
-| `src/routes/settings.tsx#SettingsPage` | the text belongs to the `SettingsPage` route component |
-| `src/domain/invoice.ts#InvoiceStatus` | the text is grouped around the `InvoiceStatus` class, enum, or module-level authoring unit |
+| Origin                                 | Meaning                                                                                    |
+| -------------------------------------- | ------------------------------------------------------------------------------------------ |
+| `src/App.tsx#CheckoutButton`           | the text appears inside the `CheckoutButton` component                                     |
+| `src/i18n.ts#formatInvoiceStatus`      | the text is authored in the `formatInvoiceStatus` function                                 |
+| `src/routes/settings.tsx#SettingsPage` | the text belongs to the `SettingsPage` route component                                     |
+| `src/domain/invoice.ts#InvoiceStatus`  | the text is grouped around the `InvoiceStatus` class, enum, or module-level authoring unit |
 
 `file` identifies the source file. `scope` identifies the nearest stable named
 source container around the message, such as a component, function, class, or
@@ -152,41 +154,41 @@ find a stable named container, emit the file alone and leave `scope` empty.
 
 ## Quick Choice
 
-| If you want to... | Use |
-|---|---|
-| Parse a Gettext PO file into an owned Rust structure | `parse_po` |
-| Parse a Gettext PO file while borrowing from the input string where possible | `parse_po_borrowed` |
-| Turn a `PoFile` back into Gettext PO text | `stringify_po` |
-| Merge fresh extracted Gettext messages into an existing Gettext PO file | `merge_catalog` |
-| Combine multiple catalogs with deterministic conflict and selection rules | `combine_catalogs` |
-| Merge explicit ancestor, ours, and theirs catalogs while preserving deletions | `merge_catalogs_three_way` |
-| Convert ICU-native PO and FCL catalogs with explicit source/target modes | `convert_catalog` |
-| Convert PO/FCL files with independent format inference and atomic replacement | `convert_catalog_file` |
-| Read a Gettext PO or FCL catalog into the higher-level canonical catalog model | `parse_catalog` |
-| Build keyed lookup/helpers on top of a parsed catalog | `ParsedCatalog::into_normalized_view` |
-| Parse directly into a fuzzy-aware normalized catalog for reports | `parse_catalog_for_review` |
-| Audit source and target catalogs for release readiness | `audit_catalogs` |
-| Summarize per-locale catalog completeness | `measure_catalog_coverage` |
-| Compare catalog states for translator review handoffs | `review_catalogs` |
-| Derive the default stable runtime key from `msgid` and `msgctxt` | `compiled_key` |
-| Canonicalize runtime-lenient ICU apostrophe quoting | `canonicalize_icu_with_policy` |
-| Derive a runtime key from policy-canonical ICU text | `compiled_key_with_policy` |
-| Compile a normalized catalog into runtime lookup entries | `NormalizedParsedCatalog::compile` |
-| Compile a requested-locale runtime artifact with fallbacks and missing reports | `compile_catalog_artifact` |
-| Compile only a selected subset of compiled runtime IDs | `compile_catalog_artifact_selected` |
-| Pseudolocalize final runtime artifacts for UI/layout QA | `pseudolocalize_compiled_catalog_artifact` |
-| Compile a runtime artifact with a sibling resolution-provenance report | `compile_catalog_artifact_report` |
-| Perform a full in-memory catalog update | `update_catalog` |
-| Perform a full catalog update and write the result to disk only when changed | `update_catalog_file` |
-| Compute the metadata hash for a machine-generated translation | `machine_translation_hash` |
-| Parse ICU MessageFormat into a structural AST | `parse_icu` |
-| Render a parsed ICU AST back to canonical MessageFormat text | `stringify_icu` |
-| Only validate ICU syntax | `validate_icu` |
-| Summarize ICU arguments, formatters, plurals, selects, and tags | `analyze_icu` |
-| Compare source and translated ICU message structure | `compare_icu_messages` |
-| Validate discovered ICU formatters against a runtime support policy | `validate_icu_formatter_support` |
-| Extract only data argument names or only tag names | `extract_argument_names` / `extract_tag_names` |
-| Extract variable names from a parsed ICU message | `extract_variables` |
+| If you want to...                                                              | Use                                            |
+| ------------------------------------------------------------------------------ | ---------------------------------------------- |
+| Parse a Gettext PO file into an owned Rust structure                           | `parse_po`                                     |
+| Parse a Gettext PO file while borrowing from the input string where possible   | `parse_po_borrowed`                            |
+| Turn a `PoFile` back into Gettext PO text                                      | `stringify_po`                                 |
+| Merge fresh extracted Gettext messages into an existing Gettext PO file        | `merge_catalog`                                |
+| Combine multiple catalogs with deterministic conflict and selection rules      | `combine_catalogs`                             |
+| Merge explicit ancestor, ours, and theirs catalogs while preserving deletions  | `merge_catalogs_three_way`                     |
+| Convert ICU-native PO and FCL catalogs with explicit source/target modes       | `convert_catalog`                              |
+| Convert PO/FCL files with independent format inference and atomic replacement  | `convert_catalog_file`                         |
+| Read a Gettext PO or FCL catalog into the higher-level canonical catalog model | `parse_catalog`                                |
+| Build keyed lookup/helpers on top of a parsed catalog                          | `ParsedCatalog::into_normalized_view`          |
+| Parse directly into a fuzzy-aware normalized catalog for reports               | `parse_catalog_for_review`                     |
+| Audit source and target catalogs for release readiness                         | `audit_catalogs`                               |
+| Summarize per-locale catalog completeness                                      | `measure_catalog_coverage`                     |
+| Compare catalog states for translator review handoffs                          | `review_catalogs`                              |
+| Derive the default stable runtime key from `msgid` and `msgctxt`               | `compiled_key`                                 |
+| Canonicalize runtime-lenient ICU apostrophe quoting                            | `canonicalize_icu_with_policy`                 |
+| Derive a runtime key from policy-canonical ICU text                            | `compiled_key_with_policy`                     |
+| Compile a normalized catalog into runtime lookup entries                       | `NormalizedParsedCatalog::compile`             |
+| Compile a requested-locale runtime artifact with fallbacks and missing reports | `compile_catalog_artifact`                     |
+| Compile only a selected subset of compiled runtime IDs                         | `compile_catalog_artifact_selected`            |
+| Pseudolocalize final runtime artifacts for UI/layout QA                        | `pseudolocalize_compiled_catalog_artifact`     |
+| Compile a runtime artifact with a sibling resolution-provenance report         | `compile_catalog_artifact_report`              |
+| Perform a full in-memory catalog update                                        | `update_catalog`                               |
+| Perform a full catalog update and write the result to disk only when changed   | `update_catalog_file`                          |
+| Compute the metadata hash for a machine-generated translation                  | `machine_translation_hash`                     |
+| Parse ICU MessageFormat into a structural AST                                  | `parse_icu`                                    |
+| Render a parsed ICU AST back to canonical MessageFormat text                   | `stringify_icu`                                |
+| Only validate ICU syntax                                                       | `validate_icu`                                 |
+| Summarize ICU arguments, formatters, plurals, selects, and tags                | `analyze_icu`                                  |
+| Compare source and translated ICU message structure                            | `compare_icu_messages`                         |
+| Validate discovered ICU formatters against a runtime support policy            | `validate_icu_formatter_support`               |
+| Extract only data argument names or only tag names                             | `extract_argument_names` / `extract_tag_names` |
+| Extract variable names from a parsed ICU message                               | `extract_variables`                            |
 
 ## Gettext PO Core
 

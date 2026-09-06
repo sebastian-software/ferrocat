@@ -20,9 +20,9 @@ import {
   ShieldCheck,
   Spline,
   SpellCheck,
-} from "lucide-react"
-import type { MetaFunction } from "react-router"
-import { Link } from "react-router"
+} from "lucide-react";
+import type { MetaFunction } from "react-router";
+import { Link } from "react-router";
 
 export const meta: MetaFunction = () => [
   { title: "Ferrocat: Rust-native translation catalog engine" },
@@ -31,11 +31,11 @@ export const meta: MetaFunction = () => [
     content:
       "Parse, update, review, audit, and compile translations with a Rust-native catalog engine. Missing strings, ICU mistakes, stale copy, and weak coverage can become CI diagnostics before they reach production.",
   },
-]
+];
 
-const GITHUB = "https://github.com/sebastian-software/ferrocat"
-const COMPANY = "https://sebastian-software.com/"
-const OSS = "https://oss.sebastian-software.com/"
+const GITHUB = "https://github.com/sebastian-software/ferrocat";
+const COMPANY = "https://sebastian-software.com/";
+const OSS = "https://oss.sebastian-software.com/";
 
 // ── The Ferramenta family: every tool forged in Rust ──
 //
@@ -44,16 +44,16 @@ const OSS = "https://oss.sebastian-software.com/"
 // shared `@ferramenta/family` package can supply it directly.
 
 type FamilyTool = {
-  name: string
-  role: string
-  body: string
-  icon: React.ReactNode
-  href: string
-  tag?: string
-  current?: boolean
-}
+  name: string;
+  role: string;
+  body: string;
+  icon: React.ReactNode;
+  href: string;
+  tag?: string;
+  current?: boolean;
+};
 
-const FAMILY_SITE = "https://ferramenta.dev"
+const FAMILY_SITE = "https://ferramenta.dev";
 
 const family: FamilyTool[] = [
   {
@@ -122,7 +122,7 @@ const family: FamilyTool[] = [
     href: "https://github.com/sebastian-software/palamedes",
     tag: "application",
   },
-]
+];
 
 // ── What the catalog engine does for you ──
 
@@ -167,7 +167,7 @@ const benefits = [
     body: "Tag any machine-written value (AI model, TMS, or a script) with an integrity lock plus optional model and confidence. Ship it as-is by default; when a human corrects one, the lock stops matching, so your next re-translation run won't silently overwrite their fix.",
     icon: <FileCheck2 size={20} />,
   },
-]
+];
 
 // ── The path a catalog takes through Ferrocat ──
 
@@ -192,7 +192,7 @@ const steps = [
     label: "Compile",
     body: "Emit host-neutral runtime artifacts, provenance reports, and pseudo-locale variants.",
   },
-]
+];
 
 // ── Three explicit storage + semantics combinations ──
 
@@ -215,7 +215,7 @@ const catalogModes = [
     semantics: "ICU MessageFormat",
     body: "Ordinary git merges stop losing untouched translations: one canonical, sorted entry per line means only real edits collide. It also parses ~45% faster and stores ~12% smaller than the same catalog as PO.",
   },
-]
+];
 
 const positioning = [
   {
@@ -234,26 +234,26 @@ const positioning = [
     before: "Every framework reimplements catalog logic from scratch.",
     after: "One Rust core that Palamedes and other adapters reuse.",
   },
-]
+];
 
 const proof = [
   { value: "60+", label: "conformance cases", detail: "derived from upstream gettext" },
   { value: "95%+", label: "library coverage gate", detail: "for the main catalog crates" },
-]
+];
 
 // ── Cross-runtime throughput, gettext-official + workflows profiles ──
 // Same 10k-message gettext catalog, median MiB/s on an Apple M1 Ultra.
 // Every tool reads the same files; see benchmark/results for the report.
 
-type Bar = { name: string; lang: string; rate: number; self?: boolean }
+type Bar = { name: string; lang: string; rate: number; self?: boolean };
 
 const parseCompare: Bar[] = [
   { name: "Ferrocat", lang: "Rust, zero-copy", rate: 725, self: true },
   { name: "pofile-ts", lang: "Node", rate: 149 },
   { name: "gettext/gettext", lang: "PHP", rate: 53 },
   { name: "polib", lang: "Python", rate: 22 },
-]
-const PARSE_MAX = 725
+];
+const PARSE_MAX = 725;
 
 const updateCompare: Bar[] = [
   { name: "Ferrocat", lang: "Rust, plain update", rate: 291, self: true },
@@ -268,25 +268,69 @@ const updateCompare: Bar[] = [
   { name: "Babel", lang: "Python, Catalog.update", rate: 8.9 },
   { name: "polib", lang: "Python", rate: 8.1 },
   { name: "msgmerge", lang: "GNU gettext", rate: 4.8 },
-]
-const UPDATE_MAX = 291
+];
+const UPDATE_MAX = 291;
 
 // ── Other open source from the same studio ──
 
 const ossProjects = [
-  { name: "universal-dotenv", body: "Robust env config for universal apps", href: "https://github.com/sebastian-software/universal-dotenv" },
-  { name: "palamedes", body: "i18n framework powered by OXC", href: "https://github.com/sebastian-software/palamedes" },
-  { name: "ardo", body: "React-first static docs framework", href: "https://github.com/sebastian-software/ardo" },
-  { name: "pofile-ts", body: "Gettext PO files in TypeScript", href: "https://github.com/sebastian-software/pofile-ts" },
-  { name: "effective-color", body: "Perceptual color palette generator", href: "https://github.com/sebastian-software/effective-color" },
-  { name: "effective-icon", body: "Compile-time icon pipeline for Vite", href: "https://github.com/sebastian-software/effective-icon" },
-  { name: "eslint-config-setup", body: "Flat ESLint configs, zero runtime", href: "https://github.com/sebastian-software/eslint-config-setup" },
-  { name: "xlsx-format", body: "Modern XLSX reader and writer", href: "https://github.com/sebastian-software/xlsx-format" },
-  { name: "ts-phonenumber", body: "TypeScript-first phone parsing", href: "https://github.com/sebastian-software/ts-phonenumber" },
-  { name: "whisper-coreml", body: "Whisper ASR on Apple Silicon", href: "https://github.com/sebastian-software/whisper-coreml" },
+  {
+    name: "universal-dotenv",
+    body: "Robust env config for universal apps",
+    href: "https://github.com/sebastian-software/universal-dotenv",
+  },
+  {
+    name: "palamedes",
+    body: "i18n framework powered by OXC",
+    href: "https://github.com/sebastian-software/palamedes",
+  },
+  {
+    name: "ardo",
+    body: "React-first static docs framework",
+    href: "https://github.com/sebastian-software/ardo",
+  },
+  {
+    name: "pofile-ts",
+    body: "Gettext PO files in TypeScript",
+    href: "https://github.com/sebastian-software/pofile-ts",
+  },
+  {
+    name: "effective-color",
+    body: "Perceptual color palette generator",
+    href: "https://github.com/sebastian-software/effective-color",
+  },
+  {
+    name: "effective-icon",
+    body: "Compile-time icon pipeline for Vite",
+    href: "https://github.com/sebastian-software/effective-icon",
+  },
+  {
+    name: "eslint-config-setup",
+    body: "Flat ESLint configs, zero runtime",
+    href: "https://github.com/sebastian-software/eslint-config-setup",
+  },
+  {
+    name: "xlsx-format",
+    body: "Modern XLSX reader and writer",
+    href: "https://github.com/sebastian-software/xlsx-format",
+  },
+  {
+    name: "ts-phonenumber",
+    body: "TypeScript-first phone parsing",
+    href: "https://github.com/sebastian-software/ts-phonenumber",
+  },
+  {
+    name: "whisper-coreml",
+    body: "Whisper ASR on Apple Silicon",
+    href: "https://github.com/sebastian-software/whisper-coreml",
+  },
   { name: "iktia", body: "Lean TSX compiler", href: "https://github.com/sebastian-software/iktia" },
-  { name: "effective-css", body: "Layered CSS reset for evergreen browsers", href: "https://github.com/sebastian-software/effective-css" },
-]
+  {
+    name: "effective-css",
+    body: "Layered CSS reset for evergreen browsers",
+    href: "https://github.com/sebastian-software/effective-css",
+  },
+];
 
 export default function HomePage() {
   return (
@@ -302,25 +346,21 @@ export default function HomePage() {
           Make broken translations a build error, not a support ticket.
         </h1>
         <p className="ferro-lead">
-          Ferrocat is a Rust-native catalog engine that parses and merges
-          translation catalogs several times faster than the Node tooling most
-          JS and TS teams run today, then treats that copy as product data you
-          can review, audit, and compile for production. Catalog problems stay
-          in CI, where they belong.
+          Ferrocat is a Rust-native catalog engine that parses and merges translation catalogs
+          several times faster than the Node tooling most JS and TS teams run today, then treats
+          that copy as product data you can review, audit, and compile for production. Catalog
+          problems stay in CI, where they belong.
         </p>
         <p className="ferro-hero-craft">
-          Hand-tuned SIMD and zero-copy scanning under the hood. The kind of
-          parser you don&rsquo;t write in an afternoon.
+          Hand-tuned SIMD and zero-copy scanning under the hood. The kind of parser you don&rsquo;t
+          write in an afternoon.
         </p>
         <div className="ferro-hero-cta">
           <pre className="ferro-install">
             <code>cargo add ferrocat</code>
           </pre>
           <div className="ferro-actions">
-            <Link
-              className="ferro-button ferro-button-primary"
-              to="/guide/getting-started"
-            >
+            <Link className="ferro-button ferro-button-primary" to="/guide/getting-started">
               Run the quick start
               <ArrowRight size={16} />
             </Link>
@@ -328,10 +368,7 @@ export default function HomePage() {
               <GitBranch size={16} />
               GitHub
             </a>
-            <a
-              className="ferro-button ferro-button-tertiary"
-              href="https://docs.rs/ferrocat"
-            >
+            <a className="ferro-button ferro-button-tertiary" href="https://docs.rs/ferrocat">
               docs.rs
               <ExternalLink size={14} />
             </a>
@@ -343,37 +380,30 @@ export default function HomePage() {
       <section className="ferro-family ferro-reveal">
         <div className="ferro-family-intro">
           <h2>
-            <span className="ferro-ferro">Ferro</span> means iron. Every tool
-            here is forged in Rust.
+            <span className="ferro-ferro">Ferro</span> means iron. Every tool here is forged in
+            Rust.
           </h2>
           <p className="ferro-sublead">
             Ferrocat is one tool in{" "}
             <a className="ferro-inline-link" href={FAMILY_SITE}>
               Ferramenta
             </a>
-            , a workshop of Rust-native developer tools with shared engineering
-            and shared release discipline, each one replacing a slower or
-            heavier dependency in the JavaScript and Rust toolchain. Palamedes
-            is the i18n application built on top of them.
+            , a workshop of Rust-native developer tools with shared engineering and shared release
+            discipline, each one replacing a slower or heavier dependency in the JavaScript and Rust
+            toolchain. Palamedes is the i18n application built on top of them.
           </p>
         </div>
         <ul className="ferro-family-grid">
           {family.map((tool) => (
             <li key={tool.name}>
               <a
-                className={
-                  tool.current
-                    ? "ferro-family-card is-current"
-                    : "ferro-family-card"
-                }
+                className={tool.current ? "ferro-family-card is-current" : "ferro-family-card"}
                 href={tool.href}
               >
                 <span className="ferro-family-icon">{tool.icon}</span>
                 <span className="ferro-family-name">
                   {tool.name}
-                  {tool.tag ? (
-                    <span className="ferro-family-tag">{tool.tag}</span>
-                  ) : null}
+                  {tool.tag ? <span className="ferro-family-tag">{tool.tag}</span> : null}
                 </span>
                 <span className="ferro-family-role">{tool.role}</span>
                 <span className="ferro-family-body">{tool.body}</span>
@@ -388,9 +418,9 @@ export default function HomePage() {
         <div className="ferro-section-heading">
           <h2>Localization that behaves like the rest of your codebase.</h2>
           <p className="ferro-sublead">
-            Most projects treat translations as files to load, not data to
-            review. Ferrocat moves the catalog into the same discipline as your
-            source: explicit identity, real diffs, checks before release.
+            Most projects treat translations as files to load, not data to review. Ferrocat moves
+            the catalog into the same discipline as your source: explicit identity, real diffs,
+            checks before release.
           </p>
         </div>
         <ul className="ferro-shift-list">
@@ -407,32 +437,23 @@ export default function HomePage() {
       {/* ── Performance ── */}
       <section className="ferro-perf ferro-reveal">
         <div className="ferro-section-heading">
-          <h2>
-            Several times faster than Node. An order of magnitude past PHP and
-            Python.
-          </h2>
+          <h2>Several times faster than Node. An order of magnitude past PHP and Python.</h2>
           <p className="ferro-sublead">
-            V8 is not a slow target. Node&rsquo;s JIT is one of the fastest
-            dynamic runtimes ever shipped, which is exactly why most JS and TS
-            i18n tooling feels fine until you put it next to compiled Rust. On
-            the same 10k-message catalog, reading the same files, Ferrocat still
-            parses several times faster than the quickest Node parser&mdash;and
-            the PHP and Python stacks, with no JIT that helps here, fall much
-            further back. The part we like most: Ferrocat&rsquo;s{" "}
-            <em>full</em> catalog update&mdash;ICU structure analysis,
-            placeholder tracking, deterministic output, work none of the other
-            tools even attempt&mdash;still finishes twice as fast as the
-            quickest plain merge in the field.
+            V8 is not a slow target. Node&rsquo;s JIT is one of the fastest dynamic runtimes ever
+            shipped, which is exactly why most JS and TS i18n tooling feels fine until you put it
+            next to compiled Rust. On the same 10k-message catalog, reading the same files, Ferrocat
+            still parses several times faster than the quickest Node parser&mdash;and the PHP and
+            Python stacks, with no JIT that helps here, fall much further back. The part we like
+            most: Ferrocat&rsquo;s <em>full</em> catalog update&mdash;ICU structure analysis,
+            placeholder tracking, deterministic output, work none of the other tools even
+            attempt&mdash;still finishes twice as fast as the quickest plain merge in the field.
           </p>
         </div>
         <div className="ferro-bar-charts">
           <figure className="ferro-bars">
             <figcaption>Parsing a catalog · MiB/s · higher is better</figcaption>
             {parseCompare.map((bar) => (
-              <div
-                className={bar.self ? "ferro-bar is-self" : "ferro-bar"}
-                key={bar.name}
-              >
+              <div className={bar.self ? "ferro-bar is-self" : "ferro-bar"} key={bar.name}>
                 <span className="ferro-bar-label">
                   {bar.name}
                   <span className="ferro-bar-lang">{bar.lang}</span>
@@ -448,14 +469,9 @@ export default function HomePage() {
             ))}
           </figure>
           <figure className="ferro-bars">
-            <figcaption>
-              Updating with new strings · MiB/s · the release-time job
-            </figcaption>
+            <figcaption>Updating with new strings · MiB/s · the release-time job</figcaption>
             {updateCompare.map((bar) => (
-              <div
-                className={bar.self ? "ferro-bar is-self" : "ferro-bar"}
-                key={bar.name}
-              >
+              <div className={bar.self ? "ferro-bar is-self" : "ferro-bar"} key={bar.name}>
                 <span className="ferro-bar-label">
                   {bar.name}
                   <span className="ferro-bar-lang">{bar.lang}</span>
@@ -472,41 +488,33 @@ export default function HomePage() {
           </figure>
         </div>
         <p className="ferro-perf-craft">
-          None of this comes free with picking Rust. The hot path is written by
-          hand: memchr scanning, NEON SIMD on Apple Silicon, borrowed parsing
-          that never copies the source, and a merge that moves data instead of
-          cloning it. Months of low-level work you inherit the moment you add the
-          crate.
+          None of this comes free with picking Rust. The hot path is written by hand: memchr
+          scanning, NEON SIMD on Apple Silicon, borrowed parsing that never copies the source, and a
+          merge that moves data instead of cloning it. Months of low-level work you inherit the
+          moment you add the crate.
         </p>
         <p className="ferro-perf-foot">
-          Parsing is mostly raw scanning, and a warm JIT is genuinely good at
-          raw scanning, so the parse gap is the narrowest one on this page. The
-          honest part is admitting that. Updating is the real release-time job:
-          parse the existing catalog, parse the freshly extracted strings, merge
-          by identity, and write it back. Once allocation and serialization
-          dominate, the JIT&rsquo;s edge fades and the zero-copy,
-          move-not-clone hot path pulls further ahead&mdash;which is why the
-          update lead is wider than the parse lead. The second Ferrocat bar is
-          the high-level catalog update on the same files: on top of the plain
-          update it analyzes ICU message structure, tracks placeholders, and
-          produces deterministic output. None of the compared tools has an
-          equivalent layer&mdash;their update <em>is</em> the plain bar. The
-          broader benchmark now includes Babel&rsquo;s real Python
-          <code>Catalog.update</code> path, and a compatibility probe asserts
-          the output stays semantically identical to msgmerge&rsquo;s on this
-          corpus. The GNU msgmerge bar is not
-          a launch-cost artifact either: the benchmark records an empty-run
-          baseline, and its fixed process and I/O overhead is about 2% of the
-          measured time on this corpus, so the gap is real work. The Node
-          baseline, pofile-ts, is our own performance fork of the popular
-          pofile&mdash;so the fastest JS parser here is one we built, and Rust
-          still leads it ~4.7x; the unforked original sits about 320x back. The
-          parse chart uses
-          borrowed, zero-copy parsing; reading into a fully owned model still
-          reaches about 530 MiB/s. Serialization runs at about 1.4 GiB/s on the same
-          corpus. Median throughput on an Apple M1 Ultra, every tool reading
-          the same files (pofile-ts 4.0.3, gettext-parser 9.1.1, Babel 2.18.0,
-          polib 1.2.0, gettext/gettext 5.7.3, GNU gettext 1.0).{" "}
+          Parsing is mostly raw scanning, and a warm JIT is genuinely good at raw scanning, so the
+          parse gap is the narrowest one on this page. The honest part is admitting that. Updating
+          is the real release-time job: parse the existing catalog, parse the freshly extracted
+          strings, merge by identity, and write it back. Once allocation and serialization dominate,
+          the JIT&rsquo;s edge fades and the zero-copy, move-not-clone hot path pulls further
+          ahead&mdash;which is why the update lead is wider than the parse lead. The second Ferrocat
+          bar is the high-level catalog update on the same files: on top of the plain update it
+          analyzes ICU message structure, tracks placeholders, and produces deterministic output.
+          None of the compared tools has an equivalent layer&mdash;their update <em>is</em> the
+          plain bar. The broader benchmark now includes Babel&rsquo;s real Python
+          <code>Catalog.update</code> path, and a compatibility probe asserts the output stays
+          semantically identical to msgmerge&rsquo;s on this corpus. The GNU msgmerge bar is not a
+          launch-cost artifact either: the benchmark records an empty-run baseline, and its fixed
+          process and I/O overhead is about 2% of the measured time on this corpus, so the gap is
+          real work. The Node baseline, pofile-ts, is our own performance fork of the popular
+          pofile&mdash;so the fastest JS parser here is one we built, and Rust still leads it ~4.7x;
+          the unforked original sits about 320x back. The parse chart uses borrowed, zero-copy
+          parsing; reading into a fully owned model still reaches about 530 MiB/s. Serialization
+          runs at about 1.4 GiB/s on the same corpus. Median throughput on an Apple M1 Ultra, every
+          tool reading the same files (pofile-ts 4.0.3, gettext-parser 9.1.1, Babel 2.18.0, polib
+          1.2.0, gettext/gettext 5.7.3, GNU gettext 1.0).{" "}
           <Link to="/performance/benchmarking">Methodology</Link> and{" "}
           <a href="https://github.com/sebastian-software/ferrocat/tree/main/benchmark/results">
             full report
@@ -520,9 +528,9 @@ export default function HomePage() {
         <div className="ferro-section-heading">
           <h2>Everything around the catalog file.</h2>
           <p className="ferro-sublead">
-            A parser is only the start. The harder work is what happens around
-            it: handoffs, coverage thresholds, runtime provenance,
-            pseudo-locales, and checks your release process can trust.
+            A parser is only the start. The harder work is what happens around it: handoffs,
+            coverage thresholds, runtime provenance, pseudo-locales, and checks your release process
+            can trust.
           </p>
         </div>
         <div className="ferro-benefit-grid">
@@ -541,9 +549,8 @@ export default function HomePage() {
         <div className="ferro-section-heading">
           <h2>One catalog, five jobs.</h2>
           <p className="ferro-sublead">
-            Each job is a Rust API you can call on its own or chain into a
-            release pipeline. Start small, then add the checks that match your
-            risk.
+            Each job is a Rust API you can call on its own or chain into a release pipeline. Start
+            small, then add the checks that match your risk.
           </p>
         </div>
         <ol className="ferro-flow-steps">
@@ -562,8 +569,8 @@ export default function HomePage() {
         <div className="ferro-section-heading">
           <h2>Proven formats, one product workflow.</h2>
           <p className="ferro-sublead">
-            Pick the storage and message model per project. Migrations stay
-            visible in code instead of hiding in tooling.
+            Pick the storage and message model per project. Migrations stay visible in code instead
+            of hiding in tooling.
           </p>
         </div>
         <div className="ferro-mode-grid">
@@ -591,10 +598,9 @@ export default function HomePage() {
         <div className="ferro-section-heading">
           <h2>Use it from Rust, or from JS and TypeScript through Palamedes.</h2>
           <p className="ferro-sublead">
-            Palamedes is the i18n framework for application teams: macros,
-            message extraction, and adapters for Vite and Next.js. Ferrocat is
-            the catalog engine beneath it, so JS and TS teams get Rust-speed
-            parsing and QA without writing Rust.
+            Palamedes is the i18n framework for application teams: macros, message extraction, and
+            adapters for Vite and Next.js. Ferrocat is the catalog engine beneath it, so JS and TS
+            teams get Rust-speed parsing and QA without writing Rust.
           </p>
         </div>
         <div className="ferro-stack">
@@ -604,13 +610,10 @@ export default function HomePage() {
               <span className="ferro-stack-tag">JS / TS framework</span>
             </div>
             <p>
-              Macros, message extraction, framework adapters, and runtime loading
-              for application developers.
+              Macros, message extraction, framework adapters, and runtime loading for application
+              developers.
             </p>
-            <a
-              className="ferro-way-link"
-              href="https://github.com/sebastian-software/palamedes"
-            >
+            <a className="ferro-way-link" href="https://github.com/sebastian-software/palamedes">
               Explore Palamedes
               <ArrowRight size={15} />
             </a>
@@ -624,9 +627,9 @@ export default function HomePage() {
               <span className="ferro-stack-tag">Rust engine</span>
             </div>
             <p>
-              Parsing, deterministic updates, review reports, release QA,
-              runtime artifacts, and pseudo-locale output. Usable directly from
-              Rust or through the ferrocat-cli audit gate.
+              Parsing, deterministic updates, review reports, release QA, runtime artifacts, and
+              pseudo-locale output. Usable directly from Rust or through the ferrocat-cli audit
+              gate.
             </p>
             <Link className="ferro-way-link" to="/guide/palamedes">
               How they fit together
@@ -642,9 +645,8 @@ export default function HomePage() {
           <div className="ferro-section-heading">
             <h2>Quality is part of the catalog contract.</h2>
             <p className="ferro-proof-lead">
-              Ferrocat's behavior is pinned by conformance fixtures derived from
-              upstream gettext, crate-level coverage gates, and benchmark
-              regression checks that run on pull requests.
+              Ferrocat's behavior is pinned by conformance fixtures derived from upstream gettext,
+              crate-level coverage gates, and benchmark regression checks that run on pull requests.
             </p>
           </div>
           <div className="ferro-proof-stats">
@@ -687,9 +689,8 @@ export default function HomePage() {
             <a className="ferro-inline-link" href={COMPANY}>
               Sebastian Software
             </a>
-            . We ship dependable open source for the JavaScript, TypeScript, and
-            Rust ecosystems, and we use every one of these tools in production
-            ourselves.
+            . We ship dependable open source for the JavaScript, TypeScript, and Rust ecosystems,
+            and we use every one of these tools in production ourselves.
           </p>
           <div className="ferro-actions">
             <a className="ferro-button ferro-button-primary" href={OSS}>
@@ -729,16 +730,12 @@ export default function HomePage() {
         <div className="ferro-cta-copy">
           <h2>Put broken translations on the wrong side of your CI.</h2>
           <p className="ferro-sublead">
-            Start with one catalog and a single audit call. Add coverage,
-            review reports, runtime artifacts, pseudo-locales, and AI metadata
-            when the workflow needs them.
+            Start with one catalog and a single audit call. Add coverage, review reports, runtime
+            artifacts, pseudo-locales, and AI metadata when the workflow needs them.
           </p>
         </div>
         <div className="ferro-actions">
-          <Link
-            className="ferro-button ferro-button-primary"
-            to="/guide/getting-started"
-          >
+          <Link className="ferro-button ferro-button-primary" to="/guide/getting-started">
             Run the quick start
             <ArrowRight size={16} />
           </Link>
@@ -749,5 +746,5 @@ export default function HomePage() {
         </div>
       </section>
     </div>
-  )
+  );
 }
