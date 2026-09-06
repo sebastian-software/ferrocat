@@ -114,7 +114,8 @@ jobs:
 
           mkdir -p "$artifact_dir"
           cp "target/${MUSL_TARGET}/release/ferrocat" "$artifact_dir/ferrocat"
-          cp LICENSE "$artifact_dir/LICENSE"
+          cp LICENSE-MIT "$artifact_dir/LICENSE-MIT"
+          cp LICENSE-APACHE "$artifact_dir/LICENSE-APACHE"
           cp README.md "$artifact_dir/README.md"
           cp crates/ferrocat-cli/README.md "$artifact_dir/CLI-README.md"
 

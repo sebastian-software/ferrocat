@@ -16,7 +16,8 @@ include = [
     "crates/ferrocat/tests/**",
     "crates/ferrocat/README.md",
     "crates/ferrocat/CHANGELOG.md",
-    "LICENSE",
+    "LICENSE-MIT",
+    "LICENSE-APACHE",
 ]
 keywords = ["ferramenta", "gettext", "po", "icu", "i18n"]
 categories = ["internationalization", "localization", "parser-implementations"]
@@ -87,7 +88,7 @@ resolver = "2"
 authors = ["Sebastian Software GmbH"]
 edition = "2024"
 homepage = "https://ferrocat.dev"
-license = "MIT"
+license = "MIT OR Apache-2.0"
 repository = "https://github.com/sebastian-software/ferrocat"
 rust-version = "1.94.0"
 
