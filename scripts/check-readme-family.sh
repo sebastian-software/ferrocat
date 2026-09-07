@@ -19,7 +19,7 @@ set -euo pipefail
 
 # Pinned so the same commit renders the same block on every run. A branch ref
 # would re-check against whatever landed in the registry since.
-FERRAMENTA_PIN="f6de99cd094d0fabbf0be23a9c0b5c074ff89976"
+FERRAMENTA_PIN="e587388c4e61a11fe3c71180a91a55662370358d"
 GENERATOR="github:sebastian-software/ferramenta#${FERRAMENTA_PIN}&path:/packages/family"
 
 mode="${1:---check}"
