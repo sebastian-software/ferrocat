@@ -1111,10 +1111,11 @@
 /*
  * ── Docs controls inside the family header ──
  *
- * SiteHeader offers one slot (`themeToggle`, at the end of the bar). Search and
- * the section menu Ardo's own header used to carry ride in it, so nothing the
+ * Search and the section menu Ardo's own header used to carry ride in
+ * SiteHeader's `actions` slot, just before the theme toggle, so nothing the
  * documentation needs is lost with that header gone. Both are styled against
- * the iron band, not against the page.
+ * the iron band, not against the page: the package styles the chrome's own
+ * elements and deliberately leaves the slots to their site.
  */
 
 /*
@@ -1127,18 +1128,6 @@
 
 .ferro-header-search input {
   width: 100%;
-}
-
-/*
- * Ardo's global rule paints every <a> in the brand color, which outranks the
- * color the chrome links inherit from their iron band. Named element by element
- * so the search popover, which also lives in the header, keeps Ardo's colors.
- */
-.site-header .lockup,
-.site-header .ghlink,
-.flyout a,
-.site-footer a {
-  color: inherit;
 }
 
 /*
