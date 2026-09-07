@@ -165,15 +165,15 @@ jobs:
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@d1031067263f94b142dd6c0ce24c5eb9d02d52a0 # master
         with:
-          toolchain: stable
+          toolchain: nightly
 
       - name: Cache Rust build artifacts
         uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
 
       - name: Build Rust docs with warnings denied
         env:
-          RUSTDOCFLAGS: -D warnings
-        run: cargo doc --workspace --all-features --no-deps --locked
+          RUSTDOCFLAGS: -D warnings --cfg docsrs
+        run: cargo +nightly doc --workspace --all-features --no-deps --locked
 
   package:
     name: Published crate packaging
