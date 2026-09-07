@@ -31,7 +31,9 @@ That keeps the report focused on the public and internal library crates that mat
 ## Current Gate
 
 The CI coverage job measures the current percentages on every run, exports the
-machine-readable summary, and enforces these crate-level thresholds:
+machine-readable summary, and enforces these crate-level thresholds through
+`scripts/coverage.sh`, the single source for the `llvm-cov` filters and the
+thresholds:
 
 - `ferrocat-cli >= 85%`
 - `ferrocat-po >= 95%`
@@ -94,12 +96,27 @@ The LCOV output is written to:
 target/lcov.info
 ```
 
+Run the gate exactly as CI runs it:
+
+```bash
+scripts/coverage.sh
+```
+
+That script writes `target/lcov.info` and `target/coverage-summary.json`, then
+prints the measured percentage per crate against its threshold and exits
+non-zero when a gated crate is below it.
+
 ## CI
 
-The GitHub Actions CI workflow runs a dedicated coverage job on Ubuntu, installs the required LLVM tooling, uploads the generated LCOV report to Codecov, and stores the same `lcov.info` file as a workflow artifact.
+The GitHub Actions CI workflow runs a dedicated coverage job on Ubuntu, installs the required LLVM tooling, and runs `scripts/coverage.sh` — the same command contributors run locally. The thresholds are enforced per crate rather than through one global blended percentage, so a well-covered crate cannot hide a regression in another one.
 
-That same job now also exports `target/coverage-summary.json` and runs a small crate-aware gate script so the `95%` thresholds are enforced per crate instead of through one global blended percentage.
+The job publishes its evidence in three places, on a failing run as much as on a passing one:
 
-For private repositories, add a GitHub Actions repository secret named `CODECOV_TOKEN`.
+- the run's job summary, which lists the measured percentage per crate next to the threshold it was checked against
+- `lcov.info` as a workflow artifact
+- `coverage-summary.json`, the machine-readable `llvm-cov` summary, as a second workflow artifact
 
-For public repositories, tokenless upload may also work with `codecov/codecov-action@v6` if token authentication has been disabled in the Codecov organization settings. If you want the least surprising setup, keep the `CODECOV_TOKEN` secret configured either way.
+Status note (2026-09-07): the gate lives entirely in this repository's CI. The
+previous Codecov upload and its `CODECOV_TOKEN` secret were removed; no
+external coverage service is involved, and no coverage token is required to
+run or fork the build.

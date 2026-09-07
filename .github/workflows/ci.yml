@@ -362,27 +362,41 @@ jobs:
         # contributors at the same script instead of restating the commands.
         run: scripts/coverage.sh
 
-      - name: Upload coverage to Codecov
-        if: ${{ github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && !startsWith(github.head_ref, 'dependabot/')) }}
-        uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v7.0.0
-        with:
-          files: target/lcov.info
-          fail_ci_if_error: true
-          token: ${{ secrets.CODECOV_TOKEN }}
-          verbose: true
-
-      - name: Skip Codecov upload without repository secrets
-        if: ${{ github.event_name == 'pull_request' && (github.event.pull_request.head.repo.full_name != github.repository || startsWith(github.head_ref, 'dependabot/')) }}
-        run: echo "Skipping Codecov upload because fork and Dependabot pull requests do not receive repository secrets."
+      - name: Publish the coverage gate summary
+        # Runs on failure too, so a run that misses a threshold still shows the
+        # measured percentages next to the thresholds they were checked against.
+        if: always()
+        run: |
+          {
+            echo "## Coverage gate"
+            echo ""
+            echo "- Gate: \`scripts/coverage.sh\`, the single source for the llvm-cov filters and the per-crate line thresholds"
+            echo ""
+            if [ -f target/coverage-gate.txt ]; then
+              echo '```text'
+              cat target/coverage-gate.txt
+              echo '```'
+            else
+              echo "Coverage gate output was not produced."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload LCOV artifact
+        # A run that misses a threshold is exactly the run whose report someone
+        # wants to open, so the artifacts follow the summary and are uploaded
+        # on failure too. `if-no-files-found: warn` keeps a job that died
+        # before the report existed from failing a second time here.
+        if: ${{ !cancelled() }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: coverage-lcov
           path: target/lcov.info
+          if-no-files-found: warn
 
       - name: Upload coverage summary artifact
+        if: ${{ !cancelled() }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: coverage-summary-json
           path: target/coverage-summary.json
+          if-no-files-found: warn
