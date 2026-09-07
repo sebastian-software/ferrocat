@@ -382,13 +382,21 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload LCOV artifact
+        # A run that misses a threshold is exactly the run whose report someone
+        # wants to open, so the artifacts follow the summary and are uploaded
+        # on failure too. `if-no-files-found: warn` keeps a job that died
+        # before the report existed from failing a second time here.
+        if: ${{ !cancelled() }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: coverage-lcov
           path: target/lcov.info
+          if-no-files-found: warn
 
       - name: Upload coverage summary artifact
+        if: ${{ !cancelled() }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: coverage-summary-json
           path: target/coverage-summary.json
+          if-no-files-found: warn

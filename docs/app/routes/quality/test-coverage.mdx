@@ -110,9 +110,9 @@ non-zero when a gated crate is below it.
 
 The GitHub Actions CI workflow runs a dedicated coverage job on Ubuntu, installs the required LLVM tooling, and runs `scripts/coverage.sh` — the same command contributors run locally. The thresholds are enforced per crate rather than through one global blended percentage, so a well-covered crate cannot hide a regression in another one.
 
-The job publishes its evidence in three places:
+The job publishes its evidence in three places, on a failing run as much as on a passing one:
 
-- the run's job summary, which lists the measured percentage per crate next to the threshold it was checked against, including on a failing run
+- the run's job summary, which lists the measured percentage per crate next to the threshold it was checked against
 - `lcov.info` as a workflow artifact
 - `coverage-summary.json`, the machine-readable `llvm-cov` summary, as a second workflow artifact
 
