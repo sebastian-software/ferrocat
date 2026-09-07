@@ -28,4 +28,10 @@ cargo llvm-cov report --workspace --json --summary-only \
   --output-path target/coverage-summary.json \
   --ignore-filename-regex "$IGNORE_REGEX"
 
-node scripts/coverage-gate.mjs target/coverage-summary.json "${THRESHOLDS[@]}"
+# The gate output doubles as the CI job summary, so it is kept in a file even
+# when a crate misses its threshold; `.github/workflows/ci.yml` reads it back.
+gate_status=0
+node scripts/coverage-gate.mjs target/coverage-summary.json "${THRESHOLDS[@]}" \
+  | tee target/coverage-gate.txt || gate_status=$?
+
+exit "$gate_status"
