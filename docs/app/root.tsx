@@ -1,6 +1,5 @@
 import type { MetaFunction } from "react-router";
 
-import { Mark, MarkDefs, SiteFooter, SiteHeader } from "@ferramenta/family";
 import {
   ArdoGeneratedSidebar,
   ArdoRoot,
@@ -9,6 +8,7 @@ import {
   ArdoSidebarSection,
   ArdoThemeToggle,
 } from "ardo/ui";
+import { Mark, MarkDefs, SiteFooter, SiteHeader } from "ferramenta-family";
 import {
   BookOpen,
   Box,
@@ -23,15 +23,15 @@ import config from "virtual:ardo/config";
 
 import { ferrocatReleaseVersion } from "../release-version";
 import "ardo/ui/styles.css";
-import "@ferramenta/family/tokens.css";
-import "@ferramenta/family/fonts.css";
-import "@ferramenta/family/theme.css";
+import "ferramenta-family/tokens.css";
+import "ferramenta-family/fonts.css";
+import "ferramenta-family/theme.css";
 
 import "./styles/site.css";
 
 // Last on purpose (the package README states this order): the shared chrome has
 // to win the selector ties the site stylesheet would otherwise take.
-import "@ferramenta/family/chrome.css";
+import "ferramenta-family/chrome.css";
 
 export { ArdoRootLayout as Layout } from "ardo/ui";
 

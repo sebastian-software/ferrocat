@@ -2,7 +2,7 @@
   --ferro-page-max: 1200px;
   /*
    * The shared family header bar is 4rem tall (`.bar` in
-   * @ferramenta/family/chrome.css). Ardo derives its sticky offsets, the
+   * ferramenta-family/chrome.css). Ardo derives its sticky offsets, the
    * table-of-contents height and the page's scroll-padding-top from
    * --ardo-layout-headerHeight, so raising it here keeps every Ardo
    * measurement aligned with the chrome that replaced Ardo's own header -- at
