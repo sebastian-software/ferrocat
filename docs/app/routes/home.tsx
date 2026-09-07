@@ -1,6 +1,6 @@
 import type { MetaFunction } from "react-router";
 
-import { FAMILY_SITE, familyGroups, isEngine, Mark } from "@ferramenta/family";
+import { FAMILY_SITE, familyGroups, isEngine, Mark } from "ferramenta-family";
 import {
   ArrowRight,
   BookOpenText,
@@ -34,7 +34,7 @@ const OSS = "https://oss.sebastian-software.com/";
 // ── The Ferramenta family: every tool forged in Rust ──
 //
 // Names, jobs, proofs and links come from the shared registry
-// (@ferramenta/family, ferramenta ADR-0001). Nothing about a sibling is
+// (ferramenta-family, ferramenta ADR-0001). Nothing about a sibling is
 // written down here, so a new member or a moved docs URL arrives with the
 // next pin bump instead of going stale in this file.
 
