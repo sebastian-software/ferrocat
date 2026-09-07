@@ -173,7 +173,7 @@ jobs:
       - name: Build Rust docs with warnings denied
         env:
           RUSTDOCFLAGS: -D warnings --cfg docsrs
-        run: cargo doc --workspace --all-features --no-deps --locked
+        run: cargo +nightly doc --workspace --all-features --no-deps --locked
 
   package:
     name: Published crate packaging
