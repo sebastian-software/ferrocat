@@ -30,6 +30,20 @@
 - Active PO and FCL fuzzy entries no longer count as translated, including in
   the coverage rollups embedded in review reports.
 
+## [3.5.0](https://github.com/sebastian-software/ferrocat/compare/ferrocat-v3.4.2...ferrocat-v3.5.0) (2026-09-07)
+
+
+### Features
+
+* align Cargo metadata, dual-license, and raise the minimum supported Rust version to 1.94 ([#312](https://github.com/sebastian-software/ferrocat/issues/312)) ([4822e1c](https://github.com/sebastian-software/ferrocat/commit/4822e1c03f8f83b12a0ae88dfdff7ce444756333))
+* **docs:** adopt the shared Ferramenta chrome and registry on ferrocat.dev ([#320](https://github.com/sebastian-software/ferrocat/issues/320)) ([329230c](https://github.com/sebastian-software/ferrocat/commit/329230ca77fe3c5c6bf1af0cfd90a5d98f8d2c1b))
+* **docs:** upgrade the docs site to Ardo 4.2 and link the Ferramenta family ([#313](https://github.com/sebastian-software/ferrocat/issues/313)) ([5897ef0](https://github.com/sebastian-software/ferrocat/commit/5897ef043169426cbb0f37d7f994e060172783eb))
+
+
+### Bug Fixes
+
+* **deps:** patch docs transitive advisories ([#301](https://github.com/sebastian-software/ferrocat/issues/301)) ([e450652](https://github.com/sebastian-software/ferrocat/commit/e4506528993a2d83a453c89b308c968a15af2992))
+
 ## [3.4.2](https://github.com/sebastian-software/ferrocat/compare/ferrocat-v3.4.1...ferrocat-v3.4.2) (2026-08-06)
 
 
