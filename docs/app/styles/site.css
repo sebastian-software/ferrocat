@@ -2,12 +2,20 @@
   --ferro-page-max: 1200px;
   /*
    * The shared family header bar is 4rem tall (`.bar` in
-   * @ferramenta/family/chrome.css). Ardo derives its sticky offsets and the
-   * table-of-contents height from --ardo-layout-headerHeight, so raising it
-   * here keeps every Ardo measurement aligned with the chrome that replaced
-   * Ardo's own header.
+   * @ferramenta/family/chrome.css). Ardo derives its sticky offsets, the
+   * table-of-contents height and the page's scroll-padding-top from
+   * --ardo-layout-headerHeight, so raising it here keeps every Ardo
+   * measurement aligned with the chrome that replaced Ardo's own header -- at
+   * every width, which is why the phone bar at the end of this file restates
+   * it rather than growing behind its back.
+   *
+   * --ferro-search-row is the row the phone bar reserves for the search field
+   * below the 4rem one: zero while the bar is a single row, raised by that
+   * media query. The bar's own height is derived from the same two numbers, so
+   * the variable and the bar cannot drift apart.
    */
-  --ardo-layout-headerHeight: 4rem;
+  --ferro-search-row: 0rem;
+  --ardo-layout-headerHeight: calc(4rem + var(--ferro-search-row));
   --ferro-ink: #122238;
   --ferro-body: #41566d;
   --ferro-line: rgba(17, 34, 56, 0.1);
@@ -1197,10 +1205,27 @@
  * switcher both still carry it.
  */
 @media (max-width: 640px) {
+  :root {
+    /*
+     * The bar keeps its 4rem row and reserves this much below it for the
+     * search field, so the sticky header is that much taller. Raising the row
+     * raises --ardo-layout-headerHeight with it, and that variable is what
+     * every offset meant to clear the header reads -- Ardo's
+     * `html { scroll-padding-top: calc(var(--ardo-layout-headerHeight) + 32px) }`
+     * above all, so a deep link keeps the same cushion under the bar here as
+     * it has on a desktop.
+     */
+    --ferro-search-row: 3.5rem;
+  }
+
+  /*
+   * Height from the variable, second row from the same custom property: the
+   * bar cannot grow without the offsets that clear it growing too.
+   */
   .site-header .bar {
-    height: auto;
+    height: var(--ardo-layout-headerHeight);
     gap: 0.75rem;
-    padding-block: 0.55rem 3.5rem;
+    padding-block: 0 var(--ferro-search-row);
   }
 
   .site-header .lockup {
