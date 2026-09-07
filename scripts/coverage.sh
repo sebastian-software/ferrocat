@@ -20,8 +20,18 @@ cargo llvm-cov --workspace --all-features --locked \
   --lcov --output-path target/lcov.info \
   --ignore-filename-regex "$IGNORE_REGEX"
 
-cargo llvm-cov report --json --summary-only \
+# `report` re-derives the object files from the package selection, so it needs
+# `--workspace` as well; without it the export covers the root package alone,
+# every crate reports "no measurable executable lines", and the gate below has
+# nothing left to fail on.
+cargo llvm-cov report --workspace --json --summary-only \
   --output-path target/coverage-summary.json \
   --ignore-filename-regex "$IGNORE_REGEX"
 
-node scripts/coverage-gate.mjs target/coverage-summary.json "${THRESHOLDS[@]}"
+# The gate output doubles as the CI job summary, so it is kept in a file even
+# when a crate misses its threshold; `.github/workflows/ci.yml` reads it back.
+gate_status=0
+node scripts/coverage-gate.mjs target/coverage-summary.json "${THRESHOLDS[@]}" \
+  | tee target/coverage-gate.txt || gate_status=$?
+
+exit "$gate_status"
