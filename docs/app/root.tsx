@@ -67,14 +67,14 @@ const sections = [
 ] as const;
 
 /*
- * The family header carries one slot (`themeToggle`, at the end of the bar), so
- * what Ardo's own header used to provide rides in it: a named section menu (the
- * sidebar rail shows icons only, and below 1024px it is hidden altogether) and
- * full-text search. `ArdoSearch` reads its index from a virtual module and
- * falls back to the default labels, so it works outside `ArdoRoot`'s provider.
- * Plain links, not `Link`: a full navigation is what closes the flyout again.
+ * What Ardo's own header used to provide, in the header's `actions` slot: a
+ * named section menu (the sidebar rail shows icons only, and below 1024px it is
+ * hidden altogether) and full-text search. `ArdoSearch` reads its index from a
+ * virtual module and falls back to the default labels, so it works outside
+ * `ArdoRoot`'s provider. Plain links, not `Link`: a full navigation is what
+ * closes the flyout again.
  */
-function DocsTools() {
+function DocsActions() {
   return (
     <>
       <details className="ferro-sections">
@@ -93,7 +93,6 @@ function DocsTools() {
       <div className="ferro-header-search">
         <ArdoSearch />
       </div>
-      <ArdoThemeToggle />
     </>
   );
 }
@@ -102,7 +101,7 @@ export default function Root() {
   return (
     <>
       <MarkDefs />
-      <SiteHeader current="ferrocat" themeToggle={<DocsTools />} />
+      <SiteHeader current="ferrocat" actions={<DocsActions />} themeToggle={<ArdoThemeToggle />} />
 
       {/*
        * `ferro-shell` is the hook site.css needs to turn Ardo's fixed-viewport
