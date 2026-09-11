@@ -68,12 +68,10 @@ Examples:
   `@sebastian-software/standards` and must not be hand-edited, while
   `docs/eslint.config.ts`, `docs/oxlint.config.ts`, `docs/tsconfig.json` and
   `docs/cspell.json` are seeded once and then belong to this repository.
-- The `<!-- ferramenta-family:start -->` block in `README.md` and in the four
-  published crate READMEs is generated from the family registry in
-  sebastian-software/ferramenta. Never hand-edit it; run
-  `scripts/check-readme-family.sh --write` instead, and see
-  `CONTRIBUTING.md#the-ferramenta-family-block` for bumping the pinned registry
-  commit.
+- Edit `README.md.src` and run `mise run readme:write` for the root README.
+  `mise run readme:check` verifies the complete native output.
+  The published crate README family blocks use `scripts/check-readme-family.sh`;
+  see `CONTRIBUTING.md#the-ferramenta-family-block` for registry updates.
 
 ## Packaging
 
