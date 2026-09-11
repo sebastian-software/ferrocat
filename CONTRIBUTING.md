@@ -184,3 +184,20 @@ Guidelines:
 - add a scope when it clarifies the affected area
 - prefer one logical change per commit
 - verify the final commit subjects before push if you rewrote history or used an automated agent
+
+### Shared registry theme presentation
+
+The pinned Ferramenta generator supplies the compact family icon,
+“More from Ferramenta”, and visible descriptions for related tools. The current
+project is omitted from those links. Registry READMEs retain plain Markdown
+with descriptions; repository READMEs include the small icon.
+Keep theme branding subordinate to the project content. Regenerate through
+the existing family command after updating the pin, then run its check mode.
+
+The shared [living decision](https://github.com/sebastian-software/ferramenta/blob/main/docs/adr/0004-successor-copy-register.md)
+owns the family wording and hierarchy; the
+[composition decision](https://github.com/sebastian-software/ferramenta/blob/main/docs/adr/0001-decentralized-homepages-with-shared-family-package.md)
+owns membership and current-project exclusion.
+
+For the generated project README, see [README themes](docs/readme-theme.md).
+Edit `README.md.src`, then run `mise run readme:write`.
