@@ -2,12 +2,14 @@
 
 Rust-native translation catalog engine for Gettext PO, ICU MessageFormat, and FCL catalogs.
 
+<!-- mdtheme:badges:start -->
 [![crates.io](https://img.shields.io/crates/v/ferrocat.svg)](https://crates.io/crates/ferrocat)
 [![docs.rs](https://img.shields.io/docsrs/ferrocat)](https://docs.rs/ferrocat)
 [![CI](https://github.com/sebastian-software/ferrocat/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/sebastian-software/ferrocat/actions/workflows/ci.yml)
 [![coverage gate](https://img.shields.io/badge/coverage%20gate-85%E2%80%9395%25%20per%20crate-blue.svg)](https://github.com/sebastian-software/ferrocat/blob/main/.github/workflows/ci.yml)
 [![license](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue.svg)](LICENSE-MIT)
 [![MSRV](https://img.shields.io/badge/MSRV-1.94.0-blue.svg)](#compatibility-snapshot)
+<!-- mdtheme:badges:end -->
 
 Documentation: **[ferrocat.dev](https://ferrocat.dev)** — guides, API overview, benchmarks, and architecture decisions.
 
