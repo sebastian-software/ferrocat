@@ -56,7 +56,7 @@ jobs:
       # 24 hours, so a pin raised on the day of a standards release could not
       # resolve without it.
       - name: Check for standards drift
-        run: pnpm --config.minimum-release-age=0 dlx @sebastian-software/standards@0.9.0 check
+        run: pnpm --config.minimum-release-age=0 dlx @sebastian-software/standards@0.11.0 check
 
   docs:
     name: Docs build

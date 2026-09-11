@@ -19,7 +19,7 @@ set -euo pipefail
 
 # Pinned so the same commit renders the same block on every run. A branch ref
 # would re-check against whatever landed in the registry since.
-FERRAMENTA_PIN="e587388c4e61a11fe3c71180a91a55662370358d"
+FERRAMENTA_PIN="05fadd21d86b69bb15179ef4461bef6b3b531f88"
 GENERATOR="github:sebastian-software/ferramenta#${FERRAMENTA_PIN}&path:/packages/family"
 
 mode="${1:---check}"
@@ -51,7 +51,7 @@ render() {
   run_generator --current ferrocat --variant "$variant" "$mode" "$repo_root/$readme"
 }
 
-render github README.md
+# The root README is generated separately: mise run readme:write/check.
 
 for crate in ferrocat ferrocat-po ferrocat-icu ferrocat-cli; do
   render registry "crates/$crate/README.md"
