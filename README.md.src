@@ -19,6 +19,10 @@ The practical problem is simple: translations change constantly, and most projec
 
 You do not need to know PO files, ICU MessageFormat, or FCL to get started. What matters is that the catalog stays inspectable, testable, benchmarked, and portable across host-language adapters, instead of disappearing into format-specific tooling.
 
+## Project history
+
+[pofile-ts](https://github.com/sebastian-software/pofile-ts) is Ferrocat's TypeScript predecessor. It is retained as an archived reference and benchmark baseline; further development is focused on Ferrocat.
+
 ## Install
 
 ```bash
