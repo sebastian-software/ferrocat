@@ -1,6 +1,6 @@
 [package]
 name = "ferrocat-icu"
-version = "3.4.2"
+version = "3.5.0"
 authors.workspace = true
 edition.workspace = true
 homepage.workspace = true
