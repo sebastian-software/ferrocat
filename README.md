@@ -208,28 +208,26 @@ If you already know what kind of question you have, these are the fastest entry 
 
 [Ferramenta](https://ferramenta.dev) — A family of Rust tools.
 
-**The content pipeline**
+**Engines**
 
 | Tool | Job |
 | --- | --- |
-| [ferroni](https://sebastian-software.github.io/ferroni/) | Oniguruma-compatible regex engine |
-| [ferriki](https://github.com/sebastian-software/ferriki) | Shiki-compatible syntax highlighting |
-| [ferromark](https://sebastian-software.github.io/ferromark/) | Markdown to HTML with a secure default and every GFM extension included. |
-
-**The language workshop**
-
-| Tool | Job |
-| --- | --- |
+| [ferroni](https://ferroni.dev) | Oniguruma-compatible regex engine |
+| [ferriki](https://ferriki.dev) | Shiki-compatible syntax highlighting |
+| [ferromark](https://ferromark.dev) | Markdown to HTML, sanitized by default |
 | [ferrolex](https://github.com/sebastian-software/ferrolex) | Spell checking for text and code |
-| [palamedes](https://palamedes.dev) | Internationalization for TypeScript applications |
-
-**On the workbench**
-
-| Tool | Job |
-| --- | --- |
-| [ferrovia](https://github.com/sebastian-software/ferrovia) | SVGO-compatible SVG optimizer |
 | [ferralk](https://github.com/sebastian-software/ferralk) | Glob matching and parallel filesystem walking |
 | [ferrugo](https://github.com/sebastian-software/ferrugo) | PDF previews for untrusted files |
+| [ferrolink](https://github.com/sebastian-software/ferrolink) | Links, anchors and assets checked against the finished build |
+| [ferrigura](https://github.com/sebastian-software/ferrigura) | Mermaid diagrams to SVG without a browser |
+
+**Applications**
+
+| Tool | Job |
+| --- | --- |
+| [palamedes](https://palamedes.dev) | Internationalization for TypeScript applications |
+| [dalo](https://dalo.sh) | Your team's agent setup, versioned like code |
+| [ardo](https://ardo-docs.dev) | Documentation sites built with React |
 
 ---
 

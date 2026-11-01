@@ -13,7 +13,7 @@
           "contains": "| Parse | **725 MiB/s**"
         },
         {
-          "file": "docs/app/routes/home.tsx",
+          "file": "docs/app/components/benchmark-results.tsx",
           "contains": "rate: 725"
         }
       ]
@@ -31,7 +31,7 @@
           "contains": "| Parse | **725 MiB/s** | 149"
         },
         {
-          "file": "docs/app/routes/home.tsx",
+          "file": "docs/app/components/benchmark-results.tsx",
           "contains": "rate: 149"
         }
       ]
@@ -49,7 +49,7 @@
           "contains": "| Parse | **725 MiB/s** | 149 | 53"
         },
         {
-          "file": "docs/app/routes/home.tsx",
+          "file": "docs/app/components/benchmark-results.tsx",
           "contains": "rate: 53"
         }
       ]
@@ -67,7 +67,7 @@
           "contains": "| Parse | **725 MiB/s** | 149 | 53 | - | 22"
         },
         {
-          "file": "docs/app/routes/home.tsx",
+          "file": "docs/app/components/benchmark-results.tsx",
           "contains": "rate: 22"
         }
       ]
@@ -85,7 +85,7 @@
           "contains": "| Update with new strings | **291 MiB/s**"
         },
         {
-          "file": "docs/app/routes/home.tsx",
+          "file": "docs/app/components/benchmark-results.tsx",
           "contains": "rate: 291"
         }
       ]
@@ -103,7 +103,7 @@
           "contains": "| Update with new strings | **291 MiB/s** | 43"
         },
         {
-          "file": "docs/app/routes/home.tsx",
+          "file": "docs/app/components/benchmark-results.tsx",
           "contains": "rate: 43"
         }
       ]
@@ -121,7 +121,7 @@
           "contains": "| Update with new strings | **291 MiB/s** | 43 | 16"
         },
         {
-          "file": "docs/app/routes/home.tsx",
+          "file": "docs/app/components/benchmark-results.tsx",
           "contains": "rate: 16"
         }
       ]
@@ -139,7 +139,7 @@
           "contains": "| Update with new strings | **291 MiB/s** | 43 | 16 | - | 8.1"
         },
         {
-          "file": "docs/app/routes/home.tsx",
+          "file": "docs/app/components/benchmark-results.tsx",
           "contains": "rate: 8.1"
         }
       ]
@@ -157,7 +157,7 @@
           "contains": "| Update with new strings | **291 MiB/s** | 43 | 16 | - | 8.1 | 4.8 |"
         },
         {
-          "file": "docs/app/routes/home.tsx",
+          "file": "docs/app/components/benchmark-results.tsx",
           "contains": "rate: 4.8"
         }
       ]
@@ -175,7 +175,7 @@
           "contains": "| Full catalog update | **150 MiB/s**"
         },
         {
-          "file": "docs/app/routes/home.tsx",
+          "file": "docs/app/components/benchmark-results.tsx",
           "contains": "rate: 150"
         }
       ]
@@ -263,7 +263,7 @@
           "contains": "| Full catalog update | **150 MiB/s** | 42 | - | 8.9"
         },
         {
-          "file": "docs/app/routes/home.tsx",
+          "file": "docs/app/components/benchmark-results.tsx",
           "contains": "rate: 8.9"
         }
       ]
@@ -299,9 +299,9 @@
   ],
   "textAssertions": [
     {
-      "id": "home.proof.rounded-conformance-cases",
+      "id": "home.proof.source-attributed-conformance",
       "file": "docs/app/routes/home.tsx",
-      "contains": "{ value: \"60+\", label: \"conformance cases\""
+      "contains": "Source-attributed conformance fixtures"
     },
     {
       "id": "home.proof.no-assertion-count",
@@ -309,14 +309,14 @@
       "notContains": "454"
     },
     {
-      "id": "home.footnote.rounded-owned-parse",
-      "file": "docs/app/routes/home.tsx",
-      "contains": "about 530 MiB/s"
+      "id": "comparison.historical-version",
+      "file": "docs/app/routes/performance/results.mdx",
+      "contains": "**Ferrocat 2.2.0**"
     },
     {
-      "id": "home.footnote.rounded-serialization",
-      "file": "docs/app/routes/home.tsx",
-      "contains": "about 1.4 GiB/s"
+      "id": "comparison.borrowed-parser-boundary",
+      "file": "docs/app/routes/performance/results.mdx",
+      "contains": "displayed result uses its borrowed parser"
     }
   ],
   "allowedUnregisteredNumbers": [
@@ -329,11 +329,6 @@
       "file": "docs/app/routes/architecture/adr/0026-cldr-root-catalog-order.mdx",
       "value": "94.75 MiB/s",
       "reason": "updated-default result from the documented direct update-catalog corroboration probe"
-    },
-    {
-      "file": "docs/app/routes/home.tsx",
-      "value": "309 MiB/s",
-      "reason": "ferromark throughput claim, not a ferrocat benchmark result"
     },
     {
       "file": "docs/app/routes/performance/benchmarking.mdx",

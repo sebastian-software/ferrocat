@@ -9,3 +9,7 @@ build
 # Ardo generated files
 app/routes.ts
 app/routes/api-reference/
+
+# Generated from route frontmatter and the release manifest.
+app/data/site.json
+app/data/navigation.json

@@ -1,0 +1,150 @@
+[
+  {
+    "path": "/architecture/adr/0010-compiled-catalog-artifact-api/",
+    "id": "expand-normalizedparsedcatalogcompile"
+  },
+  {
+    "path": "/guide/upgrading/",
+    "id": "upgrading-to-210"
+  },
+  {
+    "path": "/guide/upgrading/",
+    "id": "api-cleanup-shipped-in-211"
+  },
+  {
+    "path": "/reference/api-overview/",
+    "id": "parsepo"
+  },
+  {
+    "path": "/reference/api-overview/",
+    "id": "parsepoborrowed"
+  },
+  {
+    "path": "/reference/api-overview/",
+    "id": "stringifypo"
+  },
+  {
+    "path": "/reference/api-overview/",
+    "id": "mergecatalog"
+  },
+  {
+    "path": "/reference/api-overview/",
+    "id": "combinecatalogs"
+  },
+  {
+    "path": "/reference/api-overview/",
+    "id": "combinecatalogfiles"
+  },
+  {
+    "path": "/reference/api-overview/",
+    "id": "mergecatalogsthreeway"
+  },
+  {
+    "path": "/reference/api-overview/",
+    "id": "convertcatalog-and-convertcatalogfile"
+  },
+  {
+    "path": "/reference/api-overview/",
+    "id": "parsecatalog"
+  },
+  {
+    "path": "/reference/api-overview/",
+    "id": "normalizedparsedcatalogcompile"
+  },
+  {
+    "path": "/reference/api-overview/",
+    "id": "auditcatalogs"
+  },
+  {
+    "path": "/reference/api-overview/",
+    "id": "measurecatalogcoverage"
+  },
+  {
+    "path": "/reference/api-overview/",
+    "id": "reviewcatalogs"
+  },
+  {
+    "path": "/reference/api-overview/",
+    "id": "compiledkey"
+  },
+  {
+    "path": "/reference/api-overview/",
+    "id": "compilecatalogartifact"
+  },
+  {
+    "path": "/reference/api-overview/",
+    "id": "compilecatalogartifactselected"
+  },
+  {
+    "path": "/reference/api-overview/",
+    "id": "compilecatalogartifactreport"
+  },
+  {
+    "path": "/reference/api-overview/",
+    "id": "updatecatalog"
+  },
+  {
+    "path": "/reference/api-overview/",
+    "id": "updatecatalogfile"
+  },
+  {
+    "path": "/reference/api-overview/",
+    "id": "parseicu"
+  },
+  {
+    "path": "/reference/api-overview/",
+    "id": "stringifyicu"
+  },
+  {
+    "path": "/reference/api-overview/",
+    "id": "pseudolocalizeicu"
+  },
+  {
+    "path": "/reference/api-overview/",
+    "id": "validateicu"
+  },
+  {
+    "path": "/reference/api-overview/",
+    "id": "analyzeicu"
+  },
+  {
+    "path": "/reference/api-overview/",
+    "id": "compareicumessages"
+  },
+  {
+    "path": "/reference/api-overview/",
+    "id": "validateicuformattersupport"
+  },
+  {
+    "path": "/reference/api-overview/",
+    "id": "extractargumentnames-extracttagnames"
+  },
+  {
+    "path": "/reference/api-overview/",
+    "id": "extractvariables"
+  },
+  {
+    "path": "/guide/palamedes/",
+    "id": "ferrocat-and-palamedes"
+  },
+  {
+    "path": "/archive/plans/2026-03-14-ferrocat-porting-plan/",
+    "id": "ferrocat-porting-plan-for-pofile-ts"
+  },
+  {
+    "path": "/architecture/adr/0004-model-msgstr-by-semantics/",
+    "id": "adr-0004-model-msgstr-by-semantics-instead-of-always-using-vec-string"
+  },
+  {
+    "path": "/architecture/adr/readme-theme-composition/",
+    "id": "readme-theme-composition"
+  },
+  {
+    "path": "/architecture/adr/0007-drop-previous-msgid-history/",
+    "id": "adr-0007-do-not-support-previous-msgid-history"
+  },
+  {
+    "path": "/architecture/adr/0016-semantic-message-metadata/",
+    "id": "adr-0016-add-progressive-semantic-message-metadata-around-msgid"
+  }
+]

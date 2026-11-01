@@ -192,6 +192,8 @@ find a stable named container, emit the file alone and leave `scope` empty.
 
 ## Gettext PO Core
 
+<span id="parsepo" />
+
 ### `parse_po`
 
 Use this when you want the normal, owned Rust representation of a Gettext PO file.
@@ -206,6 +208,8 @@ The parser treats non-empty lines that are neither PO comments, known PO
 keywords, nor valid continuation strings as syntax errors. This avoids silently
 dropping typo-like lines such as `msgstr_ "..."`.
 
+<span id="parsepoborrowed" />
+
 ### `parse_po_borrowed`
 
 Use this when you want to parse without copying more than necessary.
@@ -217,6 +221,8 @@ Typical use cases:
 - benchmarks or pipelines where borrowing from the source text is helpful
 
 `parse_po_borrowed` accepts LF, CRLF, and bare CR line endings while keeping unescaped fields borrowed from the input buffer.
+
+<span id="stringifypo" />
 
 ### `stringify_po`
 
@@ -245,6 +251,8 @@ The high-level catalog request structs are now intentionally borrowing-first:
 That keeps the API ergonomic for callers while avoiding avoidable request-side allocation and clone pressure before the real catalog work even starts.
 
 For the common required fields, the option structs also provide `new(...)` constructors. They set the required content/path/locale/input fields and leave the rest at the documented defaults, which avoids starting from intentionally invalid empty defaults in normal call sites.
+
+<span id="mergecatalog" />
 
 ### `merge_catalog`
 
@@ -286,6 +294,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
+<span id="combinecatalogs" />
+
 ### `combine_catalogs`
 
 Use this when you have multiple existing catalogs or templates and want one deterministic output catalog.
@@ -320,6 +330,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
+<span id="combinecatalogfiles" />
+
 ### `combine_catalog_files`
 
 Use this when the inputs and output are files on disk, but you want the same deterministic combine semantics as `combine_catalogs`.
@@ -335,6 +347,8 @@ Supported inferred suffixes are:
 The file helper returns the output path, the file format used, combine stats, and non-fatal diagnostics. It supports one or more input files, so two-file host workflows can stay thin while larger overlay workflows do not need a separate wrapper.
 
 When no mode is provided, `CatalogFileFormat::Po` uses `CatalogMode::IcuPo` and `CatalogFileFormat::Fcl` uses `CatalogMode::IcuFcl`. PO callers that need classic gettext plural semantics can set `mode: Some(CatalogMode::GettextPo)`.
+
+<span id="mergecatalogsthreeway" />
 
 ### `merge_catalogs_three_way`
 
@@ -373,6 +387,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 ```
+
+<span id="convertcatalog-and-convertcatalogfile" />
 
 ### `convert_catalog` and `convert_catalog_file`
 
@@ -425,6 +441,8 @@ The file API reads and renders the complete conversion before calling the
 shared atomic replacement helper. Parse, locale, semantic, representability,
 and render failures therefore leave an existing output untouched. Input and
 output may safely be the same path.
+
+<span id="parsecatalog" />
 
 ### `parse_catalog`
 
@@ -482,6 +500,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
+<span id="normalizedparsedcatalogcompile" />
+
 ### `NormalizedParsedCatalog::compile`
 
 Use this when you want a runtime-facing lookup structure with stable compiled keys rather than raw gettext identities.
@@ -501,6 +521,8 @@ The built-in `CompiledKeyStrategy::FerrocatV1` contract is intentionally compact
 - encoded as unpadded Base64URL
 - no visible version prefix in the emitted key
 - hard compile failure on collisions
+
+<span id="auditcatalogs" />
 
 ### `audit_catalogs`
 
@@ -617,6 +639,8 @@ let has_missing = report
     .any(|diagnostic| diagnostic.code == diagnostic_codes::catalog::MISSING_TRANSLATION);
 ```
 
+<span id="measurecatalogcoverage" />
+
 ### `measure_catalog_coverage`
 
 Use this when you need per-locale completeness counters for dashboards, CI
@@ -675,6 +699,8 @@ high-throughput callers that do not request reports; passing its normalized
 projection to coverage returns an argument error instead of silently treating
 unknown fuzzy state as translated.
 
+<span id="reviewcatalogs" />
+
 ### `review_catalogs`
 
 Use this when a host needs a deterministic translator handoff or CI review
@@ -732,6 +758,8 @@ Set `CatalogReviewOptions::with_details(false)` when callers need summary-only
 output without large per-message vectors. Git history lookup, PR comments,
 repository layout, and reviewer UI remain caller responsibilities.
 
+<span id="compiledkey" />
+
 ### `compiled_key`
 
 Use this when a host adapter, source transform, or manifest builder needs the
@@ -746,6 +774,8 @@ Use `compiled_key_with_policy` when the source message uses
 `canonicalize_icu_with_policy` before applying the unchanged `FerrocatV1`
 contract; `msgctxt` is never ICU-canonicalized. Plain `compiled_key` remains
 strict and unchanged.
+
+<span id="compilecatalogartifact" />
 
 ### `compile_catalog_artifact`
 
@@ -825,6 +855,8 @@ artifact was compiled with a non-default ICU syntax policy such as
 pseudolocalization accepts the same final runtime strings as compilation.
 Pseudo-locale routing and framework output remain host responsibilities.
 
+<span id="compilecatalogartifactselected" />
+
 ### `compile_catalog_artifact_selected`
 
 Use this when a host adapter already knows the exact compiled runtime IDs it needs and wants only that slice of a requested-locale artifact.
@@ -845,6 +877,8 @@ its mapped source identity under the active policy and rejects incompatibly
 derived IDs instead of silently emitting different ones.
 
 Like the broader artifact API, the request struct borrows locale data and selection slices, so callers can reuse existing vectors or arrays of compiled IDs without another owned wrapper.
+
+<span id="compilecatalogartifactreport" />
 
 ### `compile_catalog_artifact_report`
 
@@ -880,6 +914,8 @@ Useful helpers now include:
 - `described` for IDs that are known to the index and present in the provided catalog set
 - `unknown_compiled_ids` for IDs that do not exist in the index at all
 - `unavailable_compiled_ids` for IDs that are known to the index but not present in the provided catalog set
+
+<span id="updatecatalog" />
 
 ### `update_catalog`
 
@@ -1043,6 +1079,8 @@ fn main() {
 }
 ```
 
+<span id="updatecatalogfile" />
+
 ### `update_catalog_file`
 
 Use this when you want the same high-level behavior as `update_catalog`, but against a file path.
@@ -1097,6 +1135,8 @@ deliberate scope boundary: MF2 is worth tracking, but the current catalog
 surface gets more practical value from robust MF1 parsing, authoring
 diagnostics, and artifact validation.
 
+<span id="parseicu" />
+
 ### `parse_icu`
 
 Use this when you need the parsed ICU AST.
@@ -1107,12 +1147,16 @@ Typical use cases:
 - converting ICU messages into another internal representation
 - extracting semantic information from messages
 
+<span id="stringifyicu" />
+
 ### `stringify_icu`
 
 Use this when you already have an `IcuMessage` AST and need ICU MessageFormat
 text again. The serializer is canonical rather than byte-preserving: whitespace
 and apostrophe quoting may differ from the source, but parse -> stringify ->
 parse preserves the supported AST structure.
+
+<span id="pseudolocalizeicu" />
 
 ### `pseudolocalize_icu`
 
@@ -1144,15 +1188,21 @@ pressure. Wrapping and ASCII-letter mapping are stable across accidental repeat
 application, so pseudolocalizing an already pseudolocalized message does not
 keep growing it.
 
+<span id="validateicu" />
+
 ### `validate_icu`
 
 Use this when you only need a yes/no syntax check with an error surface.
+
+<span id="analyzeicu" />
 
 ### `analyze_icu`
 
 Use this after `parse_icu` when you need a structured summary of message
 arguments, formatter kinds and styles, plural/select selectors, and rich-text
 tags.
+
+<span id="compareicumessages" />
 
 ### `compare_icu_messages`
 
@@ -1172,6 +1222,8 @@ Both crates expose a `DiagnosticCode` newtype for report fields; serialized
 reports continue to use the canonical string spellings so existing JSON
 consumers do not need a schema change.
 
+<span id="validateicuformattersupport" />
+
 ### `validate_icu_formatter_support`
 
 Use this when a host runtime supports only a subset of ICU formatter kinds or
@@ -1185,10 +1237,14 @@ Ferrocat's ICU compatibility checks. For example, a JavaScript adapter can
 accept `number` and `date`, reject `list`, or reject pattern-style date formats
 before the catalog artifact ships.
 
+<span id="extractargumentnames-extracttagnames" />
+
 ### `extract_argument_names` / `extract_tag_names`
 
 Use these when data variables and rich-text tags need to be handled separately.
 The older `extract_variables` helper still returns the historical mixed view.
+
+<span id="extractvariables" />
 
 ### `extract_variables`
 
