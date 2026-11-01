@@ -1,0 +1,12 @@
+msgid ""
+msgstr ""
+"Language: de\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+
+msgctxt "checkout"
+msgid "Pay now"
+msgstr ""
+
+msgctxt "greeting"
+msgid "Hello {name}"
+msgstr "Hallo {name}"

@@ -4,37 +4,35 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "react-router dev",
-    "build": "node ../scripts/check-docs-links.mjs && react-router build",
-    "preview": "vite preview",
+    "dev": "node scripts/write-site-data.mjs && ardo dev",
+    "build": "node ../scripts/check-docs-links.mjs && node scripts/write-site-data.mjs && ardo build && node scripts/verify-build.mjs",
+    "preview": "ardo preview",
     "check:links": "node ../scripts/check-docs-links.mjs",
     "lint": "pnpm lint:oxlint && pnpm lint:eslint",
     "lint:eslint": "eslint . --max-warnings=0",
     "lint:oxlint": "oxlint -c oxlint.config.ts",
     "format": "oxfmt --write .",
     "format:check": "oxfmt --check .",
-    "typecheck": "react-router typegen && tsc --noEmit"
+    "typecheck": "node scripts/write-site-data.mjs && tsc --noEmit",
+    "browser:check": "node scripts/check-browser.mjs",
+    "sample:write": "node scripts/render-audit-sample.mjs",
+    "sample:check": "node scripts/render-audit-sample.mjs --check",
+    "verify": "pnpm sample:check && pnpm lint && pnpm format:check && pnpm typecheck && pnpm build && pnpm browser:check"
   },
   "dependencies": {
-    "ardo": "^4.2.0",
-    "ferramenta-family": "github:sebastian-software/ferramenta#05fadd21d86b69bb15179ef4461bef6b3b531f88&path:/packages/family",
-    "isbot": "^5.1.44",
-    "lucide-react": "^1.22.0",
-    "react": "^19.2.8",
-    "react-dom": "^19.2.8",
-    "react-router": "^8.1.0"
+    "ardo": "^6.0.0",
+    "ferramenta-family": "github:sebastian-software/ferramenta#335818ecfe23ad692ae760a1c3746505cab50777&path:/packages/family"
   },
   "devDependencies": {
-    "@react-router/dev": "^8.1.0",
-    "@types/react": "^19.2.17",
-    "@types/react-dom": "^19.2.3",
-    "eslint": "^10.10.0",
+    "axe-core": "4.13.0",
+    "eslint": "^10.11.0",
     "eslint-config-setup": "^0.5.2",
     "jiti": "^2.7.0",
-    "oxfmt": "^0.66.0",
-    "oxlint": "^1.81.0",
+    "oxfmt": "^0.70.0",
+    "oxlint": "^1.85.0",
+    "playwright": "1.63.0",
     "typescript": "^6.0.3",
-    "vite": "^8.1.1"
+    "vite": "^8.3.0"
   },
-  "packageManager": "pnpm@11.24.0+sha512.bd27e345e976dcb0be0b7a1228217b049a817e21b1f355c90dbe7dc46671895a8bc1e6d06c24554505ea93ea0b45f489a27ec1bfbc8de6a9659fca0f16fa0000"
+  "packageManager": "pnpm@12.11.2+sha512.25a51652a196785af5f28bda6dfe8dc582ebefa4ac1d180221ce1390231c5fb76637822ea4b6e4633ce74acdcb0a77f725af11bad38177fdeddaee818a955cb9"
 }

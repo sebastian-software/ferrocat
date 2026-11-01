@@ -1,0 +1,54 @@
+---
+title: Published Comparisons
+order: 10
+description: Historical PO parsing and update throughput, with source reports and measurement conditions.
+---
+
+import { BenchmarkResults } from "../../components/benchmark-results";
+import { FerraMeasured } from "ferramenta-family/ferra";
+
+# Published Comparisons
+
+These are the recorded comparisons previously shown on the homepage. They measure
+**Ferrocat 2.2.0**, not the current release. Keep the source revision and task
+boundaries in view when using them to choose what to benchmark yourself.
+
+<FerraMeasured
+  on="July 30, 2026"
+  machine="Apple M1 Ultra, 64 GB RAM, macOS ARM64"
+  revision="c3caa274664a992410d654fc0ac072c042af9e6d"
+>
+  <a href="https://github.com/sebastian-software/ferrocat/tree/c3caa274664a992410d654fc0ac072c042af9e6d/benchmark">
+    Benchmark source at the measured revision
+  </a>
+</FerraMeasured>
+
+## Three different jobs
+
+<BenchmarkResults />
+
+- **Parse PO** reads the same 10,000-message German Gettext fixture. Ferrocat's
+  displayed result uses its borrowed parser; owned parsing allocates a different
+  result and should be measured separately.
+- **Plain merge** combines source updates with an existing catalog. It does not
+  include Ferrocat's full high-level ICU checks and placeholder tracking.
+- **Full catalog update** includes those high-level checks for Ferrocat. The other
+  tools have their own update semantics. GNU `msgmerge` uses the report's adjusted
+  throughput, accounting for its process baseline; it is not an in-process API.
+
+The figures are rounded medians in MiB/s. They measure these fixtures and tasks,
+rather than end-to-end application build time or translation quality. Tool startup,
+validation, allocation and preservation behavior can differ. No speed factor here
+should be read as a guarantee for another workload or machine.
+
+## Inspect the evidence
+
+- [Gettext official profile: parser and PHP comparison](https://github.com/sebastian-software/ferrocat/blob/main/benchmark/results/gettext-official-v1-c3caa27.json)
+- [Ecosystem workflow profile: merge and update](https://github.com/sebastian-software/ferrocat/blob/main/benchmark/results/gettext-workflows-ecosystem-v1-c3caa27.json)
+- [Catalog-order profile: full update](https://github.com/sebastian-software/ferrocat/blob/main/benchmark/results/catalog-order-default-v1-c3caa27.json)
+
+The reports retain tool versions, fixture identities, iteration settings and the
+unrounded observations. The repository checks published numbers against those
+reports. Follow [External Benchmarking](/performance/benchmarking) to reproduce a
+comparison, or [Benchmark Fixtures](/performance/benchmark-fixtures) to choose a
+representative input.
