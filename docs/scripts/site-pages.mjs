@@ -4,6 +4,7 @@ import { readdirSync } from "node:fs";
 export const expectedPages = [
   "index.html",
   ...readdirSync(new URL("../app/routes/", import.meta.url), { recursive: true })
+    .map((file) => file.replaceAll("\\", "/"))
     .filter((file) => file.endsWith(".mdx"))
     .map((file) => `${file.replace(/(?:\/index)?\.mdx$/, "")}/index.html`),
 ].sort();

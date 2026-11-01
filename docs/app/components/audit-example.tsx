@@ -4,8 +4,8 @@ import {
   FerraArticle,
   FerraCode,
   FerraCodePair,
-  FerraRenderedCode,
   FerraSelect,
+  FerraSpecimen,
 } from "ferramenta-family/ferra";
 
 import sample from "../data/audit-sample.json";
@@ -35,11 +35,11 @@ export function AuditExample() {
         <FerraCode caption="German catalog" file="de.po">
           {current.target}
         </FerraCode>
-        <FerraRenderedCode caption={`Native CLI result · exit ${current.exitCode}`}>
+        <FerraSpecimen caption={`Native CLI result · exit ${current.exitCode}`}>
           {current.report.split("\n").map((line) => (
             <p key={line}>{line}</p>
           ))}
-        </FerraRenderedCode>
+        </FerraSpecimen>
       </FerraCodePair>
       <p>
         These are saved runs of the real Rust CLI. The audit compares the catalog with an English

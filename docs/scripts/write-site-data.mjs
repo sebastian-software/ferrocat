@@ -25,7 +25,8 @@ const sections = [
   "notes",
   "archive",
 ];
-const files = await readdir(routes, { recursive: true });
+const routeFiles = await readdir(routes, { recursive: true });
+const files = routeFiles.map((file) => file.replaceAll("\\", "/"));
 const navigation = [];
 for (const id of sections) {
   const pages = [];

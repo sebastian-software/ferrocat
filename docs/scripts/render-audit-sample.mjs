@@ -6,13 +6,18 @@ import { fileURLToPath } from "node:url";
 import { format } from "oxfmt";
 
 const root = fileURLToPath(new URL("../../", import.meta.url));
-const source = await readFile(new URL("../examples/source.po", import.meta.url), "utf8");
+// Git may check text fixtures out with CRLF. Keep their browser representation canonical;
+// the CLI still reads the original on-disk bytes on each host.
+const normalize = (text) => text.replaceAll("\r\n", "\n");
+const source = normalize(await readFile(new URL("../examples/source.po", import.meta.url), "utf8"));
 const cases = [];
 for (const [id, label, expectedExit] of [
   ["complete", "Ready to ship", 0],
   ["missing", "One translation missing", 1],
 ]) {
-  const target = await readFile(new URL(`../examples/${id}.po`, import.meta.url), "utf8");
+  const target = normalize(
+    await readFile(new URL(`../examples/${id}.po`, import.meta.url), "utf8"),
+  );
   const command = [
     "run",
     "--quiet",
@@ -40,7 +45,7 @@ for (const [id, label, expectedExit] of [
     id,
     label,
     target,
-    report: outputs[0].trim(),
+    report: normalize(outputs[0]).trim(),
     json: JSON.parse(outputs[1]),
     exitCode: expectedExit,
   });
@@ -50,13 +55,13 @@ const formatted = await format("audit-sample.json", JSON.stringify({ source, cas
 assert.equal(formatted.errors.length, 0);
 if (process.argv.includes("--check")) {
   assert.equal(
-    await readFile(destination, "utf8"),
-    formatted.code,
+    normalize(await readFile(destination, "utf8")),
+    normalize(formatted.code),
     "Run pnpm sample:write to refresh the native audit examples.",
   );
   console.log(
     "Both homepage examples match Ferrocat's native text and JSON audit output, including exit codes.",
   );
 } else {
-  await writeFile(destination, formatted.code);
+  await writeFile(destination, normalize(formatted.code));
 }

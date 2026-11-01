@@ -8,7 +8,7 @@
     "build": "node ../scripts/check-docs-links.mjs && node scripts/write-site-data.mjs && ardo build && node scripts/verify-build.mjs",
     "preview": "ardo preview",
     "check:links": "node ../scripts/check-docs-links.mjs",
-    "lint": "pnpm lint:oxlint && pnpm lint:eslint",
+    "lint": "node scripts/write-site-data.mjs && pnpm lint:oxlint && pnpm lint:eslint",
     "lint:eslint": "eslint . --max-warnings=0",
     "lint:oxlint": "oxlint -c oxlint.config.ts",
     "format": "oxfmt --write .",
