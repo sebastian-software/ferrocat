@@ -41,9 +41,12 @@ for (const [id, label, expectedExit] of [
     assert.equal(result.status, expectedExit, result.stderr);
     outputs.push(result.stdout);
   }
+  // The command as it ran, with the ferrocat binary in place of `cargo run`.
+  const run = ["ferrocat", ...command.slice(command.indexOf("--") + 1)].join(" ");
   cases.push({
     id,
     label,
+    command: run,
     target,
     report: normalize(outputs[0]).trim(),
     json: JSON.parse(outputs[1]),

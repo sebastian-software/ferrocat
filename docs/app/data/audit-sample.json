@@ -4,6 +4,7 @@
     {
       "id": "complete",
       "label": "Ready to ship",
+      "command": "ferrocat audit --source-locale en --source docs/examples/source.po --target de=docs/examples/complete.po",
       "target": "msgid \"\"\nmsgstr \"\"\n\"Language: de\\n\"\n\"Content-Type: text/plain; charset=UTF-8\\n\"\n\nmsgctxt \"checkout\"\nmsgid \"Pay now\"\nmsgstr \"Jetzt bezahlen\"\n\nmsgctxt \"greeting\"\nmsgid \"Hello {name}\"\nmsgstr \"Hallo {name}\"\n",
       "report": "Catalog audit: 2 source messages, 1 target locales, 0 diagnostics (0 errors, 0 warnings, 0 info)\nNo catalog audit diagnostics.",
       "json": {
@@ -22,6 +23,7 @@
     {
       "id": "missing",
       "label": "One translation missing",
+      "command": "ferrocat audit --source-locale en --source docs/examples/source.po --target de=docs/examples/missing.po",
       "target": "msgid \"\"\nmsgstr \"\"\n\"Language: de\\n\"\n\"Content-Type: text/plain; charset=UTF-8\\n\"\n\nmsgctxt \"checkout\"\nmsgid \"Pay now\"\nmsgstr \"\"\n\nmsgctxt \"greeting\"\nmsgid \"Hello {name}\"\nmsgstr \"Hallo {name}\"\n",
       "report": "Catalog audit: 2 source messages, 1 target locales, 1 diagnostics (1 errors, 0 warnings, 0 info)\nerror catalog.empty_translation [de \"checkout\" / \"Pay now\"; de]: Locale `de` has an empty translation.",
       "json": {

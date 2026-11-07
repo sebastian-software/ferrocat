@@ -1,0 +1,15 @@
+# Renders the homepage samples with the published ferrocat crate from
+# crates.io, not the workspace sources. The empty [workspace] table keeps this
+# package out of the repository's Cargo workspace. Run it through
+# `pnpm sample:write` in docs/, which checks the pin against the release.
+[package]
+name = "ferrocat-homepage-samples"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[workspace]
+
+[dependencies]
+ferrocat = "=3.4.2"
+serde_json = "1"

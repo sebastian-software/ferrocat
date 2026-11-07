@@ -1,150 +1,139 @@
 import type { ArdoMetaFunction } from "ardo/runtime";
 
+import { Fragment } from "ardo/react";
 import { ArdoLink as Link } from "ardo/runtime";
-import { Mark, RegistryFacts } from "ferramenta-family";
 import {
-  FerraAction,
-  FerraArticle,
-  FerraColumns,
-  FerraEditorialRow,
-  FerraInstrument,
-  FerraNotes,
-  FerraProductLead,
-  FerraProductPage,
-  FerraReleaseFacts,
-} from "ferramenta-family/ferra";
-import { family, WORKSHOP } from "ferramenta-family/registry";
+  MonoAction,
+  MonoClosing,
+  MonoColophon,
+  MonoEngraving,
+  MonoOpening,
+} from "ferramenta-family/monografie";
+import { WORKSHOP } from "ferramenta-family/registry";
 
-import { AuditExample } from "../components/audit-example";
-import {
-  CapabilitiesSection,
-  CatalogSection,
-  ClosingSection,
-  GettingStartedSection,
-  ReviewSection,
-} from "../components/home-sections";
-import { version } from "../version";
+import { ferrocat, lowerFirst, samples } from "../components/home-data";
+import { Conformance, Fit, Review, Runtime, Speed } from "../components/home-engine";
+import { Audit, Catalogs, Explainer, Messages } from "../components/home-reading";
+import { rustVersion, version } from "../data/site.json";
 
 // oxlint-disable-next-line react/only-export-components -- Ardo reads route metadata.
 export const meta: ArdoMetaFunction = () => [
-  { title: "Ferrocat — Keep your translations ready to ship." },
+  { title: "Ferrocat — Translation catalogs, ready to ship" },
   {
     name: "description",
     content:
-      "Rust-native translation catalogs for your repository. Parse PO and FCL, review human corrections, audit releases and compile ICU messages for your application.",
+      "A Rust engine for translation catalogs: update PO, ICU and FCL catalogs as the code changes, check every translation, keep human corrections visible and compile what your application loads.",
   },
 ];
 // oxlint-disable-next-line react/only-export-components -- Ardo reads the route layout.
 export const handle = { layout: "bare" };
 
-const member = family.find((entry) => entry.name === "ferrocat");
-if (!member) throw new Error("Ferrocat is missing from the family registry.");
-const tool = { ...member, version };
+const releaseLine = version.split(".").slice(0, 2).join(".");
+const { conformance } = samples;
+
+function Actions() {
+  return (
+    <>
+      <MonoAction href="/guide/getting-started" primary detail="cargo add ferrocat">
+        Start with Rust
+      </MonoAction>
+      <MonoAction href="/reference/api-overview#audit-catalogs" detail="cargo install ferrocat-cli">
+        Audit your catalogs
+      </MonoAction>
+    </>
+  );
+}
 
 function Opening() {
   return (
-    <FerraProductLead
-      id="overview"
-      title="Keep your translations ready to ship."
-      introduction="A Rust-native translation catalog engine for teams who keep translations in their repository. Read PO and ICU messages, update catalogs, review changes and catch release problems before they reach your users."
-      art={<FerraInstrument product="ferrocat" />}
-      byline={
-        <>
-          An open-source project by <a href={WORKSHOP.openSource}>{WORKSHOP.company}</a>.
-        </>
-      }
-    >
-      <div className="ferra-actions">
-        <FerraAction href="/guide/getting-started">Start with Rust</FerraAction>
-        <FerraAction variant="secondary" href="#audit">
-          See a catalog audit
-        </FerraAction>
+    <MonoOpening
+      product="ferrocat"
+      instrumentLabel="Ferrocat's instrument: two steel card indexes full of tabbed leaves on either side of a machined rail, and between them a single rust-brown leaf standing in a slotted comb above an engraved scale."
+      caption="A catalog index: leaves from two card files meet on one rail, and each pair lines up by the identity of its message."
+      kicker={`Ferrocat ${releaseLine}, ${lowerFirst(ferrocat.what)} for Rust`}
+      title="Your translations, ready to ship."
+      subtitle="Catalogs that Git can merge and people can trust."
+      standfirst={`Every sentence an application shows lives in a translation catalog. Ferrocat keeps those catalogs right as the code changes: it updates them, checks what translators wrote, keeps human corrections visible and compiles what your application loads. It reads Gettext PO, ICU messages and FCL, a format with one line per message. ${ferrocat.audience}`}
+      actions={<Actions />}
+      facts={[
+        {
+          value: (
+            <>
+              <em>{conformance.assertions}</em> of {conformance.assertions}
+            </>
+          ),
+          label: "conformance checks from polib, pofile, Babel, ICU and FormatJS",
+        },
+        { value: "3 modes", label: "Gettext PO, ICU PO and FCL, chosen explicitly" },
+        {
+          value: (
+            <>
+              <em>1</em> line
+            </>
+          ),
+          label: "per message in FCL, so unrelated edits merge cleanly",
+        },
+        { value: `Rust ${rustVersion}+`, label: "MIT or Apache-2.0, library and CLI" },
+      ]}
+    />
+  );
+}
+
+// Keys are written out: minified builds do not keep function names.
+const chapters = [
+  { key: "explainer", Chapter: Explainer },
+  { key: "catalogs", Chapter: Catalogs },
+  { key: "messages", Chapter: Messages },
+  { key: "audit", Chapter: Audit },
+  { key: "review", Chapter: Review },
+  { key: "runtime", Chapter: Runtime },
+  { key: "speed", Chapter: Speed },
+  { key: "conformance", Chapter: Conformance },
+  { key: "fit", Chapter: Fit },
+];
+
+/** Where Ferrocat comes from, and who makes it. */
+function Origin() {
+  return (
+    <section aria-label="Origin">
+      <div className="mono-axis">
+        <MonoColophon>
+          {ferrocat.proof} Ferrocat continues pofile-ts, its TypeScript predecessor, which stays
+          available as an archived reference. It is one of the Ferramenta engines, made by{" "}
+          {WORKSHOP.name} in {WORKSHOP.place}.
+        </MonoColophon>
       </div>
-    </FerraProductLead>
-  );
-}
-
-function Overview() {
-  return (
-    <FerraColumns>
-      <FerraArticle
-        title="Keep the catalog. Improve the workflow."
-        icon={<Mark name="document" size={28} />}
-        meta={<FerraReleaseFacts tool={tool} />}
-      >
-        <p>
-          Bring existing PO files or choose ICU-native FCL for machine-managed catalogs. One Rust
-          core handles parsing, updates, review and runtime compilation.
-        </p>
-        <Link to="/guide/catalog-modes">Compare the storage choices</Link>
-      </FerraArticle>
-      <FerraArticle
-        title="Turn translation gaps into useful diagnostics."
-        icon={<Mark name="check" size={28} />}
-        meta={<Link to="/quality/conformance">How compatibility is checked</Link>}
-      >
-        <p>
-          Find missing translations, stale targets and ICU mistakes before release.
-          Source-attributed conformance fixtures keep the behavior tied to real catalog tools and
-          message formats.
-        </p>
-        <a href="#audit">Inspect a real CLI result</a>
-      </FerraArticle>
-    </FerraColumns>
-  );
-}
-
-function PerformanceSection() {
-  return (
-    <FerraArticle
-      title="Catalog work should keep up with your build."
-      meta={<Link to="/performance/results">Published comparisons and measurement conditions</Link>}
-    >
-      <p>
-        The parser borrows from the input where it can, and high-level catalog operations build on
-        the same Rust core. Recorded comparisons cover parsing and updates across Rust, Node.js,
-        PHP, Python and GNU Gettext.
-      </p>
-      <p>
-        The detailed results keep task differences, source revisions and measurement dates visible.
-        Use the fixture suite to measure the workload that matters to your application.
-      </p>
-    </FerraArticle>
+    </section>
   );
 }
 
 export default function HomePage() {
   return (
-    <RegistryFacts>
-      <FerraProductPage>
-        <Opening />
-        <Overview />
-        <AuditExample />
-        <FerraEditorialRow
-          notes={
-            <FerraNotes
-              label="Inside the catalog format"
-              notes={tool.editorial?.notes.slice(1) ?? []}
-            />
+    <>
+      <Opening />
+      {chapters.map(({ key, Chapter }, index) => (
+        <Fragment key={key}>
+          <MonoEngraving seed={index + 1} />
+          <Chapter />
+        </Fragment>
+      ))}
+      <MonoEngraving seed={chapters.length + 1} />
+      <Origin />
+      <div id="start">
+        <MonoClosing
+          title="Put your catalogs in order."
+          standfirst="Start with the Rust library, or add the audit to your release pipeline first. Both read the catalogs you already have."
+          actions={<Actions />}
+          links={
+            <>
+              <a href="https://github.com/sebastian-software/ferrocat">GitHub repository</a>
+              <Link to="/guide/getting-started">Documentation</Link>
+              <a href="https://docs.rs/ferrocat">API reference</a>
+              <a href={WORKSHOP.consulting}>Integration and support</a>
+            </>
           }
-        >
-          <CatalogSection />
-        </FerraEditorialRow>
-        <FerraEditorialRow
-          notes={
-            <FerraNotes
-              label="Why the correction matters"
-              notes={tool.editorial?.notes.slice(0, 1) ?? []}
-            />
-          }
-        >
-          <ReviewSection />
-        </FerraEditorialRow>
-        <CapabilitiesSection />
-        <PerformanceSection />
-        <GettingStartedSection />
-        <ClosingSection />
-      </FerraProductPage>
-    </RegistryFacts>
+        />
+      </div>
+    </>
   );
 }
