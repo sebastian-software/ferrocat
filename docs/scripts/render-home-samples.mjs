@@ -155,8 +155,10 @@ const samples = {
 const formatted = await format("home-samples.json", JSON.stringify(samples));
 assert.equal(formatted.errors.length, 0);
 if (check) {
+  // A Windows checkout may hold the file with CRLF line endings.
+  const committed = await readFile(destination, "utf8");
   assert.equal(
-    await readFile(destination, "utf8"),
+    committed.replaceAll("\r\n", "\n"),
     formatted.code,
     "The homepage samples changed. Run pnpm sample:write and commit the result.",
   );

@@ -196,7 +196,7 @@ export function Conformance() {
         }))}
       />
       <MonoCredit>
-        Counted by the repository’s conformance harness.{" "}
+        Source-attributed conformance fixtures, counted by the repository’s conformance harness.{" "}
         <Link to="/quality/conformance">Sources, licenses and scope</Link>
       </MonoCredit>
     </MonoSection>
