@@ -1,5 +1,5 @@
 import { useState } from "ardo/react";
-import { FerraBars, FerraSelect } from "ferramenta-family/ferra";
+import { MonoBars, MonoSelect } from "ferramenta-family/monografie";
 
 // Rounded figures remain guarded by benchmark/published-numbers.json.
 // Plain merge and full catalog update are distinct tasks, not one ranking.
@@ -43,7 +43,7 @@ export function BenchmarkResults() {
   if (!current) throw new Error("The selected example is missing.");
   return (
     <>
-      <FerraSelect
+      <MonoSelect
         label="Benchmark task"
         value={selected}
         options={comparisons.map(({ id, label }) => ({ value: id, label }))}
@@ -51,7 +51,7 @@ export function BenchmarkResults() {
           setSelected(event.currentTarget.value);
         }}
       />
-      <FerraBars
+      <MonoBars
         caption={`${current.label} · median MiB/s · higher is better`}
         items={current.rows.map((row) => ({
           id: row.name,
@@ -64,7 +64,7 @@ export function BenchmarkResults() {
         Historical Ferrocat 2.2.0 results on an Apple M1 Ultra. Different tools may perform
         different validation and preservation work; read the task notes before treating throughput
         as equivalent work.
-      </FerraBars>
+      </MonoBars>
     </>
   );
 }
