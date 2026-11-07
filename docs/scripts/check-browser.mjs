@@ -19,9 +19,10 @@ assert(
   "FERROCAT_PREVIEW_PORT must be a valid TCP port",
 );
 const selectors = {
-  nav: ".ferra-header > .ferra-nav",
+  nav: ".mono-header .mono-menu nav",
+  // Documentation pages carry Ardo's drawer; the homepage folds its links into the Monografie menu.
   menu: 'button[aria-label="Toggle menu"]',
-  summary: 'button[aria-label="Toggle menu"]',
+  homeMenu: ".mono-header .mono-menu-button",
   flyout: '[role="dialog"]',
   search: 'button[aria-label="Search"]',
 };
@@ -67,12 +68,13 @@ try {
   }
 
   await verifyAudit(page, origin);
+  await verifyHomepage(page, origin);
   await verifyBenchmarks(page, origin);
   await verifyNavigation(page, origin);
   await verifySearch(page, origin);
   await page.emulateMedia({ reducedMotion: "reduce" });
   const motion = await page
-    .locator(".ferra-page, .ferra-page *")
+    .locator(".ferra-page, .ferra-page *, .mono, .mono *")
     .evaluateAll((elements) =>
       elements
         .map((element) => getComputedStyle(element).animationDuration)
@@ -83,7 +85,7 @@ try {
   await page.emulateMedia({ reducedMotion: "no-preference" });
   await capture(page, origin);
   console.log(
-    "Verified all pages at eight widths, native audit choices, benchmark choices, navigation, search, focus return, reduced motion and runtime errors.",
+    "Verified all pages at eight widths, native audit choices, the homepage chart and menu, benchmark choices, navigation, search, focus return, reduced motion and runtime errors.",
   );
 } finally {
   await browser?.close();
@@ -94,16 +96,56 @@ async function verifyAudit(page, origin) {
   await page.goto(new URL("/", origin).href, { waitUntil: "load" });
   const example = page.locator("#audit");
   assert.match(await example.textContent(), /empty translation/);
-  const choice = example.getByRole("combobox", { name: "Catalog example", exact: true });
-  await choice.selectOption("complete");
-  await page.getByText("Native CLI result · exit 0", { exact: true }).waitFor();
+  const choices = example.getByRole("group", { name: "Catalog example", exact: true });
+  await choices.getByRole("button", { name: "Ready to ship", exact: true }).click();
+  await example.getByText("Exit status 0: the release check passes.", { exact: true }).waitFor();
   assert.match(await example.textContent(), /No catalog audit diagnostics/);
   assert.doesNotMatch(await example.textContent(), /catalog.empty_translation/);
-  await choice.selectOption("missing");
-  await page.getByText("Native CLI result · exit 1", { exact: true }).waitFor();
+  await choices.getByRole("button", { name: "One translation missing", exact: true }).click();
+  await example.getByText("Exit status 1: the release check fails.", { exact: true }).waitFor();
   await example.locator("summary").click();
   assert.match(await example.textContent(), /Pay now/);
   await example.locator("summary").click();
+}
+/** The homepage's toggles, the chart's tooltip and the Monografie menu. */
+async function verifyHomepage(page, origin) {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto(new URL("/", origin).href, { waitUntil: "load" });
+  await verifyHomepageToggles(page);
+  await verifyHomepageChart(page);
+  await verifyHomepageMenu(page, origin);
+}
+async function verifyHomepageToggles(page) {
+  const messages = page.locator("#messages");
+  await messages.getByRole("button", { name: "Structure kept", exact: true }).click();
+  await messages.getByText("No diagnostics.", { exact: false }).waitFor();
+  await messages.getByRole("button", { name: "Placeholder translated", exact: true }).click();
+  await messages.getByText("icu.missing_argument", { exact: true }).waitFor();
+  const catalogs = page.locator("#catalogs");
+  await catalogs.getByRole("button", { name: "PO for translation tools", exact: true }).click();
+  await catalogs.getByText("de.po, update_catalog()", { exact: true }).waitFor();
+}
+async function verifyHomepageChart(page) {
+  const chart = page.locator("#speed");
+  await chart.getByRole("button", { name: "Read a catalog", exact: true }).click();
+  const bar = chart.locator(".mono-bars li").nth(1);
+  await bar.focus();
+  await chart.locator(".mono-tip[data-show]").waitFor();
+  assert.match(await chart.locator(".mono-tip").textContent(), /as long as Ferrocat/);
+  assert.doesNotMatch(await chart.textContent(), /NaN|Infinity/);
+}
+async function verifyHomepageMenu(page, origin) {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(new URL("/", origin).href, { waitUntil: "load" });
+  const button = page.locator(selectors.homeMenu);
+  await button.click();
+  await page.locator(selectors.nav).getByRole("link", { name: "Guide", exact: true }).waitFor();
+  await page.keyboard.press("Escape");
+  assert.equal(await button.getAttribute("aria-expanded"), "false", "The menu did not close");
+  assert(
+    await button.evaluate((element) => element === document.activeElement),
+    "Menu focus was not restored",
+  );
 }
 async function verifyBenchmarks(page, origin) {
   await page.goto(new URL("/performance/results/", origin).href, { waitUntil: "load" });
@@ -230,33 +272,40 @@ async function verifyViewport({ page, pageFile, viewport, origin }) {
     `${pageFile} has horizontal page overflow at ${viewport.name} width ${viewport.width}px: ${layout.pageWidth}px`,
   );
 
-  const navDisplay = await page
-    .locator(selectors.nav)
-    .evaluate((element) => getComputedStyle(element).display);
-  const menuDisplay = await page
-    .locator(selectors.menu)
-    .evaluate((element) => getComputedStyle(element).display);
+  await verifyHeader(page, pageFile, viewport);
+  await verifyAccessibility(page, pageFile, viewport);
+  console.log(`Verified ${pageFile} at ${viewport.name} (${viewport.width}px).`);
+}
+/** The display of the first element a selector finds, or "none" when there is none. */
+async function display(page, selector) {
+  const element = page.locator(selector).first();
+  if ((await element.count()) === 0) return "none";
+  return element.evaluate((node) => getComputedStyle(node).display);
+}
+async function verifyHeader(page, pageFile, viewport) {
+  // The Monografie header folds its links into a menu below 961px. On the
+  // homepage the menu button takes them; documentation pages hide it and keep
+  // Ardo's drawer, which also stands in for the guide sidebar while it is hidden.
   assert(
     await page.locator(selectors.search).isVisible(),
     "The site should keep search visible at each checked viewport",
   );
-  if (viewport.name === "desktop") {
-    assert.notEqual(navDisplay, "none", `${pageFile} hides desktop section navigation`);
-    assert.equal(menuDisplay, "none", `${pageFile} shows the phone navigation on desktop`);
-  } else {
-    assert.equal(
-      navDisplay,
-      "none",
-      `${pageFile} shows desktop navigation at ${viewport.name} width`,
-    );
-    assert.notEqual(
-      menuDisplay,
-      "none",
-      `${pageFile} hides the phone navigation at ${viewport.name} width`,
-    );
+  const wide = viewport.width >= 961;
+  const links = await display(page, ".mono-header .mono-menu");
+  if (wide) assert.notEqual(links, "none", `${pageFile} hides the header links on wide screens`);
+  else assert.equal(links, "none", `${pageFile} shows the header links at ${viewport.name}`);
+  const homeMenu = await display(page, selectors.homeMenu);
+  if (pageFile === "index.html") {
+    assert.equal(homeMenu === "none", wide, `${pageFile} menu button at ${viewport.name}`);
+    return;
   }
-  await verifyAccessibility(page, pageFile, viewport);
-  console.log(`Verified ${pageFile} at ${viewport.name} (${viewport.width}px).`);
+  assert.equal(homeMenu, "none", `${pageFile} shows a second menu at ${viewport.name}`);
+  const drawer = await display(page, selectors.menu);
+  const sidebar = await display(page, ".ferra-reading-navigation");
+  assert(
+    drawer !== "none" || sidebar !== "none",
+    `${pageFile} offers no documentation navigation at ${viewport.name}`,
+  );
 }
 async function verifyAccessibility(page, pageFile, viewport) {
   await page.addScriptTag({ content: axeSource });

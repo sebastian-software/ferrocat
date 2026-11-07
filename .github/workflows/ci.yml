@@ -345,7 +345,7 @@ jobs:
         with:
           node-version: 24
 
-      - name: Check native homepage audit output
+      - name: Check the homepage samples against ferrocat and the CLI
         working-directory: docs
         run: |
           corepack enable

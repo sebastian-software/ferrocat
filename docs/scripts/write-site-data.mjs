@@ -13,7 +13,11 @@ async function write(name, data) {
 const manifest = JSON.parse(
   await readFile(new URL("../../.release-please-manifest.json", import.meta.url), "utf8"),
 );
-await write("site.json", { version: manifest["."] });
+const cargo = await readFile(new URL("../../Cargo.toml", import.meta.url), "utf8");
+const declared = /^rust-version = "([^"]+)"$/m.exec(cargo)?.[1];
+if (!declared) throw new Error("Cargo.toml must declare the minimum supported Rust version.");
+const rustVersion = declared.split(".").slice(0, 2).join(".");
+await write("site.json", { version: manifest["."], rustVersion });
 
 const sections = [
   "guide",

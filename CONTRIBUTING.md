@@ -122,20 +122,36 @@ declared: it is a local comparison harness for the benchmark runs, installed by
 `benchmark/setup.sh` alongside the Python and PHP adapters, and neither built
 nor linted by the repository's gate.
 
-The homepage and reading layout use the shared Ferra components from
-`ferramenta-family/ferra`, pinned in `docs/package.json`. `FerraHeader` is passed
-through Ardo's header slot, and `FerraFooter` sits outside its main landmark.
-`ferra.css` and `ferra-ardo.css` own the styling; there is no project stylesheet.
-Shared visual changes belong in the family package and its kit. Sibling names,
-relationships and links come from the family registry. Keep the family pin in
-`docs/package.json` and `mdtheme.yaml` aligned,
+The homepage uses the Monografie page system from
+`ferramenta-family/monografie` (`monografie.css`), pinned in
+`docs/package.json`. Every page wears `MonoHeader` through Ardo's header slot and
+`MonoFooter` outside its main landmark; documentation pages keep the Ferra
+reading layout from `ferramenta-family/ferra` (`ferra.css`, `ferra-ardo.css`),
+with Ardo's drawer and search as header actions. Shared visual changes belong in
+the family package and its kit. The site styles only its own homepage specimens
+and shell seams, in CSS files beside their components under
+`docs/app/components/`, every selector scoped to an `fc-` class; the build
+checks that. Sibling names, relationships and links come from the family
+registry. Keep the family pin in `docs/package.json` and `mdtheme.yaml` aligned,
 and regenerate their outputs when adopting a registry change.
 
-The homepage audit examples are actual CLI runs over `docs/examples/*.po`.
-`pnpm sample:write` refreshes `app/data/audit-sample.json`; `pnpm sample:check`
-verifies both text and JSON output, including success and failure exit codes.
-Rust CI checks that fixture, while the docs job reviews every page at eight
-widths, runs accessibility checks and exercises navigation, search and examples.
+Every homepage specimen is real output, generated and never edited by hand:
+
+- `app/data/home-samples.json` comes from `docs/scripts/render-home-samples.mjs`.
+  It runs `docs/samples/`, a small program that depends on the published
+  `ferrocat` crate from crates.io at the exact version pinned in
+  `docs/samples/Cargo.toml` (its own Cargo workspace, outside the repository's),
+  and records that version. It adds the conformance counts from
+  `cargo run -p ferrocat-bench -- conformance-report` and the speed comparison
+  from the committed reports in `benchmark/results/`. After a release reaches
+  crates.io, raise the pin and run `pnpm sample:write`.
+- `app/data/audit-sample.json` holds actual CLI runs over `docs/examples/*.po`,
+  text and JSON output with their exit codes.
+
+`pnpm sample:write` refreshes both files; `pnpm sample:check` fails when either
+no longer matches. Rust CI runs the check, while the docs job reviews every page
+at eight widths, runs accessibility checks and exercises navigation, search, the
+homepage's toggles, chart and menu, and the examples.
 The browser check saves review captures in the system temporary directory under `ferrocat-review/`.
 
 ADRs live under `docs/app/routes/architecture/adr/` as MDX files with

@@ -300,7 +300,7 @@
   "textAssertions": [
     {
       "id": "home.proof.source-attributed-conformance",
-      "file": "docs/app/routes/home.tsx",
+      "file": "docs/app/components/home-engine.tsx",
       "contains": "Source-attributed conformance fixtures"
     },
     {
