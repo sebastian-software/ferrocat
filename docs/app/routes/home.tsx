@@ -49,7 +49,6 @@ function Opening() {
     <MonoOpening
       product="ferrocat"
       instrumentLabel="Ferrocat's instrument: two steel card indexes full of tabbed leaves on either side of a machined rail, and between them a single rust-brown leaf standing in a slotted comb above an engraved scale."
-      caption="A catalog index: leaves from two card files meet on one rail, and each pair lines up by the identity of its message."
       kicker={`Ferrocat ${releaseLine}, ${lowerFirst(ferrocat.what)} for Rust`}
       title="Your translations, ready to ship."
       subtitle="Catalogs that Git can merge and people can trust."
