@@ -4,5 +4,5 @@ themes:
     ref: ebc83455a1be4c231dd4c503e23ddbb19cba74bc
     path: markdown
   - git: https://github.com/sebastian-software/ferramenta.git
-    ref: bffa90669a0fab64bf2501d3a48e5c7f715208c8
+    ref: 17208322ce6e8e5960b5291cbd136af5f8070e46
     path: packages/family/markdown/ferrocat
