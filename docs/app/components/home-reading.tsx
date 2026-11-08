@@ -1,5 +1,5 @@
 import { ArdoLink as Link } from "ardo/runtime";
-import { MonoCredit, MonoLeadIn, MonoPassage, MonoSection } from "ferramenta-family/monografie";
+import { MonoCredit, MonoPassage, MonoSection } from "ferramenta-family/monografie";
 
 import { AuditSpecimen } from "./audit-specimen";
 import { IcuSpecimen, StorageSpecimen, UpdateSpecimen } from "./catalog-specimens";
@@ -18,11 +18,11 @@ export function Explainer() {
         }}
       >
         <p>
-          <MonoLeadIn>An application speaks</MonoLeadIn> in hundreds of small sentences: a button
-          label, a greeting, a line that counts the items in a cart. To show them in German or
-          Japanese, a team collects every sentence from the code into a translation catalog.
-          Translators fill in the other side, and the application looks each sentence up while it
-          runs. The catalog lives next to the code, in the same repository, and changes with it.
+          An application speaks in hundreds of small sentences: a button label, a greeting, a line
+          that counts the items in a cart. To show them in German or Japanese, a team collects every
+          sentence from the code into a translation catalog. Translators fill in the other side, and
+          the application looks each sentence up while it runs. The catalog lives next to the code,
+          in the same repository, and changes with it.
         </p>
       </MonoPassage>
       <MonoPassage
@@ -62,12 +62,11 @@ export function Catalogs() {
     >
       <MonoPassage note={{ term: "FCL", children: note.body }}>
         <p>
-          <MonoLeadIn>A PO entry spans</MonoLeadIn> several lines: comments, a context, the source,
-          the translation. When two branches both touch a catalog, Git compares those lines, and
-          edits that have nothing to do with each other can still meet in one conflict. Ferrocat
-          Catalog Lines, FCL for short, writes each message on exactly one line and sorts the lines
-          in a fixed order. Unrelated edits land on different lines, and an entry can never be torn
-          apart by a merge.
+          A PO entry spans several lines: comments, a context, the source, the translation. When two
+          branches both touch a catalog, Git compares those lines, and edits that have nothing to do
+          with each other can still meet in one conflict. Ferrocat Catalog Lines, FCL for short,
+          writes each message on exactly one line and sorts the lines in a fixed order. Unrelated
+          edits land on different lines, and an entry can never be torn apart by a merge.
         </p>
       </MonoPassage>
       <p>
@@ -99,10 +98,10 @@ export function Messages() {
         }}
       >
         <p>
-          <MonoLeadIn>“1 items in your cart”</MonoLeadIn> is the classic mistake. ICU messages avoid
-          it: a message names its placeholders in braces and lists one wording per plural form, and
-          the application picks the right one at run time. The source below says “1 item” and “3
-          items” correctly, and the German translation has to keep that structure.
+          “1 items in your cart” is the classic mistake. ICU messages avoid it: a message names its
+          placeholders in braces and lists one wording per plural form, and the application picks
+          the right one at run time. The source below says “1 item” and “3 items” correctly, and the
+          German translation has to keep that structure.
         </p>
       </MonoPassage>
       <MonoPassage
@@ -140,11 +139,10 @@ export function Audit() {
         }}
       >
         <p>
-          <MonoLeadIn>A release audit</MonoLeadIn> compares every target language with the source
-          catalog: translations that are missing or empty, entries still marked for review, ICU
-          messages that do not parse or do not match their source. Errors and warnings come with the
-          language, the message and a stable code, in plain text for people and as JSON for your
-          tooling.
+          A release audit compares every target language with the source catalog: translations that
+          are missing or empty, entries still marked for review, ICU messages that do not parse or
+          do not match their source. Errors and warnings come with the language, the message and a
+          stable code, in plain text for people and as JSON for your tooling.
         </p>
       </MonoPassage>
       <p>

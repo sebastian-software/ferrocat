@@ -1,7 +1,6 @@
 import { ArdoLink as Link } from "ardo/runtime";
 import {
   MonoCredit,
-  MonoLeadIn,
   MonoPassage,
   MonoProofs,
   MonoSection,
@@ -34,9 +33,9 @@ export function Review() {
     >
       <MonoPassage note={{ term: note.title, children: note.body }}>
         <p>
-          <MonoLeadIn>Many teams let a model</MonoLeadIn> translate new strings and ask a person to
-          review the result. The trouble starts on the next run: which values did the machine write,
-          and which did a reviewer fix? Overwrite the wrong one, and a careful correction is gone.
+          Many teams let a model translate new strings and ask a person to review the result. The
+          trouble starts on the next run: which values did the machine write, and which did a
+          reviewer fix? Overwrite the wrong one, and a careful correction is gone.
         </p>
       </MonoPassage>
       <p>
@@ -71,10 +70,9 @@ export function Runtime() {
         }}
       >
         <p>
-          <MonoLeadIn>An application does not need</MonoLeadIn> comments, origins or review marks
-          while it runs. It needs the right text for a key, quickly. Ferrocat compiles the catalogs
-          for one language into exactly that: a map from stable keys to messages, ready to ship as
-          JSON beside your code.
+          An application does not need comments, origins or review marks while it runs. It needs the
+          right text for a key, quickly. Ferrocat compiles the catalogs for one language into
+          exactly that: a map from stable keys to messages, ready to ship as JSON beside your code.
         </p>
       </MonoPassage>
       <p>
@@ -128,10 +126,10 @@ export function Speed() {
         }}
       >
         <p>
-          <MonoLeadIn>Catalog work runs</MonoLeadIn> more often than people expect: on every
-          extraction, in every pull request that touches a string, before every release, once per
-          language. On a large product, that is many thousands of messages each time. When the
-          catalog step takes seconds, developers start skipping it.
+          Catalog work runs more often than people expect: on every extraction, in every pull
+          request that touches a string, before every release, once per language. On a large
+          product, that is many thousands of messages each time. When the catalog step takes
+          seconds, developers start skipping it.
         </p>
       </MonoPassage>
       <p>
@@ -178,10 +176,10 @@ export function Conformance() {
         }}
       >
         <p>
-          <MonoLeadIn>A catalog engine</MonoLeadIn> is only as good as its odd cases: escaped
-          quotes, a byte-order mark, obsolete entries, contexts, values spread over several lines.
-          The libraries below have collected such cases for years. Ferrocat adapts their tests,
-          keeps the source of each one, and runs them with its own test suite.
+          A catalog engine is only as good as its odd cases: escaped quotes, a byte-order mark,
+          obsolete entries, contexts, values spread over several lines. The libraries below have
+          collected such cases for years. Ferrocat adapts their tests, keeps the source of each one,
+          and runs them with its own test suite.
         </p>
       </MonoPassage>
       <p>
