@@ -8,10 +8,10 @@ import {
   ArdoRootLayout,
   ArdoTOC,
 } from "ardo/ui";
-import { MarkDefs } from "ferramenta-family";
 import touchIcon from "ferramenta-family/ferra-assets/ferrocat/apple-touch-icon.png?url";
 import favicon from "ferramenta-family/ferra-assets/ferrocat/favicon.ico?url";
 import {
+  MarkDefs,
   MonoFooter,
   MonoGuideNavigation,
   MonoHeader,
@@ -24,7 +24,6 @@ import "ferramenta-family/monografie.css";
 import "ferramenta-family/monografie-docs.css";
 import "ferramenta-family/monografie-ardo.css";
 
-import "./components/docs-reading.css";
 import navigation from "./data/navigation.json";
 import { version } from "./version";
 
