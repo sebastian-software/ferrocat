@@ -16,7 +16,7 @@ import "./catalog-specimens.css";
  * status, from app/data/audit-sample.json (scripts/render-audit-sample.mjs).
  */
 export function AuditSpecimen() {
-  const [selected, setSelected] = useState("missing");
+  const [selected, setSelected] = useState(audit.cases[0]?.id ?? "");
   const current = audit.cases.find((entry) => entry.id === selected) ?? audit.cases[0];
   if (!current) throw new Error("The audit sample has no cases.");
   return (

@@ -2,25 +2,6 @@
   "source": "msgid \"\"\nmsgstr \"\"\n\"Language: en\\n\"\n\"Content-Type: text/plain; charset=UTF-8\\n\"\n\nmsgctxt \"checkout\"\nmsgid \"Pay now\"\nmsgstr \"Pay now\"\n\nmsgctxt \"greeting\"\nmsgid \"Hello {name}\"\nmsgstr \"Hello {name}\"\n",
   "cases": [
     {
-      "id": "complete",
-      "label": "Ready to ship",
-      "command": "ferrocat audit --source-locale en --source docs/examples/source.po --target de=docs/examples/complete.po",
-      "target": "msgid \"\"\nmsgstr \"\"\n\"Language: de\\n\"\n\"Content-Type: text/plain; charset=UTF-8\\n\"\n\nmsgctxt \"checkout\"\nmsgid \"Pay now\"\nmsgstr \"Jetzt bezahlen\"\n\nmsgctxt \"greeting\"\nmsgid \"Hello {name}\"\nmsgstr \"Hallo {name}\"\n",
-      "report": "Catalog audit: 2 source messages, 1 target locales, 0 diagnostics (0 errors, 0 warnings, 0 info)\nNo catalog audit diagnostics.",
-      "json": {
-        "diagnostics": [],
-        "summary": {
-          "diagnostics": 0,
-          "errors": 0,
-          "infos": 0,
-          "source_messages": 2,
-          "target_locales": 1,
-          "warnings": 0
-        }
-      },
-      "exitCode": 0
-    },
-    {
       "id": "missing",
       "label": "One translation missing",
       "command": "ferrocat audit --source-locale en --source docs/examples/source.po --target de=docs/examples/missing.po",
@@ -46,6 +27,25 @@
         }
       },
       "exitCode": 1
+    },
+    {
+      "id": "complete",
+      "label": "Ready to ship",
+      "command": "ferrocat audit --source-locale en --source docs/examples/source.po --target de=docs/examples/complete.po",
+      "target": "msgid \"\"\nmsgstr \"\"\n\"Language: de\\n\"\n\"Content-Type: text/plain; charset=UTF-8\\n\"\n\nmsgctxt \"checkout\"\nmsgid \"Pay now\"\nmsgstr \"Jetzt bezahlen\"\n\nmsgctxt \"greeting\"\nmsgid \"Hello {name}\"\nmsgstr \"Hallo {name}\"\n",
+      "report": "Catalog audit: 2 source messages, 1 target locales, 0 diagnostics (0 errors, 0 warnings, 0 info)\nNo catalog audit diagnostics.",
+      "json": {
+        "diagnostics": [],
+        "summary": {
+          "diagnostics": 0,
+          "errors": 0,
+          "infos": 0,
+          "source_messages": 2,
+          "target_locales": 1,
+          "warnings": 0
+        }
+      },
+      "exitCode": 0
     }
   ]
 }
