@@ -45,9 +45,6 @@ const links = [
   <a key="api" href="https://docs.rs/ferrocat">
     API
   </a>,
-  <a key="github" href="https://github.com/sebastian-software/ferrocat">
-    GitHub
-  </a>,
 ];
 
 /** Every page on Monografie's Ardo shell; the documentation adds its menu, search and reading layout. */
@@ -58,6 +55,7 @@ export default function Root() {
       name="Ferrocat"
       release={version}
       links={links}
+      repository="https://github.com/sebastian-software/ferrocat"
       sections={sections}
       homeClassName="fc-home"
       docsClassName="fc-docs"
