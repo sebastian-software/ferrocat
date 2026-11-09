@@ -33,8 +33,8 @@ function UpdatedCatalog() {
           label="Catalog state"
           value={state}
           options={[
-            { value: "before", label: "Last release" },
             { value: "after", label: "After the update" },
+            { value: "before", label: "Last release" },
           ]}
           onChange={(value) => {
             setState(value === "before" ? "before" : "after");
@@ -91,8 +91,8 @@ export function StorageSpecimen() {
           label="Catalog format"
           value={format}
           options={[
-            { value: "po", label: "PO for translation tools" },
             { value: "fcl", label: "FCL for Git" },
+            { value: "po", label: "PO for translation tools" },
           ]}
           onChange={(value) => {
             setFormat(value === "po" ? "po" : "fcl");
@@ -121,7 +121,7 @@ export function StorageSpecimen() {
 
 /** One source message and three translations, compared structure against structure. */
 export function IcuSpecimen() {
-  const [selected, setSelected] = useState("translated");
+  const [selected, setSelected] = useState(icu.cases[0]?.id ?? "");
   const current = icu.cases.find((entry) => entry.id === selected) ?? icu.cases[0];
   if (!current) throw new Error("The ICU sample has no cases.");
   return (

@@ -12,8 +12,8 @@ const normalize = (text) => text.replaceAll("\r\n", "\n");
 const source = normalize(await readFile(new URL("../examples/source.po", import.meta.url), "utf8"));
 const cases = [];
 for (const [id, label, expectedExit] of [
-  ["complete", "Ready to ship", 0],
   ["missing", "One translation missing", 1],
+  ["complete", "Ready to ship", 0],
 ]) {
   const target = normalize(
     await readFile(new URL(`../examples/${id}.po`, import.meta.url), "utf8"),

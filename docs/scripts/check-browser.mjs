@@ -115,7 +115,20 @@ async function verifyHomepage(page, origin) {
   await verifyHomepageChart(page);
   await verifyHomepageMenu(page, origin);
 }
+/** Every switch on the homepage opens on its first option. */
+async function verifyFirstOptions(page) {
+  const opening = await page.evaluate(() =>
+    [...document.querySelectorAll('[role="group"]')]
+      .map((group) => group.querySelectorAll("button[aria-pressed]"))
+      .filter((buttons) => buttons.length > 1)
+      .map((buttons) => buttons[0]?.getAttribute("aria-pressed")),
+  );
+  if (opening.length === 0 || opening.some((pressed) => pressed !== "true")) {
+    throw new Error(`A homepage switch opens past its first option: ${JSON.stringify(opening)}`);
+  }
+}
 async function verifyHomepageToggles(page) {
+  await verifyFirstOptions(page);
   const messages = page.locator("#messages");
   await messages.getByRole("button", { name: "Structure kept", exact: true }).click();
   await messages.getByText("No diagnostics.", { exact: false }).waitFor();
