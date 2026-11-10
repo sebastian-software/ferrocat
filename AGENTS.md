@@ -63,11 +63,9 @@ Examples:
   - `pnpm format:check`
   - `pnpm typecheck`
   - `pnpm build`
-- `docs/` is a declared standards workspace (`.repometa.json#workspaces`), so it
-  carries the org Node toolchain: `docs/.oxfmtrc.json` is managed by
-  `@sebastian-software/standards` and must not be hand-edited, while
-  `docs/eslint.config.ts`, `docs/oxlint.config.ts`, `docs/tsconfig.json` and
-  `docs/cspell.json` are seeded once and then belong to this repository.
+- `docs/` owns its Node toolchain configuration: `.oxfmtrc.json`,
+  `eslint.config.ts`, `oxlint.config.ts`, `tsconfig.json`, and `cspell.json`.
+  Keep their lint, formatting, and type checks in the docs gate.
 - Edit `README.md.src` and run `mise run readme:write` for the root README.
   `mise run readme:check` verifies the complete native output.
   The published crate README family blocks use `scripts/check-readme-family.sh`;
@@ -92,31 +90,8 @@ Examples:
 
 - If the repo introduces a stable derived ID, key, or hash contract, document the exact format and collision behavior in code and an ADR under `docs/app/routes/architecture/adr/`.
 
----
+## Tooling ownership
 
-<!-- sebastian-software-consumer-agents:start -->
-
-# Standards-managed repo guardrails
-
-- Do not hand-edit managed files or standards-owned marker sections.
-- If `standards check` reports drift, run `standards apply` or update standards.
-- The repository's own gate may omit `standards check`; CI can still fail on it.
-
-Node repositories:
-
-- Fix or format every file reported by `oxfmt` whenever practical.
-- For generated files, prefer formatting in the generator step.
-- If formatting is not viable, use repo-local `.prettierignore`.
-- Never add repo-specific ignores to managed `.oxfmtrc.json`.
-
-Rust repositories:
-
-- Keep `cargo fmt --all --check` and
-  `cargo clippy --workspace --all-targets --all-features -- -D warnings` green.
-- Lint levels belong in `[workspace.lints]`, never in managed `rustfmt.toml`.
-- `rust-version` in `Cargo.toml` is the only MSRV; every other mention is a
-  derived copy.
-- Record a cargo-deny finding as a narrow, commented exception in `deny.toml` —
-  never by widening the org allow-list.
-
-<!-- sebastian-software-consumer-agents:end -->
+This repository owns its formatter, linter, and dependency-policy configuration.
+Keep the native checks above and explain narrow exceptions beside their configuration.
+Shared infrastructure guidance lives in [project-infra](https://github.com/sebastian-software/project-infra).
