@@ -23,7 +23,6 @@ const OUTPUT = path.join(
   "crates",
   "ferrocat-po",
   "src",
-  "api",
   "collation_table.rs"
 )
 

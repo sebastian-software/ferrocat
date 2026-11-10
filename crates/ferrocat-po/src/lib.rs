@@ -16,6 +16,8 @@
 //!   storage, and runtime artifact compilation. It also enables the
 //!   catalog-layer dependencies used for hashing, atomic file updates, serde
 //!   JSON output, ICU diagnostics, and CLDR plural data.
+//! - `collation` exposes compact comparison keys without catalog dependencies.
+//!   It is also enabled by `catalog`.
 //! - `serde` enables serde implementations for low-level PO document types and
 //!   is also enabled by `catalog` for catalog-layer JSON/report shapes.
 //! - `compile`, `mt`, and `plurals` are reserved subsystem aliases. Today they
@@ -99,6 +101,12 @@
 #[cfg_attr(docsrs, doc(cfg(feature = "catalog")))]
 mod api;
 mod borrowed;
+/// Compact CLDR root sort keys shared with catalog consumers.
+#[cfg(feature = "collation")]
+#[cfg_attr(docsrs, doc(cfg(feature = "collation")))]
+pub mod collation;
+#[cfg(feature = "collation")]
+mod collation_table;
 pub mod diagnostic_codes;
 mod line_state;
 mod merge;

@@ -43,6 +43,9 @@ The named feature profiles are:
   `catalog`
 - `catalog`: high-level catalog update, parse, combine, audit, metadata, FCL,
   plural, and runtime compile support
+- `collation`: compact CLDR root comparison keys through `ferrocat::collation`
+  or `ferrocat_po::collation`, also enabled by `catalog`; this feature alone
+  does not enable the catalog layer or add dependencies
 - `serde`: serde implementations used by schema, cache, and tooling-oriented
   consumers; it can be enabled without the full catalog profile for low-level PO
   document types
@@ -52,6 +55,33 @@ The named feature profiles are:
 
 `docs.rs` builds with all features enabled so the rendered reference shows the
 full API surface.
+
+## Shared Catalog Sort Keys
+
+Enable `collation` with `default-features = false` when a consumer needs only
+Ferrocat's catalog ordering. `collation_key(&str) -> CollationKey` returns an
+owned, opaque value implementing `Clone`, `Debug`, `Eq`, and `Ord`.
+
+```rust
+use ferrocat::collation::collation_key;
+
+assert!(collation_key("{count}") < collation_key("<0>Continue</0>"));
+assert_eq!(collation_key("café"), collation_key("cafe\u{0301}"));
+```
+
+This uses the same generated table as PO/FCL catalog ordering. It covers
+printable ASCII, Latin-1, Latin Extended-A, and selected typographic characters,
+with combining accent weights for U+0300–U+036F. It is a compact partial CLDR
+root order, without locale tailoring, full normalization, or ligature expansion.
+Uncovered characters sort after the table by their first lowercase scalar,
+then case.
+
+Keys can compare equal for different strings. To reproduce catalog identity
+order, compare message keys, context keys (absent context uses an empty string),
+raw messages, raw optional contexts, and obsolete state, in that order. The key
+representation is private and must not be persisted or used as a message ID.
+See [ADR 0026](/architecture/adr/0026-cldr-root-catalog-order) for the ordering
+contract and limitations.
 
 ## Serialized API Shapes
 

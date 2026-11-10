@@ -1,6 +1,13 @@
 pub mod ferrocat_po
 pub use ferrocat_po::DiagnosticCode
 pub use ferrocat_po::IcuPseudolocalizationOptions
+pub mod ferrocat_po::collation
+pub struct ferrocat_po::collation::CollationKey
+impl core::cmp::Ord for ferrocat_po::collation::CollationKey
+pub fn ferrocat_po::collation::CollationKey::cmp(&self, &Self) -> core::cmp::Ordering
+impl core::cmp::PartialOrd for ferrocat_po::collation::CollationKey
+pub fn ferrocat_po::collation::CollationKey::partial_cmp(&self, &Self) -> core::option::Option<core::cmp::Ordering>
+pub fn ferrocat_po::collation::collation_key(&str) -> ferrocat_po::collation::CollationKey
 pub mod ferrocat_po::diagnostic_codes
 pub use ferrocat_po::diagnostic_codes::DiagnosticCode
 pub mod ferrocat_po::diagnostic_codes::catalog
@@ -76,10 +83,10 @@ pub ferrocat_po::ApiError::Unsupported(alloc::string::String)
 impl ferrocat_po::ApiError
 pub fn ferrocat_po::ApiError::io_with_path(impl core::convert::Into<std::path::PathBuf>, std::io::error::Error) -> Self
 pub fn ferrocat_po::ApiError::path(&self) -> core::option::Option<&std::path::Path>
-impl core::convert::From<ferrocat_po::ParseError> for ferrocat_po::ApiError
-pub fn ferrocat_po::ApiError::from(ferrocat_po::ParseError) -> Self
 impl core::convert::From<std::io::error::Error> for ferrocat_po::ApiError
 pub fn ferrocat_po::ApiError::from(std::io::error::Error) -> Self
+impl core::convert::From<ferrocat_po::ParseError> for ferrocat_po::ApiError
+pub fn ferrocat_po::ApiError::from(ferrocat_po::ParseError) -> Self
 impl core::error::Error for ferrocat_po::ApiError
 pub fn ferrocat_po::ApiError::source(&self) -> core::option::Option<&(dyn core::error::Error + 'static)>
 impl core::fmt::Display for ferrocat_po::ApiError
@@ -99,11 +106,6 @@ pub enum ferrocat_po::CatalogConflictStrategy
 pub ferrocat_po::CatalogConflictStrategy::Error
 pub ferrocat_po::CatalogConflictStrategy::UseFirst
 pub ferrocat_po::CatalogConflictStrategy::UseLast
-pub enum ferrocat_po::CatalogMergeSide
-pub ferrocat_po::CatalogMergeSide::Ours
-pub ferrocat_po::CatalogMergeSide::Theirs
-impl core::fmt::Display for ferrocat_po::CatalogMergeSide
-pub fn ferrocat_po::CatalogMergeSide::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 #[non_exhaustive] pub enum ferrocat_po::CatalogFileFormat
 pub ferrocat_po::CatalogFileFormat::Fcl
 pub ferrocat_po::CatalogFileFormat::Po
@@ -114,6 +116,11 @@ pub ferrocat_po::CatalogMachineTranslationStatus::Absent
 pub ferrocat_po::CatalogMachineTranslationStatus::Current
 pub ferrocat_po::CatalogMachineTranslationStatus::Invalid
 pub ferrocat_po::CatalogMachineTranslationStatus::Stale
+pub enum ferrocat_po::CatalogMergeSide
+pub ferrocat_po::CatalogMergeSide::Ours
+pub ferrocat_po::CatalogMergeSide::Theirs
+impl core::fmt::Display for ferrocat_po::CatalogMergeSide
+pub fn ferrocat_po::CatalogMergeSide::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 #[non_exhaustive] pub enum ferrocat_po::CatalogMessageStatus
 pub ferrocat_po::CatalogMessageStatus::Empty
 pub ferrocat_po::CatalogMessageStatus::Extra
@@ -232,6 +239,9 @@ pub ferrocat_po::TranslationShape::Plural::translation: alloc::collections::btre
 pub ferrocat_po::TranslationShape::Plural::variable: alloc::string::String
 pub ferrocat_po::TranslationShape::Singular
 pub ferrocat_po::TranslationShape::Singular::value: alloc::string::String
+#[non_exhaustive] pub enum ferrocat_po::WriteDurability
+pub ferrocat_po::WriteDurability::Full
+pub ferrocat_po::WriteDurability::Rename
 pub struct ferrocat_po::AiProvenance
 pub ferrocat_po::AiProvenance::confidence: core::option::Option<f32>
 pub ferrocat_po::AiProvenance::model: alloc::string::String
@@ -760,10 +770,10 @@ pub fn ferrocat_po::NormalizedParsedCatalog::effective_translation_with_source_f
 pub fn ferrocat_po::NormalizedParsedCatalog::effective_translation_with_source_fallback_by_parts(&self, &str, core::option::Option<&str>, &str) -> core::option::Option<ferrocat_po::EffectiveTranslation>
 pub fn ferrocat_po::NormalizedParsedCatalog::get(&self, &ferrocat_po::CatalogMessageKey) -> core::option::Option<&ferrocat_po::CatalogMessage>
 pub fn ferrocat_po::NormalizedParsedCatalog::get_by_parts(&self, &str, core::option::Option<&str>) -> core::option::Option<&ferrocat_po::CatalogMessage>
+pub const fn ferrocat_po::NormalizedParsedCatalog::has_review_state(&self) -> bool
 pub fn ferrocat_po::NormalizedParsedCatalog::into_parsed_catalog(self) -> ferrocat_po::ParsedCatalog
 pub fn ferrocat_po::NormalizedParsedCatalog::iter(&self) -> impl core::iter::traits::iterator::Iterator<Item = (&ferrocat_po::CatalogMessageKey, &ferrocat_po::CatalogMessage)> + '_
 pub fn ferrocat_po::NormalizedParsedCatalog::message_count(&self) -> usize
-pub const fn ferrocat_po::NormalizedParsedCatalog::has_review_state(&self) -> bool
 pub const fn ferrocat_po::NormalizedParsedCatalog::parsed_catalog(&self) -> &ferrocat_po::ParsedCatalog
 pub struct ferrocat_po::ObsoleteInfo
 pub ferrocat_po::ObsoleteInfo::since: core::option::Option<alloc::string::String>
@@ -913,9 +923,6 @@ pub ferrocat_po::SourceExtractedMessage::msgctxt: core::option::Option<alloc::st
 pub ferrocat_po::SourceExtractedMessage::msgid: alloc::string::String
 pub ferrocat_po::SourceExtractedMessage::origin: alloc::vec::Vec<ferrocat_po::CatalogOrigin>
 pub ferrocat_po::SourceExtractedMessage::placeholders: alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::vec::Vec<alloc::string::String>>
-#[non_exhaustive] pub enum ferrocat_po::WriteDurability
-pub ferrocat_po::WriteDurability::Full
-pub ferrocat_po::WriteDurability::Rename
 #[non_exhaustive] pub struct ferrocat_po::UpdateCatalogFileOptions<'a>
 pub ferrocat_po::UpdateCatalogFileOptions::durability: ferrocat_po::WriteDurability
 pub ferrocat_po::UpdateCatalogFileOptions::options: ferrocat_po::UpdateCatalogOptions<'a>
