@@ -30,6 +30,31 @@
 - Active PO and FCL fuzzy entries no longer count as translated, including in
   the coverage rollups embedded in review reports.
 
+## [3.5.0](https://github.com/sebastian-software/ferrocat/compare/ferrocat-v3.4.2...ferrocat-v3.5.0) (2026-11-10)
+
+
+### Features
+
+* align Cargo metadata, dual-license, and raise the minimum supported Rust version to 1.94 ([#312](https://github.com/sebastian-software/ferrocat/issues/312)) ([4822e1c](https://github.com/sebastian-software/ferrocat/commit/4822e1c03f8f83b12a0ae88dfdff7ce444756333))
+* **docs:** adopt the shared Ferra theme ([#336](https://github.com/sebastian-software/ferrocat/issues/336)) ([7a5d4ff](https://github.com/sebastian-software/ferrocat/commit/7a5d4ff073084aaf779899f14418cc55cc1c4f4c))
+* **docs:** adopt the shared Ferramenta chrome and registry on ferrocat.dev ([#320](https://github.com/sebastian-software/ferrocat/issues/320)) ([329230c](https://github.com/sebastian-software/ferrocat/commit/329230ca77fe3c5c6bf1af0cfd90a5d98f8d2c1b))
+* **docs:** rebuild the homepage on the Monografie page system ([f003e35](https://github.com/sebastian-software/ferrocat/commit/f003e35ae72520dbaf4ce48548d248ce8b877604))
+* **docs:** rebuild the homepage on the Monografie page system ([a2d103c](https://github.com/sebastian-software/ferrocat/commit/a2d103cee31dd7c372b2edea90dd34bc2c24cb0c))
+* **docs:** upgrade the docs site to Ardo 4.2 and link the Ferramenta family ([#313](https://github.com/sebastian-software/ferrocat/issues/313)) ([5897ef0](https://github.com/sebastian-software/ferrocat/commit/5897ef043169426cbb0f37d7f994e060172783eb))
+* GitHub as the header's mark, on Ardo 6.4 ([#345](https://github.com/sebastian-software/ferrocat/issues/345)) ([08e1c3e](https://github.com/sebastian-software/ferrocat/commit/08e1c3e35db1fd41988195e9c4819393e9469860))
+
+
+### Bug Fixes
+
+* **deps:** patch docs transitive advisories ([#301](https://github.com/sebastian-software/ferrocat/issues/301)) ([e450652](https://github.com/sebastian-software/ferrocat/commit/e4506528993a2d83a453c89b308c968a15af2992))
+* **docs:** adopt compact code blocks and unframed pages ([#337](https://github.com/sebastian-software/ferrocat/issues/337)) ([a608654](https://github.com/sebastian-software/ferrocat/commit/a6086542effa0dcbf75b0c2e646da55e5efdfcd8))
+* **docs:** keep the homepage checks green on Windows and the proof assertion ([acde573](https://github.com/sebastian-software/ferrocat/commit/acde5738cb58ac2275ef26c5fde935203267c24b))
+* **docs:** open every homepage switch on its first option ([#347](https://github.com/sebastian-software/ferrocat/issues/347)) ([ac141af](https://github.com/sebastian-software/ferrocat/commit/ac141afa6ec94a1f9ced4aeccc892681b8ceb2af))
+* **docs:** pin ferramenta-family with the Monografie fixes ([9412600](https://github.com/sebastian-software/ferrocat/commit/941260085994f137b1958c9e52bc82fbe7ffc753))
+* **docs:** pin ferramenta-family with the Monografie fixes ([b341a8b](https://github.com/sebastian-software/ferrocat/commit/b341a8be3f12c3ae29fffa6a31a2e8d1e9301de3))
+* keep table text off the frame ([#346](https://github.com/sebastian-software/ferrocat/issues/346)) ([6820508](https://github.com/sebastian-software/ferrocat/commit/6820508627140de98daa1de85c25944c0e54d314))
+* **po:** accept bare relative catalog destinations ([#350](https://github.com/sebastian-software/ferrocat/issues/350)) ([8e95269](https://github.com/sebastian-software/ferrocat/commit/8e95269c42639d5b84c5ccb768d154fc396ef643))
+
 ## [3.4.2](https://github.com/sebastian-software/ferrocat/compare/ferrocat-v3.4.1...ferrocat-v3.4.2) (2026-08-06)
 
 
