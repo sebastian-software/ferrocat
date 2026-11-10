@@ -5,7 +5,9 @@
   "packages": {
     ".": {
       "component": "ferrocat",
-      "changelog-path": "crates/ferrocat/CHANGELOG.md"
+      "changelog-path": "crates/ferrocat/CHANGELOG.md",
+      "draft": true,
+      "force-tag-creation": true
     }
   }
 }

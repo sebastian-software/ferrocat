@@ -25,8 +25,9 @@ jobs:
       pull-requests: write
     outputs:
       releases_created: ${{ steps.release.outputs.releases_created }}
-      product_tag_name: ${{ steps.release.outputs.tag_name }}
-      product_version: ${{ steps.release.outputs.version }}
+      product_tag_name: ${{ steps.product-release.outputs.tag }}
+      product_version: ${{ steps.product-release.outputs.version }}
+      product_source_sha: ${{ github.sha }}
 
     steps:
       - name: Check out repository
@@ -42,6 +43,24 @@ jobs:
           manifest-file: .release-please-manifest.json
           token: ${{ secrets.RELEASE_PLEASE_TOKEN || secrets.GITHUB_TOKEN }}
 
+      - name: Resolve tagged product release
+        if: ${{ steps.release.outputs.releases_created == 'true' }}
+        id: product-release
+        shell: bash
+        env:
+          RELEASE_PLEASE_PRODUCT_TAG: ${{ steps.release.outputs.tag_name }}
+          RELEASE_PLEASE_PRODUCT_VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          version="$RELEASE_PLEASE_PRODUCT_VERSION"
+          if [ -z "$version" ]; then
+            package_id="$(cargo pkgid -p ferrocat-cli)"
+            version="${package_id##*#}"
+          fi
+          tag="${RELEASE_PLEASE_PRODUCT_TAG:-ferrocat-v${version}}"
+          test "$tag" = "ferrocat-v${version}"
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+
   publish-cli-musl:
     needs: release-please
     if: ${{ needs.release-please.outputs.releases_created == 'true' }}
@@ -54,6 +73,20 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: refs/tags/${{ needs.release-please.outputs.product_tag_name }}
+
+      - name: Verify tagged release source and package versions
+        shell: bash
+        env:
+          RELEASE_SOURCE_SHA: ${{ needs.release-please.outputs.product_source_sha }}
+          RELEASE_VERSION: ${{ needs.release-please.outputs.product_version }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$RELEASE_SOURCE_SHA"
+          for crate in ferrocat-icu ferrocat-po ferrocat ferrocat-cli; do
+            package_id="$(cargo pkgid -p "$crate")"
+            test "${package_id##*#}" = "$RELEASE_VERSION"
+          done
 
       - name: Resolve product release
         id: cli-release
@@ -63,15 +96,7 @@ jobs:
           RELEASE_PLEASE_PRODUCT_VERSION: ${{ needs.release-please.outputs.product_version }}
         run: |
           version="$RELEASE_PLEASE_PRODUCT_VERSION"
-          if [ -z "$version" ]; then
-            package_id="$(cargo pkgid -p ferrocat-cli)"
-            version="${package_id##*#}"
-          fi
-
           tag="$RELEASE_PLEASE_PRODUCT_TAG"
-          if [ -z "$tag" ]; then
-            tag="ferrocat-v${version}"
-          fi
 
           artifact_name="ferrocat-${version}-${MUSL_TARGET}"
 
@@ -79,10 +104,12 @@ jobs:
           echo "tag=${tag}" >> "$GITHUB_OUTPUT"
           echo "artifact_name=${artifact_name}" >> "$GITHUB_OUTPUT"
 
-      - name: Confirm product release exists
+      - name: Require a mutable product draft before building and uploading
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh release view "${{ steps.cli-release.outputs.tag }}" --json tagName,url
+          RELEASE_TAG: ${{ needs.release-please.outputs.product_tag_name }}
+          RELEASE_VERSION: ${{ needs.release-please.outputs.product_version }}
+        run: python3 scripts/release-github-cli.py check-draft "$RELEASE_TAG" "$RELEASE_VERSION"
 
       - name: Install musl linker
         run: |
@@ -131,7 +158,6 @@ jobs:
           "${{ steps.cli-release.outputs.tag }}"
           "target/dist/${{ steps.cli-release.outputs.artifact_name }}.tar.gz"
           "target/dist/${{ steps.cli-release.outputs.artifact_name }}.tar.gz.sha256"
-          --clobber
 
   publish-rust:
     needs: release-please
@@ -144,6 +170,20 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: refs/tags/${{ needs.release-please.outputs.product_tag_name }}
+
+      - name: Verify tagged release source and package versions
+        shell: bash
+        env:
+          RELEASE_SOURCE_SHA: ${{ needs.release-please.outputs.product_source_sha }}
+          RELEASE_VERSION: ${{ needs.release-please.outputs.product_version }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$RELEASE_SOURCE_SHA"
+          for crate in ferrocat-icu ferrocat-po ferrocat ferrocat-cli; do
+            package_id="$(cargo pkgid -p "$crate")"
+            test "${package_id##*#}" = "$RELEASE_VERSION"
+          done
 
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@d1031067263f94b142dd6c0ce24c5eb9d02d52a0 # master
@@ -231,3 +271,28 @@ jobs:
           publish_with_retry ferrocat-po 5 30
           publish_with_retry ferrocat 5 30
           publish_with_retry ferrocat-cli 5 30
+
+  publish-github-release:
+    needs: [release-please, publish-cli-musl, publish-rust]
+    if: ${{ needs.release-please.outputs.releases_created == 'true' }}
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+
+    steps:
+      - name: Check out tagged release source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: refs/tags/${{ needs.release-please.outputs.product_tag_name }}
+
+      - name: Verify tagged release source
+        env:
+          RELEASE_SOURCE_SHA: ${{ needs.release-please.outputs.product_source_sha }}
+        run: test "$(git rev-parse HEAD)" = "$RELEASE_SOURCE_SHA"
+
+      - name: Verify downloaded CLI assets and publish complete draft
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ needs.release-please.outputs.product_tag_name }}
+          RELEASE_VERSION: ${{ needs.release-please.outputs.product_version }}
+        run: python3 scripts/release-github-cli.py publish "$RELEASE_TAG" "$RELEASE_VERSION"

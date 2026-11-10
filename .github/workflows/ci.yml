@@ -24,6 +24,9 @@ jobs:
       - name: Check that every action is pinned to a commit SHA
         run: scripts/check-workflow-pins.sh
 
+      - name: Check immutable release staging contracts
+        run: python3 scripts/test-release-staging.py
+
   docs:
     name: Docs build
     runs-on: ubuntu-24.04
