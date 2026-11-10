@@ -14,6 +14,7 @@
 //! - `catalog` exposes high-level catalog parsing, updates, combining,
 //!   conversion, audits, machine-translation metadata, plural handling, FCL
 //!   storage, and runtime artifact compilation.
+//! - `collation` exposes compact catalog sort keys without catalog dependencies.
 //! - `serde` enables serde support in the re-exported `ferrocat-po` and
 //!   `ferrocat-icu` types.
 //! - `compile`, `mt`, and `plurals` are reserved subsystem aliases. Today they
@@ -77,6 +78,11 @@
 //! assert!(report.has_errors());
 //! # Ok::<(), Box<dyn std::error::Error>>(())
 //! ```
+
+/// Compact CLDR root sort keys, also used by the catalog layer.
+#[cfg(feature = "collation")]
+#[cfg_attr(docsrs, doc(cfg(feature = "collation")))]
+pub use ferrocat_po::collation;
 
 /// High-level catalog maintenance, audit, and runtime artifact APIs.
 #[cfg(feature = "catalog")]

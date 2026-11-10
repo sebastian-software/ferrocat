@@ -20,6 +20,8 @@ default build exposes the complete current PO and catalog API surface.
 - `catalog`: high-level catalog parse, update, combine, conversion, audit,
   metadata, FCL, plural, and runtime compile APIs, plus their hashing, tempfile,
   serde JSON, ICU, and CLDR plural-data dependencies
+- `collation`: compact CLDR root comparison keys, without catalog-layer dependencies;
+  `catalog` also enables it
 - `serde`: serde support for low-level PO document types; `catalog` also enables
   it for catalog-layer JSON/report shapes
 - `compile`, `mt`, and `plurals`: reserved subsystem aliases that currently
@@ -29,6 +31,19 @@ Use `default-features = false` for the low-level PO parser, borrowed parser,
 serializer, string helpers, and lightweight `merge_catalog` helper without
 catalog-layer dependencies. Enabling `compile`, `mt`, or `plurals` currently has
 the same dependency effect as enabling `catalog`.
+
+For shared catalog ordering without the catalog layer:
+
+```toml
+ferrocat-po = { version = "3", default-features = false, features = ["collation"] }
+```
+
+Use `ferrocat_po::collation::{CollationKey, collation_key}` to compare owned,
+opaque keys. Equal keys can represent different Unicode spellings. Apply raw
+message/context and obsolete-state tie-breaks when a total identity order is
+needed. Keys are comparison values, not persistent IDs. See
+[ADR 0026](../../docs/app/routes/architecture/adr/0026-cldr-root-catalog-order.mdx)
+for the covered repertoire and intentional limits.
 
 At the catalog layer, it supports three explicit modes:
 

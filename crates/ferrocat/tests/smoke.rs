@@ -14,6 +14,9 @@ use ferrocat::{
 
 #[test]
 fn umbrella_crate_reexports_po_and_icu_surfaces() {
+    assert!(
+        ferrocat::collation::collation_key("apple") < ferrocat::collation::collation_key("Apple")
+    );
     assert_eq!(WriteDurability::Rename, ferrocat::WriteDurability::Rename);
     let mut file = po::parse_po(
         r#"

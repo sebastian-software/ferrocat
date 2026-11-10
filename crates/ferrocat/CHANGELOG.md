@@ -18,6 +18,9 @@
 
 ### Features
 
+- **collation:** expose opt-in compact CLDR root comparison keys shared by the
+  catalog layer and downstream consumers, without adding catalog dependencies.
+
 * **catalog:** add explicit PO/FCL conversion that preserves shared message metadata
 * **po:** expose opt-in rename-only durability for catalog file updates
 * **icu:** expose policy-aware runtime apostrophe canonicalization and compiled-key derivation

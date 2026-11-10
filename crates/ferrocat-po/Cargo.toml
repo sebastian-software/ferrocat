@@ -25,6 +25,7 @@ path = "src/lib.rs"
 default = ["full"]
 full = ["catalog"]
 catalog = [
+    "collation",
     "dep:ferrocat-icu",
     "dep:icu_locale",
     "dep:icu_plurals",
@@ -34,6 +35,7 @@ catalog = [
     "ferrocat-icu/serde",
     "serde",
 ]
+collation = []
 compile = ["catalog"]
 mt = ["catalog"]
 plurals = ["catalog"]

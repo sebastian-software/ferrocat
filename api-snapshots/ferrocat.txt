@@ -150,6 +150,7 @@ pub use ferrocat::WriteDurability
 pub use ferrocat::analyze_icu
 pub use ferrocat::audit_catalogs
 pub use ferrocat::canonicalize_icu_with_policy
+pub use ferrocat::collation
 pub use ferrocat::combine_catalog_files
 pub use ferrocat::combine_catalogs
 pub use ferrocat::compare_icu_messages

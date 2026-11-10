@@ -13,7 +13,7 @@ use super::catalog::{
     CanonicalMessage, CanonicalTranslation, Catalog, OpaqueCapture, OpaqueMetadata, parse_origin,
     split_placeholder_comments,
 };
-use super::collation::{CollationKey, CollationPrefix, collation_key, collation_prefix};
+use super::collation::{CollationPrefix, collation_prefix};
 use super::export::for_each_placeholder_comment;
 use super::mt::{
     MachineMetadata, format_ai_descriptor, machine_translation_hash, parse_ai_descriptor,
@@ -24,6 +24,7 @@ use super::{
     ApiError, CatalogOrigin, CatalogSemantics, EffectiveTranslationRef, ObsoleteInfo, RenderOptions,
 };
 use crate::PoVec;
+use crate::collation::{CollationKey, collation_key};
 use crate::scan::{find_byte, find_fcl_escapable_byte, split_once_byte};
 use crate::utf8::input_slice_as_str;
 

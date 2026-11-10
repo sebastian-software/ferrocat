@@ -75,6 +75,30 @@ The implementation ports the proven Palamedes table and key shape:
 
 No new Rust dependency or lockfile entry is required.
 
+### Shared public key builder
+
+The opt-in `collation` feature exposes
+`ferrocat_po::collation::{CollationKey, collation_key}` and the matching
+`ferrocat::collation` re-export. `catalog` enables it, while `collation` alone
+adds no dependencies or catalog layer. One implementation and generated table
+serve both internal catalog sorting and downstream validators such as Palamedes.
+Ferrocat owns table generation and its Intl oracle checks.
+
+Keys own their data and implement `Clone`, `Debug`, `Eq`, and `Ord`. Their byte
+representation remains private and is not a persistent key format or identity.
+Different source strings can compare equal, including covered NFC/NFD accent
+spellings. Consumers needing the catalog identity order compare message keys,
+context keys (absent means empty), raw messages, raw optional contexts, then
+obsolete state. Exact duplicate identities remain equal. The raw tie-breaks
+keep canonically equivalent spellings deterministic without treating them as
+one message.
+
+This extraction preserves the existing repertoire, fallback, and ordering;
+it does not promise full Unicode normalization or locale tailoring. Uncovered
+characters use their first lowercase scalar for primary fallback order and
+case for the tertiary level. Changing the observable comparison contract is a
+semver-relevant change; keys must be rebuilt after a library upgrade.
+
 ### FCL representation
 
 FCL owns a storage order independent of PO presentation options. Every newly
