@@ -6,6 +6,9 @@ import importlib.util
 import io
 import json
 import os
+import subprocess
+import tempfile
+import textwrap
 from pathlib import Path
 import tarfile
 import unittest
@@ -107,7 +110,6 @@ class StagingTests(unittest.TestCase):
 
     def test_workflow_keeps_source_binding_and_final_success_gate(self):
         workflow = (ROOT / ".github/workflows/publish.yml").read_text()
-        self.assertNotIn("--clobber", workflow)
         for job_name in ("publish-cli-musl", "publish-rust", "publish-github-release"):
             job = workflow.split(f"\n  {job_name}:\n", 1)[1].split("\n  publish-", 1)[0]
             self.assertIn("ref: refs/tags/${{ needs.release-please.outputs.product_tag_name }}", job)
@@ -116,8 +118,78 @@ class StagingTests(unittest.TestCase):
         self.assertIn("needs: [release-please, publish-cli-musl, publish-rust]", final_job)
         self.assertNotIn("always()", final_job)
         self.assertIn("scripts/release-github-cli.py publish", final_job)
-        self.assertLess(workflow.index("scripts/release-github-cli.py check-draft"), workflow.index("gh release upload"))
+        upload = workflow.split("      - name: Upload musl CLI artifact to GitHub Release\n", 1)[1].split("\n  publish-rust:", 1)[0]
+        self.assertIn("--clobber", upload)
+        self.assertLess(upload.index("scripts/release-github-cli.py check-draft"), upload.index("gh release upload"))
         self.assertIn("python3 scripts/test-release-staging.py", (ROOT / ".github/workflows/ci.yml").read_text())
+
+
+class UploadWorkflowTests(unittest.TestCase):
+    """Execute the actual upload step with a local gh fixture, never GitHub."""
+
+    def run_uploads(self, draft, immutable, attempts):
+        workflow = (ROOT / ".github/workflows/publish.yml").read_text()
+        upload = workflow.split("      - name: Upload musl CLI artifact to GitHub Release\n", 1)[1].split("\n  publish-rust:", 1)[0]
+        style, body = upload.split("        run: ", 1)[1].split("\n", 1)
+        self.assertIn(style, ("|", ">-"))
+        script = textwrap.dedent(body) if style == "|" else " ".join(body.splitlines())
+        script = script.replace("${{ steps.cli-release.outputs.tag }}", "$RELEASE_TAG")
+        script = script.replace("${{ steps.cli-release.outputs.artifact_name }}", "$ARTIFACT_NAME")
+        with tempfile.TemporaryDirectory(prefix="ferrocat-upload-test-") as directory:
+            fixture = Path(directory)
+            state_file = fixture / "state.json"
+            state_file.write_text(json.dumps({
+                "release": {"tag_name": TAG, "draft": draft, "immutable": immutable, "assets": []},
+                "uploads": 0,
+            }))
+            gh = fixture / "gh"
+            gh.write_text("""#!/usr/bin/env python3
+import json
+import os
+from pathlib import Path
+import sys
+state_file = Path(os.environ["FERROCAT_UPLOAD_FIXTURE"])
+state = json.loads(state_file.read_text())
+args = sys.argv[1:]
+if args[0] == "api":
+    print(json.dumps(state["release"]))
+    sys.exit(0)
+if args[:2] != ["release", "upload"] or "--clobber" not in args:
+    sys.exit(2)
+state["uploads"] += 1
+files = [Path(arg).name for arg in args[3:] if not arg.startswith("--")]
+# Model gh uploading the archive successfully, then failing on its checksum.
+state["release"]["assets"] = files[:1] if state["uploads"] == 1 else files
+state_file.write_text(json.dumps(state))
+sys.exit(1 if state["uploads"] == 1 else 0)
+""")
+            gh.chmod(0o755)
+            environment = {
+                **os.environ, "PATH": directory + os.pathsep + os.environ["PATH"],
+                "GITHUB_REPOSITORY": "sebastian-software/ferrocat",
+                "FERROCAT_UPLOAD_FIXTURE": str(state_file),
+                "RELEASE_TAG": TAG, "RELEASE_VERSION": VERSION, "ARTIFACT_NAME": ARTIFACT,
+            }
+            results = [subprocess.run(
+                ["bash", "-e", "-c", script], cwd=ROOT, env=environment,
+                capture_output=True, text=True,
+            ) for _ in range(attempts)]
+            return results, json.loads(state_file.read_text())
+
+    def test_partial_draft_upload_can_resume_after_fresh_mutability_check(self):
+        results, state = self.run_uploads(draft=True, immutable=False, attempts=2)
+        self.assertEqual([result.returncode for result in results], [1, 0])
+        self.assertEqual(state["uploads"], 2)
+        self.assertEqual(state["release"]["assets"], [ARCHIVE, CHECKSUM])
+
+    def test_public_release_is_rejected_before_any_upload(self):
+        for immutable in (False, True):
+            with self.subTest(immutable=immutable):
+                results, state = self.run_uploads(draft=False, immutable=immutable, attempts=1)
+                self.assertNotEqual(results[0].returncode, 0)
+                self.assertIn("matching mutable draft release is required", results[0].stderr)
+                self.assertEqual(state["uploads"], 0)
+                self.assertEqual(state["release"]["assets"], [])
 
 
 if __name__ == "__main__":

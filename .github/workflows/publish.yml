@@ -151,13 +151,18 @@ jobs:
           ( cd target/dist && sha256sum "${ARTIFACT_NAME}.tar.gz" > "${ARTIFACT_NAME}.tar.gz.sha256" )
 
       - name: Upload musl CLI artifact to GitHub Release
+        shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: >-
-          gh release upload
-          "${{ steps.cli-release.outputs.tag }}"
-          "target/dist/${{ steps.cli-release.outputs.artifact_name }}.tar.gz"
-          "target/dist/${{ steps.cli-release.outputs.artifact_name }}.tar.gz.sha256"
+          RELEASE_TAG: ${{ needs.release-please.outputs.product_tag_name }}
+          RELEASE_VERSION: ${{ needs.release-please.outputs.product_version }}
+          ARTIFACT_NAME: ${{ steps.cli-release.outputs.artifact_name }}
+        run: |
+          python3 scripts/release-github-cli.py check-draft "$RELEASE_TAG" "$RELEASE_VERSION"
+          gh release upload "$RELEASE_TAG" \
+            "target/dist/${ARTIFACT_NAME}.tar.gz" \
+            "target/dist/${ARTIFACT_NAME}.tar.gz.sha256" \
+            --clobber
 
   publish-rust:
     needs: release-please
