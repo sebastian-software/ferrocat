@@ -1,6 +1,6 @@
 [package]
 name = "ferrocat-conformance"
-version = "3.5.0"
+version = "3.5.1"
 authors.workspace = true
 edition.workspace = true
 homepage.workspace = true
