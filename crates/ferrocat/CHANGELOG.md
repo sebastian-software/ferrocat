@@ -33,6 +33,13 @@
 - Active PO and FCL fuzzy entries no longer count as translated, including in
   the coverage rollups embedded in review reports.
 
+## [3.6.0](https://github.com/sebastian-software/ferrocat/compare/ferrocat-v3.5.1...ferrocat-v3.6.0) (2026-11-10)
+
+
+### Features
+
+* **collation:** share compact catalog sort keys with consumers ([#358](https://github.com/sebastian-software/ferrocat/issues/358)) ([57f8193](https://github.com/sebastian-software/ferrocat/commit/57f81936f346d098767bba8b906bcb753aec5d87))
+
 ## [3.5.1](https://github.com/sebastian-software/ferrocat/compare/ferrocat-v3.5.0...ferrocat-v3.5.1) (2026-11-10)
 
 
