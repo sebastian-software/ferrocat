@@ -1,6 +1,5 @@
 {
   "version": "0.2",
-  "ignorePaths": [".standards/"],
   "words": [
     "ardo",
     "ferramenta",
@@ -16,7 +15,6 @@
     "pnpm",
     "pofile",
     "polib",
-    "repometa",
     "unforked",
     "Ferra",
     "Monografie",
