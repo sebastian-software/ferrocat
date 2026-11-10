@@ -38,7 +38,10 @@ where
         WriteDurability::Full => true,
         WriteDurability::Rename => false,
     };
-    let directory = path.parent().unwrap_or_else(|| Path::new("."));
+    let directory = path
+        .parent()
+        .filter(|parent| !parent.as_os_str().is_empty())
+        .unwrap_or_else(|| Path::new("."));
     fs::create_dir_all(directory).map_err(|error| ApiError::io_with_path(directory, error))?;
 
     if path.file_name().is_none() {
@@ -111,6 +114,50 @@ mod tests {
 
         let root = target.ancestors().nth(2).expect("temp root").to_path_buf();
         fs::remove_dir_all(root).expect("cleanup");
+    }
+
+    #[test]
+    fn atomic_write_accepts_relative_and_absolute_paths() {
+        const CHILD_ENV: &str = "FERROCAT_ATOMIC_WRITE_PATH_TEST_CHILD";
+        if std::env::var_os(CHILD_ENV).is_some() {
+            let absolute = std::env::current_dir()
+                .expect("current directory")
+                .join("absolute.po");
+            for path in [
+                Path::new("bare.po"),
+                Path::new("./dotted.po"),
+                Path::new("nested/catalog.po"),
+                absolute.as_path(),
+            ] {
+                atomic_write(path, "first").expect("create catalog with full durability");
+                atomic_write(path, "second").expect("replace catalog with full durability");
+                assert_eq!(fs::read_to_string(path).expect("read catalog"), "second");
+            }
+            let error = atomic_write(Path::new(""), "ignored").expect_err("empty path");
+            assert!(matches!(error, ApiError::InvalidArguments(_)));
+            return;
+        }
+
+        // A child process gives relative paths a private working directory without
+        // changing process-global state underneath the other parallel tests.
+        let directory = tempfile::tempdir().expect("temporary directory");
+        let output = std::process::Command::new(std::env::current_exe().expect("test binary"))
+            .args([
+                "--exact",
+                "api::file_io::tests::atomic_write_accepts_relative_and_absolute_paths",
+                "--nocapture",
+            ])
+            .env(CHILD_ENV, "1")
+            .current_dir(directory.path())
+            .output()
+            .expect("run isolated path regression");
+        assert!(
+            output.status.success(),
+            "isolated regression failed: {}{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr),
+        );
+        assert!(directory.path().join("bare.po").is_file(), "child test ran");
     }
 
     #[test]

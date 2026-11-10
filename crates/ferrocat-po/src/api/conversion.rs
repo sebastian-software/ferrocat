@@ -143,7 +143,8 @@ fn finish_catalog_conversion(
 /// Source and target formats are inferred independently from the two paths
 /// unless supplied explicitly. Reading, validation, parsing, and rendering all
 /// finish before the atomic replacement, so the input and output may safely be
-/// the same path.
+/// the same path. Relative output paths, including bare filenames, are resolved
+/// against the current working directory.
 ///
 /// # Errors
 ///
