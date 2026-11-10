@@ -28,9 +28,12 @@ CHECKSUM = f"{ARCHIVE}.sha256"
 class StagingTests(unittest.TestCase):
     def setUp(self):
         self.release = {
-            "tag_name": TAG, "draft": True, "immutable": False,
+            "id": 440374272, "tag_name": TAG, "draft": True, "immutable": False,
+            "target_commitish": "7f2b79702e7c9f4d67a57d3224a58cacb282810d",
             "assets": [{"name": name, "size": 123, "state": "uploaded"} for name in (ARCHIVE, CHECKSUM)],
         }
+        self.run = {"id": 42821359310, "head_sha": self.release["target_commitish"], "event": "push", "path": ".github/workflows/publish.yml", "status": "completed"}
+        self.job = {"run_id": 42821359310, "name": "publish-rust", "status": "completed", "conclusion": "success"}
         self.omit = None
         self.bad_checksum = False
         self.commands = []
@@ -43,7 +46,16 @@ class StagingTests(unittest.TestCase):
 
     def fake_gh(self, *args):
         self.commands.append(args)
+        if args[:2] == ("release", "view"):
+            return json.dumps({"apiUrl": "https://api.github.com/repos/sebastian-software/ferrocat/releases/440374272"})
         if args[0] == "api":
+            if "/releases/tags/" in args[1]:
+                raise subprocess.CalledProcessError(1, ["gh", *args], stderr="HTTP 404: Not Found")
+            if args[1] == "repos/sebastian-software/ferrocat/actions/runs/42821359310":
+                return json.dumps(self.run)
+            if args[1] == "repos/sebastian-software/ferrocat/actions/jobs/129847553463":
+                return json.dumps(self.job)
+            self.assertEqual(args[1], "repos/sebastian-software/ferrocat/releases/440374272")
             return json.dumps(self.release)
         if args[:2] == ("release", "download"):
             directory = Path(args[args.index("--dir") + 1])
@@ -64,11 +76,59 @@ class StagingTests(unittest.TestCase):
     def assert_not_published(self):
         self.assertFalse(any(command[:2] == ("release", "edit") for command in self.commands))
 
+    def test_draft_lookup_survives_actual_tag_endpoint_404_using_fresh_numeric_id(self):
+        self.assertEqual(release_cli.check_draft(TAG)["id"], 440374272)
+        self.assertEqual(self.commands, [
+            ("release", "view", TAG, "--repo", "sebastian-software/ferrocat", "--json", "apiUrl"),
+            ("api", "repos/sebastian-software/ferrocat/releases/440374272"),
+        ])
+
+    def test_recovery_rejects_wrong_release_or_source_identity(self):
+        for release_id, source in [(1, self.release["target_commitish"]), (440374272, "wrong")]:
+            with self.subTest(release_id=release_id, source=source):
+                with self.assertRaisesRegex(ValueError, "reviewed recovery"):
+                    release_cli.check_draft(TAG, release_id, source)
+                self.assert_not_published()
+
+    def test_lookup_cannot_accept_a_foreign_repository_url(self):
+        with patch.object(release_cli, "run_gh", return_value=json.dumps({"apiUrl": "https://api.github.com/repos/other/repo/releases/440374272"})):
+            with self.assertRaisesRegex(ValueError, "unambiguous ID"):
+                release_cli.check_draft(TAG)
+
+    def test_recovery_requires_successful_rust_job_from_original_source_run(self):
+        args = (TAG, 440374272, self.release["target_commitish"], 42821359310, 129847553463)
+        release_cli.check_recovery(*args)
+        for record, key, bad in [(self.run, "head_sha", "wrong"), (self.job, "run_id", 1), (self.job, "conclusion", "failure")]:
+            with self.subTest(key=key):
+                good = record[key]
+                record[key] = bad
+                with self.assertRaisesRegex(ValueError, "original tagged publish"):
+                    release_cli.check_recovery(*args)
+                record[key] = good
+                self.assert_not_published()
+
+    def test_recovery_workflow_keeps_product_and_tooling_sources_separate(self):
+        workflow = (ROOT / ".github/workflows/recover-cli-release.yml").read_text()
+        self.assertIn("workflow_dispatch:", workflow)
+        self.assertNotIn("  push:", workflow)
+        self.assertIn("github.ref == 'refs/heads/main'", workflow)
+        self.assertIn("ref: refs/tags/ferrocat-v3.5.1", workflow)
+        self.assertIn("ref: ${{ github.sha }}\n          path: .release-tooling", workflow)
+        for value in ("7f2b79702e7c9f4d67a57d3224a58cacb282810d", "440374272", "42821359310", "129847553463"):
+            self.assertIn(value, workflow)
+        for mode in ("check-recovery", "check-draft", "publish"):
+            self.assertIn(f"python3 .release-tooling/scripts/release-github-cli.py {mode}", workflow)
+        upload = workflow.split("      - name: Recheck mutable draft and resume asset upload\n", 1)[1]
+        self.assertLess(upload.index(" check-draft "), upload.index("gh release upload"))
+        self.assertIn("--clobber", upload)
+        self.assertNotIn("cargo publish", workflow)
+        self.assertNotIn("gh release create", workflow)
+
     def test_observed_public_immutable_empty_release_is_rejected_without_mutation(self):
         self.release.update(draft=False, immutable=True, assets=[])
         with self.assertRaisesRegex(ValueError, "mutable draft"):
             release_cli.publish(TAG, VERSION)
-        self.assertEqual(len(self.commands), 1)
+        self.assertEqual(len(self.commands), 2)
         self.assert_not_published()
 
     def test_public_mutable_release_is_also_rejected(self):
@@ -99,7 +159,7 @@ class StagingTests(unittest.TestCase):
 
     def test_complete_draft_publishes_only_after_downloaded_artifact_validation(self):
         release_cli.publish(TAG, VERSION)
-        self.assertEqual([command[:2] for command in self.commands], [("api", "repos/sebastian-software/ferrocat/releases/tags/" + TAG), ("release", "download"), ("release", "edit")])
+        self.assertEqual([command[:2] for command in self.commands], [("release", "view"), ("api", "repos/sebastian-software/ferrocat/releases/440374272"), ("release", "download"), ("release", "edit")])
         self.assertEqual(self.commands[-1], ("release", "edit", TAG, "--draft=false"))
 
     def test_release_please_creates_mutable_draft_and_tag(self):
@@ -139,7 +199,7 @@ class UploadWorkflowTests(unittest.TestCase):
             fixture = Path(directory)
             state_file = fixture / "state.json"
             state_file.write_text(json.dumps({
-                "release": {"tag_name": TAG, "draft": draft, "immutable": immutable, "assets": []},
+                "release": {"id": 440374272, "tag_name": TAG, "draft": draft, "immutable": immutable, "assets": []},
                 "uploads": 0,
             }))
             gh = fixture / "gh"
@@ -151,7 +211,13 @@ import sys
 state_file = Path(os.environ["FERROCAT_UPLOAD_FIXTURE"])
 state = json.loads(state_file.read_text())
 args = sys.argv[1:]
+if args[:2] == ["release", "view"]:
+    print(json.dumps({"apiUrl": "https://api.github.com/repos/sebastian-software/ferrocat/releases/440374272"}))
+    sys.exit(0)
 if args[0] == "api":
+    if "/releases/tags/" in args[1]:
+        print("HTTP 404: Not Found", file=sys.stderr)
+        sys.exit(1)
     print(json.dumps(state["release"]))
     sys.exit(0)
 if args[:2] != ["release", "upload"] or "--clobber" not in args:

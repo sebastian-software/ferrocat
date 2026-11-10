@@ -1,0 +1,116 @@
+name: Recover Ferrocat 3.5.1 CLI release
+
+on:
+  workflow_dispatch:
+
+# Serialize with normal main publication; this workflow never creates a release.
+concurrency:
+  group: publish-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  recover-cli:
+    if: ${{ github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      actions: read
+    env:
+      RELEASE_TAG: ferrocat-v3.5.1
+      RELEASE_VERSION: 3.5.1
+      RELEASE_SOURCE_SHA: 7f2b79702e7c9f4d67a57d3224a58cacb282810d
+      RELEASE_ID: 440374272
+      ORIGINAL_RUN_ID: 42821359310
+      RUST_JOB_ID: 129847553463
+      MUSL_TARGET: x86_64-unknown-linux-musl
+      ARTIFACT_NAME: ferrocat-3.5.1-x86_64-unknown-linux-musl
+
+    steps:
+      - name: Check out immutable product release
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: refs/tags/ferrocat-v3.5.1
+          persist-credentials: false
+
+      - name: Check out reviewed recovery tooling separately
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          path: .release-tooling
+          persist-credentials: false
+
+      - name: Verify product, tooling, draft and original Rust publication
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          test "$(git rev-parse HEAD)" = "$RELEASE_SOURCE_SHA"
+          test "$(git -C .release-tooling rev-parse HEAD)" = "$GITHUB_SHA"
+          for crate in ferrocat-icu ferrocat-po ferrocat ferrocat-cli; do
+            package_id="$(cargo pkgid -p "$crate")"
+            test "${package_id##*#}" = "$RELEASE_VERSION"
+          done
+          python3 .release-tooling/scripts/release-github-cli.py check-recovery "$RELEASE_TAG" "$RELEASE_VERSION" \
+            --release-id "$RELEASE_ID" --source-sha "$RELEASE_SOURCE_SHA" \
+            --run-id "$ORIGINAL_RUN_ID" --rust-job-id "$RUST_JOB_ID"
+
+      - name: Install musl linker
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y musl-tools
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@d1031067263f94b142dd6c0ce24c5eb9d02d52a0 # master
+        with:
+          toolchain: stable
+          targets: ${{ env.MUSL_TARGET }}
+
+      - name: Cache Rust build artifacts
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          key: publish-cli-musl-${{ env.MUSL_TARGET }}
+
+      - name: Build tagged CLI for musl
+        run: cargo build --release -p ferrocat-cli --locked --target "$MUSL_TARGET"
+
+      - name: Smoke test musl CLI
+        run: "./target/${MUSL_TARGET}/release/ferrocat --help"
+
+      - name: Package tagged CLI, licenses and README metadata
+        shell: bash
+        run: |
+          artifact_dir="target/dist/${ARTIFACT_NAME}"
+          mkdir -p "$artifact_dir"
+          cp "target/${MUSL_TARGET}/release/ferrocat" "$artifact_dir/ferrocat"
+          cp LICENSE-MIT "$artifact_dir/LICENSE-MIT"
+          cp LICENSE-APACHE "$artifact_dir/LICENSE-APACHE"
+          cp README.md "$artifact_dir/README.md"
+          cp crates/ferrocat-cli/README.md "$artifact_dir/CLI-README.md"
+          tar -C target/dist -czf "target/dist/${ARTIFACT_NAME}.tar.gz" "$ARTIFACT_NAME"
+          ( cd target/dist && sha256sum "${ARTIFACT_NAME}.tar.gz" > "${ARTIFACT_NAME}.tar.gz.sha256" )
+
+      - name: Recheck mutable draft and resume asset upload
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          python3 .release-tooling/scripts/release-github-cli.py check-draft "$RELEASE_TAG" "$RELEASE_VERSION" \
+            --release-id "$RELEASE_ID" --source-sha "$RELEASE_SOURCE_SHA"
+          gh release upload "$RELEASE_TAG" \
+            "target/dist/${ARTIFACT_NAME}.tar.gz" \
+            "target/dist/${ARTIFACT_NAME}.tar.gz.sha256" \
+            --clobber
+
+      - name: Verify downloaded complete assets and publish the existing draft
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: >-
+          python3 .release-tooling/scripts/release-github-cli.py publish "$RELEASE_TAG" "$RELEASE_VERSION"
+          --release-id "$RELEASE_ID" --source-sha "$RELEASE_SOURCE_SHA"

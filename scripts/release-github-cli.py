@@ -18,22 +18,54 @@ def run_gh(*args):
     return subprocess.check_output(["gh", *args], text=True)
 
 
-def check_draft(tag):
+def check_draft(tag, expected_id=None, expected_source_sha=None):
     repository = os.environ["GITHUB_REPOSITORY"]
-    release = json.loads(run_gh("api", f"repos/{repository}/releases/tags/{tag}"))
+    # GitHub's REST tag endpoint excludes drafts. gh resolves drafts through
+    # its release listing; fetch that numeric ID again for the current state.
+    resolved = json.loads(run_gh("release", "view", tag, "--repo", repository, "--json", "apiUrl"))
+    prefix = f"https://api.github.com/repos/{repository}/releases/"
+    match = re.fullmatch(re.escape(prefix) + r"([1-9][0-9]*)", resolved.get("apiUrl", ""))
+    if not match:
+        raise ValueError("Release lookup must resolve an unambiguous ID in this repository")
+    release_id = int(match.group(1))
+    release = json.loads(run_gh("api", f"repos/{repository}/releases/{release_id}"))
     if (
-        release.get("tag_name") != tag
+        release.get("id") != release_id
+        or release.get("tag_name") != tag
         or release.get("draft") is not True
         or release.get("immutable") is True
     ):
         raise ValueError("A matching mutable draft release is required; leave public releases untouched")
+    if expected_id is not None and release_id != expected_id:
+        raise ValueError("Draft release ID does not match the reviewed recovery")
+    if expected_source_sha is not None and release.get("target_commitish") != expected_source_sha:
+        raise ValueError("Draft source does not match the reviewed recovery")
     return release
 
 
-def publish(tag, version):
+def check_recovery(tag, release_id, source_sha, run_id, rust_job_id):
+    check_draft(tag, release_id, source_sha)
+    repository = os.environ["GITHUB_REPOSITORY"]
+    run = json.loads(run_gh("api", f"repos/{repository}/actions/runs/{run_id}"))
+    job = json.loads(run_gh("api", f"repos/{repository}/actions/jobs/{rust_job_id}"))
+    if (
+        run.get("id") != run_id
+        or run.get("head_sha") != source_sha
+        or run.get("event") != "push"
+        or run.get("path") != ".github/workflows/publish.yml"
+        or run.get("status") != "completed"
+        or job.get("run_id") != run_id
+        or job.get("name") != "publish-rust"
+        or job.get("status") != "completed"
+        or job.get("conclusion") != "success"
+    ):
+        raise ValueError("Recovery requires the original tagged publish run's successful Rust job")
+
+
+def publish(tag, version, expected_id=None, expected_source_sha=None):
     if tag != f"ferrocat-v{version}":
         raise ValueError("Release tag and version do not match")
-    release = check_draft(tag)
+    release = check_draft(tag, expected_id, expected_source_sha)
     artifact = f"ferrocat-{version}-{TARGET}"
     archive_name = f"{artifact}.tar.gz"
     checksum_name = f"{archive_name}.sha256"
@@ -79,16 +111,24 @@ def publish(tag, version):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("mode", choices=("check-draft", "publish"))
+    parser.add_argument("mode", choices=("check-draft", "check-recovery", "publish"))
     parser.add_argument("tag")
     parser.add_argument("version")
+    parser.add_argument("--release-id", type=int)
+    parser.add_argument("--source-sha")
+    parser.add_argument("--run-id", type=int)
+    parser.add_argument("--rust-job-id", type=int)
     args = parser.parse_args()
     if args.tag != f"ferrocat-v{args.version}":
         parser.error("release tag and version do not match")
-    if args.mode == "check-draft":
-        check_draft(args.tag)
+    if args.mode == "check-recovery":
+        if not all((args.release_id, args.source_sha, args.run_id, args.rust_job_id)):
+            parser.error("recovery requires release ID, source SHA, original run and successful Rust job")
+        check_recovery(args.tag, args.release_id, args.source_sha, args.run_id, args.rust_job_id)
+    elif args.mode == "check-draft":
+        check_draft(args.tag, args.release_id, args.source_sha)
     else:
-        publish(args.tag, args.version)
+        publish(args.tag, args.version, args.release_id, args.source_sha)
 
 
 if __name__ == "__main__":
