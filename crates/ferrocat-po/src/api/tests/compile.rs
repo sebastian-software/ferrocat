@@ -809,6 +809,49 @@ fn tag_quote_policy_is_shared_by_po_fcl_full_and_selected_artifacts() {
     assert_eq!(artifact.messages, po_artifact.messages);
 }
 
+#[test]
+fn tag_quote_policy_checks_selected_translation_compatibility() {
+    let source = normalized_catalog(
+        "msgid \"Use '<name>' and <0>open</0>\"\nmsgstr \"Use '<name>' and <0>open</0>\"\n",
+        Some("en"),
+        PluralEncoding::Icu,
+    );
+    let target = normalized_fcl_catalog(
+        "%FCL1\tsource=en\tlocale=de\nUse '<name>' and <0>open</0>\t\tNutze '<name>' und öffnen\n",
+        Some("de"),
+    );
+    let policy = IcuSyntaxPolicy::RuntimeLiteralApostrophesAndTags;
+    let index = CompiledCatalogIdIndex::new_with_policy(
+        &[&target, &source],
+        CompiledKeyStrategy::FerrocatV1,
+        policy,
+    )
+    .expect("index");
+    let id = compiled_key_with_policy("Use '<name>' and <0>open</0>", None, policy);
+    let ids = [id.as_str()];
+    let options = CompileCatalogArtifactOptions {
+        icu_compatibility: true,
+        ..CompileCatalogArtifactOptions::new("de", "en")
+            .with_icu_options(CompileCatalogArtifactIcuOptions::new().with_syntax_policy(policy))
+    };
+    let selected =
+        CompileSelectedCatalogArtifactOptions::new("de", "en", &ids).with_options(options);
+    let result = compile_catalog_artifact_selected(&[&target, &source], &index, &selected)
+        .expect("selected artifact");
+    assert!(
+        result
+            .diagnostics
+            .iter()
+            .any(|d| d.code == "icu.missing_tag")
+    );
+    assert!(
+        !result
+            .diagnostics
+            .iter()
+            .any(|d| d.code == "icu.extra_tag" || d.code == "icu.invalid_syntax")
+    );
+}
+
 #[cfg(feature = "serde")]
 #[test]
 fn compile_catalog_artifact_report_keeps_artifact_wire_shape_unchanged() {
