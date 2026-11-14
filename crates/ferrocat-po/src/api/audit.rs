@@ -726,7 +726,7 @@ fn audit_metadata(
                 DiagnosticSeverity::Error,
                 diagnostic_codes::metadata::INVALID_MSGID,
                 format!("Semantic metadata `msgid` is not valid ICU MessageFormat v1: {error}"),
-                Some(source_ref.clone()),
+                Some(source_ref),
                 Some("msgid".to_owned()),
             ));
             continue;
