@@ -581,6 +581,19 @@ visible while accepting runtime-valid strings such as `you're available`.
 The runtime policy remains quote-aware: `L'{title}` keeps `{title}` literal,
 `''` means one apostrophe, and `'#'` keeps `#` literal inside plural branches.
 
+For hosts that also quote tag-like text, opt into
+`IcuSyntaxPolicy::RuntimeLiteralApostrophesAndTags`. A single apostrophe before
+any `<` begins a quoted literal: `'<name>'` is text, while unquoted `<0>text</0>`
+remains a rich-text tag. This also applies before comparison signs. Doubled
+apostrophes take precedence, and an unterminated quote closes at pattern end.
+Apply the same policy to audit, compilation, selected-ID indexes, and key
+creation. Migrating an existing catalog can change message interpretation and
+compiled IDs, including apostrophes before real tags or comparisons; review and
+migrate affected source and translations together. Rewriting a catalog spelling
+so both policies yield the same canonical message preserves its compiled key;
+merely reinterpreting unchanged text does not. The existing policies and the
+`Strict` default remain unchanged.
+
 Use `canonicalize_icu_with_policy` when extraction or host transforms need the
 same canonical text before handing a message to another strict ICU consumer.
 It returns `Cow::Borrowed` for strict input and runtime-policy input without

@@ -726,6 +726,89 @@ fn compile_catalog_artifact_report_rejects_unknown_selected_ids() {
     );
 }
 
+#[test]
+fn tag_quote_policy_is_shared_by_po_fcl_full_and_selected_artifacts() {
+    let source = normalized_catalog(
+        "msgid \"Use '<name>'\"\nmsgstr \"Use '<name>'\"\n",
+        Some("en"),
+        PluralEncoding::Icu,
+    );
+    let po = normalized_catalog(
+        "msgid \"Use '<name>'\"\nmsgstr \"Nutze '<name>'\"\n",
+        Some("de"),
+        PluralEncoding::Icu,
+    );
+    let fcl = normalized_fcl_catalog(
+        "%FCL1\tsource=en\tlocale=de\nUse '<name>'\t\tNutze '<name>'\n",
+        Some("de"),
+    );
+    let policy = IcuSyntaxPolicy::RuntimeLiteralApostrophesAndTags;
+    let options = CompileCatalogArtifactOptions::new("de", "en")
+        .with_icu_options(CompileCatalogArtifactIcuOptions::new().with_syntax_policy(policy));
+    let po_artifact = compile_catalog_artifact(&[&po, &source], &options).expect("PO artifact");
+    let fcl_artifact = compile_catalog_artifact(&[&fcl, &source], &options).expect("FCL artifact");
+    assert_eq!(po_artifact.messages, fcl_artifact.messages);
+    let id = compiled_key_with_policy("Use '<name>'", None, policy);
+    assert_eq!(
+        compiled_key_with_policy(
+            "'<0>Hello</0>'",
+            None,
+            IcuSyntaxPolicy::RuntimeLiteralApostrophes
+        ),
+        compiled_key_with_policy("''<0>Hello</0>'", None, policy),
+        "a migrated spelling that keeps the canonical message preserves the key",
+    );
+    assert_ne!(
+        compiled_key_with_policy("'<0>Hello</0>'", None, policy),
+        compiled_key_with_policy(
+            "'<0>Hello</0>'",
+            None,
+            IcuSyntaxPolicy::RuntimeLiteralApostrophes
+        ),
+        "reinterpreting an unchanged rich-text spelling changes its canonical identity",
+    );
+    assert_ne!(
+        id,
+        compiled_key_with_policy(
+            "Use '<name>'",
+            None,
+            IcuSyntaxPolicy::RuntimeLiteralApostrophes
+        )
+    );
+    assert_eq!(
+        po_artifact.messages.get(&id).map(String::as_str),
+        Some("Nutze '<name>'")
+    );
+    let report_options =
+        CompileCatalogArtifactReportOptions::new("de", "en").with_options(options.clone());
+    assert_eq!(
+        compile_catalog_artifact_report(&[&po, &source], &report_options)
+            .expect("report")
+            .artifact,
+        po_artifact
+    );
+    let index = CompiledCatalogIdIndex::new_with_policy(
+        &[&po, &source],
+        CompiledKeyStrategy::FerrocatV1,
+        policy,
+    )
+    .expect("index");
+    let ids = [id.as_str()];
+    let selected =
+        CompileSelectedCatalogArtifactOptions::new("de", "en", &ids).with_options(options.clone());
+    let artifact =
+        compile_catalog_artifact_selected(&[&po, &source], &index, &selected).expect("selected");
+    let report = CompileCatalogArtifactReportOptions::selected("de", "en", &index, &ids)
+        .with_options(options);
+    assert_eq!(
+        compile_catalog_artifact_report(&[&po, &source], &report)
+            .expect("selected report")
+            .artifact,
+        artifact
+    );
+    assert_eq!(artifact.messages, po_artifact.messages);
+}
+
 #[cfg(feature = "serde")]
 #[test]
 fn compile_catalog_artifact_report_keeps_artifact_wire_shape_unchanged() {

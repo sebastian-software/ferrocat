@@ -21,6 +21,10 @@ use super::IcuSyntaxPolicy;
 ///   plural or selectordinal branch,
 /// - an unterminated runtime quote is closed at the end of the pattern.
 ///
+/// [`IcuSyntaxPolicy::RuntimeLiteralApostrophesAndTags`] additionally starts a
+/// quoted literal after an apostrophe before any `<`, including comparisons.
+/// This is an explicit opt-in: existing runtime-policy text and keys can change.
+///
 /// The canonical form is idempotent. Strict-policy inputs and runtime-policy
 /// inputs without apostrophes are returned as [`Cow::Borrowed`].
 #[must_use]
@@ -29,7 +33,10 @@ pub fn canonicalize_icu_with_policy(input: &str, policy: IcuSyntaxPolicy) -> Cow
         return Cow::Borrowed(input);
     }
 
-    Cow::Owned(canonicalize_runtime_apostrophes(input))
+    Cow::Owned(canonicalize_runtime_apostrophes(
+        input,
+        policy == IcuSyntaxPolicy::RuntimeLiteralApostrophesAndTags,
+    ))
 }
 
 pub(super) fn parse_icu_with_syntax_policy(
@@ -43,7 +50,7 @@ pub(super) fn parse_icu_with_syntax_policy(
     parse_icu(&canonical)
 }
 
-fn canonicalize_runtime_apostrophes(input: &str) -> String {
+fn canonicalize_runtime_apostrophes(input: &str, quote_tags: bool) -> String {
     let bytes = input.as_bytes();
     let mut output = String::with_capacity(input.len() + 8);
     let mut plural_depths = vec![false];
@@ -56,6 +63,7 @@ fn canonicalize_runtime_apostrophes(input: &str) -> String {
                     input,
                     index,
                     plural_is_active(&plural_depths),
+                    quote_tags,
                     &mut output,
                 );
             }
@@ -94,6 +102,7 @@ fn push_runtime_apostrophe(
     input: &str,
     index: usize,
     plural_is_active: bool,
+    quote_tags: bool,
     output: &mut String,
 ) -> usize {
     let bytes = input.as_bytes();
@@ -104,8 +113,9 @@ fn push_runtime_apostrophe(
         return index + 2;
     }
 
-    let starts_quote =
-        matches!(next, Some(b'{') | Some(b'}')) || (plural_is_active && next == Some(b'#'));
+    let starts_quote = matches!(next, Some(b'{') | Some(b'}'))
+        || (plural_is_active && next == Some(b'#'))
+        || (quote_tags && next == Some(b'<'));
     if !starts_quote {
         output.push_str("''");
         return index + 1;
@@ -190,6 +200,56 @@ mod tests {
 
     use super::{canonicalize_icu_with_policy, parse_icu_with_syntax_policy};
     use crate::api::IcuSyntaxPolicy;
+
+    #[test]
+    fn runtime_tag_quote_preserves_literal_tag_text() {
+        let parsed = parse_icu_with_syntax_policy(
+            "Use '<name>' here",
+            IcuSyntaxPolicy::RuntimeLiteralApostrophesAndTags,
+        )
+        .expect("quoted tag text must parse");
+        assert_eq!(
+            parsed.nodes,
+            vec![IcuNode::Literal("Use <name> here".to_owned())]
+        );
+    }
+
+    #[test]
+    fn tag_quoting_is_additive_and_preserves_real_tags() {
+        let policy = IcuSyntaxPolicy::RuntimeLiteralApostrophesAndTags;
+        for (input, expected) in [
+            ("Use '<name>' here", "Use '<name>' here"),
+            ("Use '<name>", "Use '<name>'"),
+            ("'<a>it''s</a>'", "'<a>it''s</a>'"),
+            ("don't '<x>'", "don''t '<x>'"),
+            ("'< less'", "'< less'"),
+            (
+                "{n, plural, other {'<x>' #}}",
+                "{n, plural, other {'<x>' #}}",
+            ),
+            ("<0>'<x>'</0>", "<0>'<x>'</0>"),
+        ] {
+            let canonical = canonicalize_icu_with_policy(input, policy);
+            assert_eq!(canonical, expected, "{input}");
+            assert_eq!(canonicalize_icu_with_policy(&canonical, policy), canonical);
+            parse_icu_with_syntax_policy(input, policy).expect("valid pattern");
+        }
+        let quoted = "'<0>Hi</0>'";
+        let old = parse_icu_with_syntax_policy(quoted, IcuSyntaxPolicy::RuntimeLiteralApostrophes)
+            .expect("old policy retains the tag");
+        let new = parse_icu_with_syntax_policy(quoted, policy).expect("new policy quotes the tag");
+        assert!(
+            old.nodes
+                .iter()
+                .any(|node| matches!(node, IcuNode::Tag { .. }))
+        );
+        assert_eq!(new.nodes, vec![IcuNode::Literal("<0>Hi</0>".into())]);
+        assert!(parse_icu_with_syntax_policy("<0>broken</1>", policy).is_err());
+        assert_eq!(
+            canonicalize_icu_with_policy(quoted, IcuSyntaxPolicy::Strict),
+            quoted
+        );
+    }
 
     #[test]
     fn runtime_policy_canonicalizes_natural_apostrophes_and_borrows_plain_input() {

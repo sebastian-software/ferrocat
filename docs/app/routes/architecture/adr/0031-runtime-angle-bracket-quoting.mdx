@@ -1,0 +1,39 @@
+---
+title: "ADR 0031: Opt Into Runtime Quoting Before Angle Brackets"
+description: "Accepted architecture decision record: runtime angle bracket quoting."
+order: 310
+---
+
+# ADR 0031: Opt Into Runtime Quoting Before Angle Brackets
+
+- Status: Accepted
+- Date: 2026-11-14
+
+## Context
+
+Some runtimes need apostrophe quoting for literal text that resembles a rich
+text tag. The existing runtime apostrophe policy treats an apostrophe before
+`<` as text, so changing it in place would silently reinterpret existing tags
+and change canonical compiled keys.
+
+## Decision
+
+Add the explicit `RuntimeLiteralApostrophesAndTags` syntax policy. It preserves
+the existing runtime rules and starts a quoted literal after a single
+apostrophe before any `<`, including a comparison sign. Doubled apostrophes
+still take precedence and unclosed quotes close at pattern end. Unquoted tags
+remain structural. Canonicalization feeds the existing strict parser and the
+policy-aware key, audit, compilation, report and pseudolocalization APIs.
+
+`Strict` remains the default and both existing policies keep their behavior.
+Callers must select one policy consistently for all related operations.
+
+## Consequences
+
+Hosts opting in can represent `'<name>'` as literal text. Switching a host's
+existing catalogs can change meaning and compiled IDs where an apostrophe
+precedes `<`, including real tags and comparisons. Hosts must migrate and
+validate source messages and translations together; this is not an automatic
+or backward-compatible reinterpretation of stored catalogs. Rewriting an old
+spelling to produce the same canonical message under the new policy preserves
+its compiled key; an unchanged spelling may instead produce a different key.

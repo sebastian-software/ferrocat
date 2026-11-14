@@ -191,6 +191,7 @@ pub ferrocat_po::ExtractedMessage::Plural(ferrocat_po::ExtractedPluralMessage)
 pub ferrocat_po::ExtractedMessage::Singular(ferrocat_po::ExtractedSingularMessage)
 #[non_exhaustive] pub enum ferrocat_po::IcuSyntaxPolicy
 pub ferrocat_po::IcuSyntaxPolicy::RuntimeLiteralApostrophes
+pub ferrocat_po::IcuSyntaxPolicy::RuntimeLiteralApostrophesAndTags
 pub ferrocat_po::IcuSyntaxPolicy::Strict
 pub enum ferrocat_po::MsgStr
 pub ferrocat_po::MsgStr::None

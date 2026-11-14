@@ -332,6 +332,43 @@ fn audit_runtime_literal_apostrophes_policy_keeps_quoted_braces_literal() {
 }
 
 #[test]
+fn tag_quote_policy_audits_literal_and_structural_tags_separately() {
+    let source = catalog(
+        "msgid \"Use '<name>' and <0>open</0>\"\nmsgstr \"Use '<name>' and <0>open</0>\"\n",
+        "en",
+    );
+    let target = catalog(
+        "msgid \"Use '<name>' and <0>open</0>\"\nmsgstr \"Nutze '<name>' und öffnen\"\n",
+        "de",
+    );
+    let report = audit_catalogs(
+        &[&source, &target],
+        &CatalogAuditOptions::new("en").with_icu_options(
+            CatalogAuditIcuOptions::new()
+                .with_syntax_policy(IcuSyntaxPolicy::RuntimeLiteralApostrophesAndTags),
+        ),
+    )
+    .expect("audit");
+    let codes = diagnostic_codes(&report);
+    assert!(!codes.contains(&"icu.invalid_syntax"));
+    assert!(codes.contains(&"icu.missing_tag"));
+    assert!(!codes.contains(&"icu.extra_tag"));
+    let fcl = super::normalized_fcl_catalog(
+        "%FCL1\tsource=en\tlocale=de\nUse '<name>' and <0>open</0>\t\tNutze '<name>' und öffnen\n",
+        Some("de"),
+    );
+    let fcl_report = audit_catalogs(
+        &[&source, &fcl],
+        &CatalogAuditOptions::new("en").with_icu_options(
+            CatalogAuditIcuOptions::new()
+                .with_syntax_policy(IcuSyntaxPolicy::RuntimeLiteralApostrophesAndTags),
+        ),
+    )
+    .expect("FCL audit");
+    assert_eq!(diagnostic_codes(&fcl_report), codes);
+}
+
+#[test]
 fn audit_reuses_icu_compatibility_codes() {
     let source = catalog("msgid \"Hello {name}\"\nmsgstr \"Hello {name}\"\n", "en");
     let target = catalog("msgid \"Hello {name}\"\nmsgstr \"Hallo\"\n", "de");

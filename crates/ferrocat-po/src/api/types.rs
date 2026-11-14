@@ -1252,6 +1252,13 @@ pub enum IcuSyntaxPolicy {
     /// remains meaningful: a single apostrophe starts a quote before `{`, `}`,
     /// or `#` inside a plural or selectordinal branch.
     RuntimeLiteralApostrophes,
+    /// Like `RuntimeLiteralApostrophes`, but an apostrophe before any `<` also
+    /// starts a quoted literal, even when `<` is not a tag. Doubled apostrophes
+    /// still take precedence and an unterminated quote closes at pattern end.
+    /// For example, `'<name>'` is literal text and `<0>text</0>` is a tag.
+    /// Switching policies can change existing interpretation and compiled keys,
+    /// including apostrophes before comparison signs; migrate deliberately.
+    RuntimeLiteralApostrophesAndTags,
 }
 
 /// Valid high-level catalog mode combinations.
