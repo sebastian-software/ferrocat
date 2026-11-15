@@ -1,5 +1,4 @@
 pub mod ferrocat_po
-pub use ferrocat_po::DiagnosticCode
 pub use ferrocat_po::IcuPseudolocalizationOptions
 pub mod ferrocat_po::collation
 pub struct ferrocat_po::collation::CollationKey
@@ -9,7 +8,6 @@ impl core::cmp::PartialOrd for ferrocat_po::collation::CollationKey
 pub fn ferrocat_po::collation::CollationKey::partial_cmp(&self, &Self) -> core::option::Option<core::cmp::Ordering>
 pub fn ferrocat_po::collation::collation_key(&str) -> ferrocat_po::collation::CollationKey
 pub mod ferrocat_po::diagnostic_codes
-pub use ferrocat_po::diagnostic_codes::DiagnosticCode
 pub mod ferrocat_po::diagnostic_codes::catalog
 pub const ferrocat_po::diagnostic_codes::catalog::ALL: &[&str]
 pub const ferrocat_po::diagnostic_codes::catalog::DUPLICATE_METADATA: &str
@@ -69,6 +67,30 @@ pub const ferrocat_po::diagnostic_codes::plural::MISSING_PLURAL_EXPRESSION: &str
 pub const ferrocat_po::diagnostic_codes::plural::MISSING_PLURAL_FORMS_HEADER: &str
 pub const ferrocat_po::diagnostic_codes::plural::NPLURALS_LOCALE_MISMATCH: &str
 pub const ferrocat_po::diagnostic_codes::plural::UNSUPPORTED_GETTEXT_EXPORT: &str
+pub struct ferrocat_po::diagnostic_codes::DiagnosticCode(_)
+impl ferrocat_po::DiagnosticCode
+pub fn ferrocat_po::DiagnosticCode::as_str(&self) -> &str
+pub fn ferrocat_po::DiagnosticCode::into_string(self) -> alloc::string::String
+pub fn ferrocat_po::DiagnosticCode::new(impl core::convert::Into<alloc::string::String>) -> Self
+impl core::cmp::PartialEq<&str> for ferrocat_po::DiagnosticCode
+pub fn ferrocat_po::DiagnosticCode::eq(&self, &&str) -> bool
+impl core::cmp::PartialEq<ferrocat_po::DiagnosticCode> for &str
+pub fn &str::eq(&self, &ferrocat_po::DiagnosticCode) -> bool
+impl core::convert::AsRef<str> for ferrocat_po::DiagnosticCode
+pub fn ferrocat_po::DiagnosticCode::as_ref(&self) -> &str
+impl core::convert::From<&str> for ferrocat_po::DiagnosticCode
+pub fn ferrocat_po::DiagnosticCode::from(&str) -> Self
+impl core::convert::From<alloc::string::String> for ferrocat_po::DiagnosticCode
+pub fn ferrocat_po::DiagnosticCode::from(alloc::string::String) -> Self
+impl core::convert::From<ferrocat_icu::diagnostic_codes::DiagnosticCode> for ferrocat_po::DiagnosticCode
+pub fn ferrocat_po::DiagnosticCode::from(ferrocat_icu::diagnostic_codes::DiagnosticCode) -> Self
+impl core::convert::From<ferrocat_po::DiagnosticCode> for ferrocat_icu::diagnostic_codes::DiagnosticCode
+pub fn ferrocat_icu::diagnostic_codes::DiagnosticCode::from(ferrocat_po::DiagnosticCode) -> Self
+impl core::fmt::Display for ferrocat_po::DiagnosticCode
+pub fn ferrocat_po::DiagnosticCode::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::ops::deref::Deref for ferrocat_po::DiagnosticCode
+pub type ferrocat_po::DiagnosticCode::Target = str
+pub fn ferrocat_po::DiagnosticCode::deref(&self) -> &Self::Target
 #[non_exhaustive] pub enum ferrocat_po::ApiError
 pub ferrocat_po::ApiError::Conflict(alloc::string::String)
 pub ferrocat_po::ApiError::InvalidArguments(alloc::string::String)
@@ -290,7 +312,7 @@ pub fn ferrocat_po::CatalogAuditChecks::with_semantic_metadata(self, bool) -> Se
 impl core::default::Default for ferrocat_po::CatalogAuditChecks
 pub fn ferrocat_po::CatalogAuditChecks::default() -> Self
 pub struct ferrocat_po::CatalogAuditDiagnostic
-pub ferrocat_po::CatalogAuditDiagnostic::code: ferrocat_icu::diagnostic_codes::DiagnosticCode
+pub ferrocat_po::CatalogAuditDiagnostic::code: ferrocat_po::DiagnosticCode
 pub ferrocat_po::CatalogAuditDiagnostic::message: alloc::string::String
 pub ferrocat_po::CatalogAuditDiagnostic::name: core::option::Option<alloc::string::String>
 pub ferrocat_po::CatalogAuditDiagnostic::severity: ferrocat_po::DiagnosticSeverity
@@ -558,7 +580,6 @@ pub fn ferrocat_po::CompileCatalogArtifactOptions<'a>::with_source_fallback(self
 pub fn ferrocat_po::CompileCatalogArtifactOptions<'a>::with_source_locale(self, &'a str) -> Self
 pub fn ferrocat_po::CompileCatalogArtifactOptions<'a>::with_strict_icu(self, bool) -> Self
 #[non_exhaustive] pub struct ferrocat_po::CompileCatalogArtifactReportOptions<'a>
-pub ferrocat_po::CompileCatalogArtifactReportOptions::icu_options: ferrocat_po::CompileCatalogArtifactIcuOptions
 pub ferrocat_po::CompileCatalogArtifactReportOptions::options: ferrocat_po::CompileCatalogArtifactOptions<'a>
 pub ferrocat_po::CompileCatalogArtifactReportOptions::selection: ferrocat_po::CompileCatalogArtifactReportSelection<'a>
 impl<'a> ferrocat_po::CompileCatalogArtifactReportOptions<'a>
@@ -607,7 +628,7 @@ pub struct ferrocat_po::CompiledCatalogArtifactReport
 pub ferrocat_po::CompiledCatalogArtifactReport::artifact: ferrocat_po::CompiledCatalogArtifact
 pub ferrocat_po::CompiledCatalogArtifactReport::provenance: ferrocat_po::CompiledCatalogProvenanceReport
 pub struct ferrocat_po::CompiledCatalogDiagnostic
-pub ferrocat_po::CompiledCatalogDiagnostic::code: ferrocat_icu::diagnostic_codes::DiagnosticCode
+pub ferrocat_po::CompiledCatalogDiagnostic::code: ferrocat_po::DiagnosticCode
 pub ferrocat_po::CompiledCatalogDiagnostic::key: alloc::string::String
 pub ferrocat_po::CompiledCatalogDiagnostic::locale: alloc::string::String
 pub ferrocat_po::CompiledCatalogDiagnostic::message: alloc::string::String
@@ -704,11 +725,35 @@ pub ferrocat_po::DescribeCompiledIdsReport::described: alloc::vec::Vec<ferrocat_
 pub ferrocat_po::DescribeCompiledIdsReport::unavailable_compiled_ids: alloc::vec::Vec<ferrocat_po::CompiledCatalogUnavailableId>
 pub ferrocat_po::DescribeCompiledIdsReport::unknown_compiled_ids: alloc::vec::Vec<alloc::string::String>
 pub struct ferrocat_po::Diagnostic
-pub ferrocat_po::Diagnostic::code: ferrocat_icu::diagnostic_codes::DiagnosticCode
+pub ferrocat_po::Diagnostic::code: ferrocat_po::DiagnosticCode
 pub ferrocat_po::Diagnostic::message: alloc::string::String
 pub ferrocat_po::Diagnostic::msgctxt: core::option::Option<alloc::string::String>
 pub ferrocat_po::Diagnostic::msgid: core::option::Option<alloc::string::String>
 pub ferrocat_po::Diagnostic::severity: ferrocat_po::DiagnosticSeverity
+pub struct ferrocat_po::DiagnosticCode(_)
+impl ferrocat_po::DiagnosticCode
+pub fn ferrocat_po::DiagnosticCode::as_str(&self) -> &str
+pub fn ferrocat_po::DiagnosticCode::into_string(self) -> alloc::string::String
+pub fn ferrocat_po::DiagnosticCode::new(impl core::convert::Into<alloc::string::String>) -> Self
+impl core::cmp::PartialEq<&str> for ferrocat_po::DiagnosticCode
+pub fn ferrocat_po::DiagnosticCode::eq(&self, &&str) -> bool
+impl core::cmp::PartialEq<ferrocat_po::DiagnosticCode> for &str
+pub fn &str::eq(&self, &ferrocat_po::DiagnosticCode) -> bool
+impl core::convert::AsRef<str> for ferrocat_po::DiagnosticCode
+pub fn ferrocat_po::DiagnosticCode::as_ref(&self) -> &str
+impl core::convert::From<&str> for ferrocat_po::DiagnosticCode
+pub fn ferrocat_po::DiagnosticCode::from(&str) -> Self
+impl core::convert::From<alloc::string::String> for ferrocat_po::DiagnosticCode
+pub fn ferrocat_po::DiagnosticCode::from(alloc::string::String) -> Self
+impl core::convert::From<ferrocat_icu::diagnostic_codes::DiagnosticCode> for ferrocat_po::DiagnosticCode
+pub fn ferrocat_po::DiagnosticCode::from(ferrocat_icu::diagnostic_codes::DiagnosticCode) -> Self
+impl core::convert::From<ferrocat_po::DiagnosticCode> for ferrocat_icu::diagnostic_codes::DiagnosticCode
+pub fn ferrocat_icu::diagnostic_codes::DiagnosticCode::from(ferrocat_po::DiagnosticCode) -> Self
+impl core::fmt::Display for ferrocat_po::DiagnosticCode
+pub fn ferrocat_po::DiagnosticCode::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::ops::deref::Deref for ferrocat_po::DiagnosticCode
+pub type ferrocat_po::DiagnosticCode::Target = str
+pub fn ferrocat_po::DiagnosticCode::deref(&self) -> &Self::Target
 pub struct ferrocat_po::ExtractedPluralMessage
 pub ferrocat_po::ExtractedPluralMessage::comments: alloc::vec::Vec<alloc::string::String>
 pub ferrocat_po::ExtractedPluralMessage::msgctxt: core::option::Option<alloc::string::String>

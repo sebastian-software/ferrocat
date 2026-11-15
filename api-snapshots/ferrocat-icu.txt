@@ -32,6 +32,7 @@ pub const ferrocat_icu::diagnostic_codes::metadata::SELECTOR_OFFSET_MISMATCH: &s
 pub struct ferrocat_icu::diagnostic_codes::DiagnosticCode(_)
 impl ferrocat_icu::diagnostic_codes::DiagnosticCode
 pub fn ferrocat_icu::diagnostic_codes::DiagnosticCode::as_str(&self) -> &str
+pub fn ferrocat_icu::diagnostic_codes::DiagnosticCode::into_string(self) -> alloc::string::String
 pub fn ferrocat_icu::diagnostic_codes::DiagnosticCode::new(impl core::convert::Into<alloc::string::String>) -> Self
 impl core::cmp::PartialEq<&str> for ferrocat_icu::diagnostic_codes::DiagnosticCode
 pub fn ferrocat_icu::diagnostic_codes::DiagnosticCode::eq(&self, &&str) -> bool
@@ -153,6 +154,7 @@ pub ferrocat_icu::MessageSelectorKind::SelectOrdinal
 pub struct ferrocat_icu::DiagnosticCode(_)
 impl ferrocat_icu::diagnostic_codes::DiagnosticCode
 pub fn ferrocat_icu::diagnostic_codes::DiagnosticCode::as_str(&self) -> &str
+pub fn ferrocat_icu::diagnostic_codes::DiagnosticCode::into_string(self) -> alloc::string::String
 pub fn ferrocat_icu::diagnostic_codes::DiagnosticCode::new(impl core::convert::Into<alloc::string::String>) -> Self
 impl core::cmp::PartialEq<&str> for ferrocat_icu::diagnostic_codes::DiagnosticCode
 pub fn ferrocat_icu::diagnostic_codes::DiagnosticCode::eq(&self, &&str) -> bool

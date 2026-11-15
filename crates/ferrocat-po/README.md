@@ -35,7 +35,7 @@ the same dependency effect as enabling `catalog`.
 For shared catalog ordering without the catalog layer:
 
 ```toml
-ferrocat-po = { version = "3", default-features = false, features = ["collation"] }
+ferrocat-po = { version = "4", default-features = false, features = ["collation"] }
 ```
 
 Use `ferrocat_po::collation::{CollationKey, collation_key}` to compare owned,
