@@ -945,6 +945,7 @@ fn compile_catalog_artifact_collects_or_raises_invalid_icu_messages() {
     let artifact = compile_catalog_artifact(
         &[&requested, &source],
         &CompileCatalogArtifactOptions {
+            strict_icu: false,
             semantics: CatalogSemantics::GettextCompat,
             ..CompileCatalogArtifactOptions::new("de", "en")
         },
@@ -980,7 +981,7 @@ fn compile_catalog_artifact_strict_policy_reports_literal_apostrophes() {
 
     let artifact = compile_catalog_artifact(
         &[&requested, &source],
-        &CompileCatalogArtifactOptions::new("de", "en"),
+        &CompileCatalogArtifactOptions::new("de", "en").with_strict_icu(false),
     )
     .expect("compile artifact");
 
@@ -1898,6 +1899,7 @@ fn compile_catalog_artifact_selected_preserves_fallback_and_validation_semantics
             compiled_ids: &[hello_id.as_str(), broken_id.as_str()],
             options: CompileCatalogArtifactOptions {
                 source_fallback: true,
+                strict_icu: false,
                 semantics: CatalogSemantics::GettextCompat,
                 ..CompileCatalogArtifactOptions::new("de", "en")
             },

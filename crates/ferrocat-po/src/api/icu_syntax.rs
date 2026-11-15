@@ -17,8 +17,9 @@ use super::IcuSyntaxPolicy;
 ///
 /// - ordinary apostrophes are doubled,
 /// - `''` remains one escaped apostrophe,
-/// - a single apostrophe starts a quote only before `{`, `}`, or `#` inside a
-///   plural or selectordinal branch,
+/// - a single apostrophe starts a quote before `{`, `}`, or `<`,
+/// - a single apostrophe before `#` starts a quote only inside a plural or
+///   selectordinal branch,
 /// - an unterminated runtime quote is closed at the end of the pattern.
 ///
 /// The canonical form is idempotent. Strict-policy inputs and runtime-policy
@@ -40,7 +41,36 @@ pub(super) fn parse_icu_with_syntax_policy(
     ICU_PARSE_COUNT.set(ICU_PARSE_COUNT.get() + 1);
 
     let canonical = canonicalize_icu_with_policy(input, policy);
-    parse_icu(&canonical)
+    parse_icu(&canonical).map_err(|error| remap_icu_error(error, input, &canonical))
+}
+
+// Canonicalization only inserts apostrophes. Walk its byte sequence on the
+// error path to translate the strict parser's offset back to the input; the
+// successful parse does not allocate a position map.
+pub(super) fn remap_icu_error(
+    mut error: IcuParseError,
+    input: &str,
+    canonical: &str,
+) -> IcuParseError {
+    if input == canonical {
+        return error;
+    }
+    let bytes = input.as_bytes();
+    let mut source_offset = 0;
+    for &byte in &canonical.as_bytes()[..error.position.offset] {
+        if bytes.get(source_offset) == Some(&byte) {
+            source_offset += 1;
+        } else if byte != b'\'' {
+            // Do not manufacture a location if a future canonicalizer changes
+            // more than apostrophes.
+            return error;
+        }
+    }
+    if !input.is_char_boundary(source_offset) {
+        return error;
+    }
+    error.position = IcuParseError::syntax("", input, source_offset).position;
+    error
 }
 
 fn canonicalize_runtime_apostrophes(input: &str) -> String {
@@ -104,8 +134,8 @@ fn push_runtime_apostrophe(
         return index + 2;
     }
 
-    let starts_quote =
-        matches!(next, Some(b'{') | Some(b'}')) || (plural_is_active && next == Some(b'#'));
+    let starts_quote = matches!(next, Some(b'{') | Some(b'}') | Some(b'<'))
+        || (plural_is_active && next == Some(b'#'));
     if !starts_quote {
         output.push_str("''");
         return index + 1;
@@ -269,5 +299,92 @@ mod tests {
             );
             assert_eq!(twice, once, "input: {input}");
         }
+    }
+}
+
+#[cfg(test)]
+mod tag_quote_tests {
+    use super::{canonicalize_icu_with_policy, parse_icu_with_syntax_policy};
+    use crate::api::IcuSyntaxPolicy;
+    use ferrocat_icu::IcuNode;
+
+    #[test]
+    fn runtime_errors_point_into_original_unicode_input() {
+        for input in ["don't {name", "é don't {name", "é don't\nother {name"] {
+            let error =
+                parse_icu_with_syntax_policy(input, IcuSyntaxPolicy::RuntimeLiteralApostrophes)
+                    .expect_err("unterminated argument");
+            assert_eq!(error.position.offset, input.len(), "{input}");
+            let final_line = input.rsplit('\n').next().expect("line");
+            assert_eq!(error.position.line, input.lines().count());
+            assert_eq!(error.position.column, final_line.chars().count() + 1);
+        }
+    }
+
+    #[test]
+    fn remaps_offsets_after_apostrophe_escapes_and_quotes() {
+        for input in [
+            "don't {bad}",
+            "é ''<x>' don't {bad}",
+            "line\ndon't <tag>{bad}",
+        ] {
+            let canonical =
+                canonicalize_icu_with_policy(input, IcuSyntaxPolicy::RuntimeLiteralApostrophes);
+            let expected = input.find("{bad}").expect("marker");
+            let canonical_offset = canonical.find("{bad}").expect("canonical marker");
+            let error = ferrocat_icu::IcuParseError::syntax("marker", &canonical, canonical_offset);
+            let mapped = super::remap_icu_error(error, input, &canonical);
+            assert_eq!(mapped.position.offset, expected, "{input}");
+        }
+    }
+
+    #[test]
+    fn runtime_quotes_preserve_literals_and_real_tags() {
+        let policy = IcuSyntaxPolicy::RuntimeLiteralApostrophes;
+        for (input, expected) in [
+            ("Use '<name>' here", "Use '<name>' here"),
+            ("Use '<name>", "Use '<name>'"),
+            ("'<a>it''s</a>'", "'<a>it''s</a>'"),
+            ("don't '<x>'", "don''t '<x>'"),
+            ("'< less'", "'< less'"),
+            (
+                "{n, plural, other {'<x>' #}}",
+                "{n, plural, other {'<x>' #}}",
+            ),
+            ("<0>'<x>'</0>", "<0>'<x>'</0>"),
+        ] {
+            let canonical = canonicalize_icu_with_policy(input, policy);
+            assert_eq!(canonical, expected, "{input}");
+            assert_eq!(canonicalize_icu_with_policy(&canonical, policy), canonical);
+            parse_icu_with_syntax_policy(input, policy).expect("valid runtime pattern");
+        }
+        let literal = parse_icu_with_syntax_policy("Use '<name>' here", policy).expect("literal");
+        assert_eq!(
+            literal.nodes,
+            vec![IcuNode::Literal("Use <name> here".into())]
+        );
+        let plural = parse_icu_with_syntax_policy("{n, plural, other {'<x>' #}}", policy)
+            .expect("plural with quoted tag");
+        let IcuNode::Plural { options, .. } = &plural.nodes[0] else {
+            panic!("expected plural");
+        };
+        assert!(
+            options[0]
+                .value
+                .iter()
+                .any(|node| matches!(node, IcuNode::Pound))
+        );
+        assert!(
+            options[0]
+                .value
+                .iter()
+                .any(|node| matches!(node, IcuNode::Literal(text) if text.contains("<x>")))
+        );
+        let real = parse_icu_with_syntax_policy("<link>{name}</link>", policy).expect("real tag");
+        assert!(matches!(&real.nodes[0], IcuNode::Tag { name, .. } if name == "link"));
+        assert_eq!(
+            canonicalize_icu_with_policy("don't '<name>'", IcuSyntaxPolicy::Strict),
+            "don't '<name>'"
+        );
     }
 }

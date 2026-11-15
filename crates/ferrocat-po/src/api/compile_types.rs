@@ -161,7 +161,7 @@ impl<'a> CompileCatalogArtifactOptions<'a> {
     /// Creates artifact compile options with required locales set.
     ///
     /// Optional fields default to an empty fallback chain, `FerrocatV1` keys,
-    /// no source fallback, non-strict ICU diagnostics, no ICU compatibility
+    /// no source fallback, hard errors for invalid ICU, no ICU compatibility
     /// check, and ICU-native semantics.
     #[must_use]
     pub fn new(requested_locale: &'a str, source_locale: &'a str) -> Self {
@@ -171,7 +171,7 @@ impl<'a> CompileCatalogArtifactOptions<'a> {
             fallback_chain: &[],
             key_strategy: CompiledKeyStrategy::FerrocatV1,
             source_fallback: false,
-            strict_icu: false,
+            strict_icu: true,
             icu_compatibility: false,
             semantics: CatalogSemantics::IcuNative,
             icu_options: CompileCatalogArtifactIcuOptions::new(),
@@ -353,13 +353,6 @@ pub enum CompileCatalogArtifactReportSelection<'a> {
 pub struct CompileCatalogArtifactReportOptions<'a> {
     /// Shared artifact compile options applied to the generated artifact.
     pub options: CompileCatalogArtifactOptions<'a>,
-    /// ICU-specific options applied while validating final runtime messages.
-    ///
-    /// This is the authoritative value during report compilation. The builder
-    /// methods keep it synchronized with [`Self::options`]; if callers mutate
-    /// the public fields independently, this field preserves the pre-existing
-    /// report behavior.
-    pub icu_options: CompileCatalogArtifactIcuOptions,
     /// Source identity selection for the generated artifact and provenance report.
     pub selection: CompileCatalogArtifactReportSelection<'a>,
 }
@@ -370,7 +363,6 @@ impl<'a> CompileCatalogArtifactReportOptions<'a> {
     pub fn new(requested_locale: &'a str, source_locale: &'a str) -> Self {
         Self {
             options: CompileCatalogArtifactOptions::new(requested_locale, source_locale),
-            icu_options: CompileCatalogArtifactIcuOptions::new(),
             selection: CompileCatalogArtifactReportSelection::All,
         }
     }
@@ -385,7 +377,6 @@ impl<'a> CompileCatalogArtifactReportOptions<'a> {
     ) -> Self {
         Self {
             options: CompileCatalogArtifactOptions::new(requested_locale, source_locale),
-            icu_options: CompileCatalogArtifactIcuOptions::new(),
             selection: CompileCatalogArtifactReportSelection::Selected {
                 index,
                 compiled_ids,
@@ -395,24 +386,21 @@ impl<'a> CompileCatalogArtifactReportOptions<'a> {
 
     /// Returns report options that use the given shared artifact compile options.
     ///
-    /// This also synchronizes the report-level ICU options so report compilation
-    /// uses the same syntax and formatter-support policy as ordinary artifact
-    /// compilation.
+    /// Ordinary artifact compilation and report compilation use these same
+    /// options, including the nested ICU syntax and formatter-support policy.
     #[must_use]
     pub fn with_options(mut self, options: CompileCatalogArtifactOptions<'a>) -> Self {
-        self.icu_options = options.icu_options;
         self.options = options;
         self
     }
 
     /// Returns report options that use the given ICU validation options.
     ///
-    /// This also updates the nested artifact options to keep subsequent builder
-    /// composition policy-consistent.
+    /// The value is stored in [`Self::options`], the single source of compile
+    /// configuration for both ordinary artifacts and reports.
     #[must_use]
     pub fn with_icu_options(mut self, icu_options: CompileCatalogArtifactIcuOptions) -> Self {
         self.options.icu_options = icu_options;
-        self.icu_options = icu_options;
         self
     }
 
@@ -1006,10 +994,9 @@ mod tests {
             artifact.clone().with_icu_options(runtime_icu_options)
         );
         assert_eq!(
-            report.icu_options.syntax_policy,
+            report.options.icu_options.syntax_policy,
             IcuSyntaxPolicy::RuntimeLiteralApostrophes
         );
-        assert_eq!(report.options.icu_options, report.icu_options);
         assert!(matches!(
             report.selection,
             CompileCatalogArtifactReportSelection::Selected { compiled_ids, .. }
@@ -1022,7 +1009,7 @@ mod tests {
                 .with_options(artifact.clone());
         assert_eq!(report_with_artifact_options_last.options, artifact);
         assert_eq!(
-            report_with_artifact_options_last.icu_options,
+            report_with_artifact_options_last.options.icu_options,
             artifact.icu_options
         );
     }
