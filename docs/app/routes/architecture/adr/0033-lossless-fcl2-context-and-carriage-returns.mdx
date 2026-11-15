@@ -22,7 +22,7 @@ already assign meaning to the existing syntax.
 
 Writers emit `%FCL2`. The context field is `n` for an absent context or `s`
 followed by the escaped context for a present context, including an empty one.
-FCL2 adds `\\r` to the existing backslash, tab and newline escapes. Unknown
+FCL2 adds `\r` to the existing backslash, tab and newline escapes. Unknown
 escapes and invalid context markers are errors. CRLF is accepted as a document
 line ending; carriage returns in values are escaped by the writer.
 
