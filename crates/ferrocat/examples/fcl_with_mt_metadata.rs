@@ -21,7 +21,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             .with_existing(&existing),
     )?;
 
-    assert!(result.content.starts_with("%FCL1"));
+    assert!(result.content.starts_with("%FCL2"));
     assert!(result.content.contains("ai=example/mt:0.92"));
     assert!(result.content.contains(&hash));
 

@@ -41,15 +41,17 @@ lands around 25% faster than reading the equivalent PO file.
 
 ```
 file    = header LF *( entry LF )
-header  = "%FCL1" *( HT tag )            ; e.g. %FCL1\tsource=en\tlocale=de\torder=collated
+header  = "%FCL2" *( HT tag )            ; e.g. %FCL2\tsource=en\tlocale=de\torder=collated
 entry   = id HT ctxt HT target *( HT tag )
 tag     = key "=" value | flag-key       ; flag-key has no '='
 ```
 
 - UTF-8, no BOM, `LF` line endings, trailing `LF`.
 - Fields are separated by a single horizontal tab (`HT`, `0x09`).
-- `id`, `ctxt`, `target` are always present (positional). `ctxt` empty == no
-  context; `target` empty == untranslated.
+- `id`, `ctxt`, `target` are always present (positional). In FCL2, `ctxt`
+  is `n` for no context or `s` followed by the escaped context for a present
+  context. Thus `s` alone represents an explicitly empty context. `target`
+  empty == untranslated.
 - Newly written entries follow CLDR root order by `id` and then `ctxt`, declared
   as `order=collated`. Readers accept legacy files with no `order` tag only
   when they ascend by the byte sequence of `(id, ctxt)`.
@@ -67,7 +69,7 @@ tag     = key "=" value | flag-key       ; flag-key has no '='
 The writer always emits `order=collated`. Omitting `order` identifies a legacy
 file under the original bytewise `(id, ctxt)` contract and remains accepted on
 read so existing files can be migrated by the next write. The only accepted
-explicit value in `%FCL1` is `collated`; unknown and duplicate `order` tags are
+explicit value in either version is `collated`; unknown and duplicate `order` tags are
 hard errors. The collated table covers Latin text, punctuation, symbols, and
 digits. Its declared ligature/digraph and out-of-repertoire limits are
 documented in ADR 0026.
@@ -81,8 +83,26 @@ Applied to every field and every tag value. Nothing else is escaped:
 | `\`  | `\\`   |
 | tab  | `\t`   |
 | LF   | `\n`   |
+| CR   | `\r`   |
 
-A field containing no `\` is taken verbatim (zero-copy borrow on parse).
+FCL2 requires these escapes in serialized values and rejects unknown escapes.
+Readers accept CRLF document line endings; a carriage return that is data must
+be escaped as `\r`, including at the end of a value. A field containing no `\`
+is taken verbatim (zero-copy borrow on parse).
+
+### FCL1 migration
+
+Readers dispatch on the header and continue to accept `%FCL1`. Its empty context
+field means no context, while any nonempty field is the literal context, even if
+it begins with `n` or `s`. FCL1 accepts `\\`, `\t`, and `\n`, but not
+`\r`. Writers emit FCL2, so an update or conversion to FCL rewrites the
+header and context fields. Existing readers that only understand FCL1 must be
+upgraded before consuming the rewritten catalog.
+
+FCL1 could not distinguish an absent context from an explicitly empty one and
+could lose a carriage return at a line ending. Migration preserves what its
+reader can observe; it cannot recover information already lost. Recover those
+values from an authoritative source such as the original PO catalog if needed.
 
 ### Tags
 
@@ -155,7 +175,7 @@ catalog-layer decision shared with PO output; the low-level `parse_po` /
 - Entries that violate the legacy bytewise order or declared collated order are
   a hard error.
 - Duplicate singleton tags and tags outside canonical order are hard errors.
-- Unknown tag keys are a hard error (the versioned `%FCL1` magic gates
+- Unknown tag keys are a hard error (the versioned header gates
   forward-compatible additions).
 
 File-based catalog workflows finish this validation and render the complete FCL
@@ -165,8 +185,8 @@ therefore leaves an existing destination unchanged.
 Entry tags are additive the same way the `order=collated` header tag was: a
 reader that knows a tag accepts files with and without it, but a file that
 _carries_ a newer tag is rejected by an older reader, because unknown keys are
-an error by design. `tc=` and `f=` were added this way; a file written without
-them parses under any reader that understands the rest of `%FCL1`.
+an error by design. The FCL2 header also prevents an FCL1 reader from
+misinterpreting the context markers and new escape.
 
 ## FCL vs PO
 

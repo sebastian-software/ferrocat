@@ -1,0 +1,38 @@
+---
+title: "ADR 0033: Preserve Context Presence and Carriage Returns in FCL2"
+description: "Accepted architecture decision record: version FCL to preserve context presence and carriage returns without changing FCL1 interpretation."
+order: 330
+---
+
+# ADR 0033: Preserve Context Presence and Carriage Returns in FCL2
+
+- Status: Accepted
+- Date: 2026-11-15
+- Relates to: [ADR 0029](/architecture/adr/0029-explicit-po-fcl-conversion)
+
+## Context
+
+FCL1 encodes both an absent context and an explicitly empty context as an empty
+field. It also writes carriage returns literally, so a carriage return at the end
+of a line can be consumed as part of a CRLF line ending. Both cases can lose
+catalog information across a write and read. Existing FCL1 readers and files
+already assign meaning to the existing syntax.
+
+## Decision
+
+Writers emit `%FCL2`. The context field is `n` for an absent context or `s`
+followed by the escaped context for a present context, including an empty one.
+FCL2 adds `\\r` to the existing backslash, tab and newline escapes. Unknown
+escapes and invalid context markers are errors. CRLF is accepted as a document
+line ending; carriage returns in values are escaped by the writer.
+
+Readers dispatch explicitly by header and keep the FCL1 context and escape
+rules unchanged. They do not infer a lost empty context or carriage return.
+An FCL1 catalog rewritten through the catalog layer becomes canonical FCL2.
+
+## Consequences
+
+FCL2 can preserve these values in the shared message model. Older readers must
+be upgraded before reading new output. Existing FCL1 data that has already lost
+information requires recovery from an authoritative source. The shared PO/FCL
+boundary still excludes PO-only document metadata as described in ADR 0029.

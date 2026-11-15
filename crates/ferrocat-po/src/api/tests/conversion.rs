@@ -53,7 +53,7 @@ msgstr "{{count, plural, one {{# Datei}} other {{# Dateien}}}}"
     assert_eq!(fcl.message_count, 3);
     assert!(
         fcl.content
-            .starts_with("%FCL1\tsource=en\tlocale=de\torder=collated\n")
+            .starts_with("%FCL2\tsource=en\tlocale=de\torder=collated\n")
     );
     assert!(
         fcl.content
@@ -396,7 +396,7 @@ fn file_conversion_accepts_explicit_formats_without_extensions() {
     assert!(
         fs::read_to_string(&output)
             .expect("read output")
-            .starts_with("%FCL1\tsource=en\tlocale=de\torder=collated\n")
+            .starts_with("%FCL2\tsource=en\tlocale=de\torder=collated\n")
     );
 }
 
@@ -441,4 +441,40 @@ fn file_option_paths_are_reported_on_io_errors() {
     let error = convert_catalog_file(ConvertCatalogFileOptions::new(missing, output, "en"))
         .expect_err("missing input");
     assert_eq!(error.path(), Some(missing));
+}
+
+#[test]
+fn fcl2_preserves_empty_context_and_carriage_returns_through_conversion() {
+    let po =
+        "msgid \"same\"\nmsgstr \"none\\r\"\n\nmsgctxt \"\"\nmsgid \"same\"\nmsgstr \"empty\\r\"\n";
+    let fcl = convert_catalog(ConvertCatalogOptions::new(
+        po,
+        "en",
+        CatalogMode::IcuPo,
+        CatalogMode::IcuFcl,
+    ))
+    .expect("PO to FCL2");
+    assert!(fcl.content.starts_with("%FCL2\t"));
+    assert!(fcl.content.contains("same\tn\tnone\\r\n"));
+    assert!(fcl.content.contains("same\ts\tempty\\r\n"));
+    let po_again = convert_catalog(ConvertCatalogOptions::new(
+        &fcl.content,
+        "en",
+        CatalogMode::IcuFcl,
+        CatalogMode::IcuPo,
+    ))
+    .expect("FCL2 to PO");
+    let parsed = parse_po(&po_again.content).expect("parse PO");
+    assert!(
+        parsed
+            .items
+            .iter()
+            .any(|item| item.msgctxt.is_none() && item.msgstr[0] == "none\r")
+    );
+    assert!(
+        parsed
+            .items
+            .iter()
+            .any(|item| item.msgctxt.as_deref() == Some("") && item.msgstr[0] == "empty\r")
+    );
 }
