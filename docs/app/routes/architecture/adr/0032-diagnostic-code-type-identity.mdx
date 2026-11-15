@@ -1,0 +1,35 @@
+---
+title: "ADR 0032: Keep Diagnostic Code Type Identity Independent of Features"
+description: "Accepted architecture decision record: stable diagnostic code types."
+order: 320
+---
+
+# ADR 0032: Keep Diagnostic Code Type Identity Independent of Features
+
+- Status: Accepted
+- Date: 2026-11-15
+
+## Context
+
+The PO crate can be used without the catalog layer and its ICU dependency. In
+that profile its diagnostic code was a PO-owned type, while enabling `catalog`
+replaced it with an alias of the ICU type. Cargo feature unification therefore
+changed type identity and could invalidate a consumer's otherwise valid trait
+implementations.
+
+## Decision
+
+Each crate owns its own `DiagnosticCode` type in every feature profile. With
+`catalog`, the PO crate provides explicit `From` conversions in both directions
+between the PO and ICU codes. Conversions retain the exact spelling and move the
+owned string. Both serde representations remain plain strings; comparisons with
+string slices remain supported. The lean PO profile does not acquire a runtime
+ICU dependency.
+
+## Consequences
+
+Enabling a feature no longer changes the identity of `ferrocat_po::DiagnosticCode`.
+Consumers that relied on its former alias identity with the ICU type must convert
+at that boundary, for example with `.into()`. Existing persisted diagnostic code
+strings do not need migration. A workspace sync test keeps the two small type
+implementations aligned without adding a shared published crate.

@@ -58,6 +58,8 @@ all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
 
 [dev-dependencies]
+# Consumer type-identity proof needs both crates even without `catalog`.
+ferrocat-icu = { version = "3.6.0", path = "../ferrocat-icu", default-features = false }
 ferrocat-conformance = { path = "../ferrocat-conformance" }
 proptest = "1"
 serde_json = "1.0.145"
