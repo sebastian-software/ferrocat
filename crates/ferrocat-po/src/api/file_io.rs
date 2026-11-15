@@ -54,6 +54,15 @@ where
     temp_file
         .write_all(content.as_bytes())
         .map_err(|error| ApiError::io_with_path(path, error))?;
+    #[cfg(unix)]
+    match fs::metadata(path) {
+        Ok(metadata) => temp_file
+            .as_file()
+            .set_permissions(metadata.permissions())
+            .map_err(|error| ApiError::io_with_path(path, error))?,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+        Err(error) => return Err(ApiError::io_with_path(path, error)),
+    }
     if should_sync {
         file_sync(temp_file.as_file()).map_err(|error| ApiError::io_with_path(path, error))?;
     }
@@ -114,6 +123,26 @@ mod tests {
 
         let root = target.ancestors().nth(2).expect("temp root").to_path_buf();
         fs::remove_dir_all(root).expect("cleanup");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn atomic_write_preserves_existing_unix_permissions() {
+        use std::os::unix::fs::PermissionsExt;
+        let directory = tempfile::tempdir().expect("temporary directory");
+        let target = directory.path().join("catalog.po");
+        fs::write(&target, "before").expect("create target");
+        fs::set_permissions(&target, fs::Permissions::from_mode(0o754)).expect("set mode");
+        atomic_write(&target, "after").expect("replace target");
+        assert_eq!(
+            fs::metadata(&target)
+                .expect("metadata")
+                .permissions()
+                .mode()
+                & 0o7777,
+            0o754
+        );
+        assert_eq!(fs::read_to_string(target).expect("read"), "after");
     }
 
     #[test]
