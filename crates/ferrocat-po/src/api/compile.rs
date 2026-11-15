@@ -715,7 +715,7 @@ where
                     key: compiled_key.clone(),
                     source_key: source_key.clone(),
                     requested_locale: options.requested_locale.to_owned(),
-                    resolved_locale: resolved_locale.clone(),
+                    resolved_locale,
                 });
             }
         }
