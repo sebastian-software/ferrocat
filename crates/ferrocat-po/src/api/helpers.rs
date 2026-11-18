@@ -482,7 +482,7 @@ mod tests {
                         "origins {target:?} + {incoming:?}"
                     );
 
-                    let mut all = target.clone();
+                    let mut all = target;
                     all.extend(incoming.iter().cloned());
                     assert_eq!(
                         dedupe_strings(all.clone()),
