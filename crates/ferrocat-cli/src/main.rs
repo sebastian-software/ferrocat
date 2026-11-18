@@ -356,7 +356,21 @@ impl AuditConfig {
             &self.source_locale,
             self.storage_format,
         )?);
+        // Validate the entire declared inventory even when only some catalogs are read.
+        let mut locales = std::collections::BTreeSet::new();
+        locales.insert(self.source_locale.as_str());
         for target in &self.targets {
+            if !locales.insert(target.locale.as_str()) {
+                return Err(CliError::runtime(format!(
+                    "catalog audit failed: audit_catalogs received duplicate catalog locale {:?}",
+                    target.locale
+                )));
+            }
+        }
+        for target in &self.targets {
+            if !self.locale_filters.is_empty() && !self.locale_filters.contains(&target.locale) {
+                continue;
+            }
             catalogs.push(load_catalog(
                 &target.path,
                 &target.locale,
@@ -698,7 +712,7 @@ mod tests {
         let fr_path = tempdir.path().join("fr.po");
         fs::write(&source_path, "msgid \"Checkout\"\nmsgstr \"Checkout\"\n")
             .expect("write source fixture");
-        fs::write(&de_path, "").expect("write incomplete German fixture");
+        // The unselected German catalog does not exist.
         fs::write(&fr_path, "msgid \"Checkout\"\nmsgstr \"Paiement\"\n")
             .expect("write French fixture");
 
@@ -725,6 +739,93 @@ mod tests {
         let output = String::from_utf8(stdout).expect("text output should be UTF-8");
         assert!(output.contains("1 target locales"));
         assert!(!output.contains("catalog.missing_translation"));
+    }
+
+    #[test]
+    fn audit_inventory_preserves_errors_and_filter_semantics() {
+        let tempdir = tempfile_dir();
+        let source = tempdir.path().join("en.po");
+        let french = tempdir.path().join("fr.po");
+        let missing = tempdir.path().join("missing.po");
+        fs::write(&source, "msgid \"Checkout\"\nmsgstr \"Checkout\"\n")
+            .expect("write source fixture");
+        fs::write(&french, "msgid \"Checkout\"\nmsgstr \"Paiement\"\n")
+            .expect("write target fixture");
+        let mut config = AuditConfig {
+            source_locale: "en".into(),
+            source_path: source,
+            targets: vec![
+                TargetCatalog {
+                    locale: "de".into(),
+                    path: missing.clone(),
+                },
+                TargetCatalog {
+                    locale: "fr".into(),
+                    path: french,
+                },
+            ],
+            locale_filters: vec!["fr".into(), "fr".into(), "en".into(), "es".into()],
+            storage_format: CliStorageFormat::Po,
+            format: OutputFormat::Text,
+        };
+        let report = config.run().expect("unselected target should not be read");
+        assert_eq!(report.summary.target_locales, 1);
+        assert!(
+            report
+                .diagnostics
+                .iter()
+                .any(|d| d.message.contains("requested locale `es`"))
+        );
+
+        config.locale_filters.clear();
+        assert!(
+            config
+                .run()
+                .expect_err("audit should fail")
+                .to_string()
+                .contains("failed to read")
+        );
+        config.locale_filters = vec!["de".into()];
+        assert!(
+            config
+                .run()
+                .expect_err("audit should fail")
+                .to_string()
+                .contains("failed to read")
+        );
+        config.locale_filters = vec!["fr".into()];
+        config.targets.push(TargetCatalog {
+            locale: "de".into(),
+            path: missing.clone(),
+        });
+        assert!(
+            config
+                .run()
+                .expect_err("audit should fail")
+                .to_string()
+                .contains("duplicate catalog locale")
+        );
+        config.targets.pop();
+        config.targets.push(TargetCatalog {
+            locale: "en".into(),
+            path: missing.clone(),
+        });
+        assert!(
+            config
+                .run()
+                .expect_err("audit should fail")
+                .to_string()
+                .contains("duplicate catalog locale")
+        );
+        config.targets.pop();
+        config.source_path = missing;
+        assert!(
+            config
+                .run()
+                .expect_err("audit should fail")
+                .to_string()
+                .contains("failed to read")
+        );
     }
 
     #[test]
