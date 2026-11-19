@@ -1250,7 +1250,12 @@ pub enum IcuSyntaxPolicy {
     /// and `We've got {count, plural, one {...} other {...}}` without requiring
     /// translators to double every literal apostrophe. Existing ICU quoting
     /// remains meaningful: a single apostrophe starts a quote before `{`, `}`,
-    /// or `#` inside a plural or selectordinal branch.
+    /// or `<`, and before `#` inside a plural or selectordinal branch. Quoted
+    /// tag-shaped text stays literal while unquoted rich-text tags remain tags.
+    ///
+    /// Since Ferrocat 4.0, quoting before `<` has the same meaning as other
+    /// syntax quotes. Regenerate policy-aware IDs and artifacts together when
+    /// migrating affected messages from Ferrocat 3.x.
     RuntimeLiteralApostrophes,
 }
 

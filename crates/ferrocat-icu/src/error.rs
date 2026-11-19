@@ -36,6 +36,9 @@ pub struct IcuParseError {
 
 impl IcuParseError {
     /// Creates a syntax error at `offset` within `input`.
+    ///
+    /// Offsets past the input are clamped to its length; offsets inside a UTF-8
+    /// character are rounded down to that character's starting byte.
     #[must_use]
     pub fn syntax(message: impl Into<String>, input: &str, offset: usize) -> Self {
         Self {
@@ -59,7 +62,10 @@ impl fmt::Display for IcuParseError {
 impl std::error::Error for IcuParseError {}
 
 fn position_for_offset(input: &str, offset: usize) -> IcuPosition {
-    let clamped = offset.min(input.len());
+    let mut clamped = offset.min(input.len());
+    while !input.is_char_boundary(clamped) {
+        clamped -= 1;
+    }
     let mut line = 1usize;
     let mut column = 1usize;
 
@@ -76,5 +82,19 @@ fn position_for_offset(input: &str, offset: usize) -> IcuPosition {
         offset: clamped,
         line,
         column,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::IcuParseError;
+
+    #[test]
+    fn public_offsets_are_clamped_to_utf8_boundaries() {
+        let input = "a\néx";
+        let inside = IcuParseError::syntax("error", input, 3).position;
+        assert_eq!((inside.offset, inside.line, inside.column), (2, 2, 1));
+        let end = IcuParseError::syntax("error", input, usize::MAX).position;
+        assert_eq!((end.offset, end.line, end.column), (5, 2, 3));
     }
 }

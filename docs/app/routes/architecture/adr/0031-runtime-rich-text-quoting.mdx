@@ -1,0 +1,44 @@
+---
+title: "ADR 0031: Apply Runtime Quoting to Rich-Text Syntax"
+description: "Accepted architecture decision record: one runtime syntax policy for apostrophes and literal angle brackets in Ferrocat 4.0."
+order: 310
+---
+
+# ADR 0031: Apply Runtime Quoting to Rich-Text Syntax
+
+- Status: Accepted
+- Date: 2026-11-15
+- Refines: [ADR 0009](/architecture/adr/0009-runtime-catalog-compiled-key-strategy)
+- Refines: [ADR 0010](/architecture/adr/0010-compiled-catalog-artifact-api)
+
+## Context
+
+The runtime dialect accepts ordinary apostrophes and rich-text tags. Ferrocat
+3.x recognizes apostrophe quotes before braces and a branch-local pound sign,
+but doubles an apostrophe before `<`. A quoted tag-shaped literal can therefore
+be interpreted as a tag. Another syntax-policy variant would preserve this
+inconsistency as a permanent public choice.
+
+## Decision
+
+In Ferrocat 4.0, `RuntimeLiteralApostrophes` starts a literal quote before `<`
+as well as `{` and `}`. The `#` quote rule remains limited to plural and
+selectordinal branches. Escaped apostrophes retain their meaning, unquoted
+rich-text tags remain tags, and an unfinished runtime quote closes at the end
+of the pattern. Canonicalization remains idempotent.
+
+The existing `Strict` policy and its default status are unchanged. This is a
+contract for Ferrocat's rich-text runtime dialect; it does not add rich-text
+tags to the plain ICU standard. No third policy or legacy runtime switch is
+introduced.
+
+Policy-aware key derivation, artifact compilation, selected-ID indexes, audits,
+compatibility checks and pseudolocalization use this same canonical form.
+
+## Consequences
+
+Affected 3.x runtime messages can change meaning and derived ID. Hosts must
+review apostrophe-before-angle-bracket messages and regenerate extracted IDs,
+indexes, runtime artifacts and dependent caches together. Raw PO identity and
+strict `compiled_key` hashing remain unchanged. Mixed old/new host and catalog
+compiler versions are unsupported for policy-derived IDs.

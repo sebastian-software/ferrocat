@@ -4,6 +4,7 @@
 //! catalog messages into stable compiled IDs and final runtime message payloads,
 //! including fallback resolution and optional ICU validation.
 
+use std::borrow::Cow;
 use std::collections::{BTreeMap, BTreeSet};
 
 use ferrocat_icu::{
@@ -14,7 +15,9 @@ use sha2::{Digest, Sha256};
 
 use crate::diagnostic_codes;
 
-use super::icu_syntax::{canonicalize_icu_with_policy, parse_icu_with_syntax_policy};
+use super::icu_syntax::{
+    canonicalize_icu_with_policy, parse_icu_with_syntax_policy, remap_icu_error,
+};
 use super::plural::synthesize_icu_plural;
 use super::{
     ApiError, CatalogMessage, CatalogMessageKey, CatalogSemantics,
@@ -259,7 +262,7 @@ pub fn compile_catalog_artifact_report(
             compiled_ids,
             "compile_catalog_artifact_report",
             artifact_options.key_strategy,
-            options.icu_options.syntax_policy,
+            artifact_options.icu_options.syntax_policy,
         )?,
     };
 
@@ -267,7 +270,7 @@ pub fn compile_catalog_artifact_report(
         &locales,
         source_keys,
         artifact_options,
-        &options.icu_options,
+        &artifact_options.icu_options,
     )
 }
 
@@ -720,14 +723,12 @@ where
         let Some(mut resolved) = resolved else {
             continue;
         };
-        resolved.message = canonicalize_owned_icu(resolved.message, icu_options.syntax_policy);
-
-        let resolved_icu = match parse_icu_with_syntax_policy(
-            &resolved.message,
-            IcuSyntaxPolicy::Strict,
-        ) {
+        let original_message = std::mem::take(&mut resolved.message);
+        let canonical = canonicalize_icu_with_policy(&original_message, icu_options.syntax_policy);
+        let resolved_icu = match parse_icu_with_syntax_policy(&canonical, IcuSyntaxPolicy::Strict) {
             Ok(message) => Some(message),
             Err(error) => {
+                let error = remap_icu_error(error, &original_message, &canonical);
                 if options.strict_icu {
                     return Err(ApiError::Unsupported(format!(
                         "compiled catalog artifact produced invalid ICU for locale {:?}, msgid {:?}, context {:?}: {}",
@@ -745,6 +746,11 @@ where
                 });
                 None
             }
+        };
+
+        resolved.message = match canonical {
+            Cow::Borrowed(_) => original_message,
+            Cow::Owned(message) => message,
         };
 
         if let Some(resolved_icu) = resolved_icu.as_ref() {
@@ -872,7 +878,7 @@ fn push_icu_diagnostics_for_compiled_message(
     for diagnostic in diagnostics {
         artifact.diagnostics.push(CompiledCatalogDiagnostic {
             severity: icu_diagnostic_severity(diagnostic.severity),
-            code: diagnostic.code,
+            code: diagnostic.code.into(),
             message: diagnostic.message,
             key: target.compiled_key.to_owned(),
             msgid: target.source_key.msgid.clone(),

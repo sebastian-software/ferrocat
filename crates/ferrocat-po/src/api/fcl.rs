@@ -2,7 +2,7 @@
 //!
 //! A line-oriented, machine-owned catalog encoding optimized for git merge and
 //! fast parsing: one entry per line, deterministically sorted by collated
-//! `(id, ctxt)`, with minimal escaping (`\n \t \\`). The codec parses and serializes
+//! `(id, ctxt)`, with minimal escaping (`\n \r \t \\`). The codec parses and serializes
 //! [`CanonicalMessage`] directly, reusing the shared plural/placeholder/MT
 //! helpers so it stays equivalent to the catalog's canonical representation.
 
@@ -29,6 +29,13 @@ use crate::scan::{find_byte, find_fcl_escapable_byte, split_once_byte};
 use crate::utf8::input_slice_as_str;
 
 const FCL_MAGIC: &str = "%FCL1";
+const FCL2_MAGIC: &str = "%FCL2";
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum FclVersion {
+    V1,
+    V2,
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum FclOrder {
@@ -37,6 +44,7 @@ enum FclOrder {
 }
 
 struct FclHeader {
+    version: FclVersion,
     locale: Option<String>,
     order: FclOrder,
 }
@@ -50,7 +58,7 @@ fn escape_into(out: &mut String, value: &str) {
         return;
     };
 
-    // Escapable bytes (`\`, `\t`, `\n`) are ASCII, so every index is a UTF-8
+    // Escapable bytes (`\`, `\t`, `\n`, `\r`) are ASCII, so every index is a UTF-8
     // boundary and the unescaped runs between them can be pushed as whole slices.
     let mut start = 0;
     let mut at = first;
@@ -59,6 +67,7 @@ fn escape_into(out: &mut String, value: &str) {
         out.push_str(match bytes[at] {
             b'\\' => "\\\\",
             b'\t' => "\\t",
+            b'\r' => "\\r",
             _ => "\\n",
         });
         start = at + 1;
@@ -72,7 +81,7 @@ fn escape_into(out: &mut String, value: &str) {
     }
 }
 
-fn unescape(value: &str) -> Result<Cow<'_, str>, ApiError> {
+fn unescape(value: &str, version: FclVersion) -> Result<Cow<'_, str>, ApiError> {
     let bytes = value.as_bytes();
     let Some(first) = find_byte(b'\\', bytes) else {
         return Ok(Cow::Borrowed(value));
@@ -88,6 +97,7 @@ fn unescape(value: &str) -> Result<Cow<'_, str>, ApiError> {
             Some(b'\\') => out.push('\\'),
             Some(b't') => out.push('\t'),
             Some(b'n') => out.push('\n'),
+            Some(b'r') if version == FclVersion::V2 => out.push('\r'),
             Some(_) => {
                 let other = value[at + 1..].chars().next().unwrap_or('\u{fffd}');
                 return Err(ApiError::InvalidArguments(format!(
@@ -111,13 +121,14 @@ fn unescape(value: &str) -> Result<Cow<'_, str>, ApiError> {
     }
 }
 
-fn validate_escapes(value: &str) -> Result<(), ApiError> {
+fn validate_escapes(value: &str, version: FclVersion) -> Result<(), ApiError> {
     let bytes = value.as_bytes();
     let mut start = 0;
     while let Some(relative) = find_byte(b'\\', &bytes[start..]) {
         let at = start + relative;
         match bytes.get(at + 1) {
             Some(b'\\' | b't' | b'n') => start = at + 2,
+            Some(b'r') if version == FclVersion::V2 => start = at + 2,
             Some(_) => {
                 let other = value[at + 1..].chars().next().unwrap_or('\u{fffd}');
                 return Err(ApiError::InvalidArguments(format!(
@@ -189,7 +200,13 @@ pub(super) fn validate_catalog_fcl(catalog: &Catalog) -> Result<(), ApiError> {
 fn write_entry(out: &mut String, message: &CanonicalMessage, render: &RenderOptions<'_>) {
     escape_into(out, &fcl_id(message));
     out.push('\t');
-    escape_into(out, message.msgctxt.as_deref().unwrap_or(""));
+    match &message.msgctxt {
+        None => out.push('n'),
+        Some(context) => {
+            out.push('s');
+            escape_into(out, context);
+        }
+    }
     out.push('\t');
     escape_into(out, &fcl_target(message));
 
@@ -348,7 +365,7 @@ pub(super) fn stringify_catalog_fcl(
     // Reserve a rough output budget up front so growth does not repeatedly
     // reallocate; the estimate only needs to be in the right ballpark.
     let mut out = String::with_capacity(catalog.messages.len() * 128 + 64);
-    out.push_str(FCL_MAGIC);
+    out.push_str(FCL2_MAGIC);
     write_tag(&mut out, "source", source_locale);
     if let Some(locale) = locale {
         write_tag(&mut out, "locale", locale);
@@ -372,11 +389,15 @@ fn is_conflict_marker(line: &str) -> bool {
 
 fn parse_header(line: &str, source_locale: &str) -> Result<FclHeader, ApiError> {
     let mut fields = SplitTab::new(line.as_bytes());
-    if fields.next() != Some(FCL_MAGIC.as_bytes()) {
-        return Err(ApiError::InvalidArguments(
-            "FCL catalog must start with the `%FCL1` header".to_owned(),
-        ));
-    }
+    let version = match fields.next() {
+        Some(magic) if magic == FCL_MAGIC.as_bytes() => FclVersion::V1,
+        Some(magic) if magic == FCL2_MAGIC.as_bytes() => FclVersion::V2,
+        _ => {
+            return Err(ApiError::InvalidArguments(
+                "FCL catalog must start with a `%FCL1` or `%FCL2` header".to_owned(),
+            ));
+        }
+    };
     let mut locale = None;
     let mut declared_source: Option<String> = None;
     let mut order = FclOrder::LegacyBytewise;
@@ -388,7 +409,7 @@ fn parse_header(line: &str, source_locale: &str) -> Result<FclHeader, ApiError> 
                 input_slice_as_str(tag)
             ))
         })?;
-        let value = unescape(input_slice_as_str(value))?.into_owned();
+        let value = unescape(input_slice_as_str(value), version)?.into_owned();
         match key {
             b"source" => declared_source = Some(value),
             b"locale" => locale = Some(value),
@@ -423,18 +444,39 @@ fn parse_header(line: &str, source_locale: &str) -> Result<FclHeader, ApiError> 
             "FCL source {declared:?} did not match requested source_locale {source_locale:?}"
         )));
     }
-    Ok(FclHeader { locale, order })
+    Ok(FclHeader {
+        version,
+        locale,
+        order,
+    })
 }
 
 /// Parses one FCL entry line directly into a [`CanonicalMessage`], building the
 /// owned fields in a single pass without an intermediate record.
-fn parse_entry(line: &str, opaque_capture: OpaqueCapture) -> Result<CanonicalMessage, ApiError> {
+fn parse_entry(
+    line: &str,
+    opaque_capture: OpaqueCapture,
+    version: FclVersion,
+) -> Result<CanonicalMessage, ApiError> {
     let mut fields = SplitTab::new(line.as_bytes());
-    let msgid = unescape(field(&mut fields, "id")?)?.into_owned();
-    let ctx_raw = unescape(field(&mut fields, "ctxt")?)?.into_owned();
-    let value = unescape(field(&mut fields, "target")?)?.into_owned();
-
-    let msgctxt = (!ctx_raw.is_empty()).then_some(ctx_raw);
+    let msgid = unescape(field(&mut fields, "id")?, version)?.into_owned();
+    let ctx_raw = field(&mut fields, "ctxt")?;
+    let msgctxt = match version {
+        FclVersion::V1 => {
+            let context = unescape(ctx_raw, version)?.into_owned();
+            (!context.is_empty()).then_some(context)
+        }
+        FclVersion::V2 if ctx_raw == "n" => None,
+        FclVersion::V2 if ctx_raw.starts_with('s') => {
+            Some(unescape(&ctx_raw[1..], version)?.into_owned())
+        }
+        FclVersion::V2 => {
+            return Err(ApiError::InvalidArguments(
+                "invalid FCL2 context marker; expected `n` or `s`".to_owned(),
+            ));
+        }
+    };
+    let value = unescape(field(&mut fields, "target")?, version)?.into_owned();
     let mut origins: PoVec<CatalogOrigin> = PoVec::new();
     let mut raw_comments: Vec<Cow<'_, str>> = Vec::new();
     let mut translator_comments: Vec<String> = Vec::new();
@@ -457,36 +499,39 @@ fn parse_entry(line: &str, opaque_capture: OpaqueCapture) -> Result<CanonicalMes
         match key {
             b"r" => {
                 validate_tag_order(&mut last_tag_rank, TAG_RANK_REFERENCE, "r")?;
-                origins.push(parse_origin(unescape(raw_value)?));
+                origins.push(parse_origin(unescape(raw_value, version)?));
             }
             b"c" => {
                 validate_tag_order(&mut last_tag_rank, TAG_RANK_COMMENT, "c")?;
-                raw_comments.push(unescape(raw_value)?);
+                raw_comments.push(unescape(raw_value, version)?);
             }
             b"tc" => {
                 validate_tag_order(&mut last_tag_rank, TAG_RANK_TRANSLATOR_COMMENT, "tc")?;
                 if opaque_capture == OpaqueCapture::Keep {
-                    translator_comments.push(unescape(raw_value)?.into_owned());
+                    translator_comments.push(unescape(raw_value, version)?.into_owned());
                 } else {
-                    validate_escapes(raw_value)?;
+                    validate_escapes(raw_value, version)?;
                 }
             }
             b"f" => {
                 validate_tag_order(&mut last_tag_rank, TAG_RANK_FLAG, "f")?;
                 match opaque_capture {
-                    OpaqueCapture::Keep => flags.push(unescape(raw_value)?.into_owned()),
+                    OpaqueCapture::Keep => flags.push(unescape(raw_value, version)?.into_owned()),
                     OpaqueCapture::ReviewState => {
-                        validate_escapes(raw_value)?;
+                        validate_escapes(raw_value, version)?;
                         if raw_value == "fuzzy" {
                             flags.push("fuzzy".to_owned());
                         }
                     }
-                    OpaqueCapture::Discard => validate_escapes(raw_value)?,
+                    OpaqueCapture::Discard => validate_escapes(raw_value, version)?,
                 }
             }
             b"o" => {
                 validate_tag_order(&mut last_tag_rank, TAG_RANK_OBSOLETE, "o")?;
-                set_obsolete(&mut obsolete, Some(unescape(raw_value)?.into_owned()))?;
+                set_obsolete(
+                    &mut obsolete,
+                    Some(unescape(raw_value, version)?.into_owned()),
+                )?;
             }
             b"lock" => {
                 validate_tag_order(&mut last_tag_rank, TAG_RANK_LOCK, "lock")?;
@@ -495,7 +540,7 @@ fn parse_entry(line: &str, opaque_capture: OpaqueCapture) -> Result<CanonicalMes
                         "duplicate FCL tag `lock`".to_owned(),
                     ));
                 }
-                lock = Some(unescape(raw_value)?.into_owned());
+                lock = Some(unescape(raw_value, version)?.into_owned());
             }
             b"ai" => {
                 validate_tag_order(&mut last_tag_rank, TAG_RANK_AI, "ai")?;
@@ -504,7 +549,7 @@ fn parse_entry(line: &str, opaque_capture: OpaqueCapture) -> Result<CanonicalMes
                         "duplicate FCL tag `ai`".to_owned(),
                     ));
                 }
-                let value = unescape(raw_value)?;
+                let value = unescape(raw_value, version)?;
                 ai = Some(parse_ai_descriptor(&value));
             }
             other => {
@@ -639,7 +684,9 @@ pub(super) fn parse_catalog_to_internal_fcl(
 
     let mut lines = content.lines().enumerate();
     let header = lines.next().map(|(_, line)| line).ok_or_else(|| {
-        ApiError::InvalidArguments("FCL catalog must start with the `%FCL1` header".to_owned())
+        ApiError::InvalidArguments(
+            "FCL catalog must start with a `%FCL1` or `%FCL2` header".to_owned(),
+        )
     })?;
     let parsed_header = parse_header(header, source_locale)?;
     let locale = locale_override.map(str::to_owned).or(parsed_header.locale);
@@ -659,9 +706,13 @@ pub(super) fn parse_catalog_to_internal_fcl(
                 index + 1
             )));
         }
-        let message = parse_entry(line, opaque_capture).map_err(|error| {
-            ApiError::InvalidArguments(format!("invalid FCL entry on line {}: {error}", index + 1))
-        })?;
+        let message =
+            parse_entry(line, opaque_capture, parsed_header.version).map_err(|error| {
+                ApiError::InvalidArguments(format!(
+                    "invalid FCL entry on line {}: {error}",
+                    index + 1
+                ))
+            })?;
         // Legacy bytewise and declared collated order both keep equal identities
         // adjacent, so the previous entry detects duplicates without a set.
         if let Some(previous) = messages.last() {
@@ -738,9 +789,29 @@ mod tests {
         let mut escaped = String::new();
         super::escape_into(&mut escaped, raw);
         assert_eq!(escaped, "a\\tb\\nc\\\\d");
-        assert_eq!(unescape(&escaped).expect("unescape"), raw);
+        assert_eq!(
+            unescape(&escaped, super::FclVersion::V2).expect("unescape"),
+            raw
+        );
     }
 
+    #[test]
+    fn fcl_versions_are_dispatched_strictly_and_crlf_is_supported() {
+        let old = "%FCL1\tsource=en\r\na\tn\tone\r\nb\ts\ttwo\r\nc\t\tthree\r\n";
+        let migrated = roundtrip(old);
+        assert!(migrated.starts_with("%FCL2\tsource=en\torder=collated\n"));
+        assert!(migrated.contains("a\tsn\tone\n"));
+        assert!(migrated.contains("b\tss\ttwo\n"));
+        assert!(migrated.contains("c\tn\tthree\n"));
+        assert!(parse_err("%FCL1\tsource=en\na\t\tbad\\r\n"));
+        for context in ["", "x", "nn", "nanything"] {
+            assert!(parse_err(&format!("%FCL2\tsource=en\na\t{context}\tv\n")));
+        }
+        assert!(parse_err("%FCL2\tsource=en\na\tn\tbad\\x\n"));
+        assert!(parse_err("%FCL3\tsource=en\na\tn\tv\n"));
+        let encoded = "%FCL2\tsource=en\torder=collated\r\na\\r\tsctx\\r\tvalue\\r\tc=note\\r\ttc=translator\\r\tf=custom\\r\r\n";
+        assert_eq!(roundtrip(encoded), encoded.replace("\r\n", "\n"));
+    }
     #[test]
     fn collated_text_is_a_fixpoint() {
         // Header + two collated entries with tabs/newlines escaped and canonical
@@ -751,9 +822,9 @@ mod tests {
             "Hallo {name}",
         ));
         let text = format!(
-            "{FCL_MAGIC}\tsource=en\tlocale=de\torder=collated\n\
-             greeting\t\tHallo {{name}}\tr=src/a.tsx#Greeting\tlock={hash}\tai=openai/gpt-5.5:0.88\n\
-             tabbed\tmenu\tWert mit\\tTab\n"
+            "%FCL2\tsource=en\tlocale=de\torder=collated\n\
+             greeting\tn\tHallo {{name}}\tr=src/a.tsx#Greeting\tlock={hash}\tai=openai/gpt-5.5:0.88\n\
+             tabbed\tsmenu\tWert mit\\tTab\n"
         );
         assert_eq!(roundtrip(&text), text);
     }
@@ -793,7 +864,7 @@ mod tests {
         // Re-serialization upgrades it to the declared collated contract.
         let text = format!("{FCL_MAGIC}\tsource=en\nalpha\t\tA\nalpha\tmenu\tA2\nbeta\t\tB\n");
         let sorted = roundtrip(&text);
-        assert!(sorted.starts_with(&format!("{FCL_MAGIC}\tsource=en\torder=collated\n")));
+        assert!(sorted.starts_with("%FCL2\tsource=en\torder=collated\n"));
         let ids: Vec<&str> = sorted
             .lines()
             .skip(1)
@@ -902,25 +973,23 @@ mod tests {
     fn roundtrips_comments_obsolete_and_escapes() {
         // Covers the c=/o serialize branches and the \t \n \\ escape paths in both
         // directions on a single entry.
-        let text = format!(
-            "{FCL_MAGIC}\tsource=en\torder=collated\n\
-             a.tab\\there\t\tWert\\nZeile\\\\back\tc=note\to\n"
-        );
-        assert_eq!(roundtrip(&text), text);
+        let text = "%FCL2\tsource=en\torder=collated\n\
+             a.tab\\there\tn\tWert\\nZeile\\\\back\tc=note\to\n";
+        assert_eq!(roundtrip(text), text);
     }
 
     #[test]
     fn roundtrips_reference_without_line_number() {
         // Covers the line-less origin path on both parse and serialize.
-        let text = format!("{FCL_MAGIC}\tsource=en\torder=collated\nid\t\tv\tr=README\n");
-        assert_eq!(roundtrip(&text), text);
+        let text = "%FCL2\tsource=en\torder=collated\nid\tn\tv\tr=README\n";
+        assert_eq!(roundtrip(text), text);
     }
 
     #[test]
     fn roundtrips_dated_obsolete() {
         // Covers the valued `o=<since>` serialize and parse branches.
-        let text = format!("{FCL_MAGIC}\tsource=en\torder=collated\nid\t\tv\to=2026-06-30\n");
-        assert_eq!(roundtrip(&text), text);
+        let text = "%FCL2\tsource=en\torder=collated\nid\tn\tv\to=2026-06-30\n";
+        assert_eq!(roundtrip(text), text);
     }
 
     #[test]
@@ -1011,11 +1080,9 @@ mod tests {
     fn roundtrips_translator_comments_and_flags_byte_identically() {
         // `tc` and `f` are opaque: multiple of each are preserved verbatim, in
         // order, and re-serialize to the same bytes.
-        let text = format!(
-            "{FCL_MAGIC}\tsource=en\torder=collated\n\
-             id\tbutton\tv\tr=src/a.tsx\tc=extracted\ttc=first note\ttc=second\\tnote\tf=fuzzy\tf=x-custom\to=2026-07-30\n"
-        );
-        assert_eq!(roundtrip(&text), text);
+        let text = "%FCL2\tsource=en\torder=collated\n\
+             id\tsbutton\tv\tr=src/a.tsx\tc=extracted\ttc=first note\ttc=second\\tnote\tf=fuzzy\tf=x-custom\to=2026-07-30\n";
+        assert_eq!(roundtrip(text), text);
     }
 
     #[test]
@@ -1116,9 +1183,7 @@ mod tests {
         };
 
         let text = stringify_catalog_fcl(&catalog, Some("de"), "en", &RenderOptions::default());
-        assert!(text.starts_with(&format!(
-            "{FCL_MAGIC}\tsource=en\tlocale=de\torder=collated\n"
-        )));
+        assert!(text.starts_with("%FCL2\tsource=en\tlocale=de\torder=collated\n"));
         // Both id and target columns are synthesized ICU plural strings, and the
         // lock/ai block survives because the lock matches the plural translation.
         assert!(text.contains("{count, plural,"));
@@ -1174,7 +1239,7 @@ mod tests {
         };
 
         let text = stringify_catalog_fcl(&catalog, Some("de"), "en", &RenderOptions::default());
-        assert!(text.contains("Hello\t\tHallo"));
+        assert!(text.contains("Hello\tn\tHallo"));
         assert!(!text.contains("mt."));
     }
 

@@ -25,9 +25,14 @@ mod backend {
 
     #[inline]
     pub fn find_fcl_escapable_byte(haystack: &[u8]) -> Option<usize> {
-        // FCL escapes only `\`, `\t`, and `\n`; `memchr3` is SIMD-accelerated
-        // (NEON on aarch64) so this stays fast without any hand-written intrinsics.
-        memchr3(b'\\', b'\t', b'\n', haystack)
+        // FCL2 escapes CR as well as backslash, tab and LF.
+        match (
+            memchr3(b'\\', b'\t', b'\n', haystack),
+            memchr(b'\r', haystack),
+        ) {
+            (Some(a), Some(b)) => Some(a.min(b)),
+            (a, b) => a.or(b),
+        }
     }
 
     #[cfg(target_arch = "aarch64")]

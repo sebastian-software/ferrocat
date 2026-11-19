@@ -333,6 +333,11 @@ impl AuditConfig {
         if source_locale.trim().is_empty() {
             return Err(CliError::usage("--source-locale must not be empty"));
         }
+        if locale_filters.iter().any(|locale| locale == &source_locale) {
+            return Err(CliError::usage(
+                "--locale selects target locales and must not equal --source-locale",
+            ));
+        }
         let source_path = source_path.ok_or_else(|| CliError::usage("audit requires --source"))?;
         if targets.is_empty() {
             return Err(CliError::usage("audit requires at least one --target"));
@@ -509,6 +514,27 @@ mod tests {
         assert_eq!(config.locale_filters, vec!["de"]);
         assert_eq!(config.format, OutputFormat::Json);
         assert_eq!(config.storage_format, CliStorageFormat::Fcl);
+    }
+
+    #[test]
+    fn audit_rejects_source_locale_as_target_filter() {
+        for filters in [vec!["en"], vec!["de", "en"]] {
+            let mut args = vec![
+                "audit",
+                "--source-locale",
+                "en",
+                "--source",
+                "en.po",
+                "--target",
+                "de=de.po",
+            ];
+            for locale in filters {
+                args.extend(["--locale", locale]);
+            }
+            let error = run_with_writer(args.into_iter().map(str::to_owned), &mut Vec::new())
+                .expect_err("source locale is not a target filter");
+            assert!(error.to_string().contains("must not equal --source-locale"));
+        }
     }
 
     #[test]

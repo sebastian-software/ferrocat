@@ -13,6 +13,80 @@ accidental public coupling while the user base was still small. That cleanup
 window is closed. Start every upgrade from the changelog and keep the workspace
 crate versions aligned.
 
+## Upgrading from 3.x to 4.0
+
+Upgrade the Ferrocat crates and host integrations together. The four published
+crates use the same version. Validate catalogs before deploying regenerated
+runtime artifacts.
+
+### Runtime quotes and derived IDs
+
+`RuntimeLiteralApostrophes` now starts a literal quote before `<`, as it already
+does before braces. For example, `Use '<name>' here` means literal text rather
+than a rich-text tag. Unquoted `<link>{name}</link>` remains a real tag. Review
+messages containing an apostrophe before `<` for their intended meaning.
+`Strict` remains the default syntax policy and its raw key helper is unchanged.
+
+Regenerate source-extracted runtime IDs, `CompiledCatalogIdIndex` values,
+compiled artifacts, generated bundles and dependent caches together under the
+same syntax policy. Do not mix a 3.x extractor's cached IDs with a 4.0 compiler.
+The hash algorithm and raw PO identities have not changed; affected policy
+canonicalization has. There is no additional legacy runtime policy.
+
+### FCL2 storage
+
+Writers emit `%FCL2`; readers accept FCL1 and FCL2 by their header. In FCL2 the
+context column is `n` for no context, `s` for an explicitly empty context, or
+`s` followed by escaped context text. Carriage returns are escaped as `\r`.
+
+Upgrade every FCL reader before rewriting catalogs. To migrate an existing
+file, call `convert_catalog_file` with FCL input and FCL output (the same path
+is supported after validation). The existing `CatalogMode::IcuFcl` selects the
+current writer; no new storage-mode enum variant is needed. An ordinary update
+also rewrites FCL1 as canonical FCL2, even if message content is unchanged.
+
+FCL1 already conflated absent and empty contexts and could lose a terminal
+carriage return. Migration preserves the information still observable in FCL1.
+Recover lost information from an authoritative original PO catalog when needed.
+See the [format decision](/architecture/adr/0033-lossless-fcl2-context-and-carriage-returns).
+
+### Artifact compilation defaults
+
+`CompileCatalogArtifactOptions::new` now sets `strict_icu` to `true`. Full,
+selected and provenance-report compilation return an error for invalid final
+ICU syntax. Diagnostic tools that need to collect all errors opt in explicitly:
+
+```rust
+let options = CompileCatalogArtifactOptions::new("de", "en")
+    .with_strict_icu(false);
+```
+
+Inspect the resulting diagnostics before publishing such an artifact. This
+setting controls syntax failures; source/translation compatibility and runtime
+formatter-support diagnostics retain their separate policies.
+
+Report options now have one ICU configuration. Replace assignments to
+`report.icu_options` with `report.options.icu_options`, or use
+`report.with_icu_options(...)`. The full, selected and report paths all use
+that nested value. The artifact JSON schema remains version 1.
+
+### Diagnostic code types
+
+`ferrocat_po::DiagnosticCode` and `ferrocat_icu::DiagnosticCode` are distinct in
+every feature profile. Enabling `catalog` no longer changes their type identity.
+At a cross-crate boundary use `.into()` with `catalog` enabled, or transport the
+canonical string when using the lean PO profile. JSON diagnostic codes remain
+plain strings with unchanged spelling.
+
+### Correctness changes
+
+The ICU parser rejects duplicate selectors (including equivalent numeric
+selectors) and repeated plural offsets. Fix ambiguous patterns before upgrading.
+The serializer preserves quoted syntax and formatter-style literals, so their
+canonical output spelling can change. Existing Unix file permissions survive
+atomic catalog replacement. The CLI rejects a target `--locale` filter equal
+to `--source-locale` instead of reporting success for zero target locales.
+
 ## Where release notes live
 
 - [GitHub Releases](https://github.com/sebastian-software/ferrocat/releases)
@@ -162,7 +236,7 @@ break.
 
 Ferrocat 2.1.1 removed the remaining cross-product entry points for ICU syntax
 policy and folded those choices into the existing options structs. The same API
-is part of the current 2.2 line. If your code called a `_with_icu_options` or
+remains supported in later releases. If your code called a `_with_icu_options` or
 `_with_syntax_policy` function variant, move the ICU configuration onto the
 operation's options value instead.
 

@@ -92,7 +92,9 @@ Use this layer when you need:
 - policy-consistent canonical runtime strings, compiled IDs, and selected-ID indexes
 
 `strict_icu` and `icu_compatibility` solve different problems. `strict_icu`
-turns invalid final ICU syntax into a hard compile error. `icu_compatibility`
+defaults to `true` and turns invalid final ICU syntax into a hard compile error.
+Diagnostic tools explicitly set `with_strict_icu(false)` to collect all syntax
+errors in the artifact instead. `icu_compatibility`
 keeps compilation non-fatal and reports structural translation drift such as
 missing arguments, formatter changes, tag mismatches, select/plural branch
 changes, and discouraged formatter patterns.

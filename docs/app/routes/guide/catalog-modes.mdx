@@ -30,7 +30,7 @@ There is intentionally no FCL + gettext-plural mode; gettext plural behavior bel
 The painful failure with PO is not a crash. It is a finished translation that quietly disappears. A PO entry spans several lines with repeated anchor lines (`msgstr ""`, blank separators), so when two branches touch the same file, git's line merge mis-anchors and can drop an entry that nobody even edited. Someone retranslates work that was already done, and no error ever fires.
 
 FCL removes that by construction. Every entry is one tab-separated line behind
-a single `%FCL1` header. New files always use the CLDR root `(id, ctxt)` order
+a single `%FCL2` header. New files always use the CLDR root `(id, ctxt)` order
 used by `Intl.Collator("en-US")` and record it as `order=collated` in the
 header. Independent edits land on distant lines and merge cleanly; an entry
 neither side touched stays byte-identical in all three versions, so ordinary

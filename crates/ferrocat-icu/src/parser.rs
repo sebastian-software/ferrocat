@@ -227,14 +227,14 @@ impl<'a> Parser<'a> {
             self.skip_whitespace();
         }
 
-        loop {
+        self.skip_whitespace();
+        if self.starts_with_bytes(Self::OFFSET_PREFIX) {
+            self.pos += Self::OFFSET_PREFIX.len();
+            self.skip_whitespace();
+            offset = self.parse_unsigned_int()?;
             self.skip_whitespace();
             if self.starts_with_bytes(Self::OFFSET_PREFIX) {
-                self.pos += Self::OFFSET_PREFIX.len();
-                self.skip_whitespace();
-                offset = self.parse_unsigned_int()?;
-            } else {
-                break;
+                return Err(self.error("Duplicate plural offset"));
             }
         }
 
@@ -261,6 +261,12 @@ impl<'a> Parser<'a> {
                 break;
             }
             let selector = self.parse_selector()?;
+            if options
+                .iter()
+                .any(|option: &IcuOption| option.selector == selector)
+            {
+                return Err(self.error("Duplicate ICU selector"));
+            }
             self.skip_whitespace();
             self.expect_char('{')?;
             let value = self.parse_nodes(None, plural_depth)?;
@@ -603,6 +609,18 @@ mod tests {
                 IcuNode::Literal("!".to_owned())
             ]
         );
+    }
+
+    #[test]
+    fn rejects_duplicate_selectors_and_offsets() {
+        for input in [
+            "{n, plural, one {a} one {b} other {c}}",
+            "{n, plural, =01 {a} =1 {b} other {c}}",
+            "{x, select, other {a} other {b}}",
+            "{n, plural, offset:0 offset:1 other {a}}",
+        ] {
+            assert!(parse_icu(input).is_err(), "accepted {input}");
+        }
     }
 
     #[test]
