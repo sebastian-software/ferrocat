@@ -1,11 +1,9 @@
 # FCL — Ferrocat Catalog Lines (`.fcl`)
 
-A line-oriented, machine-owned catalog format. You don't have to trade speed for
-safety to get it: compared with the same catalog stored as PO, FCL parses about
-25% faster, takes roughly 12% less disk, and gives git one canonical line per
-entry so ordinary 3-way merges preserve untouched translations. One entry per
-line, deterministically sorted. It is _not_ meant for hand editing; the only
-non-API writer it must tolerate is git's 3-way line merge.
+A line-oriented, machine-owned catalog format. FCL gives git one canonical
+line per entry so ordinary 3-way merges preserve untouched translations. Entries
+are deterministically sorted. Git's three-way merge is the only supported way
+to write FCL outside the catalog API.
 
 FCL is **ICU-native only**. Plurals live inside the ICU message string
 (`{count, plural, …}`), not as separate slots. Gettext plural-compat catalogs
@@ -15,7 +13,7 @@ Generate FCL through the catalog layer with `CatalogMode::IcuFcl` in
 `parse_catalog`, `update_catalog`, or file-based update flows. Keep PO for
 translator-facing files when external tools need gettext compatibility.
 
-## Why a line format (and why it beats PO)
+## Why a line format
 
 git's 3-way merge is purely line-textual and has no notion of an entry. PO
 entries span multiple lines with many repeated anchor lines (`msgstr ""`, blank
@@ -30,12 +28,8 @@ on merge. FCL removes this by construction:
 - **Deterministic writer** → unchanged entries serialize byte-identically, so a
   regeneration never churns lines it didn't change.
 
-It parses faster than PO because it drops PO's per-entry overhead: no multi-line
-state machine, no keyword classification, no quote-bounds scanning, and a
-minimal escape set with a no-escape borrow fast path. The reader works on bytes
-and leans on memchr (NEON on Apple Silicon) for field splitting and escape
-scanning, the same way the PO parser is tuned. On a 10k-message ICU catalog that
-lands around 25% faster than reading the equivalent PO file.
+The reader works on bytes and uses memchr for field splitting and escape
+scanning. Recorded Ferrocat 3.x performance comparisons use the FCL1 encoding.
 
 ## Grammar
 
@@ -190,7 +184,7 @@ misinterpreting the context markers and new escape.
 
 ## FCL vs PO
 
-- **FCL** — canonical, git-merged, fast machine artifact. Treat as generated
+- **FCL** — canonical, git-merged machine artifact. Treat as generated
   (`.gitattributes linguist-generated`); do not hand-edit.
 - **PO** — gettext interop / human-readable export.
 
