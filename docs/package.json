@@ -26,10 +26,10 @@
   "devDependencies": {
     "axe-core": "4.13.0",
     "eslint": "^10.15.0",
-    "eslint-config-setup": "^0.5.2",
+    "eslint-config-setup": "^0.6.0",
     "jiti": "^2.7.0",
-    "oxfmt": "^0.70.0",
-    "oxlint": "^1.85.0",
+    "oxfmt": "^0.79.0",
+    "oxlint": "^1.94.0",
     "playwright": "1.63.0",
     "typescript": "^6.0.3",
     "vite": "^8.3.0"
