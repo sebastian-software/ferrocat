@@ -288,6 +288,16 @@ Workflow-only baselines currently wired:
 
 This is intentional. The official profile answers the small, understandable benchmark question first. The broader `gettext-compat-v1` profile is available when you want more detail, and the advanced `mixed-*` / ICU-heavy corpora remain separate from the official Gettext comparison track.
 
+## JSON consumer contract
+
+The existing compare report is proposed as the family benchmark results
+contract. Its [consumer schema](https://github.com/sebastian-software/ferrocat/blob/main/benchmark/compare-report.schema.json)
+defines a reusable subset; consumers should allow additional fields. The
+[report guide](https://github.com/sebastian-software/ferrocat/blob/main/benchmark/results/README.md)
+explains validation and provenance limits. See
+[ADR 0035](/architecture/adr/0035-benchmark-report-contract) for the scope and
+the condition for extracting a generic runner.
+
 ## Reporting Expectations
 
 When you share benchmark results from the external suite, include the environment block from the JSON report together with the throughput table. At minimum, keep these fields visible:
