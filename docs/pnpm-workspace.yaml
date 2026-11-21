@@ -9,7 +9,6 @@ allowBuilds:
 minimumReleaseAgeExclude:
   - "@sebastian-gmbh/*"
   - "@sebastian-software/*"
-  - ardo@6.6.0
   - ferramenta-family@3.0.0
   - "@ferrolink/darwin-arm64@0.2.2"
   - "@ferrolink/darwin-x64@0.2.2"
