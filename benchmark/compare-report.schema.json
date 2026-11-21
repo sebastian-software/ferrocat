@@ -1,0 +1,82 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Ferrocat compare report consumer contract",
+  "description": "Required reusable subset of ferrocat-bench compare JSON. Additional fields are allowed.",
+  "type": "object",
+  "required": ["profile", "generated_at", "reference_host_policy", "environment", "scenarios"],
+  "properties": {
+    "profile": { "type": "string" },
+    "generated_at": { "type": "string" },
+    "reference_host_policy": { "type": "string" },
+    "environment": {
+      "type": "object",
+      "required": ["git_sha", "system_label", "os", "cpu_model", "memory_bytes", "rustc_version"],
+      "properties": {
+        "git_sha": { "type": "string" },
+        "system_label": { "type": "string" },
+        "os": { "type": "string" },
+        "cpu_model": { "type": "string" },
+        "memory_bytes": { "type": "integer", "minimum": 0 },
+        "rustc_version": { "type": "string" }
+      }
+    },
+    "scenarios": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "comparison_group",
+          "workload",
+          "operation",
+          "fixture",
+          "implementation",
+          "tool_version",
+          "iterations_per_sample",
+          "warmup_runs",
+          "measured_runs",
+          "semantic_digest",
+          "statistics",
+          "samples"
+        ],
+        "properties": {
+          "id": { "type": "string" },
+          "comparison_group": { "type": "string" },
+          "workload": { "type": "string" },
+          "operation": { "type": "string" },
+          "fixture": { "type": "string" },
+          "implementation": { "type": "string" },
+          "tool_version": { "type": "string" },
+          "iterations_per_sample": { "type": "integer", "minimum": 0 },
+          "warmup_runs": { "type": "integer", "minimum": 0 },
+          "measured_runs": { "type": "integer", "minimum": 0 },
+          "semantic_digest": { "type": "string" },
+          "statistics": {
+            "type": "object",
+            "required": [
+              "median_elapsed_ns",
+              "coefficient_of_variation",
+              "relative_span_percent",
+              "noisy",
+              "median_mib_per_sec",
+              "median_units_per_sec",
+              "median_adjusted_mib_per_sec",
+              "median_adjusted_units_per_sec"
+            ],
+            "properties": {
+              "median_elapsed_ns": { "type": "integer", "minimum": 0 },
+              "coefficient_of_variation": { "type": "number" },
+              "relative_span_percent": { "type": "number" },
+              "noisy": { "type": "boolean" },
+              "median_mib_per_sec": { "type": "number" },
+              "median_units_per_sec": { "type": "number" },
+              "median_adjusted_mib_per_sec": { "type": ["number", "null"] },
+              "median_adjusted_units_per_sec": { "type": ["number", "null"] }
+            }
+          },
+          "samples": { "type": "array", "items": { "type": "object" } }
+        }
+      }
+    }
+  }
+}

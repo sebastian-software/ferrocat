@@ -1,8 +1,11 @@
 #!/usr/bin/env node
+import { validateReports } from "./check-benchmark-report-contract.mjs"
 import { readdirSync, readFileSync } from "node:fs"
 import { join, relative, resolve } from "node:path"
 
 const repoRoot = resolve(import.meta.dirname, "..")
+await validateReports()
+
 const mappingPath = resolve(repoRoot, "benchmark/published-numbers.json")
 const mapping = JSON.parse(readFileSync(mappingPath, "utf8"))
 

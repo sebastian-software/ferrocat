@@ -1,0 +1,45 @@
+---
+title: "ADR 0035: Share the Existing Benchmark Compare Report"
+description: "Accepted architecture decision record: benchmark report reuse."
+order: 350
+---
+
+# ADR 0035: Share the Existing Benchmark Compare Report
+
+- Status: Accepted
+- Date: 2026-11-21
+
+## Context
+
+Ferrocat's compare command already writes JSON retained as publication evidence
+and CI artifacts. The documentation sample and published-number check consume
+committed reports. A family site or CI consumer needs a discoverable contract
+and provenance without copying measurements or requiring Ferrocat's runner.
+
+## Decision
+
+Propose the existing compare JSON as the family benchmark results contract. The
+[consumer schema](https://github.com/sebastian-software/ferrocat/blob/main/benchmark/compare-report.schema.json)
+describes the required reusable subset of the current unversioned format; the
+producer and existing fields remain unchanged. Additional fields are allowed.
+Consumers must tolerate them and select the fields they understand. Changes to
+required fields or their meanings require an explicit compatibility decision;
+this subset does not promise that every other producer field is stable.
+
+The schema describes structure, not comparable workloads or trustworthy
+provenance. Reports retain scenario identities, semantic digests, raw samples,
+noise indicators and host metadata for interpretation. The source revision may
+be `unknown`, and the report does not record dirty state or build flags. Keep
+those limitations with shared results.
+
+The runner and profiles remain in Ferrocat. Split a generic runner from
+Ferrocat-specific profiles only after a second real harness consumer appears
+and its shared requirements are established. This is a proposal to the family,
+not a claim that another project has adopted it.
+
+## Consequences
+
+Consumers can read existing reports directly and validate the shared subset
+without a new runtime package. The repository checks retained reports against
+the schema alongside the published-number check. The schema cannot establish
+semantic equivalence, measurement quality, or the authenticity of a report.

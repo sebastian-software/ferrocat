@@ -94,7 +94,9 @@ jobs:
         run: scripts/check-readme-family.sh
 
       - name: Check published benchmark numbers
-        run: node scripts/check-published-numbers.mjs
+        run: |
+          node --test scripts/check-benchmark-report-contract.test.mjs
+          node scripts/check-published-numbers.mjs
 
   rust-lint:
     name: Rust lint
