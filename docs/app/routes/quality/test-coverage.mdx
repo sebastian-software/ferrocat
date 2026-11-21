@@ -104,7 +104,7 @@ scripts/coverage.sh
 
 That script writes `target/lcov.info` and `target/coverage-summary.json`, then
 prints the measured percentage per crate against its threshold and exits
-non-zero when a gated crate is below it.
+non-zero when a gated crate is below it or has no measurable lines.
 
 ## CI
 

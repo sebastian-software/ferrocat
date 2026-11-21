@@ -59,7 +59,8 @@ scripts/coverage.sh
 
 `scripts/coverage.sh` is the single source for the llvm-cov filters and the
 per-crate thresholds. CI runs the same script, so the numbers cannot drift
-between this page and the workflow; change the thresholds there. The CI job
+between this page and the workflow. Update the thresholds in that script. A
+crate with a configured floor must report measurable lines. The CI job
 repeats the measured per-crate percentages in the run's job summary and keeps
 `lcov.info` and `coverage-summary.json` as workflow artifacts.
 
