@@ -40,7 +40,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: 26
+          node-version: 26.13.1
 
       - name: Enable Corepack and prepare pnpm
         working-directory: docs
@@ -319,7 +319,7 @@ jobs:
       - name: Setup Node.js for native homepage examples
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: 26
+          node-version: 26.13.1
 
       - name: Check the homepage samples against ferrocat and the CLI
         working-directory: docs
