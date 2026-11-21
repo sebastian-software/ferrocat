@@ -4,6 +4,8 @@ use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
+use clap::{Arg, ArgAction, ArgMatches, Command, error::ErrorKind};
+
 use ferrocat_po::{
     CatalogAuditOptions, CatalogAuditReport, CatalogAuditSummary, CatalogMode, DiagnosticSeverity,
     NormalizedParsedCatalog, ParseCatalogOptions, audit_catalogs, parse_catalog_for_review,
@@ -12,22 +14,70 @@ use ferrocat_po::{
 const EXIT_AUDIT_FAILED: u8 = 1;
 const EXIT_USAGE_OR_RUNTIME_ERROR: u8 = 2;
 
-const USAGE: &str = "\
-Usage:
-  ferrocat audit --source-locale <locale> --source <path> --target <locale=path>... [options]
-
-Commands:
-  audit    Audit source and target catalogs for release readiness.
-
-Audit options:
-  --source-locale <locale>    Locale that represents the source catalog.
-  --source <path>             Source catalog path.
-  --target <locale=path>      Target catalog path. Repeat for multiple locales.
-  --locale <locale>           Target locale filter. Repeat to request multiple target locales.
-  --storage <po|fcl>          Catalog storage format. Defaults to po.
-  --format <text|json>        Output format. Defaults to text.
-  -h, --help                  Show this help text.
-";
+fn command() -> Command {
+    let scalar = |name: &'static str, help: &'static str| {
+        Arg::new(name)
+            .long(name)
+            .help(help)
+            .action(ArgAction::Set)
+            .allow_hyphen_values(true)
+    };
+    Command::new("ferrocat")
+        .about("Audit source and target catalogs for release readiness.")
+        .subcommand(
+            Command::new("audit")
+                .about("Audit source and target catalogs for release readiness.")
+                .args_override_self(true)
+                .arg(
+                    scalar(
+                        "source-locale",
+                        "Locale that represents the source catalog.",
+                    )
+                    .required(true)
+                    .value_name("locale"),
+                )
+                .arg(
+                    scalar("source", "Source catalog path.")
+                        .required(true)
+                        .value_name("path"),
+                )
+                .arg(
+                    Arg::new("target")
+                        .long("target")
+                        .help("Target catalog path. Repeat for multiple locales.")
+                        .required(true)
+                        .action(ArgAction::Append)
+                        .allow_hyphen_values(true)
+                        .value_name("locale=path"),
+                )
+                .arg(
+                    Arg::new("locale")
+                        .long("locale")
+                        .help("Target locale filter. Repeat for multiple locales.")
+                        .action(ArgAction::Append)
+                        .allow_hyphen_values(true)
+                        .value_name("locale"),
+                )
+                .arg(
+                    scalar("storage", "Catalog storage format.")
+                        .value_parser(CliStorageFormat::parse)
+                        .default_value("po")
+                        .value_name("po|fcl"),
+                )
+                .arg(
+                    scalar("format", "Output format.")
+                        .value_parser(OutputFormat::parse)
+                        .default_value("text")
+                        .value_name("text|json"),
+                )
+                .arg(
+                    Arg::new("json")
+                        .long("json")
+                        .help("Output JSON (takes precedence over --format).")
+                        .action(ArgAction::SetTrue),
+                ),
+        )
+}
 
 fn main() -> ExitCode {
     let mut stdout = io::stdout().lock();
@@ -45,9 +95,10 @@ where
         Ok(exit_code) => exit_code,
         Err(error) => {
             let _ = writeln!(stderr, "{error}");
-            if matches!(error, CliError::Usage(_)) {
-                let _ = writeln!(stderr);
-                let _ = write!(stderr, "{USAGE}");
+            if let CliError::Usage(message) = &error
+                && !message.contains("Usage:")
+            {
+                let _ = writeln!(stderr, "\n{}", command().render_usage());
             }
             ExitCode::from(EXIT_USAGE_OR_RUNTIME_ERROR)
         }
@@ -59,39 +110,41 @@ where
     I: IntoIterator<Item = String>,
     W: Write,
 {
-    let mut args = args.into_iter();
-    let Some(command) = args.next() else {
-        write_usage(stdout)?;
+    let args: Vec<String> = args.into_iter().collect();
+    if args.is_empty() {
+        command().write_long_help(stdout)?;
+        writeln!(stdout)?;
+        return Ok(ExitCode::SUCCESS);
+    }
+    // Preserve audit help priority even if a preceding option expects a value.
+    if args.first().is_some_and(|arg| arg == "audit")
+        && args
+            .iter()
+            .skip(1)
+            .any(|arg| matches!(arg.as_str(), "-h" | "--help"))
+    {
+        let help = command()
+            .try_get_matches_from(["ferrocat", "audit", "--help"])
+            .expect_err("clap renders audit help");
+        write!(stdout, "{help}")?;
+        return Ok(ExitCode::SUCCESS);
+    }
+    let matches =
+        match command().try_get_matches_from(std::iter::once("ferrocat".to_owned()).chain(args)) {
+            Ok(matches) => matches,
+            Err(error) if error.kind() == ErrorKind::DisplayHelp => {
+                write!(stdout, "{error}")?;
+                return Ok(ExitCode::SUCCESS);
+            }
+            Err(error) => return Err(CliError::usage(error.to_string())),
+        };
+    let Some(("audit", matches)) = matches.subcommand() else {
+        command().write_long_help(stdout)?;
+        writeln!(stdout)?;
         return Ok(ExitCode::SUCCESS);
     };
-
-    match command.as_str() {
-        "-h" | "--help" | "help" => {
-            write_usage(stdout)?;
-            Ok(ExitCode::SUCCESS)
-        }
-        "audit" => run_audit(args, stdout),
-        other => Err(CliError::usage(format!("unknown command `{other}`"))),
-    }
-}
-
-fn run_audit<I, W>(args: I, stdout: &mut W) -> Result<ExitCode, CliError>
-where
-    I: IntoIterator<Item = String>,
-    W: Write,
-{
-    let args = args.into_iter().collect::<Vec<_>>();
-    if args
-        .iter()
-        .any(|arg| matches!(arg.as_str(), "-h" | "--help"))
-    {
-        write_usage(stdout)?;
-        return Ok(ExitCode::SUCCESS);
-    }
-
-    let config = AuditConfig::parse(args)?;
+    let config = AuditConfig::from_matches(matches)?;
     let report = config.run()?;
-
     match config.format {
         OutputFormat::Text => write_text_report(&report, stdout)?,
         OutputFormat::Json => {
@@ -101,20 +154,11 @@ where
             writeln!(stdout)?;
         }
     }
-
-    if report.has_errors() {
-        Ok(ExitCode::from(EXIT_AUDIT_FAILED))
+    Ok(if report.has_errors() {
+        ExitCode::from(EXIT_AUDIT_FAILED)
     } else {
-        Ok(ExitCode::SUCCESS)
-    }
-}
-
-fn write_usage<W>(stdout: &mut W) -> Result<(), CliError>
-where
-    W: Write,
-{
-    write!(stdout, "{USAGE}")?;
-    Ok(())
+        ExitCode::SUCCESS
+    })
 }
 
 fn write_text_report<W>(report: &CatalogAuditReport, stdout: &mut W) -> Result<(), CliError>
@@ -283,66 +327,58 @@ struct AuditConfig {
 }
 
 impl AuditConfig {
-    fn parse<I>(args: I) -> Result<Self, CliError>
-    where
-        I: IntoIterator<Item = String>,
-    {
-        let mut source_locale = None;
-        let mut source_path = None;
-        let mut targets = Vec::new();
-        let mut locale_filters = Vec::new();
-        let mut storage_format = CliStorageFormat::Po;
-        let mut format = OutputFormat::Text;
+    #[cfg(test)]
+    fn parse<I: IntoIterator<Item = String>>(args: I) -> Result<Self, CliError> {
+        let matches = command()
+            .try_get_matches_from(
+                ["ferrocat".to_owned(), "audit".to_owned()]
+                    .into_iter()
+                    .chain(args),
+            )
+            .map_err(|error| CliError::usage(error.to_string()))?;
+        Self::from_matches(
+            matches
+                .subcommand_matches("audit")
+                .expect("audit subcommand"),
+        )
+    }
 
-        let mut args = args.into_iter();
-        while let Some(arg) = args.next() {
-            match arg.as_str() {
-                "-h" | "--help" => {
-                    return Err(CliError::usage(USAGE.trim_end().to_owned()));
-                }
-                "--source-locale" => {
-                    source_locale = Some(next_value(&mut args, "--source-locale")?);
-                }
-                "--source" => {
-                    source_path = Some(PathBuf::from(next_value(&mut args, "--source")?));
-                }
-                "--target" => {
-                    targets.push(parse_target(&next_value(&mut args, "--target")?)?);
-                }
-                "--locale" => {
-                    let locale = next_value(&mut args, "--locale")?;
-                    if locale.trim().is_empty() {
-                        return Err(CliError::usage("--locale must not be empty"));
-                    }
-                    locale_filters.push(locale);
-                }
-                "--storage" => {
-                    storage_format = CliStorageFormat::parse(&next_value(&mut args, "--storage")?)?;
-                }
-                "--format" => {
-                    format = OutputFormat::parse(&next_value(&mut args, "--format")?)?;
-                }
-                other => {
-                    return Err(CliError::usage(format!("unknown audit option `{other}`")));
-                }
-            }
-        }
-
-        let source_locale =
-            source_locale.ok_or_else(|| CliError::usage("audit requires --source-locale"))?;
+    fn from_matches(matches: &ArgMatches) -> Result<Self, CliError> {
+        let source_locale = matches
+            .get_one::<String>("source-locale")
+            .expect("required")
+            .clone();
         if source_locale.trim().is_empty() {
             return Err(CliError::usage("--source-locale must not be empty"));
+        }
+        let locale_filters = matches
+            .get_many::<String>("locale")
+            .into_iter()
+            .flatten()
+            .cloned()
+            .collect::<Vec<_>>();
+        if locale_filters.iter().any(|locale| locale.trim().is_empty()) {
+            return Err(CliError::usage("--locale must not be empty"));
         }
         if locale_filters.iter().any(|locale| locale == &source_locale) {
             return Err(CliError::usage(
                 "--locale selects target locales and must not equal --source-locale",
             ));
         }
-        let source_path = source_path.ok_or_else(|| CliError::usage("audit requires --source"))?;
-        if targets.is_empty() {
-            return Err(CliError::usage("audit requires at least one --target"));
-        }
-
+        let targets = matches
+            .get_many::<String>("target")
+            .expect("required")
+            .map(|value| parse_target(value))
+            .collect::<Result<Vec<_>, _>>()?;
+        let source_path = PathBuf::from(matches.get_one::<String>("source").expect("required"));
+        let storage_format = *matches
+            .get_one::<CliStorageFormat>("storage")
+            .expect("default");
+        let format = if matches.get_flag("json") {
+            OutputFormat::Json
+        } else {
+            *matches.get_one::<OutputFormat>("format").expect("default")
+        };
         Ok(Self {
             source_locale,
             source_path,
@@ -412,14 +448,6 @@ fn load_catalog(
             .with_mode(storage_format.catalog_mode()),
     )
     .map_err(|error| CliError::runtime(format!("failed to parse {}: {error}", path.display())))
-}
-
-fn next_value<I>(args: &mut I, flag: &str) -> Result<String, CliError>
-where
-    I: Iterator<Item = String>,
-{
-    args.next()
-        .ok_or_else(|| CliError::usage(format!("{flag} requires a value")))
 }
 
 fn parse_target(value: &str) -> Result<TargetCatalog, CliError> {
@@ -675,7 +703,7 @@ mod tests {
         );
         assert!(stdout.is_empty());
         let error = String::from_utf8(stderr).expect("stderr should be UTF-8");
-        assert!(error.contains("unknown command `unknown`"));
+        assert!(error.contains("unknown"));
         assert!(error.contains("Usage:"));
     }
 
@@ -694,7 +722,7 @@ mod tests {
             std::process::ExitCode::from(EXIT_USAGE_OR_RUNTIME_ERROR)
         );
         let error = String::from_utf8(stderr).expect("stderr should be UTF-8");
-        assert!(error.contains("--source-locale requires a value"));
+        assert!(error.contains("--source-locale"));
         assert!(error.contains("Usage:"));
     }
 

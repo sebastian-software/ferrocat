@@ -23,8 +23,8 @@ Exit codes:
 - `1`: audit completed and reported at least one error diagnostic
 - `2`: command usage, I/O, parse, or serialization failure
 
-Use `--format json` when CI should consume the structured
-`CatalogAuditReport`.
+Use `--format json` or `--json` when CI should consume the structured
+`CatalogAuditReport`. `--json` takes precedence if combined with `--format text`.
 
 <!-- ferramenta-family:start -->
 **ferrocat** is part of the [Ferramenta](https://ferramenta.dev) family — A family of Rust tools.
