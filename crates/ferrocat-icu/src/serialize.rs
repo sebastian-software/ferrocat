@@ -14,8 +14,21 @@ pub fn stringify_icu(message: &IcuMessage) -> String {
 }
 
 fn render_nodes(nodes: &[IcuNode], out: &mut String) {
-    for node in nodes {
-        render_node(node, out);
+    let mut nodes = nodes.iter().peekable();
+    while let Some(node) = nodes.next() {
+        if let IcuNode::Literal(value) = node
+            && matches!(nodes.peek(), Some(IcuNode::Literal(_)))
+        {
+            // Separate quoted runs can form a doubled apostrophe when they touch.
+            let mut value = value.clone();
+            while let Some(IcuNode::Literal(next)) = nodes.peek() {
+                value.push_str(next);
+                nodes.next();
+            }
+            append_escaped_literal(out, &value);
+        } else {
+            render_node(node, out);
+        }
     }
 }
 

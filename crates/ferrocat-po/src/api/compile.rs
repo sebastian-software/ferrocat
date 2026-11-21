@@ -186,6 +186,9 @@ pub fn compile_catalog_artifact(
 
 /// Compiles one requested-locale runtime artifact for a selected subset of compiled IDs.
 ///
+/// Build the index from the same non-obsolete source identities and key policy
+/// used by the current catalog set. Rebuild it when either changes.
+///
 /// # Errors
 ///
 /// Returns [`ApiError::InvalidArguments`] when the selected IDs are unknown or the
@@ -857,9 +860,23 @@ fn push_icu_compatibility_diagnostics(
     ) else {
         return;
     };
-    let Ok(source_icu) = parse_icu_with_syntax_policy(&source_message, icu_options.syntax_policy)
-    else {
-        return;
+    let source_icu = match parse_icu_with_syntax_policy(&source_message, icu_options.syntax_policy)
+    {
+        Ok(source_icu) => source_icu,
+        Err(error) => {
+            artifact.diagnostics.push(CompiledCatalogDiagnostic {
+                severity: DiagnosticSeverity::Error,
+                code: diagnostic_codes::icu::INVALID_SYNTAX.into(),
+                message: format!(
+                    "ICU compatibility check could not parse the source message: {error}"
+                ),
+                key: target.compiled_key.to_owned(),
+                msgid: target.source_key.msgid.clone(),
+                msgctxt: target.source_key.msgctxt.clone(),
+                locale: options.source_locale.to_owned(),
+            });
+            return;
+        }
     };
 
     let report = compare_icu_messages(

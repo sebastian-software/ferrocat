@@ -68,7 +68,9 @@ formatter-support diagnostics retain their separate policies.
 Report options now have one ICU configuration. Replace assignments to
 `report.icu_options` with `report.options.icu_options`, or use
 `report.with_icu_options(...)`. The full, selected and report paths all use
-that nested value. The artifact JSON schema remains version 1.
+that nested value. The artifact JSON schema remains version 1. For persisted
+artifacts and indexes, include the Ferrocat version, key strategy, and ICU
+syntax policy in the cache key alongside the catalog inputs.
 
 ### Diagnostic code types
 

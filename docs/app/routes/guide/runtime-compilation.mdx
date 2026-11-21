@@ -34,12 +34,13 @@ Use this layer when you want:
 - typed runtime-oriented payloads
 - no locale fallback resolution yet
 
-Both compile layers use strict ICU syntax by default. For a runtime that treats
+Both compile layers select `IcuSyntaxPolicy::Strict` by default. For a runtime that treats
 natural apostrophes as literal while preserving ICU quotes, set
 `IcuSyntaxPolicy::RuntimeLiteralApostrophes`. Ferrocat then canonicalizes
 message text and compiled IDs together. Use `compiled_key_with_policy` in host
 transforms and `CompiledCatalogIdIndex::new_with_policy` for selected
-compilation; a policy-mismatched ID is rejected. On the lower
+compilation. Build the index with the same catalog identities, key strategy, and
+ICU policy as the compiler. Rebuild it whenever those inputs change. On the lower
 `NormalizedParsedCatalog::compile` layer, non-strict ICU policies require
 `CatalogSemantics::IcuNative` because structured gettext branch values are not
 ICU patterns.
@@ -97,7 +98,9 @@ Diagnostic tools explicitly set `with_strict_icu(false)` to collect all syntax
 errors in the artifact instead. `icu_compatibility`
 keeps compilation non-fatal and reports structural translation drift such as
 missing arguments, formatter changes, tag mismatches, select/plural branch
-changes, and discouraged formatter patterns.
+changes, and discouraged formatter patterns. A source message that cannot be
+parsed produces an `icu.invalid_syntax` diagnostic for the source locale, even
+when its resolved translation is valid.
 
 For broader release QA, use `audit_catalogs` before compilation. Audit reports
 missing locales, missing or empty translations, stale target-only entries,

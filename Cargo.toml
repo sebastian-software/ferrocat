@@ -28,6 +28,7 @@ path = "crates/ferrocat/src/lib.rs"
 [[example]]
 name = "fcl_with_mt_metadata"
 path = "crates/ferrocat/examples/fcl_with_mt_metadata.rs"
+required-features = ["catalog"]
 
 [[example]]
 name = "merge_extracted_messages"
@@ -36,14 +37,17 @@ path = "crates/ferrocat/examples/merge_extracted_messages.rs"
 [[example]]
 name = "release_audit"
 path = "crates/ferrocat/examples/release_audit.rs"
+required-features = ["catalog"]
 
 [[example]]
 name = "runtime_compile"
 path = "crates/ferrocat/examples/runtime_compile.rs"
+required-features = ["catalog"]
 
 [[test]]
 name = "smoke"
 path = "crates/ferrocat/tests/smoke.rs"
+required-features = ["catalog"]
 
 [features]
 default = ["full"]

@@ -340,7 +340,7 @@ pub enum CompileCatalogArtifactReportSelection<'a> {
     All,
     /// Compile and report only the requested compiled runtime IDs.
     Selected {
-        /// Stable ID index used to map compiled IDs back to source identities.
+        /// Stable ID index for the current catalog identities and key policy.
         index: &'a CompiledCatalogIdIndex,
         /// Requested compiled runtime IDs to include in the artifact and provenance report.
         compiled_ids: &'a [&'a str],
@@ -472,6 +472,9 @@ impl CompiledCatalog {
 }
 
 /// Stable compiled runtime ID index built from one or more normalized catalogs.
+///
+/// For selected compilation, rebuild the index when the set of non-obsolete
+/// source identities, key strategy, or ICU syntax policy changes.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
