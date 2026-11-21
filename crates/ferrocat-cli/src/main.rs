@@ -60,13 +60,13 @@ fn command() -> Command {
                 )
                 .arg(
                     scalar("storage", "Catalog storage format.")
-                        .value_parser(["po", "fcl"])
+                        .value_parser(CliStorageFormat::parse)
                         .default_value("po")
                         .value_name("po|fcl"),
                 )
                 .arg(
                     scalar("format", "Output format.")
-                        .value_parser(["text", "json"])
+                        .value_parser(OutputFormat::parse)
                         .default_value("text")
                         .value_name("text|json"),
                 )
@@ -371,12 +371,13 @@ impl AuditConfig {
             .map(|value| parse_target(value))
             .collect::<Result<Vec<_>, _>>()?;
         let source_path = PathBuf::from(matches.get_one::<String>("source").expect("required"));
-        let storage_format =
-            CliStorageFormat::parse(matches.get_one::<String>("storage").expect("default"))?;
+        let storage_format = *matches
+            .get_one::<CliStorageFormat>("storage")
+            .expect("default");
         let format = if matches.get_flag("json") {
             OutputFormat::Json
         } else {
-            OutputFormat::parse(matches.get_one::<String>("format").expect("default"))?
+            *matches.get_one::<OutputFormat>("format").expect("default")
         };
         Ok(Self {
             source_locale,
