@@ -3,42 +3,6 @@
 > Version 3.0.0 was published and then yanked; 2.2.0 superseded it without the
 > breaking change, so the 2.2.0 compare links below run backwards from 3.0.0.
 
-## Unreleased
-
-### ⚠ BREAKING CHANGES
-
-- Compiling with `IcuSyntaxPolicy::RuntimeLiteralApostrophes` now
-  canonicalizes both artifact messages and compiled IDs. Regenerate runtime
-  artifacts and `CompiledCatalogIdIndex` values created with Ferrocat 3.1.0 or
-  earlier; previously cached IDs do not match the canonicalized contract.
-- `measure_catalog_coverage`, default fuzzy-enabled `audit_catalogs`, and
-  current target catalogs passed to `review_catalogs` now require normalized
-  inputs from `parse_catalog_for_review` (or programmatic catalogs explicitly
-  normalized with `into_normalized_view_assuming_no_fuzzy`). This prevents
-  discarded fuzzy state from being counted as translated.
-- `CatalogMessageStatus::Fuzzy`, `CatalogLocaleCoverage::fuzzy()`,
-  `CatalogAuditChecks::fuzzy_flags`, and the `catalog.fuzzy_flag` diagnostic are
-  restored. The derived accessor keeps the externally constructible coverage
-  struct semver-compatible.
-
-### Features
-
-- **collation:** expose opt-in compact CLDR root comparison keys shared by the
-  catalog layer and downstream consumers, without adding catalog dependencies.
-
-* **catalog:** add explicit PO/FCL conversion that preserves shared message metadata
-* **po:** add opt-in rename-only durability for catalog file updates
-* **icu:** add policy-aware runtime apostrophe canonicalization and compiled-key derivation
-
-### Bug Fixes
-
-- FCL update, conversion, and combine now reject duplicate serialized
-  `(id, ctxt)` identities at their shared export boundary. File updates leave
-  an existing destination unchanged when validation fails.
-- Active PO `#, fuzzy` and FCL `f=fuzzy` entries no longer count as translated;
-  coverage, audit, and review share the same empty/plural/obsolete/fuzzy
-  precedence.
-
 ## [2.2.0](https://github.com/sebastian-software/ferrocat/compare/ferrocat-po-v3.0.0...ferrocat-po-v2.2.0) (2026-07-05)
 
 

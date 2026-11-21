@@ -140,6 +140,22 @@ self-closing-tag change was first classified as breaking. Those packages were
 yanked and the compatible change shipped as `2.2.0`. Use the 2.2 line rather
 than selecting `3.0.0` from the historical changelog entries.
 
+## Earlier 3.x migration notes
+
+Ferrocat 3.2.0 canonicalized runtime-apostrophe artifact messages and compiled
+IDs. Regenerate runtime artifacts and `CompiledCatalogIdIndex` values created
+with 3.1.0 or earlier. It also restored fuzzy review: coverage, fuzzy-enabled
+audit, and current review targets require `parse_catalog_for_review` or an
+explicit `into_normalized_view_assuming_no_fuzzy` for programmatic catalogs.
+Active PO and FCL fuzzy entries no longer count as translated, and CLI audit
+reports them. The fuzzy status, coverage accessor, audit check, and diagnostic
+are available again. Explicit PO/FCL conversion preserves shared metadata.
+
+In 3.2.1, FCL update, conversion, and combine reject duplicate serialized
+identities before rendering, leaving existing output unchanged on validation
+failure. Version 3.3.0 added opt-in rename-only file update durability. Version
+3.6.0 exposed compact CLDR root collation keys without catalog dependencies.
+
 ## Upgrade routine
 
 1. Read the `ferrocat` changelog for the target version.
