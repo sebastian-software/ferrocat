@@ -115,7 +115,7 @@ umbrella crate:
 
 ```toml
 [dependencies]
-ferrocat = "2"
+ferrocat = "4"
 ```
 
 If you depend on lower-level crates directly, keep every Ferrocat crate on the
@@ -124,14 +124,14 @@ together:
 
 ```toml
 [dependencies]
-ferrocat-po = "2"
-ferrocat-icu = "2"
+ferrocat-po = "4"
+ferrocat-icu = "4"
 ```
 
 Within a normal major line, minor and patch releases stay backward compatible, so
-Cargo resolves a shared `"2"` requirement to a single, latest-compatible
+Cargo resolves a shared `"4"` requirement to a single, latest-compatible
 version. Avoid pinning the umbrella crate and a direct sub-crate to different
-exact versions, for example `ferrocat = "=2.2.0"` with `ferrocat-po = "=2.1.1"`:
+exact versions, for example `ferrocat = "=4.0.0"` with `ferrocat-po = "=3.0.0"`:
 that can pull two copies of the Ferrocat types into the build and fail with
 confusing type-mismatch errors.
 

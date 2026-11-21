@@ -55,11 +55,12 @@ where
         .write_all(content.as_bytes())
         .map_err(|error| ApiError::io_with_path(path, error))?;
     #[cfg(unix)]
-    match fs::metadata(path) {
-        Ok(metadata) => temp_file
+    match fs::symlink_metadata(path) {
+        Ok(metadata) if metadata.file_type().is_file() => temp_file
             .as_file()
             .set_permissions(metadata.permissions())
             .map_err(|error| ApiError::io_with_path(path, error))?,
+        Ok(_) => {}
         Err(error) if error.kind() == io::ErrorKind::NotFound => {}
         Err(error) => return Err(ApiError::io_with_path(path, error)),
     }
@@ -143,6 +144,31 @@ mod tests {
             0o754
         );
         assert_eq!(fs::read_to_string(target).expect("read"), "after");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn atomic_write_replaces_symlink_without_inheriting_target_mode() {
+        use std::os::unix::fs::{PermissionsExt, symlink};
+        let directory = tempfile::tempdir().expect("temporary directory");
+        let target = directory.path().join("target");
+        let link = directory.path().join("catalog.po");
+        fs::write(&target, "original").expect("create target");
+        fs::set_permissions(&target, fs::Permissions::from_mode(0o644)).expect("set mode");
+        symlink(&target, &link).expect("create symlink");
+        atomic_write(&link, "replacement").expect("replace link");
+        assert_eq!(
+            fs::read_to_string(&target).expect("read target"),
+            "original"
+        );
+        assert_eq!(
+            fs::read_to_string(&link).expect("read replacement"),
+            "replacement"
+        );
+        assert_eq!(
+            fs::metadata(&link).expect("metadata").permissions().mode() & 0o777,
+            0o600
+        );
     }
 
     #[test]

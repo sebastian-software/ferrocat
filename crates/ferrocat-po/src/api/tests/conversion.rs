@@ -478,3 +478,35 @@ fn fcl2_preserves_empty_context_and_carriage_returns_through_conversion() {
             .any(|item| item.msgctxt.as_deref() == Some("") && item.msgstr[0] == "empty\r")
     );
 }
+
+#[cfg(unix)]
+#[test]
+fn file_conversion_preserves_existing_output_permissions() {
+    use std::os::unix::fs::PermissionsExt;
+    let directory = tempfile::tempdir().expect("tempdir");
+    let input = directory.path().join("de.po");
+    fs::write(
+        &input,
+        "msgid \"\"\nmsgstr \"\"\n\"Language: de\\n\"\n\nmsgid \"Hello\"\nmsgstr \"Hallo\"\n",
+    )
+    .expect("write input");
+    for mode in [0o640, 0o600] {
+        let output = directory.path().join(format!("{mode:o}.fcl"));
+        fs::write(&output, "old").expect("create output");
+        fs::set_permissions(&output, fs::Permissions::from_mode(mode)).expect("set mode");
+        convert_catalog_file(ConvertCatalogFileOptions::new(&input, &output, "en"))
+            .expect("convert");
+        assert_eq!(
+            fs::metadata(&output)
+                .expect("metadata")
+                .permissions()
+                .mode()
+                & 0o7777,
+            mode
+        );
+        assert_eq!(
+            fs::read_to_string(&output).expect("read output"),
+            "%FCL2\tsource=en\tlocale=de\torder=collated\nHello\tn\tHallo\n"
+        );
+    }
+}
