@@ -16,8 +16,8 @@ include = [
     "crates/ferrocat/tests/**",
     "crates/ferrocat/README.md",
     "crates/ferrocat/CHANGELOG.md",
-    "LICENSE-MIT",
-    "LICENSE-APACHE",
+    "/LICENSE-MIT",
+    "/LICENSE-APACHE",
 ]
 keywords = ["ferramenta", "gettext", "po", "icu", "i18n"]
 categories = ["internationalization", "localization", "parser-implementations"]
