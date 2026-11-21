@@ -26,6 +26,13 @@ FCL2 adds `\r` to the existing backslash, tab and newline escapes. Unknown
 escapes and invalid context markers are errors. CRLF is accepted as a document
 line ending; carriage returns in values are escaped by the writer.
 
+FCL2 collated order uses the checked-in collation weights for covered scalars.
+Uncovered scalars sort by their scalar value, independent of the compiler's
+Unicode tables. Readers validate this order for FCL2. FCL1 files declaring
+collated order are accepted without an order check because historical writers
+used compiler-dependent Unicode case data. Duplicate identities are rejected
+across the whole file. Tagless files retain the legacy bytewise order check.
+
 Readers dispatch explicitly by header and keep the FCL1 context and escape
 rules unchanged. They do not infer a lost empty context or carriage return.
 An FCL1 catalog rewritten through the catalog layer becomes canonical FCL2.

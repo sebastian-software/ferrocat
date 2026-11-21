@@ -190,3 +190,8 @@ misinterpreting the context markers and new escape.
 
 Pick FCL for the machine/merge role and PO when a translator tool reads the file
 directly. The two cover different jobs; you don't have to choose one globally.
+
+FCL2 collated order uses the checked-in weights for covered characters and scalar
+value order for uncovered characters. FCL1 declared-collated files are read
+without enforcing their historical compiler-dependent order. Duplicate identities
+are rejected throughout the file; tagless files retain bytewise order validation.
