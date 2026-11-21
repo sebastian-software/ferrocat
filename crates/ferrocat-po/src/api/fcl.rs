@@ -13,6 +13,7 @@ use super::catalog::{
     CanonicalMessage, CanonicalTranslation, Catalog, OpaqueCapture, OpaqueMetadata, parse_origin,
     split_placeholder_comments,
 };
+use super::collation::{CollationPrefix, storage_collation_prefix};
 use super::export::for_each_placeholder_comment;
 use super::mt::{
     MachineMetadata, format_ai_descriptor, machine_translation_hash, parse_ai_descriptor,
@@ -303,9 +304,51 @@ fn fcl_collated_key(message: &CanonicalMessage) -> FclCollatedKey {
     }
 }
 
-/// Sort by the stable storage key, including raw identity tie-breakers.
+/// Applies the same packed-prefix strategy as the shared catalog sort, using
+/// FCL's serialized `id` column so plural IDs validate after a round trip.
 fn sort_fcl_messages_collated(messages: &mut [&CanonicalMessage]) {
-    messages.sort_by_cached_key(|message| fcl_collated_key(message));
+    if messages.len() < 2 {
+        return;
+    }
+
+    let prefixes: Vec<CollationPrefix> = messages
+        .iter()
+        .map(|message| storage_collation_prefix(&fcl_id(message)))
+        .collect();
+    let mut order: Vec<usize> = (0..messages.len()).collect();
+    order.sort_unstable_by_key(|&index| prefixes[index]);
+
+    let mut start = 0;
+    while start < order.len() {
+        let prefix = prefixes[order[start]];
+        let mut end = start + 1;
+        while end < order.len() && prefixes[order[end]] == prefix {
+            end += 1;
+        }
+        if end - start > 1 {
+            let mut run: Vec<(FclCollatedKey, usize)> = order[start..end]
+                .iter()
+                .map(|&index| (fcl_collated_key(messages[index]), index))
+                .collect();
+            run.sort_by(|left, right| left.0.cmp(&right.0));
+            for (slot, (_, index)) in order[start..end].iter_mut().zip(run) {
+                *slot = index;
+            }
+        }
+        start = end;
+    }
+
+    let mut destination = vec![0_usize; order.len()];
+    for (position, &source) in order.iter().enumerate() {
+        destination[source] = position;
+    }
+    for position in 0..destination.len() {
+        while destination[position] != position {
+            let target = destination[position];
+            messages.swap(position, target);
+            destination.swap(position, target);
+        }
+    }
 }
 
 /// Renders an internal [`Catalog`] as FCL text.
@@ -341,7 +384,12 @@ pub(super) fn stringify_catalog_fcl(
 // --- parse ----------------------------------------------------------------
 
 fn is_conflict_marker(line: &str) -> bool {
-    line.starts_with("<<<<<<<") || line.starts_with("=======") || line.starts_with(">>>>>>>")
+    // A valid entry has at least three tab-separated fields, even when its ID
+    // begins with marker characters. Diff3 also uses a `|||||||` base marker.
+    ["<<<<<<<", "|||||||", "=======", ">>>>>>>"]
+        .iter()
+        .any(|marker| line.starts_with(marker))
+        && line.bytes().filter(|&byte| byte == b'\t').take(2).count() < 2
 }
 
 fn parse_header(line: &str, source_locale: &str) -> Result<FclHeader, ApiError> {
@@ -653,7 +701,8 @@ pub(super) fn parse_catalog_to_internal_fcl(
     let estimated_entries = memchr::memchr_iter(b'\n', content.as_bytes()).count();
     let mut messages: Vec<CanonicalMessage> = Vec::with_capacity(estimated_entries);
     let mut previous_collated_key: Option<FclCollatedKey> = None;
-    let mut identities = BTreeSet::new();
+    let legacy_collated =
+        parsed_header.version == FclVersion::V1 && parsed_header.order == FclOrder::Collated;
     for (index, line) in lines {
         if line.is_empty() {
             continue;
@@ -671,16 +720,16 @@ pub(super) fn parse_catalog_to_internal_fcl(
                     index + 1
                 ))
             })?;
-        if !identities.insert((message.msgid.clone(), message.msgctxt.clone())) {
-            return Err(ApiError::Conflict(format!(
-                "duplicate FCL entry for id {:?} and context {:?}",
-                message.msgid, message.msgctxt
-            )));
-        }
         // Tagless files retain the legacy bytewise order check.
         if let Some(previous) = messages.last() {
             let identity_order = (message.msgid.as_str(), message.msgctxt.as_deref())
                 .cmp(&(previous.msgid.as_str(), previous.msgctxt.as_deref()));
+            if !legacy_collated && identity_order.is_eq() {
+                return Err(ApiError::Conflict(format!(
+                    "duplicate FCL entry for id {:?} and context {:?}",
+                    message.msgid, message.msgctxt
+                )));
+            }
             if parsed_header.order == FclOrder::LegacyBytewise && identity_order.is_lt() {
                 return Err(ApiError::InvalidArguments(format!(
                     "FCL entries must be sorted by (id, ctxt); line {} is out of order",
@@ -702,6 +751,18 @@ pub(super) fn parse_catalog_to_internal_fcl(
             previous_collated_key = Some(key);
         }
         messages.push(message);
+    }
+
+    if legacy_collated {
+        let mut identities = rustc_hash::FxHashSet::default();
+        for message in &messages {
+            if !identities.insert((message.msgid.as_str(), message.msgctxt.as_deref())) {
+                return Err(ApiError::Conflict(format!(
+                    "duplicate FCL entry for id {:?} and context {:?}",
+                    message.msgid, message.msgctxt
+                )));
+            }
+        }
     }
 
     Ok(Catalog {
@@ -1011,12 +1072,10 @@ mod tests {
     #[test]
     fn rejects_entries_outside_declared_collated_order() {
         // Bytewise order puts '<' before '{'; CLDR root order is the reverse.
-        let text = format!(
-            "%FCL2\tsource=en\torder=collated\n\
+        let text = "%FCL2\tsource=en\torder=collated\n\
              <0>Continue</0>\tn\tmarkup\n\
-             {{count, plural, one {{#}} other {{#}}}}\tn\tplaceholder\n"
-        );
-        assert!(parse_err(&text));
+             {count, plural, one {#} other {#}}\tn\tplaceholder\n";
+        assert!(parse_err(text));
     }
 
     #[test]

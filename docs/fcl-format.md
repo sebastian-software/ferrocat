@@ -46,9 +46,12 @@ tag     = key "=" value | flag-key       ; flag-key has no '='
   is `n` for no context or `s` followed by the escaped context for a present
   context. Thus `s` alone represents an explicitly empty context. `target`
   empty == untranslated.
-- Newly written entries follow CLDR root order by `id` and then `ctxt`, declared
-  as `order=collated`. Readers accept legacy files with no `order` tag only
-  when they ascend by the byte sequence of `(id, ctxt)`.
+- Newly written entries follow the compact collated order by `id` and then
+  `ctxt`, declared as `order=collated`. FCL2 uses checked-in weights for covered
+  characters and scalar value order for uncovered characters. Readers validate
+  this order for FCL2. FCL1 declared-collated files are accepted without an
+  order check because historical writers used compiler-dependent case data.
+  Tagless files retain bytewise `(id, ctxt)` order validation.
 - Tags appear in a fixed canonical order (see below); empty/absent tags are
   omitted (no trailing tabs).
 
@@ -159,18 +162,21 @@ catalog-layer decision shared with PO output; the low-level `parse_po` /
 
 - A line beginning with a git conflict marker (`<<<<<<<`, `=======`, `>>>>>>>`)
   is a hard parse error with position — never silently mis-parsed.
-- Duplicate `(id, ctxt)` (adjacent under either supported order) is a hard
-  parse error. The shared FCL export boundary also rejects duplicate serialized
+- Duplicate `(id, ctxt)` anywhere in a file is a hard parse error. The shared FCL export boundary also rejects duplicate serialized
   identities with `ApiError::Conflict`, so `update_catalog`, catalog conversion,
   and catalog combine cannot emit an FCL file that its reader would reject.
 - Structured plural messages use their synthesized ICU source string as the
   serialized `id`. A literal singular ID that matches that string is therefore
   a collision, just like active and obsolete messages that share an identity.
-- Entries that violate the legacy bytewise order or declared collated order are
-  a hard error.
+- Entries that violate tagless bytewise order or FCL2 declared collated order
+  are a hard error.
 - Duplicate singleton tags and tags outside canonical order are hard errors.
 - Unknown tag keys are a hard error (the versioned header gates
   forward-compatible additions).
+
+Marker-like entry IDs are valid. Conversion to PO rejects metadata and identities
+that PO cannot represent without changing their values. Failed file conversion
+leaves the destination unchanged.
 
 File-based catalog workflows finish this validation and render the complete FCL
 content before atomically replacing the destination. An identity conflict
@@ -190,8 +196,3 @@ misinterpreting the context markers and new escape.
 
 Pick FCL for the machine/merge role and PO when a translator tool reads the file
 directly. The two cover different jobs; you don't have to choose one globally.
-
-FCL2 collated order uses the checked-in weights for covered characters and scalar
-value order for uncovered characters. FCL1 declared-collated files are read
-without enforcing their historical compiler-dependent order. Duplicate identities
-are rejected throughout the file; tagless files retain bytewise order validation.

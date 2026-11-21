@@ -84,6 +84,9 @@ fn finish_catalog_conversion(
 
     match options.target_mode.storage_format() {
         CatalogStorageFormat::Po => {
+            if options.source_mode.storage_format() == CatalogStorageFormat::Fcl {
+                validate_po_metadata(&catalog)?;
+            }
             apply_header_defaults(
                 &mut catalog.headers,
                 locale.as_deref(),
@@ -136,6 +139,68 @@ fn finish_catalog_conversion(
         message_count,
         diagnostics,
     })
+}
+
+// PO comments are line-oriented and trimmed by its parser; flags are comma
+// separated. Reject FCL values that PO cannot represent without changing them.
+fn validate_po_metadata(catalog: &super::catalog::Catalog) -> Result<(), ApiError> {
+    fn line_safe(value: &str) -> bool {
+        !value.contains(['\r', '\n'])
+            && value.trim_matches(|c: char| c.is_ascii_whitespace()) == value
+    }
+    for message in &catalog.messages {
+        let reject = |field: &str| {
+            ApiError::Unsupported(format!(
+                "FCL {field} for id {:?} cannot be represented losslessly in PO",
+                message.msgid
+            ))
+        };
+        if message.msgid.is_empty() && message.msgctxt.is_none() {
+            return Err(reject("identity"));
+        }
+        for comment in message.comments.iter().chain(message.translator_comments()) {
+            if !line_safe(comment) {
+                return Err(reject("comment"));
+            }
+        }
+        for flag in message.flags() {
+            if flag.is_empty() || flag.contains([',', '\r', '\n']) || flag.trim() != flag {
+                return Err(reject("flag"));
+            }
+        }
+        for origin in &message.origins {
+            let mut rendered = String::new();
+            super::catalog::write_origin(&mut rendered, origin);
+            let mut count = 0;
+            let mut matches = false;
+            crate::text::for_each_reference_token(&rendered, |token| {
+                count += 1;
+                matches = token == rendered;
+            });
+            if !line_safe(&rendered) || count != 1 || !matches {
+                return Err(reject("reference"));
+            }
+        }
+        if let Some(since) = message
+            .obsolete
+            .as_ref()
+            .and_then(|info| info.since.as_deref())
+            && !line_safe(since)
+        {
+            return Err(reject("obsolete date"));
+        }
+        if let Some(machine) = &message.machine {
+            if !line_safe(&machine.lock) {
+                return Err(reject("lock"));
+            }
+            if let Some(ai) = &machine.ai
+                && !line_safe(&super::mt::format_ai_descriptor(ai))
+            {
+                return Err(reject("AI provenance"));
+            }
+        }
+    }
+    Ok(())
 }
 
 /// Converts a catalog file and atomically replaces the output path.

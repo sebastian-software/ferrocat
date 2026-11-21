@@ -510,3 +510,96 @@ fn file_conversion_preserves_existing_output_permissions() {
         );
     }
 }
+
+#[test]
+fn fcl_to_po_rejects_unrepresentable_metadata_without_clobbering_files() {
+    let directory = tempfile::tempdir().expect("tempdir");
+    let input = directory.path().join("input.fcl");
+    let output = directory.path().join("output.po");
+    for tag in [
+        "c=one\\ntwo",
+        "c=one\\rtwo",
+        "tc=one\\ntwo",
+        "tc=one\\rtwo",
+        "f=custom,fuzzy",
+        "f= fuzzy",
+        "r=one\\ntwo",
+        "o=one\\ntwo",
+        "o=one\\rtwo",
+    ] {
+        let text = format!("%FCL2\tsource=en\nid\tn\tvalue\t{tag}\n");
+        let options =
+            ConvertCatalogOptions::new(&text, "en", CatalogMode::IcuFcl, CatalogMode::IcuPo);
+        assert!(convert_catalog(options).is_err(), "{tag}");
+        fs::write(&input, &text).expect("write FCL");
+        fs::write(&output, "sentinel").expect("write destination");
+        assert!(
+            convert_catalog_file(ConvertCatalogFileOptions::new(&input, &output, "en")).is_err(),
+            "{tag}"
+        );
+        assert_eq!(
+            fs::read_to_string(&output).expect("read destination"),
+            "sentinel"
+        );
+    }
+}
+
+#[test]
+fn fcl_marker_like_ids_roundtrip_and_actual_conflicts_fail() {
+    let po = "msgid \"======= Summary\"\nmsgstr \"text\"\n";
+    let fcl = convert_catalog(ConvertCatalogOptions::new(
+        po,
+        "en",
+        CatalogMode::IcuPo,
+        CatalogMode::IcuFcl,
+    ))
+    .expect("to FCL");
+    assert!(fcl.content.contains("======= Summary\tn\ttext\n"));
+    let converted = convert_catalog(ConvertCatalogOptions::new(
+        &fcl.content,
+        "en",
+        CatalogMode::IcuFcl,
+        CatalogMode::IcuPo,
+    ))
+    .expect("back to PO");
+    assert!(converted.content.contains("msgid \"======= Summary\""));
+    for marker in ["<<<<<<< HEAD", "||||||| base", "=======", ">>>>>>> branch"] {
+        let text = format!("%FCL2\tsource=en\n{marker}\n");
+        assert!(
+            convert_catalog(ConvertCatalogOptions::new(
+                &text,
+                "en",
+                CatalogMode::IcuFcl,
+                CatalogMode::IcuPo
+            ))
+            .is_err()
+        );
+    }
+}
+
+#[test]
+fn fcl_to_po_rejects_header_identity_and_multiline_ai() {
+    let header = "%FCL2\tsource=en\n\tn\tvalue\n";
+    assert!(
+        convert_catalog(ConvertCatalogOptions::new(
+            header,
+            "en",
+            CatalogMode::IcuFcl,
+            CatalogMode::IcuPo
+        ))
+        .is_err()
+    );
+    let hash = machine_translation_hash(EffectiveTranslationRef::Singular("value"));
+    for ai in ["model\\nextra", "model\\rextra"] {
+        let text = format!("%FCL2\tsource=en\nid\tn\tvalue\tlock={hash}\tai={ai}\n");
+        assert!(
+            convert_catalog(ConvertCatalogOptions::new(
+                &text,
+                "en",
+                CatalogMode::IcuFcl,
+                CatalogMode::IcuPo
+            ))
+            .is_err()
+        );
+    }
+}
