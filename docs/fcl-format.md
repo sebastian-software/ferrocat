@@ -160,9 +160,11 @@ catalog-layer decision shared with PO output; the low-level `parse_po` /
 
 ## Robustness
 
-- A line beginning with a git conflict marker (`<<<<<<<`, `=======`, `>>>>>>>`)
-  is a hard parse error with position — never silently mis-parsed.
-- Duplicate `(id, ctxt)` anywhere in a file is a hard parse error. The shared FCL export boundary also rejects duplicate serialized
+- Git conflict marker lines (`<<<<<<<`, `|||||||`, `=======`, `>>>>>>>`) are
+  hard parse errors with a line number. An entry ID may start with those
+  characters if the line has all three entry fields.
+- Duplicate `(id, ctxt)` anywhere in a file is a hard parse error. The shared
+  FCL export boundary also rejects duplicate serialized
   identities with `ApiError::Conflict`, so `update_catalog`, catalog conversion,
   and catalog combine cannot emit an FCL file that its reader would reject.
 - Structured plural messages use their synthesized ICU source string as the
@@ -174,9 +176,9 @@ catalog-layer decision shared with PO output; the low-level `parse_po` /
 - Unknown tag keys are a hard error (the versioned header gates
   forward-compatible additions).
 
-Marker-like entry IDs are valid. Conversion to PO rejects metadata and identities
-that PO cannot represent without changing their values. Failed file conversion
-leaves the destination unchanged.
+Conversion to PO rejects metadata and identities that PO cannot represent
+without changing their values. Failed file conversion leaves the destination
+unchanged.
 
 File-based catalog workflows finish this validation and render the complete FCL
 content before atomically replacing the destination. An identity conflict

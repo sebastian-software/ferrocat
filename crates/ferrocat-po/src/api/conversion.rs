@@ -7,7 +7,7 @@ use std::mem;
 use super::catalog::{
     OpaqueCapture, apply_header_defaults, parse_catalog_to_internal, sort_messages,
 };
-use super::export::export_catalog_content;
+use super::export::{export_catalog_content, valid_machine_metadata};
 use super::file_io::atomic_write;
 use super::{
     ApiError, CatalogConvertResult, CatalogFileConvertResult, CatalogFileFormat, CatalogMode,
@@ -19,7 +19,8 @@ use super::{
 ///
 /// Ferrocat parses the source once into its canonical internal model, retains
 /// translator comments and opaque flags, then renders the target format
-/// deterministically. ICU-native PO and FCL modes are interchangeable.
+/// deterministically. ICU-native PO and FCL conversions preserve the source
+/// data wherever the destination format can represent it.
 /// Semantic changes between ICU-native and gettext-compatible modes are
 /// rejected because they cannot be guaranteed lossless.
 ///
@@ -141,8 +142,8 @@ fn finish_catalog_conversion(
     })
 }
 
-// PO comments are line-oriented and trimmed by its parser; flags are comma
-// separated. Reject FCL values that PO cannot represent without changing them.
+// PO trims its line-oriented comments and splits flags at commas. Reject FCL
+// values the PO export would otherwise change.
 fn validate_po_metadata(catalog: &super::catalog::Catalog) -> Result<(), ApiError> {
     fn line_safe(value: &str) -> bool {
         !value.contains(['\r', '\n'])
@@ -189,15 +190,14 @@ fn validate_po_metadata(catalog: &super::catalog::Catalog) -> Result<(), ApiErro
         {
             return Err(reject("obsolete date"));
         }
-        if let Some(machine) = &message.machine {
-            if !line_safe(&machine.lock) {
-                return Err(reject("lock"));
-            }
-            if let Some(ai) = &machine.ai
-                && !line_safe(&super::mt::format_ai_descriptor(ai))
-            {
-                return Err(reject("AI provenance"));
-            }
+        if let Some(ai) = message
+            .machine
+            .as_ref()
+            .and_then(|machine| machine.ai.as_ref())
+            && !line_safe(&super::mt::format_ai_descriptor(ai))
+            && valid_machine_metadata(message).is_some()
+        {
+            return Err(reject("AI provenance"));
         }
     }
     Ok(())

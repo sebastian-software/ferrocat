@@ -578,6 +578,21 @@ fn fcl_marker_like_ids_roundtrip_and_actual_conflicts_fail() {
 }
 
 #[test]
+fn fcl_to_po_omits_stale_machine_metadata() {
+    let text = "%FCL2\tsource=en\nid\tn\tvalue\tlock=stale\tai=model\\nextra\n";
+    let converted = convert_catalog(ConvertCatalogOptions::new(
+        text,
+        "en",
+        CatalogMode::IcuFcl,
+        CatalogMode::IcuPo,
+    ))
+    .expect("convert without stale provenance");
+
+    assert!(converted.content.contains("msgstr \"value\""));
+    assert!(!converted.content.contains("#@"));
+}
+
+#[test]
 fn fcl_to_po_rejects_header_identity_and_multiline_ai() {
     let header = "%FCL2\tsource=en\n\tn\tvalue\n";
     assert!(
