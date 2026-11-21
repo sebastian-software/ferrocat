@@ -53,6 +53,11 @@ operations.
   before rendering. This protects conversion, update, and combine alike and
   rejects states such as active and obsolete entries with the same identity,
   which PO can carry but FCL cannot represent.
+- FCL-to-PO conversion rejects metadata that PO cannot represent losslessly,
+  including line breaks or trim-sensitive comments, comma-containing or
+  trim-sensitive flags and metadata, references that cannot survive PO
+  tokenization, and an absent-context empty identity reserved for the PO header.
+  Validation occurs before file replacement.
 - PO output uses the requested deterministic PO ordering and serializer
   controls. FCL output always uses its canonical collated order and line shape.
 - The file API reads, validates, parses, and renders completely before atomic

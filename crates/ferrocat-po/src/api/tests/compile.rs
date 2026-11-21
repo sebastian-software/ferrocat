@@ -945,6 +945,7 @@ fn compile_catalog_artifact_collects_or_raises_invalid_icu_messages() {
     let artifact = compile_catalog_artifact(
         &[&requested, &source],
         &CompileCatalogArtifactOptions {
+            strict_icu: false,
             semantics: CatalogSemantics::GettextCompat,
             ..CompileCatalogArtifactOptions::new("de", "en")
         },
@@ -980,7 +981,7 @@ fn compile_catalog_artifact_strict_policy_reports_literal_apostrophes() {
 
     let artifact = compile_catalog_artifact(
         &[&requested, &source],
-        &CompileCatalogArtifactOptions::new("de", "en"),
+        &CompileCatalogArtifactOptions::new("de", "en").with_strict_icu(false),
     )
     .expect("compile artifact");
 
@@ -1377,6 +1378,46 @@ fn compile_catalog_artifact_icu_compatibility_is_optional() {
         diagnostic.code == "icu.missing_argument"
             && diagnostic.severity == DiagnosticSeverity::Error
     }));
+}
+
+#[test]
+fn compile_catalog_artifact_reports_invalid_icu_source_when_checking_compatibility() {
+    let source = normalized_catalog(
+        "msgid \"Greeting\"\nmsgstr \"Hello {name\"\n",
+        Some("en"),
+        PluralEncoding::Icu,
+    );
+    let requested = normalized_catalog(
+        "msgid \"Greeting\"\nmsgstr \"Hallo {name}\"\n",
+        Some("de"),
+        PluralEncoding::Icu,
+    );
+    let options = CompileCatalogArtifactOptions::new("de", "en");
+    let catalogs = [&requested, &source];
+
+    let unchecked =
+        compile_catalog_artifact(&catalogs, &options).expect("compile without comparison");
+    assert!(unchecked.diagnostics.is_empty());
+
+    let checked = compile_catalog_artifact(&catalogs, &options.with_icu_compatibility(true))
+        .expect("valid final message despite invalid source syntax");
+    assert_eq!(
+        checked
+            .messages
+            .get(&compiled_key("Greeting", None))
+            .map(String::as_str),
+        Some("Hallo {name}")
+    );
+    let [diagnostic] = checked.diagnostics.as_slice() else {
+        panic!(
+            "expected one source diagnostic, got {:?}",
+            checked.diagnostics
+        );
+    };
+    assert_eq!(diagnostic.code, "icu.invalid_syntax");
+    assert_eq!(diagnostic.severity, DiagnosticSeverity::Error);
+    assert_eq!(diagnostic.locale, "en");
+    assert_eq!(diagnostic.msgid, "Greeting");
 }
 
 #[test]
@@ -1898,6 +1939,7 @@ fn compile_catalog_artifact_selected_preserves_fallback_and_validation_semantics
             compiled_ids: &[hello_id.as_str(), broken_id.as_str()],
             options: CompileCatalogArtifactOptions {
                 source_fallback: true,
+                strict_icu: false,
                 semantics: CatalogSemantics::GettextCompat,
                 ..CompileCatalogArtifactOptions::new("de", "en")
             },

@@ -7,7 +7,7 @@ use std::mem;
 use super::catalog::{
     OpaqueCapture, apply_header_defaults, parse_catalog_to_internal, sort_messages,
 };
-use super::export::export_catalog_content;
+use super::export::{export_catalog_content, valid_machine_metadata};
 use super::file_io::atomic_write;
 use super::{
     ApiError, CatalogConvertResult, CatalogFileConvertResult, CatalogFileFormat, CatalogMode,
@@ -19,7 +19,8 @@ use super::{
 ///
 /// Ferrocat parses the source once into its canonical internal model, retains
 /// translator comments and opaque flags, then renders the target format
-/// deterministically. ICU-native PO and FCL modes are interchangeable.
+/// deterministically. ICU-native PO and FCL conversions preserve the source
+/// data wherever the destination format can represent it.
 /// Semantic changes between ICU-native and gettext-compatible modes are
 /// rejected because they cannot be guaranteed lossless.
 ///
@@ -84,6 +85,9 @@ fn finish_catalog_conversion(
 
     match options.target_mode.storage_format() {
         CatalogStorageFormat::Po => {
+            if options.source_mode.storage_format() == CatalogStorageFormat::Fcl {
+                validate_po_metadata(&catalog)?;
+            }
             apply_header_defaults(
                 &mut catalog.headers,
                 locale.as_deref(),
@@ -136,6 +140,67 @@ fn finish_catalog_conversion(
         message_count,
         diagnostics,
     })
+}
+
+// PO trims its line-oriented comments and splits flags at commas. Reject FCL
+// values the PO export would otherwise change.
+fn validate_po_metadata(catalog: &super::catalog::Catalog) -> Result<(), ApiError> {
+    fn line_safe(value: &str) -> bool {
+        !value.contains(['\r', '\n'])
+            && value.trim_matches(|c: char| c.is_ascii_whitespace()) == value
+    }
+    for message in &catalog.messages {
+        let reject = |field: &str| {
+            ApiError::Unsupported(format!(
+                "FCL {field} for id {:?} cannot be represented losslessly in PO",
+                message.msgid
+            ))
+        };
+        if message.msgid.is_empty() && message.msgctxt.is_none() {
+            return Err(reject("identity"));
+        }
+        for comment in message.comments.iter().chain(message.translator_comments()) {
+            if !line_safe(comment) {
+                return Err(reject("comment"));
+            }
+        }
+        for flag in message.flags() {
+            if flag.is_empty() || flag.contains([',', '\r', '\n']) || flag.trim() != flag {
+                return Err(reject("flag"));
+            }
+        }
+        for origin in &message.origins {
+            let mut rendered = String::new();
+            super::catalog::write_origin(&mut rendered, origin);
+            let mut count = 0;
+            let mut matches = false;
+            crate::text::for_each_reference_token(&rendered, |token| {
+                count += 1;
+                matches = token == rendered;
+            });
+            if !line_safe(&rendered) || count != 1 || !matches {
+                return Err(reject("reference"));
+            }
+        }
+        if let Some(since) = message
+            .obsolete
+            .as_ref()
+            .and_then(|info| info.since.as_deref())
+            && !line_safe(since)
+        {
+            return Err(reject("obsolete date"));
+        }
+        if let Some(ai) = message
+            .machine
+            .as_ref()
+            .and_then(|machine| machine.ai.as_ref())
+            && !line_safe(&super::mt::format_ai_descriptor(ai))
+            && valid_machine_metadata(message).is_some()
+        {
+            return Err(reject("AI provenance"));
+        }
+    }
+    Ok(())
 }
 
 /// Converts a catalog file and atomically replaces the output path.

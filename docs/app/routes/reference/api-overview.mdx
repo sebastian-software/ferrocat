@@ -152,7 +152,9 @@ At the high-level catalog layer, `ferrocat` supports three explicit combinations
 
 There is intentionally no FCL + gettext-plural mode; gettext plural behavior belongs to PO, while FCL is the ICU-native machine storage path. In API terms, that means `CatalogStorageFormat::Fcl` is only available with `CatalogSemantics::IcuNative`.
 
-FCL (Ferrocat Catalog Lines) is the machine-owned, git-merge-optimized storage choice. Each entry is one tab-separated line behind a single `%FCL1` header line. Newly written catalogs are always deterministically sorted by CLDR root `(id, ctxt)` order and declare `order=collated`; the reader also accepts legacy tagless files with bytewise ordering. FCL is useful when catalogs are maintained by larger teams, automation, or external systems that benefit from one entry per line: diffs stay focused, unchanged entries stay byte-identical across merge inputs for clean git 3-way merges, and hosted Git review workflows do not need custom merge-driver support to make routine catalog edits manageable. Against the same catalog stored as PO, FCL parses about 30% faster and is roughly 14% smaller on disk.
+Readers accept both FCL1 and FCL2. Writers emit FCL2: context `n` means absent, and `s` followed by escaped text means present (`s` alone means empty). Values escape carriage returns as `\r`. FCL1 readers must be upgraded before consuming new output; see [upgrading](/guide/upgrading).
+
+FCL (Ferrocat Catalog Lines) is the machine-owned, git-merge-optimized storage choice. Each entry is one tab-separated line behind a single `%FCL2` header line. Newly written catalogs are always deterministically sorted by CLDR root `(id, ctxt)` order and declare `order=collated`; the reader also accepts legacy tagless files with bytewise ordering. FCL is useful when catalogs are maintained by larger teams, automation, or external systems that benefit from one entry per line: diffs stay focused, unchanged entries stay byte-identical across merge inputs for clean git 3-way merges, and hosted Git review workflows do not need custom merge-driver support to make routine catalog edits manageable. See the benchmark reports for measurements; recorded Ferrocat 3.x results use the older FCL1 encoding.
 
 ### Origin file and scope
 
@@ -485,7 +487,7 @@ Choose this when your application wants semantic catalog data rather than just P
 High-level catalog parsing should normally choose one `CatalogMode` instead of setting storage, semantics, and plural encoding separately:
 
 - `CatalogMode::IcuPo` for ICU-native messages stored in PO
-- `CatalogMode::IcuFcl` for ICU-native messages stored as a `%FCL1` header plus one tab-separated entry per line
+- `CatalogMode::IcuFcl` for ICU-native messages stored as a `%FCL2` header plus one tab-separated entry per line
 - `CatalogMode::GettextPo` for classic Gettext-compatible plurals stored in PO
 
 If a host adapter already has separate storage, semantics, and plural-encoding
@@ -861,7 +863,7 @@ Important semantics:
 - source fallback is explicit for non-source locale compilation
 - source-locale compilation always materializes empty source values from source text
 - plural messages are emitted as final ICU plural strings using the preserved plural variable
-- invalid final ICU strings become diagnostics by default and can become hard errors in strict mode
+- invalid final ICU syntax is a hard error by default; diagnostic tools explicitly use `with_strict_icu(false)` to collect errors
 - source/translation ICU compatibility diagnostics are opt-in with `icu_compatibility`
 - final ICU syntax and compatibility parsing use `IcuSyntaxPolicy::Strict` by
   default; set `CompileCatalogArtifactOptions::with_icu_options` with
@@ -927,7 +929,9 @@ Each provenance row includes the compiled `key`, original `source_key`, resolved
 - `source_fallback` when the source locale supplied it through explicit source fallback
 - `unresolved` when no runtime value was available
 
-Use `CompileCatalogArtifactReportOptions::new` for the full artifact/report pair, or `CompileCatalogArtifactReportOptions::selected` when a host adapter already has a `CompiledCatalogIdIndex` and selected compiled IDs. The same report-oriented entry point accepts ICU options through `CompileCatalogArtifactReportOptions::icu_options`, so provenance does not add another full cross-product of compile functions.
+Use `CompileCatalogArtifactReportOptions::new` for the full artifact/report pair, or `CompileCatalogArtifactReportOptions::selected` when a host adapter already has a `CompiledCatalogIdIndex` and selected compiled IDs. The same report-oriented entry point accepts ICU options through `CompileCatalogArtifactReportOptions::with_icu_options`, so provenance does not add another full cross-product of compile functions.
+
+Report compilation uses `options.icu_options` as its single ICU configuration. Direct mutation of that nested value has the same effect as the builder.
 
 ### `CompiledCatalogIdIndex`
 
@@ -991,7 +995,7 @@ then uses the same collated message/context identity order.
 The rule applies to in-memory and file-based update/combine flows. FCL retains
 its own storage invariant regardless of `order_by`: every newly written file
 sorts serialized `id`, then `ctxt`, with this collation and declares
-`order=collated` in the `%FCL1` header. Readers still accept legacy tagless FCL
+`order=collated` in the `%FCL2` header. Readers still accept legacy tagless FCL
 in its original bytewise order. The compact built-in repertoire and its Unicode
 limits are documented in
 [ADR 0026](/architecture/adr/0026-cldr-root-catalog-order).
@@ -1006,7 +1010,7 @@ still render as valid multiline PO syntax, and default output stays
 byte-identical to previous releases. FCL output has a canonical line shape and
 ignores these controls.
 
-Like parsing, updates should normally choose one `CatalogMode`. PO with ICU-native semantics remains the default. FCL storage uses a single `%FCL1` header line plus one tab-separated entry per line.
+Like parsing, updates should normally choose one `CatalogMode`. PO with ICU-native semantics remains the default. FCL storage uses a single `%FCL2` header line plus one tab-separated entry per line.
 
 Choose FCL when collaboration and automation matter more than maximum PO fidelity. The one-entry-per-line shape keeps large catalog diffs readable, keeps unchanged entries byte-identical across merge inputs for clean git 3-way merges, and makes ordinary Git conflict handling more practical, including hosted review flows where custom `.gitattributes` merge drivers may not be part of the web merge path.
 
@@ -1020,7 +1024,7 @@ instead of guessing a plural expression.
 
 In native mode, `CatalogUpdateInput::SourceFirst` stays source-text-first; it no longer auto-projects ICU strings into structured plural messages. Use `CatalogUpdateInput::Structured` when you want explicit plural structure.
 
-In FCL storage, arbitrary gettext-style custom headers are intentionally out of scope for `v1`; only the explicit `%FCL1` header metadata and per-entry columns are persisted. Machine-managed value metadata uses the optional `lock=` and `ai=` tags appended to the entry line (see [ADR 0022](/architecture/adr/0022-machine-managed-value-integrity-and-ai-provenance)).
+In FCL storage, arbitrary gettext-style custom headers are intentionally out of scope; only the explicit `%FCL2` header metadata and per-entry columns are persisted. Machine-managed value metadata uses the optional `lock=` and `ai=` tags appended to the entry line (see [ADR 0022](/architecture/adr/0022-machine-managed-value-integrity-and-ai-provenance)).
 
 ```rust
 use ferrocat_po::{
@@ -1040,7 +1044,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .with_mode(CatalogMode::IcuFcl),
     )?;
 
-    assert!(result.content.starts_with("%FCL1\t"));
+    assert!(result.content.starts_with("%FCL2\t"));
     assert!(result.content.contains("Checkout"));
     Ok(())
 }

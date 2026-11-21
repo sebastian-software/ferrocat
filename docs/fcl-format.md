@@ -1,11 +1,9 @@
 # FCL — Ferrocat Catalog Lines (`.fcl`)
 
-A line-oriented, machine-owned catalog format. You don't have to trade speed for
-safety to get it: compared with the same catalog stored as PO, FCL parses about
-25% faster, takes roughly 12% less disk, and gives git one canonical line per
-entry so ordinary 3-way merges preserve untouched translations. One entry per
-line, deterministically sorted. It is _not_ meant for hand editing; the only
-non-API writer it must tolerate is git's 3-way line merge.
+A line-oriented, machine-owned catalog format. FCL gives git one canonical
+line per entry so ordinary 3-way merges preserve untouched translations. Entries
+are deterministically sorted. Git's three-way merge is the only supported way
+to write FCL outside the catalog API.
 
 FCL is **ICU-native only**. Plurals live inside the ICU message string
 (`{count, plural, …}`), not as separate slots. Gettext plural-compat catalogs
@@ -15,7 +13,7 @@ Generate FCL through the catalog layer with `CatalogMode::IcuFcl` in
 `parse_catalog`, `update_catalog`, or file-based update flows. Keep PO for
 translator-facing files when external tools need gettext compatibility.
 
-## Why a line format (and why it beats PO)
+## Why a line format
 
 git's 3-way merge is purely line-textual and has no notion of an entry. PO
 entries span multiple lines with many repeated anchor lines (`msgstr ""`, blank
@@ -30,29 +28,30 @@ on merge. FCL removes this by construction:
 - **Deterministic writer** → unchanged entries serialize byte-identically, so a
   regeneration never churns lines it didn't change.
 
-It parses faster than PO because it drops PO's per-entry overhead: no multi-line
-state machine, no keyword classification, no quote-bounds scanning, and a
-minimal escape set with a no-escape borrow fast path. The reader works on bytes
-and leans on memchr (NEON on Apple Silicon) for field splitting and escape
-scanning, the same way the PO parser is tuned. On a 10k-message ICU catalog that
-lands around 25% faster than reading the equivalent PO file.
+The reader works on bytes and uses memchr for field splitting and escape
+scanning. Recorded Ferrocat 3.x performance comparisons use the FCL1 encoding.
 
 ## Grammar
 
 ```
 file    = header LF *( entry LF )
-header  = "%FCL1" *( HT tag )            ; e.g. %FCL1\tsource=en\tlocale=de\torder=collated
+header  = "%FCL2" *( HT tag )            ; e.g. %FCL2\tsource=en\tlocale=de\torder=collated
 entry   = id HT ctxt HT target *( HT tag )
 tag     = key "=" value | flag-key       ; flag-key has no '='
 ```
 
 - UTF-8, no BOM, `LF` line endings, trailing `LF`.
 - Fields are separated by a single horizontal tab (`HT`, `0x09`).
-- `id`, `ctxt`, `target` are always present (positional). `ctxt` empty == no
-  context; `target` empty == untranslated.
-- Newly written entries follow CLDR root order by `id` and then `ctxt`, declared
-  as `order=collated`. Readers accept legacy files with no `order` tag only
-  when they ascend by the byte sequence of `(id, ctxt)`.
+- `id`, `ctxt`, `target` are always present (positional). In FCL2, `ctxt`
+  is `n` for no context or `s` followed by the escaped context for a present
+  context. Thus `s` alone represents an explicitly empty context. `target`
+  empty == untranslated.
+- Newly written entries follow the compact collated order by `id` and then
+  `ctxt`, declared as `order=collated`. FCL2 uses checked-in weights for covered
+  characters and scalar value order for uncovered characters. Readers validate
+  this order for FCL2. FCL1 declared-collated files are accepted without an
+  order check because historical writers used compiler-dependent case data.
+  Tagless files retain bytewise `(id, ctxt)` order validation.
 - Tags appear in a fixed canonical order (see below); empty/absent tags are
   omitted (no trailing tabs).
 
@@ -67,7 +66,7 @@ tag     = key "=" value | flag-key       ; flag-key has no '='
 The writer always emits `order=collated`. Omitting `order` identifies a legacy
 file under the original bytewise `(id, ctxt)` contract and remains accepted on
 read so existing files can be migrated by the next write. The only accepted
-explicit value in `%FCL1` is `collated`; unknown and duplicate `order` tags are
+explicit value in either version is `collated`; unknown and duplicate `order` tags are
 hard errors. The collated table covers Latin text, punctuation, symbols, and
 digits. Its declared ligature/digraph and out-of-repertoire limits are
 documented in ADR 0026.
@@ -81,8 +80,26 @@ Applied to every field and every tag value. Nothing else is escaped:
 | `\`  | `\\`   |
 | tab  | `\t`   |
 | LF   | `\n`   |
+| CR   | `\r`   |
 
-A field containing no `\` is taken verbatim (zero-copy borrow on parse).
+FCL2 requires these escapes in serialized values and rejects unknown escapes.
+Readers accept CRLF document line endings; a carriage return that is data must
+be escaped as `\r`, including at the end of a value. A field containing no `\`
+is taken verbatim (zero-copy borrow on parse).
+
+### FCL1 migration
+
+Readers dispatch on the header and continue to accept `%FCL1`. Its empty context
+field means no context, while any nonempty field is the literal context, even if
+it begins with `n` or `s`. FCL1 accepts `\\`, `\t`, and `\n`, but not
+`\r`. Writers emit FCL2, so an update or conversion to FCL rewrites the
+header and context fields. Existing readers that only understand FCL1 must be
+upgraded before consuming the rewritten catalog.
+
+FCL1 could not distinguish an absent context from an explicitly empty one and
+could lose a carriage return at a line ending. Migration preserves what its
+reader can observe; it cannot recover information already lost. Recover those
+values from an authoritative source such as the original PO catalog if needed.
 
 ### Tags
 
@@ -143,20 +160,25 @@ catalog-layer decision shared with PO output; the low-level `parse_po` /
 
 ## Robustness
 
-- A line beginning with a git conflict marker (`<<<<<<<`, `=======`, `>>>>>>>`)
-  is a hard parse error with position — never silently mis-parsed.
-- Duplicate `(id, ctxt)` (adjacent under either supported order) is a hard
-  parse error. The shared FCL export boundary also rejects duplicate serialized
+- Git conflict marker lines (`<<<<<<<`, `|||||||`, `=======`, `>>>>>>>`) are
+  hard parse errors with a line number. An entry ID may start with those
+  characters if the line has all three entry fields.
+- Duplicate `(id, ctxt)` anywhere in a file is a hard parse error. The shared
+  FCL export boundary also rejects duplicate serialized
   identities with `ApiError::Conflict`, so `update_catalog`, catalog conversion,
   and catalog combine cannot emit an FCL file that its reader would reject.
 - Structured plural messages use their synthesized ICU source string as the
   serialized `id`. A literal singular ID that matches that string is therefore
   a collision, just like active and obsolete messages that share an identity.
-- Entries that violate the legacy bytewise order or declared collated order are
-  a hard error.
+- Entries that violate tagless bytewise order or FCL2 declared collated order
+  are a hard error.
 - Duplicate singleton tags and tags outside canonical order are hard errors.
-- Unknown tag keys are a hard error (the versioned `%FCL1` magic gates
+- Unknown tag keys are a hard error (the versioned header gates
   forward-compatible additions).
+
+Conversion to PO rejects metadata and identities that PO cannot represent
+without changing their values. Failed file conversion leaves the destination
+unchanged.
 
 File-based catalog workflows finish this validation and render the complete FCL
 content before atomically replacing the destination. An identity conflict
@@ -165,12 +187,12 @@ therefore leaves an existing destination unchanged.
 Entry tags are additive the same way the `order=collated` header tag was: a
 reader that knows a tag accepts files with and without it, but a file that
 _carries_ a newer tag is rejected by an older reader, because unknown keys are
-an error by design. `tc=` and `f=` were added this way; a file written without
-them parses under any reader that understands the rest of `%FCL1`.
+an error by design. The FCL2 header also prevents an FCL1 reader from
+misinterpreting the context markers and new escape.
 
 ## FCL vs PO
 
-- **FCL** — canonical, git-merged, fast machine artifact. Treat as generated
+- **FCL** — canonical, git-merged machine artifact. Treat as generated
   (`.gitattributes linguist-generated`); do not hand-edit.
 - **PO** — gettext interop / human-readable export.
 

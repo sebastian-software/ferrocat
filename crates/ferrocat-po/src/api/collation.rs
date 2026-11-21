@@ -13,6 +13,14 @@ pub(super) type CollationPrefix = [u8; PREFIX_BYTES];
 /// direct-write loop instead of delegating to [`collation_prefix_from`], whose
 /// skip-relative bounds check costs measurably on catalog-sized inputs.
 pub(super) fn collation_prefix(text: &str) -> CollationPrefix {
+    collation_prefix_with_fallback(text, false)
+}
+
+pub(super) fn storage_collation_prefix(text: &str) -> CollationPrefix {
+    collation_prefix_with_fallback(text, true)
+}
+
+fn collation_prefix_with_fallback(text: &str, stable: bool) -> CollationPrefix {
     let mut packed: CollationPrefix = [0; PREFIX_BYTES];
     let mut written = 0;
 
@@ -31,7 +39,7 @@ pub(super) fn collation_prefix(text: &str) -> CollationPrefix {
             let index = usize::from(byte).wrapping_sub(RANGE_START as usize);
             match ROWS.get(index) {
                 Some(row) if row.primary != 0 => push(row.primary, &mut written),
-                _ => push_uncovered_prefix(char::from(byte), &mut push, &mut written),
+                _ => push_uncovered_prefix(char::from(byte), &mut push, &mut written, stable),
             }
         }
     } else {
@@ -44,7 +52,7 @@ pub(super) fn collation_prefix(text: &str) -> CollationPrefix {
             }
             match row(character) {
                 Some(found) if found.primary != 0 => push(found.primary, &mut written),
-                _ => push_uncovered_prefix(character, &mut push, &mut written),
+                _ => push_uncovered_prefix(character, &mut push, &mut written, stable),
             }
         }
     }
@@ -85,7 +93,7 @@ pub(super) fn collation_prefix_from(text: &str, skip: usize) -> CollationPrefix 
             let index = usize::from(byte).wrapping_sub(RANGE_START as usize);
             match ROWS.get(index) {
                 Some(row) if row.primary != 0 => push(row.primary, &mut position),
-                _ => push_uncovered_prefix(char::from(byte), &mut push, &mut position),
+                _ => push_uncovered_prefix(char::from(byte), &mut push, &mut position, false),
             }
         }
     } else {
@@ -98,7 +106,7 @@ pub(super) fn collation_prefix_from(text: &str, skip: usize) -> CollationPrefix 
             }
             match row(character) {
                 Some(found) if found.primary != 0 => push(found.primary, &mut position),
-                _ => push_uncovered_prefix(character, &mut push, &mut position),
+                _ => push_uncovered_prefix(character, &mut push, &mut position, false),
             }
         }
     }
@@ -110,8 +118,13 @@ fn push_uncovered_prefix(
     character: char,
     push: &mut impl FnMut(u8, &mut usize),
     written: &mut usize,
+    stable: bool,
 ) {
-    let base = character.to_lowercase().next().unwrap_or(character);
+    let base = if stable {
+        character
+    } else {
+        character.to_lowercase().next().unwrap_or(character)
+    };
     push(UNCOVERED_TAG, written);
     for byte in u32::from(base).to_be_bytes() {
         push(byte, written);
@@ -313,6 +326,24 @@ mod tests {
         collation_key, collation_prefix, collation_prefix_from, sort_messages_collated,
     };
     use crate::api::catalog::CanonicalTranslation;
+
+    #[test]
+    fn storage_prefix_matches_stable_full_key_primary() {
+        for text in [
+            "Ω",
+            "꟝",
+            "aΩ",
+            "é꟝",
+            "A long prefix that exceeds thirty two bytes Ω",
+        ] {
+            let key = crate::collation::storage_collation_key(text);
+            let prefix = super::storage_collation_prefix(text);
+            let mut expected = [0; super::PREFIX_BYTES];
+            let length = key.primary().len().min(expected.len());
+            expected[..length].copy_from_slice(&key.primary()[..length]);
+            assert_eq!(prefix, expected, "{text}");
+        }
+    }
 
     fn canonical(msgid: &str, msgctxt: Option<&str>) -> CanonicalMessage {
         CanonicalMessage {

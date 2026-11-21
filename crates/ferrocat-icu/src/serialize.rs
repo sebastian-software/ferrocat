@@ -14,8 +14,21 @@ pub fn stringify_icu(message: &IcuMessage) -> String {
 }
 
 fn render_nodes(nodes: &[IcuNode], out: &mut String) {
-    for node in nodes {
-        render_node(node, out);
+    let mut nodes = nodes.iter().peekable();
+    while let Some(node) = nodes.next() {
+        if let IcuNode::Literal(value) = node
+            && matches!(nodes.peek(), Some(IcuNode::Literal(_)))
+        {
+            // Separate quoted runs can form a doubled apostrophe when they touch.
+            let mut value = value.clone();
+            while let Some(IcuNode::Literal(next)) = nodes.peek() {
+                value.push_str(next);
+                nodes.next();
+            }
+            append_escaped_literal(out, &value);
+        } else {
+            render_node(node, out);
+        }
     }
 }
 
@@ -99,7 +112,21 @@ fn render_formatter(kind: &str, name: &str, style: Option<&str>, out: &mut Strin
     out.push_str(kind);
     if let Some(style) = style {
         out.push_str(", ");
-        out.push_str(style);
+        let mut quoted = false;
+        for ch in style.chars() {
+            if !quoted && ch == '}' {
+                out.push('\'');
+                quoted = true;
+            }
+            if ch == '\'' {
+                out.push_str("''");
+            } else {
+                out.push(ch);
+            }
+        }
+        if quoted {
+            out.push('\'');
+        }
     }
     out.push('}');
 }
@@ -114,15 +141,27 @@ fn append_escaped_literal(out: &mut String, value: &str) {
         return;
     }
 
-    for ch in value.chars() {
-        match ch {
-            '\'' => out.push_str("''"),
-            '{' | '}' | '#' | '<' | '>' => {
-                out.push('\'');
-                out.push(ch);
-                out.push('\'');
+    let mut chars = value.chars().peekable();
+    while let Some(ch) = chars.next() {
+        if matches!(ch, '{' | '}' | '#' | '<' | '>') {
+            out.push('\'');
+            out.push(ch);
+            while chars
+                .peek()
+                .is_some_and(|next| matches!(next, '{' | '}' | '#' | '<' | '>' | '\''))
+            {
+                let next = chars.next().expect("peeked character");
+                if next == '\'' {
+                    out.push_str("''");
+                } else {
+                    out.push(next);
+                }
             }
-            _ => out.push(ch),
+            out.push('\'');
+        } else if ch == '\'' {
+            out.push_str("''");
+        } else {
+            out.push(ch);
         }
     }
 }
@@ -158,6 +197,13 @@ mod tests {
         assert_roundtrip(
             "{rank, selectordinal, one {#st place} two {#nd place} few {#rd place} other {#th place}}",
         );
+    }
+
+    #[test]
+    fn roundtrips_adjacent_syntax_and_quoted_formatter_styles() {
+        assert_roundtrip("'{}#<>'");
+        assert_roundtrip("'' '{}#<>' ''");
+        assert_roundtrip("{x, date, '}}'-''-foo}");
     }
 
     #[test]

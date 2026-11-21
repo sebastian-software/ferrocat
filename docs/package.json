@@ -25,7 +25,7 @@
   },
   "devDependencies": {
     "axe-core": "4.13.0",
-    "eslint": "^10.11.0",
+    "eslint": "^10.15.0",
     "eslint-config-setup": "^0.5.2",
     "jiti": "^2.7.0",
     "oxfmt": "^0.70.0",

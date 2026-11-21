@@ -450,7 +450,7 @@ fn write_metadata_line(out: &mut String, obsolete_prefix: &str, key: &str, value
     out.push('\n');
 }
 
-fn valid_machine_metadata(message: &CanonicalMessage) -> Option<&MachineMetadata> {
+pub(super) fn valid_machine_metadata(message: &CanonicalMessage) -> Option<&MachineMetadata> {
     let metadata = message.machine.as_ref()?;
     if validate_machine_metadata(metadata).is_err() {
         return None;

@@ -1695,8 +1695,8 @@ fn three_way_merge_applies_the_same_deletion_rules_to_fcl() {
     .expect("FCL three-way merge");
 
     assert!(!result.content.contains("Removed"));
-    assert!(result.content.contains("New ours\t\tUnser"));
-    assert!(result.content.contains("New theirs\t\tIhr"));
+    assert!(result.content.contains("New ours\tn\tUnser"));
+    assert!(result.content.contains("New theirs\tn\tIhr"));
 }
 
 #[test]
@@ -1736,6 +1736,21 @@ fn three_way_merge_preserves_owned_state_in_po_and_fcl_golden_fixtures() {
         )
         .expect("complex three-way merge");
 
+        let expected = if mode == CatalogMode::IcuFcl {
+            convert_catalog(
+                ConvertCatalogOptions::new(
+                    &expected,
+                    "en",
+                    CatalogMode::IcuFcl,
+                    CatalogMode::IcuFcl,
+                )
+                .with_locale("de"),
+            )
+            .expect("migrate expected fixture")
+            .content
+        } else {
+            expected
+        };
         assert_eq!(result.content, expected);
         assert_eq!(result.stats.inputs, 3);
         assert_eq!(result.stats.conflicts_resolved, 3);
@@ -1771,10 +1786,10 @@ fn combine_catalogs_renders_valid_fcl_through_shared_export() {
     assert!(
         result
             .content
-            .starts_with("%FCL1\tsource=en\tlocale=de\torder=collated\n")
+            .starts_with("%FCL2\tsource=en\tlocale=de\torder=collated\n")
     );
-    assert!(result.content.contains("Hello\t\tHallo\n"));
-    assert!(result.content.contains("New\t\tNeu\n"));
+    assert!(result.content.contains("Hello\tn\tHallo\n"));
+    assert!(result.content.contains("New\tn\tNeu\n"));
 }
 
 #[test]
@@ -2730,8 +2745,8 @@ fn update_catalog_roundtrips_fcl_via_public_api() {
     })
     .expect("update");
 
-    assert!(result.content.starts_with("%FCL1\tsource=en"));
-    assert!(result.content.contains("Hello\t\tHallo"));
+    assert!(result.content.starts_with("%FCL2\tsource=en"));
+    assert!(result.content.contains("Hello\tn\tHallo"));
 
     let parsed = parse_catalog(ParseCatalogOptions {
         content: &result.content,
@@ -2842,7 +2857,7 @@ fn update_catalog_applies_default_collated_order_to_fcl() {
     assert!(
         result
             .content
-            .starts_with("%FCL1\tsource=en\tlocale=en\torder=collated\n")
+            .starts_with("%FCL2\tsource=en\tlocale=en\torder=collated\n")
     );
     let parsed = parse_catalog(ParseCatalogOptions {
         content: &result.content,
@@ -3333,6 +3348,56 @@ fn update_catalog_roundtrips_opaque_metadata_through_fcl_tags() {
     })
     .expect("update");
 
+    assert_eq!(
+        result.content,
+        existing
+            .replace("%FCL1", "%FCL2")
+            .replace("Hello\tbutton\t", "Hello\tsbutton\t")
+    );
+    assert!(result.updated);
+}
+
+#[test]
+fn update_fcl2_keeps_absent_and_empty_context_metadata_distinct() {
+    let existing = "%FCL2\tsource=en\tlocale=de\torder=collated\n\
+        Hello\tn\tNo context\\r\ttc=absent note\tf=absent-flag\n\
+        Hello\ts\tEmpty context\\r\ttc=empty note\tf=empty-flag\n";
+    let result = update_catalog(UpdateCatalogOptions {
+        source_locale: "en",
+        locale: Some("de"),
+        existing: Some(existing),
+        mode: CatalogMode::IcuFcl,
+        input: structured_input(vec![
+            extracted("Hello", None, vec![]),
+            extracted("Hello", Some(""), vec![]),
+        ]),
+        ..UpdateCatalogOptions::new("en", CatalogUpdateInput::default())
+    })
+    .expect("update FCL2");
     assert_eq!(result.content, existing);
     assert!(!result.updated);
+    let po = convert_catalog(
+        ConvertCatalogOptions::new(
+            &result.content,
+            "en",
+            CatalogMode::IcuFcl,
+            CatalogMode::IcuPo,
+        )
+        .with_locale("de"),
+    )
+    .expect("convert updated catalog");
+    let parsed = parse_po(&po.content).expect("parse PO");
+    for (context, value, comment, flag) in [
+        (None, "No context\r", "absent note", "absent-flag"),
+        (Some(""), "Empty context\r", "empty note", "empty-flag"),
+    ] {
+        let item = parsed
+            .items
+            .iter()
+            .find(|item| item.msgctxt.as_deref() == context)
+            .expect("context identity");
+        assert_eq!(item.msgstr[0], value);
+        assert_eq!(item.comments.as_slice(), [comment]);
+        assert_eq!(item.flags.as_slice(), [flag]);
+    }
 }

@@ -102,16 +102,22 @@ struct Levels {
     secondary: Vec<u8>,
     tertiary: Vec<u8>,
     primary_position: u32,
+    stable_uncovered: bool,
 }
 
 impl Levels {
     fn push_uncovered(&mut self, character: char) {
-        let base = character.to_lowercase().next().unwrap_or(character);
+        let base = if self.stable_uncovered {
+            character
+        } else {
+            character.to_lowercase().next().unwrap_or(character)
+        };
         self.primary.push(UNCOVERED_TAG);
         self.primary
             .extend_from_slice(&u32::from(base).to_be_bytes());
         self.primary_position = self.primary_position.saturating_add(1);
-        self.tertiary.push(u8::from(character.is_uppercase()));
+        self.tertiary
+            .push(u8::from(!self.stable_uncovered && character.is_uppercase()));
     }
 
     fn push_row(&mut self, row: &Row) {
@@ -171,6 +177,14 @@ fn mark_weight(character: char) -> u8 {
 /// assert_eq!(collation_key("café"), collation_key("cafe\u{0301}"));
 /// ```
 pub fn collation_key(text: &str) -> CollationKey {
+    make_collation_key(text, false)
+}
+
+pub(crate) fn storage_collation_key(text: &str) -> CollationKey {
+    make_collation_key(text, true)
+}
+
+fn make_collation_key(text: &str, stable_uncovered: bool) -> CollationKey {
     if text.is_empty() {
         return CollationKey {
             bytes: Vec::new(),
@@ -184,6 +198,7 @@ pub fn collation_key(text: &str) -> CollationKey {
         secondary: Vec::new(),
         tertiary: Vec::with_capacity(text.len()),
         primary_position: 0,
+        stable_uncovered,
     };
 
     if text.is_ascii() {
@@ -207,6 +222,7 @@ pub fn collation_key(text: &str) -> CollationKey {
         secondary,
         tertiary,
         primary_position: _,
+        stable_uncovered: _,
     } = levels;
     let primary_end = primary.len();
     primary.extend_from_slice(&secondary);

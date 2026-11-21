@@ -43,6 +43,11 @@ Add the public `WriteDurability` policy to `UpdateCatalogFileOptions`.
 - Other file APIs retain their existing full-durability behavior. The policy is
   exposed only where a confirmed host workflow needs the tradeoff.
 
+On Unix, replacement inherits permissions from an existing regular destination
+entry. A new destination, or a replaced symlink, retains the temporary file
+mode (normally `0600`, subject to the process umask). The symlink target is not
+modified.
+
 `Rename` preserves atomic visibility during normal operation. It does not
 promise persistence across a system crash or power loss. Callers must select it
 only for artifacts they can regenerate safely.

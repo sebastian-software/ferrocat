@@ -1,0 +1,42 @@
+---
+title: "ADR 0034: Use One Compile Configuration and Reject Invalid Runtime Syntax"
+description: "Accepted architecture decision record: authoritative artifact options and strict runtime compilation by default."
+order: 340
+---
+
+# ADR 0034: Use One Compile Configuration and Reject Invalid Runtime Syntax
+
+- Status: Accepted
+- Date: 2026-11-15
+- Refines: [ADR 0010](/architecture/adr/0010-compiled-catalog-artifact-api)
+
+## Context
+
+An artifact returned successfully by the 3.x default can contain invalid ICU
+text alongside an error diagnostic. Report options also have two publicly
+mutable copies of ICU configuration. Different compile entry points can then
+derive different IDs from apparently shared options.
+
+## Decision
+
+`CompileCatalogArtifactOptions::new` enables `strict_icu` by default in 4.0.
+Full, selected and provenance-report compilation reject invalid final ICU syntax.
+Tools that need all diagnostics explicitly select `with_strict_icu(false)` and
+must inspect diagnostics before passing their artifact to a runtime.
+
+`CompileCatalogArtifactReportOptions::options` owns all compile settings. The
+redundant report-level `icu_options` field is removed. The existing
+`with_icu_options` builder updates the nested configuration. Direct nested
+mutation and builder composition have the same meaning in every entry point.
+
+Syntax failure, source/translation compatibility diagnostics and host formatter
+support diagnostics remain separate contracts. Strict syntax does not make all
+error-level diagnostics fatal, enable compatibility checking, or change the
+default `IcuSyntaxPolicy::Strict` dialect.
+
+## Consequences
+
+Runtime callers receive a hard syntax error by default. Diagnostic tools opt
+into the collecting mode. Rust callers that assigned the removed field migrate
+to `report.options.icu_options` or the builder. The compiled artifact JSON schema
+and diagnostic wire spellings do not change.

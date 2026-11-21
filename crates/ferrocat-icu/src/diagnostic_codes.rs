@@ -5,7 +5,7 @@
 //! CI, editor integrations, and build tooling can match these constants instead
 //! of parsing human-readable diagnostic messages.
 
-// This block has a feature-gated fallback copy in
+// This block has a matching copy in
 // crates/ferrocat-po/src/diagnostic_codes.rs; a test there keeps both in sync.
 // sync(diagnostic-code-type): begin
 use std::fmt;
@@ -35,6 +35,12 @@ impl DiagnosticCode {
     #[must_use]
     pub fn as_str(&self) -> &str {
         &self.0
+    }
+
+    /// Consumes this code and returns its canonical string without copying.
+    #[must_use]
+    pub fn into_string(self) -> String {
+        self.0
     }
 }
 

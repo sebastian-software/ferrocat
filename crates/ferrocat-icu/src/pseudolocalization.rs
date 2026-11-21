@@ -345,6 +345,16 @@ mod tests {
     }
 
     #[test]
+    fn pseudolocalize_icu_preserves_adjacent_quoted_wrapper_text() {
+        let options = no_expansion().with_wrapper("{", "<");
+        let output = pseudolocalize_icu("'}'", &options).expect("pseudo");
+        assert_eq!(
+            parse_icu(&output).expect("parse wrapped literal"),
+            parse_icu("'{}<'").expect("parse expected literal")
+        );
+    }
+
+    #[test]
     fn pseudolocalize_icu_preserves_tag_names() {
         let output =
             pseudolocalize_icu("Click <link>{name}</link>", &no_expansion()).expect("pseudo");

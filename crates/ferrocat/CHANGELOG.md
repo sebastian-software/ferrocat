@@ -3,36 +3,6 @@
 > Version 3.0.0 was published and then yanked; 2.2.0 superseded it without the
 > breaking change, so the 2.2.0 compare links below run backwards from 3.0.0.
 
-## Unreleased
-
-### ⚠ BREAKING CHANGES
-
-- Compiling with `IcuSyntaxPolicy::RuntimeLiteralApostrophes` now
-  canonicalizes both artifact messages and compiled IDs. Regenerate runtime
-  artifacts and `CompiledCatalogIdIndex` values created with Ferrocat 3.1.0 or
-  earlier; previously cached IDs do not match the canonicalized contract.
-- Coverage, fuzzy-enabled audit, and current review targets now require
-  review-aware normalized catalogs from `parse_catalog_for_review`.
-- `CatalogMessageStatus::Fuzzy`, `CatalogLocaleCoverage::fuzzy()`,
-  `CatalogAuditChecks::fuzzy_flags`, and `catalog.fuzzy_flag` are restored.
-
-### Features
-
-- **collation:** expose opt-in compact CLDR root comparison keys shared by the
-  catalog layer and downstream consumers, without adding catalog dependencies.
-
-* **catalog:** add explicit PO/FCL conversion that preserves shared message metadata
-* **po:** expose opt-in rename-only durability for catalog file updates
-* **icu:** expose policy-aware runtime apostrophe canonicalization and compiled-key derivation
-
-### Bug Fixes
-
-- FCL catalog workflows now reject duplicate serialized `(id, ctxt)`
-  identities before rendering, and file updates preserve an existing
-  destination when validation fails.
-- Active PO and FCL fuzzy entries no longer count as translated, including in
-  the coverage rollups embedded in review reports.
-
 ## [3.6.0](https://github.com/sebastian-software/ferrocat/compare/ferrocat-v3.5.1...ferrocat-v3.6.0) (2026-11-10)
 
 

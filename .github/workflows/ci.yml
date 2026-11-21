@@ -125,8 +125,11 @@ jobs:
           cargo check -p ferrocat-po --no-default-features --features serde --locked
           cargo test -p ferrocat-po --no-default-features --features collation --test collation --locked
           cargo check -p ferrocat-po --no-default-features --features catalog --locked
+          cargo test -p ferrocat-po --no-default-features --test diagnostic_code_identity --locked
+          cargo test -p ferrocat-po --no-default-features --features serde --test diagnostic_code_identity --locked
+          cargo test -p ferrocat-po --no-default-features --features catalog --test diagnostic_code_identity --locked
           cargo check -p ferrocat-po --no-default-features --features compile,mt,plurals --locked
-          cargo check -p ferrocat --no-default-features --locked
+          cargo check -p ferrocat --no-default-features --all-targets --locked
           cargo check -p ferrocat --no-default-features --features serde --locked
           cargo check -p ferrocat --no-default-features --features collation --locked
           cargo check -p ferrocat --no-default-features --features catalog --locked

@@ -53,7 +53,7 @@ msgstr "{{count, plural, one {{# Datei}} other {{# Dateien}}}}"
     assert_eq!(fcl.message_count, 3);
     assert!(
         fcl.content
-            .starts_with("%FCL1\tsource=en\tlocale=de\torder=collated\n")
+            .starts_with("%FCL2\tsource=en\tlocale=de\torder=collated\n")
     );
     assert!(
         fcl.content
@@ -396,7 +396,7 @@ fn file_conversion_accepts_explicit_formats_without_extensions() {
     assert!(
         fs::read_to_string(&output)
             .expect("read output")
-            .starts_with("%FCL1\tsource=en\tlocale=de\torder=collated\n")
+            .starts_with("%FCL2\tsource=en\tlocale=de\torder=collated\n")
     );
 }
 
@@ -441,4 +441,180 @@ fn file_option_paths_are_reported_on_io_errors() {
     let error = convert_catalog_file(ConvertCatalogFileOptions::new(missing, output, "en"))
         .expect_err("missing input");
     assert_eq!(error.path(), Some(missing));
+}
+
+#[test]
+fn fcl2_preserves_empty_context_and_carriage_returns_through_conversion() {
+    let po =
+        "msgid \"same\"\nmsgstr \"none\\r\"\n\nmsgctxt \"\"\nmsgid \"same\"\nmsgstr \"empty\\r\"\n";
+    let fcl = convert_catalog(ConvertCatalogOptions::new(
+        po,
+        "en",
+        CatalogMode::IcuPo,
+        CatalogMode::IcuFcl,
+    ))
+    .expect("PO to FCL2");
+    assert!(fcl.content.starts_with("%FCL2\t"));
+    assert!(fcl.content.contains("same\tn\tnone\\r\n"));
+    assert!(fcl.content.contains("same\ts\tempty\\r\n"));
+    let po_again = convert_catalog(ConvertCatalogOptions::new(
+        &fcl.content,
+        "en",
+        CatalogMode::IcuFcl,
+        CatalogMode::IcuPo,
+    ))
+    .expect("FCL2 to PO");
+    let parsed = parse_po(&po_again.content).expect("parse PO");
+    assert!(
+        parsed
+            .items
+            .iter()
+            .any(|item| item.msgctxt.is_none() && item.msgstr[0] == "none\r")
+    );
+    assert!(
+        parsed
+            .items
+            .iter()
+            .any(|item| item.msgctxt.as_deref() == Some("") && item.msgstr[0] == "empty\r")
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn file_conversion_preserves_existing_output_permissions() {
+    use std::os::unix::fs::PermissionsExt;
+    let directory = tempfile::tempdir().expect("tempdir");
+    let input = directory.path().join("de.po");
+    fs::write(
+        &input,
+        "msgid \"\"\nmsgstr \"\"\n\"Language: de\\n\"\n\nmsgid \"Hello\"\nmsgstr \"Hallo\"\n",
+    )
+    .expect("write input");
+    for mode in [0o640, 0o600] {
+        let output = directory.path().join(format!("{mode:o}.fcl"));
+        fs::write(&output, "old").expect("create output");
+        fs::set_permissions(&output, fs::Permissions::from_mode(mode)).expect("set mode");
+        convert_catalog_file(ConvertCatalogFileOptions::new(&input, &output, "en"))
+            .expect("convert");
+        assert_eq!(
+            fs::metadata(&output)
+                .expect("metadata")
+                .permissions()
+                .mode()
+                & 0o7777,
+            mode
+        );
+        assert_eq!(
+            fs::read_to_string(&output).expect("read output"),
+            "%FCL2\tsource=en\tlocale=de\torder=collated\nHello\tn\tHallo\n"
+        );
+    }
+}
+
+#[test]
+fn fcl_to_po_rejects_unrepresentable_metadata_without_clobbering_files() {
+    let directory = tempfile::tempdir().expect("tempdir");
+    let input = directory.path().join("input.fcl");
+    let output = directory.path().join("output.po");
+    for tag in [
+        "c=one\\ntwo",
+        "c=one\\rtwo",
+        "tc=one\\ntwo",
+        "tc=one\\rtwo",
+        "f=custom,fuzzy",
+        "f= fuzzy",
+        "r=one\\ntwo",
+        "o=one\\ntwo",
+        "o=one\\rtwo",
+    ] {
+        let text = format!("%FCL2\tsource=en\nid\tn\tvalue\t{tag}\n");
+        let options =
+            ConvertCatalogOptions::new(&text, "en", CatalogMode::IcuFcl, CatalogMode::IcuPo);
+        assert!(convert_catalog(options).is_err(), "{tag}");
+        fs::write(&input, &text).expect("write FCL");
+        fs::write(&output, "sentinel").expect("write destination");
+        assert!(
+            convert_catalog_file(ConvertCatalogFileOptions::new(&input, &output, "en")).is_err(),
+            "{tag}"
+        );
+        assert_eq!(
+            fs::read_to_string(&output).expect("read destination"),
+            "sentinel"
+        );
+    }
+}
+
+#[test]
+fn fcl_marker_like_ids_roundtrip_and_actual_conflicts_fail() {
+    let po = "msgid \"======= Summary\"\nmsgstr \"text\"\n";
+    let fcl = convert_catalog(ConvertCatalogOptions::new(
+        po,
+        "en",
+        CatalogMode::IcuPo,
+        CatalogMode::IcuFcl,
+    ))
+    .expect("to FCL");
+    assert!(fcl.content.contains("======= Summary\tn\ttext\n"));
+    let converted = convert_catalog(ConvertCatalogOptions::new(
+        &fcl.content,
+        "en",
+        CatalogMode::IcuFcl,
+        CatalogMode::IcuPo,
+    ))
+    .expect("back to PO");
+    assert!(converted.content.contains("msgid \"======= Summary\""));
+    for marker in ["<<<<<<< HEAD", "||||||| base", "=======", ">>>>>>> branch"] {
+        let text = format!("%FCL2\tsource=en\n{marker}\n");
+        assert!(
+            convert_catalog(ConvertCatalogOptions::new(
+                &text,
+                "en",
+                CatalogMode::IcuFcl,
+                CatalogMode::IcuPo
+            ))
+            .is_err()
+        );
+    }
+}
+
+#[test]
+fn fcl_to_po_omits_stale_machine_metadata() {
+    let text = "%FCL2\tsource=en\nid\tn\tvalue\tlock=stale\tai=model\\nextra\n";
+    let converted = convert_catalog(ConvertCatalogOptions::new(
+        text,
+        "en",
+        CatalogMode::IcuFcl,
+        CatalogMode::IcuPo,
+    ))
+    .expect("convert without stale provenance");
+
+    assert!(converted.content.contains("msgstr \"value\""));
+    assert!(!converted.content.contains("#@"));
+}
+
+#[test]
+fn fcl_to_po_rejects_header_identity_and_multiline_ai() {
+    let header = "%FCL2\tsource=en\n\tn\tvalue\n";
+    assert!(
+        convert_catalog(ConvertCatalogOptions::new(
+            header,
+            "en",
+            CatalogMode::IcuFcl,
+            CatalogMode::IcuPo
+        ))
+        .is_err()
+    );
+    let hash = machine_translation_hash(EffectiveTranslationRef::Singular("value"));
+    for ai in ["model\\nextra", "model\\rextra"] {
+        let text = format!("%FCL2\tsource=en\nid\tn\tvalue\tlock={hash}\tai={ai}\n");
+        assert!(
+            convert_catalog(ConvertCatalogOptions::new(
+                &text,
+                "en",
+                CatalogMode::IcuFcl,
+                CatalogMode::IcuPo
+            ))
+            .is_err()
+        );
+    }
 }

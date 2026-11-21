@@ -5,19 +5,15 @@
 //! [`crate::CompiledCatalogDiagnostic::code`]. CI, editor integrations, and
 //! build tooling can match these constants instead of parsing human-readable
 //! diagnostic messages.
+//!
+//! The PO and ICU crates own distinct code types in every feature profile.
+//! With `catalog` enabled, use `From` or `.into()` to convert between them;
+//! their serialized string representation is unchanged.
 
-// With `catalog` enabled, `ferrocat-icu` is in the dependency tree and both
-// crates share one `DiagnosticCode` type. Without it, the fallback copy below
-// keeps this crate's diagnostic surface intact — at the cost that the type
-// *identity* of `ferrocat_po::DiagnosticCode` differs between the two builds,
-// so downstream code must not rely on it being distinct from (or equal to)
-// `ferrocat_icu::DiagnosticCode` across feature configurations.
-#[cfg(feature = "catalog")]
-pub use ferrocat_icu::DiagnosticCode;
-
-#[cfg(not(feature = "catalog"))]
+// The PO type has one identity regardless of Cargo feature unification. The
+// ICU crate owns its own equivalent type; conversions are provided below.
 mod code_type {
-    // Fallback copy of the block marked in
+    // Copy of the block marked in
     // crates/ferrocat-icu/src/diagnostic_codes.rs; a test below keeps both in sync.
     // sync(diagnostic-code-type): begin
     use std::fmt;
@@ -47,6 +43,12 @@ mod code_type {
         #[must_use]
         pub fn as_str(&self) -> &str {
             &self.0
+        }
+
+        /// Consumes this code and returns its canonical string without copying.
+        #[must_use]
+        pub fn into_string(self) -> String {
+            self.0
         }
     }
 
@@ -96,8 +98,21 @@ mod code_type {
     // sync(diagnostic-code-type): end
 }
 
-#[cfg(not(feature = "catalog"))]
 pub use code_type::DiagnosticCode;
+
+#[cfg(feature = "catalog")]
+impl From<ferrocat_icu::DiagnosticCode> for DiagnosticCode {
+    fn from(code: ferrocat_icu::DiagnosticCode) -> Self {
+        Self::from(code.into_string())
+    }
+}
+
+#[cfg(feature = "catalog")]
+impl From<DiagnosticCode> for ferrocat_icu::DiagnosticCode {
+    fn from(code: DiagnosticCode) -> Self {
+        Self::from(code.into_string())
+    }
+}
 
 /// Catalog audit diagnostic codes.
 pub mod catalog {
