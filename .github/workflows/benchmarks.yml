@@ -65,6 +65,7 @@ jobs:
         run: |
           mkdir -p target/benchmark
           cargo run --release -p ferrocat-bench -- compare "$BENCHMARK_PROFILE" --out "target/benchmark/${BENCHMARK_PROFILE}-current-${GITHUB_RUN_ID}.json"
+          node scripts/check-benchmark-report-contract.mjs "target/benchmark/${BENCHMARK_PROFILE}-current-${GITHUB_RUN_ID}.json"
 
       - name: Check benchmark regression
         if: ${{ github.event_name == 'pull_request' }}
