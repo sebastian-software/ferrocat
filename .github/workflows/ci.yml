@@ -354,7 +354,9 @@ jobs:
         # `scripts/coverage.sh` is the single source for the llvm-cov filters
         # and the per-crate thresholds; CONTRIBUTING.md and AGENTS.md point
         # contributors at the same script instead of restating the commands.
-        run: scripts/coverage.sh
+        run: |
+          node --test scripts/coverage-gate.test.mjs
+          scripts/coverage.sh
 
       - name: Publish the coverage gate summary
         # Runs on failure too, so a run that misses a threshold still shows the

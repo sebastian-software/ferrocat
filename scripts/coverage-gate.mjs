@@ -40,14 +40,21 @@ for (const crate of crates) {
     count += file.summary.lines.count;
   }
 
+  const threshold = thresholds.get(crate);
   if (count === 0) {
-    console.log(`${crate}: N/A (no measurable executable lines in llvm-cov report)`);
+    if (threshold === undefined) {
+      console.log(`${crate}: N/A (no measurable executable lines in llvm-cov report)`);
+    } else {
+      console.log(
+        `${crate}: N/A (no measurable executable lines) against ${threshold.toFixed(2)}% => FAIL`,
+      );
+      hasFailure = true;
+    }
     continue;
   }
 
   const percent = (covered / count) * 100;
   const formatted = percent.toFixed(2);
-  const threshold = thresholds.get(crate);
 
   if (threshold === undefined) {
     console.log(`${crate}: ${formatted}% (${covered}/${count})`);
