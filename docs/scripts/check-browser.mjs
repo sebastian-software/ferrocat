@@ -7,6 +7,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { createInterface } from "node:readline";
 import { fileURLToPath } from "node:url";
+import { stripVTControlCharacters } from "node:util";
 import { chromium } from "playwright";
 
 import { expectedPages, pagePath } from "./site-pages.mjs";
@@ -38,7 +39,6 @@ try {
     [ardoBin, "preview", "--host", "127.0.0.1", "--port", String(requestedPort), "--strictPort"],
     {
       cwd: homepageRoot,
-      env: { ...process.env, FORCE_COLOR: "0" },
       stdio: ["ignore", "pipe", "inherit"],
     },
   );
@@ -104,7 +104,9 @@ async function waitForPreview(server) {
         reject(new Error(`Ardo preview exited before startup (${signal ?? code})`));
       });
       output.on("line", (line) => {
-        const origin = line.match(/\bLocal:\s+(http:\/\/127\.0\.0\.1:\d+)\//)?.[1];
+        const origin = stripVTControlCharacters(line).match(
+          /\bLocal:\s+(http:\/\/127\.0\.0\.1:\d+)\//,
+        )?.[1];
         if (origin) resolve(origin);
       });
     });
