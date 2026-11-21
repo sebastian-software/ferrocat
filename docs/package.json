@@ -20,7 +20,7 @@
     "verify": "pnpm sample:check && pnpm lint && pnpm format:check && pnpm typecheck && pnpm build && pnpm browser:check"
   },
   "dependencies": {
-    "ardo": "^6.6.0",
+    "ardo": "^6.9.0",
     "ferramenta-family": "3.0.0"
   },
   "devDependencies": {
@@ -32,7 +32,7 @@
     "oxlint": "^1.85.0",
     "playwright": "1.63.0",
     "typescript": "^6.0.3",
-    "vite": "^8.3.0"
+    "vite": "^8.3.8"
   },
   "packageManager": "pnpm@12.11.2+sha512.25a51652a196785af5f28bda6dfe8dc582ebefa4ac1d180221ce1390231c5fb76637822ea4b6e4633ce74acdcb0a77f725af11bad38177fdeddaee818a955cb9"
 }
