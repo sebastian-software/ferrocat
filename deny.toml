@@ -2,6 +2,8 @@
 all-features = true
 
 [advisories]
+# Preserve the pre-0.22 default for transitive unmaintained crates.
+unmaintained = "all"
 yanked = "deny"
 ignore = []
 
