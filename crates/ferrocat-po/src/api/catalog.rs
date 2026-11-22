@@ -540,9 +540,13 @@ fn merge_catalogs(
     let mut messages = Vec::with_capacity(normalized.len() + existing.messages.len());
 
     // `locale` and `semantics` are constant for the whole merge, so build the
-    // plural profile once instead of per plural message.
+    // plural profile once instead of per plural message. In gettext mode, use
+    // the header-declared slot count used by import to keep its mapping.
     let plural_profile = if context.semantics == CatalogSemantics::GettextCompat {
-        PluralProfile::for_gettext_locale(context.locale)
+        PluralProfile::for_gettext_slots(
+            context.locale,
+            parse_plural_forms_from_headers(&existing.headers).nplurals,
+        )
     } else {
         PluralProfile::for_locale(context.locale)
     };
