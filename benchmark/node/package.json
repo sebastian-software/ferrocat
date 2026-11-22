@@ -7,7 +7,7 @@
   "dependencies": {
     "@formatjs/icu-messageformat-parser": "^3.5.12",
     "@messageformat/parser": "^5.1.1",
-    "gettext-parser": "^9.0.2",
+    "gettext-parser": "^10.0.0",
     "pofile": "^1.1.4",
     "pofile-ts": "^4.0.3"
   }
