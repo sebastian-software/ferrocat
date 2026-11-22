@@ -50,13 +50,38 @@ original.
 | --------------------------------------------------------------------------- | ------- | -------------------------- | -------------- |
 | [pofile-ts](https://github.com/sebastian-software/pofile-ts) (our fork)     | Node    | PO parse, serialize, merge | 4.0.3          |
 | [pofile](https://github.com/rubenv/pofile)                                  | Node    | PO parse, serialize, merge | 1.1.4          |
-| [gettext-parser](https://github.com/smhg/gettext-parser)                    | Node    | PO parse, serialize        | 9.1.1          |
+| [gettext-parser](https://github.com/smhg/gettext-parser)                    | Node    | PO parse, serialize        | 10.0.0         |
 | [polib](https://github.com/izimobil/polib)                                  | Python  | PO parse, serialize, merge | 1.2.0          |
 | [Babel](https://github.com/python-babel/babel)                              | Python  | catalog update             | 2.18.0         |
 | [gettext/gettext](https://github.com/php-gettext/Gettext)                   | PHP     | PO parse, serialize        | 5.7            |
 | [GNU gettext](https://www.gnu.org/software/gettext/) (`msgmerge`, `msgcat`) | C       | merge, concat              | system         |
 | [@formatjs/icu-messageformat-parser](https://github.com/formatjs/formatjs)  | Node    | ICU parse                  | 3.5.17         |
 | [@messageformat/parser](https://github.com/messageformat/messageformat)     | Node    | ICU parse                  | 5.1.1          |
+
+### gettext-parser 10.0.0 recheck
+
+Version 10 uses the GNU gettext line-breaking algorithm for PO output and
+defaults to a page width of 79. The update also picks up stricter validation
+of PO string termination. See the [changes from 9.1.1 to 10.0.0](https://github.com/smhg/gettext-parser/compare/v9.1.1...v10.0.0).
+
+We ran the `gettext-parser-versions-v1` profile on November 22, 2026 with
+Node 24.22.3 on an Apple M1 Ultra. The run order was 9.1.1, 10.0.0, 10.0.0,
+9.1.1 with the same release-mode benchmark harness and default serializer
+options. Values are median milliseconds per 10,000-entry catalog from 22
+samples per case and version. Each calibration batch targets at least 250 ms.
+
+| Catalog         | Parse 9.1.1 | Parse 10.0.0 | Serialize 9.1.1 | Serialize 10.0.0 |
+| --------------- | ----------: | -----------: | --------------: | ---------------: |
+| German UI       |        73.2 |         73.6 |            48.0 |            157.5 |
+| French SaaS     |        77.5 |         76.2 |            37.6 |            146.6 |
+| Polish commerce |        75.7 |         74.1 |            39.8 |            145.1 |
+
+The normalized digests matched for all six cases. Parse differences fell
+within run-to-run variation. Serialization took 3.3 to 3.9 times as long
+with version 10, and the different wrapping changed the output size by less
+than 0.06%. The Published Comparisons page links the reports from their original
+revisions. The raw reports for this recheck record the installed adapter version
+and all samples. [Download the four reports](https://github.com/sebastian-software/ferrocat/tree/main/benchmark/results/gettext-parser-20261122).
 
 ## Scheduled Rust Reports
 
