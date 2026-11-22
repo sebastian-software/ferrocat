@@ -1083,6 +1083,114 @@ fn update_catalog_gettext_preserves_haitian_plural_slots() {
 }
 
 #[test]
+fn update_gettext_keeps_headerless_and_partial_plural_slots_across_updates() {
+    for locale in ["ht-HT", "vi-VN"] {
+        for header in [
+            "",
+            "msgid \"\"\nmsgstr \"\"\n\"Plural-Forms: plural=(n != 1);\\n\"\n\n",
+        ] {
+            for second_slot in [false, true] {
+                let existing = format!(
+                    "{header}msgid \"book\"\nmsgid_plural \"books\"\nmsgstr[0] \"AAA\"\n{}",
+                    if second_slot {
+                        "msgstr[1] \"BBB\"\n"
+                    } else {
+                        ""
+                    }
+                );
+                let update = |content: &str| {
+                    update_catalog(UpdateCatalogOptions {
+                        source_locale: "en",
+                        locale: Some(locale),
+                        existing: Some(content),
+                        mode: CatalogMode::GettextPo,
+                        input: structured_input(vec![ExtractedMessage::Plural(
+                            ExtractedPluralMessage {
+                                msgid: "book".to_owned(),
+                                source: PluralSource {
+                                    one: Some("book".to_owned()),
+                                    other: "books".to_owned(),
+                                },
+                                ..ExtractedPluralMessage::default()
+                            },
+                        )]),
+                        ..UpdateCatalogOptions::new("en", CatalogUpdateInput::default())
+                    })
+                    .expect("update")
+                };
+                let first = update(&existing);
+                let second = update(&first.content);
+                for content in [&first.content, &second.content] {
+                    let parsed = parse_po(content).expect("parse updated catalog");
+                    assert_eq!(parsed.items[0].msgstr[0], "AAA", "{locale} {header:?}");
+                    assert_eq!(
+                        parsed.items[0].msgstr[1],
+                        if second_slot { "BBB" } else { "" },
+                        "{locale} {header:?}"
+                    );
+                    if header.is_empty() {
+                        assert!(
+                            !parsed.headers.iter().any(|h| h.key == "Plural-Forms"),
+                            "{locale}"
+                        );
+                    } else {
+                        assert!(
+                            parsed
+                                .headers
+                                .iter()
+                                .any(|h| h.key == "Plural-Forms" && h.value == "plural=(n != 1);")
+                        );
+                    }
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn update_gettext_does_not_synthesize_a_conflicting_plural_header() {
+    let existing = concat!(
+        "msgid \"book\"\n",
+        "msgid_plural \"books\"\n",
+        "msgstr[0] \"A\"\n",
+        "msgstr[1] \"B\"\n",
+        "msgstr[2] \"C\"\n",
+    );
+    let result = update_catalog(UpdateCatalogOptions {
+        source_locale: "en",
+        locale: Some("de"),
+        existing: Some(existing),
+        mode: CatalogMode::GettextPo,
+        input: structured_input(vec![ExtractedMessage::Plural(ExtractedPluralMessage {
+            msgid: "book".to_owned(),
+            source: PluralSource {
+                one: Some("book".to_owned()),
+                other: "books".to_owned(),
+            },
+            ..ExtractedPluralMessage::default()
+        })]),
+        ..UpdateCatalogOptions::new("en", CatalogUpdateInput::default())
+    })
+    .expect("update");
+    let parsed = parse_po(&result.content).expect("parse output");
+    assert!(
+        !parsed
+            .headers
+            .iter()
+            .any(|header| header.key == "Plural-Forms")
+    );
+    assert_eq!(parsed.items[0].msgstr[0], "A");
+    assert_eq!(parsed.items[0].msgstr[1], "B");
+    assert_eq!(parsed.items[0].msgstr[2], "C");
+    assert!(
+        result
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == "plural.missing_plural_forms_header")
+    );
+}
+
+#[test]
 fn update_catalog_gettext_preserves_previous_plural_variable_and_translations() {
     let existing = concat!(
         "msgid \"book\"\n",

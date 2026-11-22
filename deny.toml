@@ -28,7 +28,8 @@ wildcards = "allow"
 highlight = "all"
 deny = []
 skip = [
-  { crate = "syn@2.0.119", reason = "ICU4X 2.2 proc macros still require syn 2 while serde_derive 1.0.229 uses syn 3" },
+  { crate = "syn@2.0.119", reason = "ICU4X proc macros still require syn 2 while serde_derive 1.0.229 uses syn 3" },
+  { crate = "synstructure@0.13.2", reason = "zerofrom-derive 0.1.7 requires 0.13 while ICU4X 2.4 yoke-derive requires 0.14" },
 ]
 skip-tree = []
 

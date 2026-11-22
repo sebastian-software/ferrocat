@@ -542,11 +542,13 @@ fn merge_catalogs(
     // `locale` and `semantics` are constant for the whole merge, so build the
     // plural profile once instead of per plural message. In gettext mode, use
     // the header-declared slot count used by import to keep its mapping.
+    let declared_nplurals = parse_plural_forms_from_headers(&existing.headers).nplurals;
+    let reuse_imported_slots = context.semantics == CatalogSemantics::GettextCompat
+        && declared_nplurals.is_none()
+        && !(is_source_locale && context.overwrite_source_translations);
+    let mut gettext_profiles = GettextPluralProfiles::new(context.locale);
     let plural_profile = if context.semantics == CatalogSemantics::GettextCompat {
-        PluralProfile::for_gettext_slots(
-            context.locale,
-            parse_plural_forms_from_headers(&existing.headers).nplurals,
-        )
+        PluralProfile::for_gettext_slots(context.locale, declared_nplurals)
     } else {
         PluralProfile::for_locale(context.locale)
     };
@@ -587,11 +589,27 @@ fn merge_catalogs(
                 .take()
                 .expect("each existing message is claimed by at most one extracted message")
         });
+        let previous_slots = if reuse_imported_slots {
+            previous
+                .as_ref()
+                .and_then(|message| match &message.translation {
+                    CanonicalTranslation::Plural {
+                        translation_by_category,
+                        ..
+                    } => Some(translation_by_category.len()),
+                    CanonicalTranslation::Singular { .. } => None,
+                })
+        } else {
+            None
+        };
+        let message_profile = previous_slots.map_or(&plural_profile, |slots| {
+            gettext_profiles.for_slots(Some(slots))
+        });
         let (merged, outcome) = merge_message(
             previous,
             next,
             is_source_locale,
-            &plural_profile,
+            message_profile,
             context.overwrite_source_translations,
             diagnostics,
         );
@@ -921,6 +939,11 @@ fn apply_storage_defaults(
     match options.mode.storage_format() {
         CatalogStorageFormat::Po => {
             let empty_custom_headers = BTreeMap::new();
+            let may_synthesize = !catalog.headers.contains_key("Plural-Forms")
+                && !options
+                    .render
+                    .custom_header_attributes
+                    .is_some_and(|headers| headers.contains_key("Plural-Forms"));
             apply_header_defaults(
                 &mut catalog.headers,
                 locale,
@@ -931,6 +954,19 @@ fn apply_storage_defaults(
                     .custom_header_attributes
                     .unwrap_or(&empty_custom_headers),
             );
+            if may_synthesize && options.mode.semantics() == CatalogSemantics::GettextCompat {
+                let synthesized_count = parse_plural_forms_from_headers(&catalog.headers).nplurals;
+                if synthesized_count.is_some_and(|count| catalog.messages.iter().any(|message| {
+                    matches!(&message.translation, CanonicalTranslation::Plural { translation_by_category, .. } if translation_by_category.len() != count)
+                })) {
+                    catalog.headers.remove("Plural-Forms");
+                    diagnostics.push(Diagnostic::new(
+                        DiagnosticSeverity::Info,
+                        diagnostic_codes::plural::MISSING_PLURAL_FORMS_HEADER,
+                        "No safe default Plural-Forms header matches the existing plural slots; keeping the header unset.",
+                    ));
+                }
+            }
             Ok(())
         }
         CatalogStorageFormat::Fcl => {

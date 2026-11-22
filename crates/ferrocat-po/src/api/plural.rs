@@ -1015,6 +1015,29 @@ mod tests {
     };
 
     #[test]
+    fn cldr_49_plural_categories_and_gettext_slot_fallback() {
+        // ICU4X 2.4 carries CLDR 49; locale-derived profiles can change when
+        // that data changes. Explicit gettext slot counts remain authoritative.
+        for (locale, expected) in [
+            ("ckb-IQ", &["one", "other"][..]),
+            ("gl-ES", &["one", "many", "other"][..]),
+            ("ht-HT", &["other"][..]),
+            ("tg-TJ", &["one", "other"][..]),
+            ("vi-VN", &["one", "other"][..]),
+        ] {
+            assert_eq!(
+                PluralProfile::for_locale(Some(locale)).categories(),
+                expected,
+                "{locale}"
+            );
+        }
+        assert_eq!(
+            PluralProfile::for_gettext_slots(Some("vi-VN"), Some(1)).categories(),
+            &["other"]
+        );
+    }
+
+    #[test]
     fn plural_fast_scan_skips_plain_and_mixed_messages() {
         assert!(!looks_like_projectable_icu_plural(
             b"Bench 1: Hello {name}, you have {count} items."
