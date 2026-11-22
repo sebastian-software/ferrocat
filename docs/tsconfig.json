@@ -11,6 +11,6 @@
     "noImplicitOverride": true,
     "verbatimModuleSyntax": true
   },
-  "include": ["app/**/*", "*.ts", "*.config.ts", "scripts/**/*.mjs"],
+  "include": ["app/**/*", "*.ts", "*.config.ts", "eslint.config.mjs", "scripts/**/*.mjs"],
   "exclude": ["node_modules", "build"]
 }

@@ -1,0 +1,66 @@
+{
+  "name": "gettext-parser-versions-v1",
+  "minimum_sample_millis": 250,
+  "scenarios": [
+    {
+      "id": "po-parse/gettext-ui-de-10000/gettext-parser",
+      "comparison_group": "po-parse/gettext-ui-de-10000",
+      "workload": "po-parse",
+      "operation": "parse",
+      "fixture": "gettext-ui-de-10000",
+      "implementation": "gettext-parser",
+      "warmup_runs": 2,
+      "measured_runs": 11
+    },
+    {
+      "id": "po-parse/gettext-saas-fr-10000/gettext-parser",
+      "comparison_group": "po-parse/gettext-saas-fr-10000",
+      "workload": "po-parse",
+      "operation": "parse",
+      "fixture": "gettext-saas-fr-10000",
+      "implementation": "gettext-parser",
+      "warmup_runs": 2,
+      "measured_runs": 11
+    },
+    {
+      "id": "po-parse/gettext-commerce-pl-10000/gettext-parser",
+      "comparison_group": "po-parse/gettext-commerce-pl-10000",
+      "workload": "po-parse",
+      "operation": "parse",
+      "fixture": "gettext-commerce-pl-10000",
+      "implementation": "gettext-parser",
+      "warmup_runs": 2,
+      "measured_runs": 11
+    },
+    {
+      "id": "po-stringify/gettext-ui-de-10000/gettext-parser",
+      "comparison_group": "po-stringify/gettext-ui-de-10000",
+      "workload": "po-stringify",
+      "operation": "stringify",
+      "fixture": "gettext-ui-de-10000",
+      "implementation": "gettext-parser",
+      "warmup_runs": 2,
+      "measured_runs": 11
+    },
+    {
+      "id": "po-stringify/gettext-saas-fr-10000/gettext-parser",
+      "comparison_group": "po-stringify/gettext-saas-fr-10000",
+      "workload": "po-stringify",
+      "operation": "stringify",
+      "fixture": "gettext-saas-fr-10000",
+      "implementation": "gettext-parser",
+      "warmup_runs": 2,
+      "measured_runs": 11
+    },
+    {
+      "id": "po-stringify/gettext-commerce-pl-10000/gettext-parser",
+      "comparison_group": "po-stringify/gettext-commerce-pl-10000",
+      "workload": "po-stringify",
+      "operation": "stringify",
+      "fixture": "gettext-commerce-pl-10000",
+      "implementation": "gettext-parser",
+      "warmup_runs": 2,
+      "measured_runs": 11
+    }
+  ]
+}

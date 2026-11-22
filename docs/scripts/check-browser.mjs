@@ -1,12 +1,14 @@
-/* eslint-disable security/detect-non-literal-fs-filename -- Vite and axe paths are package-owned; pages come from the site route list. */
+/* eslint-disable security/detect-non-literal-fs-filename -- Axe paths are package-owned. Page paths come from the site route list. */
 import assert from "node:assert/strict";
+import { spawn } from "node:child_process";
 import { readFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
+import { createInterface } from "node:readline";
 import { fileURLToPath } from "node:url";
+import { stripVTControlCharacters } from "node:util";
 import { chromium } from "playwright";
-import { preview } from "vite";
 
 import { expectedPages, pagePath } from "./site-pages.mjs";
 
@@ -30,24 +32,17 @@ const selectors = {
 let browser;
 let previewServer;
 try {
-  previewServer = await preview({
-    configFile: false,
-    root: homepageRoot,
-    logLevel: "silent",
-    base: "/",
-    build: { outDir: "build/client" },
-    preview: {
-      host: "127.0.0.1",
-      port: requestedPort,
-      strictPort: requestedPort !== 0,
+  const ardoPackage = require.resolve("ardo/package.json");
+  const ardoBin = join(dirname(ardoPackage), require("ardo/package.json").bin.ardo);
+  previewServer = spawn(
+    process.execPath,
+    [ardoBin, "preview", "--host", "127.0.0.1", "--port", String(requestedPort), "--strictPort"],
+    {
+      cwd: homepageRoot,
+      stdio: ["ignore", "pipe", "inherit"],
     },
-  });
-  const address = previewServer.httpServer.address();
-  assert(
-    address && typeof address !== "string",
-    "Vite preview did not expose a listening TCP address",
   );
-  const origin = `http://127.0.0.1:${address.port}`;
+  const origin = await waitForPreview(previewServer);
   browser = await chromium.launch({ headless: true });
   const page = await browser.newPage({ colorScheme: "light" });
   const runtimeErrors = [];
@@ -88,8 +83,38 @@ try {
     "Verified all pages at eight widths, native audit choices, the homepage chart and menu, benchmark choices, navigation, search, focus return, reduced motion and runtime errors.",
   );
 } finally {
-  await browser?.close();
-  await previewServer?.close();
+  try {
+    await browser?.close();
+  } finally {
+    previewServer?.kill();
+  }
+}
+
+async function waitForPreview(server) {
+  const output = createInterface({ input: server.stdout });
+  let timeout;
+  try {
+    return await new Promise((resolve, reject) => {
+      timeout = setTimeout(
+        () => reject(new Error("Ardo preview did not start within 30s")),
+        30_000,
+      );
+      server.once("error", reject);
+      server.once("close", (code, signal) => {
+        reject(new Error(`Ardo preview exited before startup (${signal ?? code})`));
+      });
+      output.on("line", (line) => {
+        const origin = stripVTControlCharacters(line).match(
+          /\bLocal:\s+(http:\/\/127\.0\.0\.1:\d+)\//,
+        )?.[1];
+        if (origin) resolve(origin);
+      });
+    });
+  } finally {
+    clearTimeout(timeout);
+    output.close();
+    server.stdout.resume();
+  }
 }
 
 async function verifyAudit(page, origin) {
