@@ -1044,6 +1044,45 @@ fn update_catalog_gettext_preserves_existing_complete_plural_forms_header() {
 }
 
 #[test]
+fn update_catalog_gettext_preserves_haitian_plural_slots() {
+    let existing = concat!(
+        "msgid \"\"\n",
+        "msgstr \"\"\n",
+        "\"Language: ht-HT\\n\"\n",
+        "\"Plural-Forms: nplurals=2; plural=(n != 1);\\n\"\n\n",
+        "msgid \"book\"\n",
+        "msgid_plural \"books\"\n",
+        "msgstr[0] \"liv\"\n",
+        "msgstr[1] \"liv yo\"\n",
+    );
+    let result = update_catalog(UpdateCatalogOptions {
+        source_locale: "en",
+        locale: Some("ht-HT"),
+        existing: Some(existing),
+        mode: CatalogMode::GettextPo,
+        input: structured_input(vec![ExtractedMessage::Plural(ExtractedPluralMessage {
+            msgid: "book".to_owned(),
+            source: PluralSource {
+                one: Some("book".to_owned()),
+                other: "books".to_owned(),
+            },
+            ..ExtractedPluralMessage::default()
+        })]),
+        ..UpdateCatalogOptions::new("en", CatalogUpdateInput::default())
+    })
+    .expect("update");
+    let parsed = parse_po(&result.content).expect("parse output");
+    assert_eq!(parsed.items[0].msgstr[0], "liv");
+    assert_eq!(parsed.items[0].msgstr[1], "liv yo");
+    assert!(
+        parsed
+            .headers
+            .iter()
+            .any(|h| h.key == "Plural-Forms" && h.value == "nplurals=2; plural=(n != 1);")
+    );
+}
+
+#[test]
 fn update_catalog_gettext_preserves_previous_plural_variable_and_translations() {
     let existing = concat!(
         "msgid \"book\"\n",
