@@ -90,6 +90,7 @@ fn finish_catalog_conversion(
             }
             apply_header_defaults(
                 &mut catalog.headers,
+                &catalog.messages,
                 locale.as_deref(),
                 options.target_mode.semantics(),
                 &mut diagnostics,
