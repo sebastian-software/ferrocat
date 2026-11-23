@@ -37,6 +37,12 @@ unset and reports a diagnostic.
 
 There is intentionally no FCL + gettext-plural mode; gettext plural behavior belongs to PO-shaped catalogs, while FCL is the ICU-native machine storage path for catalog records.
 
+### Surplus gettext slots
+
+Writing operations reject a nonempty plural slot that the selected profile
+cannot represent, instead of dropping its translation. Plain parsing remains
+tolerant; empty surplus slots can be normalized.
+
 ## Why FCL matters for larger teams
 
 The painful failure with PO is not a crash. It is a finished translation that quietly disappears. A PO entry spans several lines with repeated anchor lines (`msgstr ""`, blank separators), so when two branches touch the same file, git's line merge mis-anchors and can drop an entry that nobody even edited. Someone retranslates work that was already done, and no error ever fires.
