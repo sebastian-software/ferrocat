@@ -1020,7 +1020,9 @@ In `GettextCompat` mode, Ferrocat synthesizes `Plural-Forms` only for safe
 locale defaults that it knows, including common one-form, Germanic/Romance
 two-form, French/Brazilian Portuguese, Slavic three-form, Polish, Czech/Slovak,
 and Arabic rules. Unknown locales keep the header unset and report a diagnostic
-instead of guessing a plural expression.
+instead of guessing a plural expression. When the default count disagrees with
+any output plural entry’s slot count, Ferrocat also leaves the header unset and
+reports a diagnostic. Explicit headers retain their existing behavior.
 
 In native mode, `CatalogUpdateInput::SourceFirst` stays source-text-first; it no longer auto-projects ICU strings into structured plural messages. Use `CatalogUpdateInput::Structured` when you want explicit plural structure.
 
