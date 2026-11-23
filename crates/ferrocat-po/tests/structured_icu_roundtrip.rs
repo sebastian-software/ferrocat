@@ -1,3 +1,5 @@
+#![cfg(feature = "catalog")]
+
 use std::collections::BTreeMap;
 
 use ferrocat_po::{
