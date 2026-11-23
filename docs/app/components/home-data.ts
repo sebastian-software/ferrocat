@@ -1,15 +1,10 @@
 import { family } from "ferramenta-family/registry";
 
-import homeSamples from "../data/home-samples.json";
-
 /* Everything the homepage shows comes from generated files: home-samples.json
    (scripts/render-home-samples.mjs) and audit-sample.json
    (scripts/render-audit-sample.mjs). Neither is edited by hand. */
-export const samples = homeSamples;
 export { default as audit } from "../data/audit-sample.json";
-
-/** The crate version that rendered the specimens. */
-export const renderedWith = samples.renderedWith.ferrocat;
+export { default as samples } from "../data/home-samples.json";
 
 const member = family.find((entry) => entry.name === "ferrocat");
 if (!member) throw new Error("Ferrocat is missing from the family registry.");
