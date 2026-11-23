@@ -28,8 +28,8 @@ messages containing an apostrophe before `<` for their intended meaning. For
 example, `l'<0>...</0> {name}` now starts a literal quote, so the tag and
 later argument can become literal text. Use `l''<0>...</0> {name}` to retain
 the apostrophe, tag, and argument on both 3.6 and 4.0. Audit translations with
-`with_icu_compatibility` to find missing tags and arguments when the source
-expects them.
+`CompileCatalogArtifactOptions::with_icu_compatibility(true)` to find missing
+tags and arguments when the source expects them.
 `Strict` remains the default syntax policy and its raw key helper is unchanged.
 
 Regenerate source-extracted runtime IDs, `CompiledCatalogIdIndex` values,
@@ -42,8 +42,9 @@ canonicalization has. There is no additional legacy runtime policy.
 
 Writers emit `%FCL2`; readers accept FCL1 and FCL2 by their header. In FCL2 the
 context column is `n` for no context, `s` for an explicitly empty context, or
-`s` followed by escaped context text. Carriage returns are escaped as `\r`. A file has one format header; do not
-manually mix FCL1 and FCL2 entry lines under it.
+`s` followed by escaped context text. Carriage returns are escaped as `\r`.
+A file has one format header. Do not manually mix FCL1 and FCL2 entry lines
+under it.
 
 Upgrade every FCL reader before rewriting catalogs. To migrate an existing
 file, call `convert_catalog_file` with FCL input and FCL output (the same path
@@ -60,7 +61,11 @@ See the [format decision](/architecture/adr/0033-lossless-fcl2-context-and-carri
 
 `CompileCatalogArtifactOptions::new` now sets `strict_icu` to `true`. Full,
 selected and provenance-report compilation return an error for invalid final
-ICU syntax. Diagnostic tools that need to collect all errors opt in explicitly:
+ICU syntax. With the default `Strict` syntax policy, a translation such as
+`You're available.` is invalid and now fails compilation. Use the
+`RuntimeLiteralApostrophes` syntax policy when that is the intended runtime
+interpretation. Diagnostic tools that need to collect all errors opt in
+explicitly:
 
 ```rust
 let options = CompileCatalogArtifactOptions::new("de", "en")
