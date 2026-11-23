@@ -1084,12 +1084,15 @@ Both storage formats use the same fields. PO stores them as metadata comments:
 ```po
 #@ lock: <hash>
 #@ ai: openai/gpt-5.5-high:0.95
+msgid "Hello {name}"
+msgstr "Hallo {name}"
 ```
 
 FCL appends them as tags on the entry line:
 
 ```fcl
-Hello		Hallo	lock=<hash>	ai=openai/gpt-5.5-high:0.95
+%FCL2	source=en	locale=de	order=collated
+Hello {name}	n	Hallo {name}	lock=<hash>	ai=openai/gpt-5.5-high:0.95
 ```
 
 The `ai` model id is free-form, so the provider prefix is optional and only a
