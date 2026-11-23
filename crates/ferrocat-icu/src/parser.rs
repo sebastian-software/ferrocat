@@ -1,6 +1,9 @@
 use crate::ast::{IcuMessage, IcuNode, IcuOption, IcuPluralKind};
 use crate::error::IcuParseError;
 
+// Bounds recursive option and tag bodies, including mixed nesting.
+const MAX_NESTING_DEPTH: usize = 64;
+
 /// Options controlling ICU parsing behavior.
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
@@ -40,7 +43,8 @@ impl IcuParserOptions {
 ///
 /// # Errors
 ///
-/// Returns [`IcuParseError`] when the input is malformed.
+/// Returns [`IcuParseError`] when the input is malformed or exceeds 64 nested
+/// selector option bodies and paired tags.
 pub fn parse_icu(input: &str) -> Result<IcuMessage, IcuParseError> {
     parse_icu_with_options(input, &IcuParserOptions::default())
 }
@@ -49,7 +53,8 @@ pub fn parse_icu(input: &str) -> Result<IcuMessage, IcuParseError> {
 ///
 /// # Errors
 ///
-/// Returns [`IcuParseError`] when the input is malformed.
+/// Returns [`IcuParseError`] when the input is malformed or exceeds 64 nested
+/// selector option bodies and paired tags.
 pub fn parse_icu_with_options(
     input: &str,
     options: &IcuParserOptions,
@@ -67,6 +72,7 @@ struct Parser<'a> {
     input_bytes: &'a [u8],
     pos: usize,
     options: &'a IcuParserOptions,
+    nesting_depth: usize,
 }
 
 impl<'a> Parser<'a> {
@@ -80,6 +86,7 @@ impl<'a> Parser<'a> {
             input_bytes: input.as_bytes(),
             pos: 0,
             options,
+            nesting_depth: 0,
         }
     }
 
@@ -143,6 +150,22 @@ impl<'a> Parser<'a> {
 
         Self::flush_literal(&mut literal, &mut nodes);
         Ok(nodes)
+    }
+
+    fn parse_nested_nodes(
+        &mut self,
+        until_tag: Option<&str>,
+        plural_depth: usize,
+    ) -> Result<Vec<IcuNode>, IcuParseError> {
+        if self.nesting_depth >= MAX_NESTING_DEPTH {
+            return Err(self.error(format!(
+                "ICU message exceeds maximum nesting depth of {MAX_NESTING_DEPTH}"
+            )));
+        }
+        self.nesting_depth += 1;
+        let result = self.parse_nodes(until_tag, plural_depth);
+        self.nesting_depth -= 1;
+        result
     }
 
     fn parse_argument(&mut self, plural_depth: usize) -> Result<IcuNode, IcuParseError> {
@@ -269,7 +292,7 @@ impl<'a> Parser<'a> {
             }
             self.skip_whitespace();
             self.expect_char('{')?;
-            let value = self.parse_nodes(None, plural_depth)?;
+            let value = self.parse_nested_nodes(None, plural_depth)?;
             self.expect_char('}')?;
             options.push(IcuOption { selector, value });
         }
@@ -292,7 +315,7 @@ impl<'a> Parser<'a> {
             });
         }
         self.expect_char('>')?;
-        let children = self.parse_nodes(Some(&name), plural_depth)?;
+        let children = self.parse_nested_nodes(Some(&name), plural_depth)?;
         self.expect_bytes(Self::CLOSE_TAG_PREFIX)?;
         let close_name = self.parse_tag_name()?;
         if close_name != name {
@@ -683,6 +706,38 @@ mod tests {
                 ..
             } if options.len() == 2
         ));
+    }
+
+    #[test]
+    fn bounds_nested_option_and_tag_bodies() {
+        for kind in ["select", "plural", "selectordinal", "tag", "mixed"] {
+            let nested = |depth: usize| {
+                (0..depth).fold("# {name} '<literal>'".to_owned(), |body, index| {
+                    match if kind == "mixed" {
+                        ["select", "plural", "selectordinal", "tag"][index % 4]
+                    } else {
+                        kind
+                    } {
+                        "tag" => format!("<b>{body}</b>"),
+                        argument_kind => format!("{{x, {argument_kind}, other {{{body}}}}}"),
+                    }
+                })
+            };
+            parse_icu(&nested(super::MAX_NESTING_DEPTH)).expect("limit is accepted");
+            let error = parse_icu(&nested(super::MAX_NESTING_DEPTH + 1))
+                .expect_err("one level beyond limit is rejected");
+            assert!(error.message.contains("maximum nesting depth"), "{error}");
+        }
+    }
+
+    #[test]
+    fn nesting_limit_counts_depth_not_siblings_or_pounds() {
+        let siblings = "<b>#</b>{x, plural, other {###}}".repeat(100);
+        parse_icu(&siblings).expect("siblings do not accumulate depth");
+        let depth = super::MAX_NESTING_DEPTH + 1;
+        let ignored = format!("{}text{}", "<b>".repeat(depth), "</b>".repeat(depth));
+        parse_icu_with_options(&ignored, &IcuParserOptions::default().with_ignore_tag(true))
+            .expect("ignored tags are literals");
     }
 
     #[test]

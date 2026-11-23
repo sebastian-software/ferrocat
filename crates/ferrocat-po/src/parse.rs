@@ -2,8 +2,8 @@ use memchr::{memchr_iter, memchr2_iter};
 
 use crate::line_state::{PoLineContext, PoLineState};
 use crate::scan::{
-    CommentKind, Keyword, LineKind, LineScanner, classify_line, parse_plural_index,
-    split_once_byte, trim_ascii, unrecognized_po_line,
+    CommentKind, Keyword, LineKind, LineScanner, checked_plural_forms, checked_plural_index,
+    classify_line, split_once_byte, trim_ascii, unrecognized_po_line,
 };
 use crate::text::{extract_quoted_bytes_cow, for_each_reference_token};
 use crate::utf8::input_slice_as_str;
@@ -115,7 +115,8 @@ struct BorrowedLine<'a> {
 ///
 /// # Errors
 ///
-/// Returns [`ParseError`] when the input is not valid PO syntax.
+/// Returns [`ParseError`] when the input has invalid PO syntax, a declared
+/// plural width above 128, or a zero-based plural index above 127.
 pub fn parse_po(input: &str) -> Result<PoFile, ParseError> {
     let input = strip_utf8_bom(input);
 
@@ -124,7 +125,9 @@ pub fn parse_po(input: &str) -> Result<PoFile, ParseError> {
     let mut current_nplurals = 2;
     let mut state = ParserState::new(current_nplurals);
 
+    let mut last_position = ParsePosition::new(0, 1, 1);
     for line in LineScanner::new(input.as_bytes()) {
+        last_position = line.position;
         parse_line(
             BorrowedLine {
                 trimmed: line.trimmed,
@@ -137,7 +140,7 @@ pub fn parse_po(input: &str) -> Result<PoFile, ParseError> {
         )?;
     }
 
-    finish_item(&mut state, &mut file, &mut current_nplurals);
+    finish_item(&mut state, &mut file, &mut current_nplurals, last_position)?;
 
     Ok(file)
 }
@@ -150,9 +153,9 @@ pub fn parse_po(input: &str) -> Result<PoFile, ParseError> {
 ///
 /// # Errors
 ///
-/// Returns [`ParseError`] when the PO header declares an unsupported non-UTF-8
-/// charset, when the input bytes are not valid UTF-8, or when the decoded input
-/// is not valid PO syntax.
+/// Returns [`ParseError`] for unsupported declared charsets, invalid UTF-8,
+/// invalid PO syntax, or input that exceeds the limit of 128 plural slots
+/// per entry.
 pub fn parse_po_bytes(input: &[u8]) -> Result<PoFile, ParseError> {
     reject_unsupported_declared_charset(input)?;
 
@@ -248,10 +251,14 @@ fn parse_line(
             append_continuation(line.trimmed, line.obsolete, line.position, state)?;
             Ok(())
         }
-        LineKind::Comment(kind) => {
-            parse_comment_line(line.trimmed, kind, state, file, current_nplurals);
-            Ok(())
-        }
+        LineKind::Comment(kind) => parse_comment_line(
+            line.trimmed,
+            kind,
+            state,
+            file,
+            current_nplurals,
+            line.position,
+        ),
         LineKind::Keyword(keyword) => parse_keyword_line(
             line.trimmed,
             line.obsolete,
@@ -271,8 +278,9 @@ fn parse_comment_line(
     state: &mut ParserState,
     file: &mut PoFile,
     current_nplurals: &mut usize,
-) {
-    finish_item(state, file, current_nplurals);
+    position: ParsePosition,
+) -> Result<(), ParseError> {
+    finish_item(state, file, current_nplurals, position)?;
 
     match kind {
         CommentKind::Reference => {
@@ -308,6 +316,7 @@ fn parse_comment_line(
         CommentKind::Translator => state.item.comments.push(trimmed_string(&line_bytes[1..])),
         CommentKind::Other => {}
     }
+    Ok(())
 }
 
 fn ferrocat_mt_metadata_value(trimmed: &[u8]) -> Option<&[u8]> {
@@ -337,13 +346,13 @@ fn parse_keyword_line(
             );
         }
         Keyword::Id => {
-            finish_item(state, file, current_nplurals);
+            finish_item(state, file, current_nplurals, position)?;
             state.line.mark_keyword(PoLineContext::Id, 0, obsolete);
             state.item.msgid =
                 at_line_position(extract_quoted_bytes_cow(line_bytes), position)?.into_owned();
         }
         Keyword::Str => {
-            let plural_index = parse_plural_index(line_bytes).unwrap_or(0);
+            let plural_index = checked_plural_index(line_bytes, position)?;
             state
                 .line
                 .mark_keyword(PoLineContext::Str, plural_index, obsolete);
@@ -353,7 +362,7 @@ fn parse_keyword_line(
             );
         }
         Keyword::Ctxt => {
-            finish_item(state, file, current_nplurals);
+            finish_item(state, file, current_nplurals, position)?;
             state.line.mark_keyword(PoLineContext::Ctxt, 0, obsolete);
             state.item.msgctxt = Some(
                 at_line_position(extract_quoted_bytes_cow(line_bytes), position)?.into_owned(),
@@ -400,13 +409,18 @@ fn at_line_position<T>(
     result.map_err(|error| error.with_position_if_missing(position))
 }
 
-fn finish_item(state: &mut ParserState, file: &mut PoFile, current_nplurals: &mut usize) {
+fn finish_item(
+    state: &mut ParserState,
+    file: &mut PoFile,
+    current_nplurals: &mut usize,
+    position: ParsePosition,
+) -> Result<(), ParseError> {
     if !state.line.has_keyword() {
-        return;
+        return Ok(());
     }
 
     if state.item.msgid.is_empty() && !is_header_state(state) {
-        return;
+        return Ok(());
     }
 
     if state.line.is_obsolete_item() {
@@ -417,9 +431,16 @@ fn finish_item(state: &mut ParserState, file: &mut PoFile, current_nplurals: &mu
         file.comments = core::mem::take(&mut state.item.comments).into_vec();
         file.extracted_comments = core::mem::take(&mut state.item.extracted_comments).into_vec();
         parse_headers(state.header_msgstr(), &mut file.headers);
-        *current_nplurals = parse_nplurals(&file.headers).unwrap_or(2);
+        *current_nplurals = match file
+            .headers
+            .iter()
+            .find(|header| header.key == "Plural-Forms")
+        {
+            Some(header) => checked_plural_forms(&header.value, position)?.unwrap_or(2),
+            None => 2,
+        };
         state.reset(*current_nplurals);
-        return;
+        return Ok(());
     }
 
     state.materialize_msgstr();
@@ -436,6 +457,7 @@ fn finish_item(state: &mut ParserState, file: &mut PoFile, current_nplurals: &mu
     state.item.nplurals = *current_nplurals;
     file.items.push(core::mem::take(&mut state.item));
     state.reset_after_take(*current_nplurals);
+    Ok(())
 }
 
 fn is_header_state(state: &ParserState) -> bool {
@@ -457,33 +479,6 @@ fn parse_headers(raw: &str, out: &mut Vec<Header>) {
             });
         }
     }
-}
-
-fn parse_nplurals(headers: &[Header]) -> Option<usize> {
-    let plural_forms = headers
-        .iter()
-        .find(|header| header.key == "Plural-Forms")?
-        .value
-        .as_bytes();
-    let mut rest = plural_forms;
-
-    while !rest.is_empty() {
-        let (part, next) = match split_once_byte(rest, b';') {
-            Some((part, tail)) => (part, tail),
-            None => (rest, &b""[..]),
-        };
-        let trimmed = trim_ascii(part);
-        if let Some((key, value)) = split_once_byte(trimmed, b'=')
-            && trim_ascii(key) == b"nplurals"
-            && let value = bytes_to_str(trim_ascii(value))
-            && let Ok(parsed) = value.parse::<usize>()
-        {
-            return Some(parsed);
-        }
-        rest = next;
-    }
-
-    None
 }
 
 fn bytes_to_str(bytes: &[u8]) -> &str {

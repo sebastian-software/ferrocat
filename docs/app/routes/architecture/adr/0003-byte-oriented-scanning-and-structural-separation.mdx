@@ -32,6 +32,11 @@ This includes:
 - rejecting non-empty lines that are not recognized as PO comments, keywords,
   or continuation strings instead of silently ignoring them
 
+The PO readers, including the legacy merge parser, limit each entry to 128
+plural slots. Both indexed translations and the declared width are checked
+before they are used to size a plural vector. Inputs beyond that bound return a
+positioned parse error.
+
 ## Consequences
 
 Positive:
