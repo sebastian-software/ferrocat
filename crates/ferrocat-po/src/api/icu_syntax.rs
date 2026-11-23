@@ -186,11 +186,15 @@ fn opens_plural_argument(input: &str, index: usize) -> bool {
     let Some((_, after_name)) = split_argument_part(rest) else {
         return false;
     };
-    let Some((kind, _)) = split_argument_part(after_name) else {
-        return false;
-    };
 
-    matches!(kind.trim(), "plural" | "selectordinal")
+    // The ICU parser also accepts plural arguments without a comma after the kind.
+    let kind = after_name
+        .trim_start_matches(|character: char| character.is_ascii_whitespace())
+        .split(|character: char| {
+            character.is_ascii_whitespace() || matches!(character, ',' | '{' | '}' | '<' | '>')
+        })
+        .next();
+    matches!(kind, Some("plural" | "selectordinal"))
 }
 
 fn split_argument_part(input: &str) -> Option<(&str, &str)> {
@@ -280,6 +284,25 @@ mod tests {
             canonicalize_icu_with_policy("'#' items", IcuSyntaxPolicy::RuntimeLiteralApostrophes),
             "''#'' items"
         );
+    }
+
+    #[test]
+    fn runtime_policy_preserves_quoted_pound_with_an_optional_plural_comma() {
+        for input in [
+            "{count, plural other {'#' items}}",
+            "{count, selectordinal other {'#' items}}",
+        ] {
+            let parsed =
+                parse_icu_with_syntax_policy(input, IcuSyntaxPolicy::RuntimeLiteralApostrophes)
+                    .expect("plural with no comma after the argument kind");
+            let IcuNode::Plural { options, .. } = &parsed.nodes[0] else {
+                panic!("expected plural");
+            };
+            assert_eq!(
+                options[0].value,
+                vec![IcuNode::Literal("# items".to_owned())]
+            );
+        }
     }
 
     #[test]

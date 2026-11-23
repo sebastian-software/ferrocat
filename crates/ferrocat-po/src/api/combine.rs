@@ -897,6 +897,7 @@ fn apply_storage_defaults_for_combine(
         CatalogStorageFormat::Po => {
             apply_header_defaults(
                 &mut catalog.headers,
+                &catalog.messages,
                 locale,
                 config.mode.semantics(),
                 diagnostics,

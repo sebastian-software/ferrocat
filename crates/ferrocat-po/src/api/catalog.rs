@@ -903,6 +903,7 @@ fn extract_plural_variable(translation: Option<&CanonicalTranslation>) -> Option
 /// when we have a conservative, locale-safe default.
 pub(super) fn apply_header_defaults(
     headers: &mut BTreeMap<String, String>,
+    messages: &[CanonicalMessage],
     locale: Option<&str>,
     semantics: CatalogSemantics,
     diagnostics: &mut Vec<Diagnostic>,
@@ -928,7 +929,17 @@ pub(super) fn apply_header_defaults(
         let parsed_header = parse_plural_forms_from_headers(headers);
         match (parsed_header.raw.as_deref(), profile.gettext_header()) {
             (None, Some(header)) => {
-                headers.insert("Plural-Forms".to_owned(), header);
+                if messages.iter().any(|message| {
+                    matches!(&message.translation, CanonicalTranslation::Plural { translation_by_category, .. } if translation_by_category.len() != profile.nplurals())
+                }) {
+                    diagnostics.push(Diagnostic::new(
+                        DiagnosticSeverity::Info,
+                        diagnostic_codes::plural::MISSING_PLURAL_FORMS_HEADER,
+                        "No safe default Plural-Forms header matches the existing plural slots; keeping the header unset.",
+                    ));
+                } else {
+                    headers.insert("Plural-Forms".to_owned(), header);
+                }
             }
             (None, None) => diagnostics.push(Diagnostic::new(
                 DiagnosticSeverity::Info,
@@ -995,13 +1006,9 @@ fn apply_storage_defaults(
     match options.mode.storage_format() {
         CatalogStorageFormat::Po => {
             let empty_custom_headers = BTreeMap::new();
-            let may_synthesize = !catalog.headers.contains_key("Plural-Forms")
-                && !options
-                    .render
-                    .custom_header_attributes
-                    .is_some_and(|headers| headers.contains_key("Plural-Forms"));
             apply_header_defaults(
                 &mut catalog.headers,
+                &catalog.messages,
                 locale,
                 options.mode.semantics(),
                 diagnostics,
@@ -1010,19 +1017,6 @@ fn apply_storage_defaults(
                     .custom_header_attributes
                     .unwrap_or(&empty_custom_headers),
             );
-            if may_synthesize && options.mode.semantics() == CatalogSemantics::GettextCompat {
-                let synthesized_count = parse_plural_forms_from_headers(&catalog.headers).nplurals;
-                if synthesized_count.is_some_and(|count| catalog.messages.iter().any(|message| {
-                    matches!(&message.translation, CanonicalTranslation::Plural { translation_by_category, .. } if translation_by_category.len() != count)
-                })) {
-                    catalog.headers.remove("Plural-Forms");
-                    diagnostics.push(Diagnostic::new(
-                        DiagnosticSeverity::Info,
-                        diagnostic_codes::plural::MISSING_PLURAL_FORMS_HEADER,
-                        "No safe default Plural-Forms header matches the existing plural slots; keeping the header unset.",
-                    ));
-                }
-            }
             Ok(())
         }
         CatalogStorageFormat::Fcl => {

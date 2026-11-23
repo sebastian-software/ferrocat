@@ -47,6 +47,7 @@ try {
   const page = await browser.newPage({ colorScheme: "light" });
   const runtimeErrors = [];
   page.on("pageerror", (error) => runtimeErrors.push(error.message));
+  await verifyCatalogHighlighting(page, origin);
   for (const pageFile of expectedPages) {
     for (const viewport of [
       { name: "phone-small", width: 320, height: 760 },
@@ -88,6 +89,25 @@ try {
   } finally {
     previewServer?.kill();
   }
+}
+
+async function verifyCatalogHighlighting(page, origin) {
+  await page.goto(new URL("/reference/api-overview/", origin).href, { waitUntil: "load" });
+  const fcl = page.locator('[data-lang="fcl"]').filter({ hasText: "%FCL2" }).locator("pre code");
+  assert.equal(await fcl.count(), 1, "Expected the FCL2 documentation fence");
+  const fclText = await fcl.textContent();
+  assert.equal(
+    fclText?.trimEnd(),
+    "%FCL2\tsource=en\tlocale=de\torder=collated\nHello {name}\tn\tHallo {name}\tlock=<hash>\tai=openai/gpt-5.5-high:0.95",
+  );
+  const fclTokens = await fcl.locator('span[style*="--shiki-light"]').allTextContents();
+  assert.equal(fclTokens.filter((text) => text === "name").length, 2, "FCL ICU arguments");
+
+  const po = page.locator('[data-lang="po"]').filter({ hasText: "msgid" }).locator("pre code");
+  assert.equal(await po.count(), 1, "Expected the PO documentation fence");
+  const poTokens = await po.locator('span[style*="--shiki-light"]').allTextContents();
+  for (const keyword of ["msgid", "msgstr"]) assert(poTokens.includes(keyword), keyword);
+  assert.equal(poTokens.filter((text) => text === "name").length, 2, "PO ICU arguments");
 }
 
 async function waitForPreview(server) {
