@@ -157,7 +157,7 @@ fn validate_po_metadata(catalog: &super::catalog::Catalog) -> Result<(), ApiErro
                 message.msgid
             ))
         };
-        if message.msgid.is_empty() && message.msgctxt.is_none() {
+        if message.msgid.is_empty() {
             return Err(reject("identity"));
         }
         for comment in message.comments.iter().chain(message.translator_comments()) {
