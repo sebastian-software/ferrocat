@@ -3,8 +3,8 @@ import { family } from "ferramenta-family/registry";
 /* Everything the homepage shows comes from generated files: home-samples.json
    (scripts/render-home-samples.mjs) and audit-sample.json
    (scripts/render-audit-sample.mjs). Neither is edited by hand. */
-export { default as samples } from "../data/home-samples.json";
 export { default as audit } from "../data/audit-sample.json";
+export { default as samples } from "../data/home-samples.json";
 
 const member = family.find((entry) => entry.name === "ferrocat");
 if (!member) throw new Error("Ferrocat is missing from the family registry.");
