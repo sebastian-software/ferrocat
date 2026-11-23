@@ -56,7 +56,7 @@ operations.
 - FCL-to-PO conversion rejects metadata that PO cannot represent losslessly,
   including line breaks or trim-sensitive comments, comma-containing or
   trim-sensitive flags and metadata, references that cannot survive PO
-  tokenization, and an absent-context empty identity reserved for the PO header.
+  tokenization, and any empty message ID, which the PO parser treats as a header.
   Validation occurs before file replacement.
 - PO output uses the requested deterministic PO ordering and serializer
   controls. FCL output always uses its canonical collated order and line shape.

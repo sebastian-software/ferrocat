@@ -25,7 +25,7 @@ use super::mt::{
 };
 use super::plural::{
     GettextPluralProfiles, PluralProfile, derive_plural_variable,
-    expected_gettext_nplurals_for_locale,
+    expected_gettext_nplurals_for_locale, synthesize_icu_plural_source,
 };
 use super::{
     ApiError, CatalogMessage, CatalogOrigin, CatalogSemantics, CatalogStats, CatalogStorageFormat,
@@ -243,7 +243,7 @@ pub fn update_catalog(
         .or_else(|| existing.locale.clone())
         .or_else(|| existing.headers.get("Language").cloned());
     let mut diagnostics = mem::take(&mut existing.diagnostics);
-    let normalized = normalize_update_input(input)?;
+    let normalized = normalize_update_input(input, options.mode, &existing)?;
     let merge_context = MergeCatalogContext {
         locale: locale.as_deref(),
         source_locale: options.source_locale,
@@ -405,9 +405,12 @@ fn parse_catalog_projection(
 /// Collapses the accepted extractor input shapes into one merge-oriented form.
 ///
 /// The result keeps only the fields that matter for catalog identity and merge
-/// semantics, while also projecting source-first ICU plurals into the same
-/// structured plural representation used by `CatalogUpdateInput::Structured`.
-fn normalize_update_input(input: CatalogUpdateInput) -> Result<Vec<NormalizedMessage>, ApiError> {
+/// semantics. Native structured plurals use their serialized ICU source as identity.
+fn normalize_update_input(
+    input: CatalogUpdateInput,
+    mode: super::CatalogMode,
+    existing: &Catalog,
+) -> Result<Vec<NormalizedMessage>, ApiError> {
     let mut messages = Vec::<NormalizedMessage>::new();
 
     match input {
@@ -458,7 +461,50 @@ fn normalize_update_input(input: CatalogUpdateInput) -> Result<Vec<NormalizedMes
         }
     }
 
-    merge_normalized_messages(messages)
+    let mut messages = merge_normalized_messages(messages)?;
+    if mode.semantics() == CatalogSemantics::IcuNative
+        && messages
+            .iter()
+            .any(|message| matches!(message.kind, NormalizedKind::Plural { .. }))
+    {
+        // Raw duplicates have already combined their placeholder hints. A raw ID
+        // that names an existing entry cannot safely be assumed to refer to the
+        // different synthesized ICU identity.
+        let existing_ids: rustc_hash::FxHashSet<_> = existing
+            .messages
+            .iter()
+            .map(|message| (message.msgid.as_str(), message.msgctxt.as_deref()))
+            .collect();
+        for message in &mut messages {
+            if let NormalizedKind::Plural { source } = &message.kind {
+                let variable = derive_plural_variable(&message.placeholders)
+                    .unwrap_or_else(|| "count".to_owned());
+                let identity = synthesize_icu_plural_source(&variable, source);
+                if message.msgid != identity
+                    && existing_ids.contains(&(message.msgid.as_str(), message.msgctxt.as_deref()))
+                {
+                    return Err(ApiError::Conflict(format!(
+                        "structured plural ID {:?} matches an existing entry but differs from its synthesized ICU identity {:?}",
+                        message.msgid, identity
+                    )));
+                }
+                message.msgid = identity;
+            }
+        }
+        // Distinct raw IDs must not collapse into one persisted identity.
+        let mut identities = rustc_hash::FxHashSet::default();
+        for message in &messages {
+            if !identities.insert((message.msgid.as_str(), message.msgctxt.as_deref())) {
+                let label = if mode == super::CatalogMode::IcuFcl {
+                    "duplicate FCL identity"
+                } else {
+                    "duplicate ICU identity"
+                };
+                return Err(ApiError::Conflict(format!("{label}: {:?}", message.msgid)));
+            }
+        }
+    }
+    Ok(messages)
 }
 
 /// Merges duplicate extractor entries that refer to the same gettext identity.
@@ -610,6 +656,7 @@ fn merge_catalogs(
             next,
             is_source_locale,
             message_profile,
+            context.semantics,
             context.overwrite_source_translations,
             diagnostics,
         );
@@ -699,6 +746,7 @@ fn merge_message(
     next: NormalizedMessage,
     is_source_locale: bool,
     plural_profile: &PluralProfile,
+    semantics: CatalogSemantics,
     overwrite_source_translations: bool,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> (CanonicalMessage, MergeOutcome) {
@@ -755,6 +803,14 @@ fn merge_message(
             };
             let changed = previous.is_none_or(|previous| previous != translation);
             (translation, changed)
+        }
+        // Native ICU formats persist structured plurals as singular ICU strings.
+        // Keep the stored translation when the synthesized source identity matches.
+        (NormalizedKind::Plural { .. }, Some(previous @ CanonicalTranslation::Singular { .. }))
+            if semantics == CatalogSemantics::IcuNative
+                && !(is_source_locale && overwrite_source_translations) =>
+        {
+            (previous, false)
         }
         // Reuse an existing plural translation when the source plural is
         // unchanged and we're not overwriting source-locale text. Binding the
@@ -847,6 +903,7 @@ fn extract_plural_variable(translation: Option<&CanonicalTranslation>) -> Option
 /// when we have a conservative, locale-safe default.
 pub(super) fn apply_header_defaults(
     headers: &mut BTreeMap<String, String>,
+    messages: &[CanonicalMessage],
     locale: Option<&str>,
     semantics: CatalogSemantics,
     diagnostics: &mut Vec<Diagnostic>,
@@ -872,7 +929,17 @@ pub(super) fn apply_header_defaults(
         let parsed_header = parse_plural_forms_from_headers(headers);
         match (parsed_header.raw.as_deref(), profile.gettext_header()) {
             (None, Some(header)) => {
-                headers.insert("Plural-Forms".to_owned(), header);
+                if messages.iter().any(|message| {
+                    matches!(&message.translation, CanonicalTranslation::Plural { translation_by_category, .. } if translation_by_category.len() != profile.nplurals())
+                }) {
+                    diagnostics.push(Diagnostic::new(
+                        DiagnosticSeverity::Info,
+                        diagnostic_codes::plural::MISSING_PLURAL_FORMS_HEADER,
+                        "No safe default Plural-Forms header matches the existing plural slots; keeping the header unset.",
+                    ));
+                } else {
+                    headers.insert("Plural-Forms".to_owned(), header);
+                }
             }
             (None, None) => diagnostics.push(Diagnostic::new(
                 DiagnosticSeverity::Info,
@@ -939,13 +1006,9 @@ fn apply_storage_defaults(
     match options.mode.storage_format() {
         CatalogStorageFormat::Po => {
             let empty_custom_headers = BTreeMap::new();
-            let may_synthesize = !catalog.headers.contains_key("Plural-Forms")
-                && !options
-                    .render
-                    .custom_header_attributes
-                    .is_some_and(|headers| headers.contains_key("Plural-Forms"));
             apply_header_defaults(
                 &mut catalog.headers,
+                &catalog.messages,
                 locale,
                 options.mode.semantics(),
                 diagnostics,
@@ -954,19 +1017,6 @@ fn apply_storage_defaults(
                     .custom_header_attributes
                     .unwrap_or(&empty_custom_headers),
             );
-            if may_synthesize && options.mode.semantics() == CatalogSemantics::GettextCompat {
-                let synthesized_count = parse_plural_forms_from_headers(&catalog.headers).nplurals;
-                if synthesized_count.is_some_and(|count| catalog.messages.iter().any(|message| {
-                    matches!(&message.translation, CanonicalTranslation::Plural { translation_by_category, .. } if translation_by_category.len() != count)
-                })) {
-                    catalog.headers.remove("Plural-Forms");
-                    diagnostics.push(Diagnostic::new(
-                        DiagnosticSeverity::Info,
-                        diagnostic_codes::plural::MISSING_PLURAL_FORMS_HEADER,
-                        "No safe default Plural-Forms header matches the existing plural slots; keeping the header unset.",
-                    ));
-                }
-            }
             Ok(())
         }
         CatalogStorageFormat::Fcl => {

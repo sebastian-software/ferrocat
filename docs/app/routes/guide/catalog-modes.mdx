@@ -31,9 +31,9 @@ generated plural artifacts after an update.
 
 When updating a classic gettext PO file, Ferrocat uses the declared plural
 count when merging. When no count is available, it uses each matched entry’s
-imported slot count to preserve its translations. If a synthesized default
-header would disagree with the output slots, Ferrocat leaves `Plural-Forms`
-unset and reports a diagnostic.
+imported slot count to preserve its translations. When updating, converting,
+combining, or merging catalogs, Ferrocat leaves `Plural-Forms` unset and reports
+a diagnostic if a synthesized default would disagree with the output slots.
 
 There is intentionally no FCL + gettext-plural mode; gettext plural behavior belongs to PO-shaped catalogs, while FCL is the ICU-native machine storage path for catalog records.
 

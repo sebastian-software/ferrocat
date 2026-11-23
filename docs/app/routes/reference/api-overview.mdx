@@ -1020,9 +1020,11 @@ In `GettextCompat` mode, Ferrocat synthesizes `Plural-Forms` only for safe
 locale defaults that it knows, including common one-form, Germanic/Romance
 two-form, French/Brazilian Portuguese, Slavic three-form, Polish, Czech/Slovak,
 and Arabic rules. Unknown locales keep the header unset and report a diagnostic
-instead of guessing a plural expression.
+instead of guessing a plural expression. When the default count disagrees with
+any output plural entry’s slot count, Ferrocat also leaves the header unset and
+reports a diagnostic. Explicit headers retain their existing behavior.
 
-In native mode, `CatalogUpdateInput::SourceFirst` stays source-text-first; it no longer auto-projects ICU strings into structured plural messages. Use `CatalogUpdateInput::Structured` when you want explicit plural structure.
+In native mode, `CatalogUpdateInput::SourceFirst` stays source-text-first; it no longer auto-projects ICU strings into structured plural messages. Structured plural input is stored under an ICU source synthesized from its `one` and `other` forms and the placeholder variable (`count` when no unambiguous hint is available). Its `msgid` must be nonempty, but is not the persisted identity in native PO or FCL. Keep the forms and variable stable across updates to retain translations. If a different raw `msgid` already identifies an existing entry, the update fails rather than orphaning it. Gettext-compatible mode continues to use `msgid` as its identity.
 
 In FCL storage, arbitrary gettext-style custom headers are intentionally out of scope; only the explicit `%FCL2` header metadata and per-entry columns are persisted. Machine-managed value metadata uses the optional `lock=` and `ai=` tags appended to the entry line (see [ADR 0022](/architecture/adr/0022-machine-managed-value-integrity-and-ai-provenance)).
 

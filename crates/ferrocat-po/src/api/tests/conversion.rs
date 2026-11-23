@@ -618,3 +618,33 @@ fn fcl_to_po_rejects_header_identity_and_multiline_ai() {
         );
     }
 }
+
+#[test]
+fn fcl_to_po_rejects_empty_ids_with_context_without_clobbering_output() {
+    let directory = tempfile::tempdir().expect("tempdir");
+    let input = directory.path().join("input.fcl");
+    let output = directory.path().join("output.po");
+    for text in [
+        "%FCL1\tsource=en\n\tcontext\tvalue\nnext\t\tnext value\n",
+        "%FCL2\tsource=en\n\ts\tvalue\nnext\tn\tnext value\n",
+        "%FCL2\tsource=en\n\tscontext\tvalue\nnext\tn\tnext value\n",
+    ] {
+        let error = convert_catalog(ConvertCatalogOptions::new(
+            text,
+            "en",
+            CatalogMode::IcuFcl,
+            CatalogMode::IcuPo,
+        ))
+        .expect_err("empty ID cannot roundtrip through PO");
+        assert!(matches!(error, ApiError::Unsupported(message) if message.contains("identity")));
+        fs::write(&input, text).expect("write FCL");
+        fs::write(&output, "sentinel").expect("write destination");
+        assert!(
+            convert_catalog_file(ConvertCatalogFileOptions::new(&input, &output, "en")).is_err()
+        );
+        assert_eq!(
+            fs::read_to_string(&output).expect("read destination"),
+            "sentinel"
+        );
+    }
+}
