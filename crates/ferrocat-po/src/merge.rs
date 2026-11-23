@@ -4,8 +4,9 @@ use rustc_hash::FxHashMap;
 
 use crate::line_state::{PoLineContext, PoLineState};
 use crate::scan::{
-    CommentKind, Keyword, LineKind, LineScanner, classify_line, find_byte, find_quoted_bounds,
-    has_byte, parse_plural_index, split_once_byte, trim_ascii, unrecognized_po_line,
+    CommentKind, Keyword, LineKind, LineScanner, checked_plural_forms, checked_plural_index,
+    classify_line, find_byte, find_quoted_bounds, has_byte, split_once_byte, trim_ascii,
+    unrecognized_po_line,
 };
 use crate::serialize::{write_keyword, write_prefixed_line};
 use crate::text::{escape_string_into, unescape_string_known, validate_quoted_content};
@@ -35,6 +36,7 @@ struct MergeBorrowedFile<'a> {
     extracted_comments: Vec<&'a str>,
     headers: Vec<MergeHeader<'a>>,
     items: Vec<MergeBorrowedItem<'a>>,
+    nplurals: usize,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -122,7 +124,8 @@ struct MergeLine<'a> {
 ///
 /// # Errors
 ///
-/// Returns [`ParseError`] when the existing PO file cannot be parsed.
+/// Returns [`ParseError`] when the existing PO file cannot be parsed or
+/// exceeds the limit of 128 plural slots per entry.
 ///
 /// # Examples
 ///
@@ -148,7 +151,7 @@ pub fn merge_catalog<'a>(
     extracted_messages: &[MergeMessageInput<'a>],
 ) -> Result<String, ParseError> {
     let existing = parse_merge_po(existing_po)?;
-    let nplurals = parse_nplurals(&existing.headers).unwrap_or(2);
+    let nplurals = existing.nplurals;
     let options = SerializeOptions::default();
     let mut out = String::with_capacity(estimate_merge_capacity(existing_po, extracted_messages));
     let mut scratch = String::new();
@@ -214,12 +217,17 @@ pub fn merge_catalog<'a>(
 }
 
 fn parse_merge_po(input: &str) -> Result<MergeBorrowedFile<'_>, ParseError> {
-    let mut file = MergeBorrowedFile::default();
+    let mut file = MergeBorrowedFile {
+        nplurals: 2,
+        ..MergeBorrowedFile::default()
+    };
     file.items.reserve((input.len() / 96).max(1));
     let mut current_nplurals = 2usize;
     let mut state = ParserState::new(current_nplurals);
 
+    let mut last_position = ParsePosition::new(0, 1, 1);
     for line in LineScanner::new(input.as_bytes()) {
+        last_position = line.position;
         parse_line(
             MergeLine {
                 trimmed: line.trimmed,
@@ -232,7 +240,8 @@ fn parse_merge_po(input: &str) -> Result<MergeBorrowedFile<'_>, ParseError> {
         )?;
     }
 
-    finish_item(&mut state, &mut file, &mut current_nplurals);
+    finish_item(&mut state, &mut file, &mut current_nplurals, last_position)?;
+
     Ok(file)
 }
 
@@ -247,10 +256,14 @@ fn parse_line<'a>(
             append_continuation(line.trimmed, line.obsolete, line.position, state)?;
             Ok(())
         }
-        LineKind::Comment(kind) => {
-            parse_comment_line(line.trimmed, kind, state, file, current_nplurals);
-            Ok(())
-        }
+        LineKind::Comment(kind) => parse_comment_line(
+            line.trimmed,
+            kind,
+            state,
+            file,
+            current_nplurals,
+            line.position,
+        ),
         LineKind::Keyword(keyword) => parse_keyword_line(
             line.trimmed,
             line.obsolete,
@@ -270,8 +283,9 @@ fn parse_comment_line<'a>(
     state: &mut ParserState<'a>,
     file: &mut MergeBorrowedFile<'a>,
     current_nplurals: &mut usize,
-) {
-    finish_item(state, file, current_nplurals);
+    position: ParsePosition,
+) -> Result<(), ParseError> {
+    finish_item(state, file, current_nplurals, position)?;
 
     match kind {
         CommentKind::Reference => state.item.references.push(trimmed_str(&line_bytes[2..])),
@@ -301,6 +315,7 @@ fn parse_comment_line<'a>(
         CommentKind::Translator => state.item.comments.push(trimmed_str(&line_bytes[1..])),
         CommentKind::Other => {}
     }
+    Ok(())
 }
 
 fn ferrocat_mt_metadata_value(trimmed: &[u8]) -> Option<&[u8]> {
@@ -331,12 +346,12 @@ fn parse_keyword_line<'a>(
             )?);
         }
         Keyword::Id => {
-            finish_item(state, file, current_nplurals);
+            finish_item(state, file, current_nplurals, position)?;
             state.line.mark_keyword(PoLineContext::Id, 0, obsolete);
             state.item.msgid = at_line_position(extract_merge_quoted_cow(line_bytes), position)?;
         }
         Keyword::Str => {
-            let plural_index = parse_plural_index(line_bytes).unwrap_or(0);
+            let plural_index = checked_plural_index(line_bytes, position)?;
             state
                 .line
                 .mark_keyword(PoLineContext::Str, plural_index, obsolete);
@@ -350,7 +365,7 @@ fn parse_keyword_line<'a>(
             }
         }
         Keyword::Ctxt => {
-            finish_item(state, file, current_nplurals);
+            finish_item(state, file, current_nplurals, position)?;
             state.line.mark_keyword(PoLineContext::Ctxt, 0, obsolete);
             state.item.msgctxt = Some(at_line_position(
                 extract_merge_quoted_cow(line_bytes),
@@ -406,13 +421,14 @@ fn finish_item<'a>(
     state: &mut ParserState<'a>,
     file: &mut MergeBorrowedFile<'a>,
     current_nplurals: &mut usize,
-) {
+    position: ParsePosition,
+) -> Result<(), ParseError> {
     if !state.line.has_keyword() {
-        return;
+        return Ok(());
     }
 
     if state.item.msgid.is_empty() && !is_header_state(state) {
-        return;
+        return Ok(());
     }
 
     if state.line.is_obsolete_item() {
@@ -423,9 +439,17 @@ fn finish_item<'a>(
         file.comments = std::mem::take(&mut state.item.comments);
         file.extracted_comments = std::mem::take(&mut state.item.extracted_comments);
         file.headers = std::mem::take(&mut state.header_entries);
-        *current_nplurals = parse_nplurals(&file.headers).unwrap_or(2);
+        *current_nplurals = match file
+            .headers
+            .iter()
+            .find(|header| header.key == "Plural-Forms")
+        {
+            Some(header) => checked_plural_forms(&header.value, position)?.unwrap_or(2),
+            None => 2,
+        };
+        file.nplurals = *current_nplurals;
         state.reset(*current_nplurals);
-        return;
+        return Ok(());
     }
 
     state.materialize_msgstr();
@@ -441,6 +465,7 @@ fn finish_item<'a>(
     state.item.nplurals = *current_nplurals;
     file.items.push(std::mem::take(&mut state.item));
     state.reset_after_take(*current_nplurals);
+    Ok(())
 }
 
 fn is_header_state(state: &ParserState<'_>) -> bool {
@@ -980,33 +1005,6 @@ fn write_default_msgstr(
     write_keyword(out, scratch, obsolete_prefix, "msgstr", "", None, options);
 }
 
-fn parse_nplurals(headers: &[MergeHeader<'_>]) -> Option<usize> {
-    let plural_forms = headers
-        .iter()
-        .find(|header| header.key.as_ref() == "Plural-Forms")?
-        .value
-        .as_bytes();
-    let mut rest = plural_forms;
-
-    while !rest.is_empty() {
-        let (part, next) = match split_once_byte(rest, b';') {
-            Some((part, tail)) => (part, tail),
-            None => (rest, &b""[..]),
-        };
-        let trimmed = trim_ascii(part);
-        if let Some((key, value)) = split_once_byte(trimmed, b'=')
-            && trim_ascii(key) == b"nplurals"
-            && let value = bytes_to_str(trim_ascii(value))
-            && let Ok(parsed) = value.parse::<usize>()
-        {
-            return Some(parsed);
-        }
-        rest = next;
-    }
-
-    None
-}
-
 fn bytes_to_str(bytes: &[u8]) -> &str {
     input_slice_as_str(bytes)
 }
@@ -1024,7 +1022,7 @@ mod tests {
     use super::{
         MergeHeader, MergeMessageInput, estimate_merge_capacity, extract_merge_quoted_cow,
         find_existing_index, header_fragment_is_borrowable, merge_catalog, parse_header_fragment,
-        parse_nplurals,
+        parse_merge_po,
     };
     use crate::{BorrowedMsgStr, parse_po};
 
@@ -1132,17 +1130,14 @@ mod tests {
             ]
         );
         assert_eq!(
-            parse_nplurals(&[
-                MergeHeader {
-                    key: Cow::Borrowed("Language"),
-                    value: Cow::Borrowed("de"),
-                },
-                MergeHeader {
-                    key: Cow::Borrowed("Plural-Forms"),
-                    value: Cow::Borrowed(" nplurals = 4 ; plural = (n > 1); "),
-                },
-            ]),
-            Some(4)
+            parse_merge_po(concat!(
+                "msgid \"\"\nmsgstr \"\"\n",
+                "\"Language: de\\n\"\n",
+                "\"Plural-Forms: nplurals = 4 ; plural = (n > 1);\\n\"\n",
+            ))
+            .expect("header is valid")
+            .nplurals,
+            4
         );
         assert_eq!(
             find_existing_index(
@@ -1357,13 +1352,14 @@ mod tests {
             extract_merge_quoted_cow(b"msgid").expect("missing quote"),
             ""
         );
-        assert_eq!(parse_nplurals(&[]), None);
+        assert_eq!(parse_merge_po("").expect("empty catalog").nplurals, 2);
         assert_eq!(
-            parse_nplurals(&[MergeHeader {
-                key: Cow::Borrowed("Plural-Forms"),
-                value: Cow::Borrowed("plural=(n != 1); nplurals=two;"),
-            }]),
-            None
+            parse_merge_po(
+                "msgid \"\"\nmsgstr \"Plural-Forms: plural=(n != 1); nplurals=two;\\n\"\n"
+            )
+            .expect("use default width for a nonnumeric count")
+            .nplurals,
+            2
         );
     }
 

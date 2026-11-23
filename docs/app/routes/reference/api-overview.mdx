@@ -240,6 +240,10 @@ The parser treats non-empty lines that are neither PO comments, known PO
 keywords, nor valid continuation strings as syntax errors. This avoids silently
 dropping typo-like lines such as `msgstr_ "..."`.
 
+The owned, borrowed, and byte-oriented PO parsers accept up to 128 plural slots
+per entry. A declared count above 128 or an index above 127 returns a positioned
+`ParseError`. The same limit applies when `merge_catalog` reads an existing file.
+
 <span id="parsepoborrowed" />
 
 ### `parse_po_borrowed`
@@ -1185,6 +1189,10 @@ Typical use cases:
 - inspecting plural/select structure
 - converting ICU messages into another internal representation
 - extracting semantic information from messages
+
+ICU parsing accepts up to 64 levels of nesting across selector option bodies
+and paired tags. A deeper message returns an `IcuParseError` with the position
+where the limit was reached.
 
 <span id="stringifyicu" />
 

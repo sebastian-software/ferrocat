@@ -360,23 +360,67 @@ pub fn find_quoted_bounds(bytes: &[u8]) -> Option<(usize, usize)> {
     }
 }
 
-#[inline]
-pub fn parse_plural_index(line: &[u8]) -> Option<usize> {
-    if line.get(6) != Some(&b'[') {
-        return Some(0);
-    }
+// Bound parser-created plural vectors while leaving room for uncommon catalogs.
+const MAX_PLURAL_SLOTS: usize = 128;
 
-    let close = find_byte(b']', &line[7..]).map(|offset| 7 + offset)?;
-    let value = std::str::from_utf8(&line[7..close]).ok()?;
-    value.parse::<usize>().ok()
+pub fn checked_plural_index(line: &[u8], position: ParsePosition) -> Result<usize, ParseError> {
+    if line.get(6) != Some(&b'[') {
+        return Ok(0);
+    }
+    let Some(close) = find_byte(b']', &line[7..]) else {
+        return Ok(0);
+    };
+    Ok(checked_number(&line[7..7 + close], MAX_PLURAL_SLOTS - 1, position)?.unwrap_or(0))
+}
+
+pub fn checked_plural_forms(
+    value: &str,
+    position: ParsePosition,
+) -> Result<Option<usize>, ParseError> {
+    for part in value.as_bytes().split(|byte| *byte == b';') {
+        if let Some((key, value)) = split_once_byte(trim_ascii(part), b'=')
+            && trim_ascii(key) == b"nplurals"
+            && let Some(number) = checked_number(trim_ascii(value), MAX_PLURAL_SLOTS, position)?
+        {
+            return Ok(Some(number));
+        }
+    }
+    Ok(None)
+}
+
+fn checked_number(
+    value: &[u8],
+    limit: usize,
+    position: ParsePosition,
+) -> Result<Option<usize>, ParseError> {
+    let digits = value.strip_prefix(b"+").unwrap_or(value);
+    if digits.is_empty() || !digits.iter().all(u8::is_ascii_digit) {
+        return Ok(None);
+    }
+    let mut number = 0usize;
+    for digit in digits {
+        number = number
+            .checked_mul(10)
+            .and_then(|n| n.checked_add(usize::from(*digit - b'0')))
+            .filter(|n| *n <= limit)
+            .ok_or_else(|| plural_limit_error(position))?;
+    }
+    Ok(Some(number))
+}
+
+fn plural_limit_error(position: ParsePosition) -> ParseError {
+    ParseError::with_position(
+        format!("plural slot count exceeds the limit of {MAX_PLURAL_SLOTS}"),
+        position,
+    )
 }
 
 #[cfg(test)]
 mod tests {
     use super::{
-        CommentKind, Keyword, LineKind, LineScanner, classify_line, find_byte, find_escapable_byte,
-        find_last_byte, find_quote_or_backslash, find_quoted_bounds, parse_plural_index,
-        split_once_byte, trim_ascii, trim_ascii_start,
+        CommentKind, Keyword, LineKind, LineScanner, checked_plural_index, classify_line,
+        find_byte, find_escapable_byte, find_last_byte, find_quote_or_backslash,
+        find_quoted_bounds, split_once_byte, trim_ascii, trim_ascii_start,
     };
 
     #[test]
@@ -435,8 +479,14 @@ mod tests {
         assert_eq!(find_escapable_byte(b"plain\tbefore\\later"), Some(5));
         assert_eq!(find_escapable_byte(b"plain\\text"), Some(5));
         assert_eq!(find_escapable_byte(b"plain text"), None);
-        assert_eq!(parse_plural_index(b"msgstr[12] \"x\""), Some(12));
-        assert_eq!(parse_plural_index(b"msgstr \"x\""), Some(0));
+        assert_eq!(
+            checked_plural_index(b"msgstr[12] \"x\"", crate::ParsePosition::new(0, 1, 1)).ok(),
+            Some(12)
+        );
+        assert_eq!(
+            checked_plural_index(b"msgstr \"x\"", crate::ParsePosition::new(0, 1, 1)).ok(),
+            Some(0)
+        );
         assert_eq!(
             classify_line(b"#: src/main.rs:1"),
             LineKind::Comment(CommentKind::Reference)

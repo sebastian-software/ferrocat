@@ -75,6 +75,10 @@ Concretely:
 
 We explicitly do not make full gettext plural/header parity a short-term architectural goal.
 
+The ICU MessageFormat parser limits recursion to 64 combined levels of paired
+tags and plural, select, or selectordinal option bodies. The parser reports a
+syntax error with a source position when it reaches an additional level.
+
 ## Consequences
 
 Positive:
