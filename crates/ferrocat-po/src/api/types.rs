@@ -66,6 +66,9 @@ pub struct PluralSource {
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct ExtractedPluralMessage {
     /// Stable source identifier for the message family.
+    ///
+    /// Native ICU storage requires a nonempty value but uses the synthesized
+    /// ICU source forms and placeholder variable as the persisted identity.
     pub msgid: String,
     /// Optional gettext message context.
     pub msgctxt: Option<String>,

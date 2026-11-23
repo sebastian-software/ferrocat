@@ -25,7 +25,7 @@ use super::mt::{
 };
 use super::plural::{
     GettextPluralProfiles, PluralProfile, derive_plural_variable,
-    expected_gettext_nplurals_for_locale,
+    expected_gettext_nplurals_for_locale, synthesize_icu_plural_source,
 };
 use super::{
     ApiError, CatalogMessage, CatalogOrigin, CatalogSemantics, CatalogStats, CatalogStorageFormat,
@@ -243,7 +243,10 @@ pub fn update_catalog(
         .or_else(|| existing.locale.clone())
         .or_else(|| existing.headers.get("Language").cloned());
     let mut diagnostics = mem::take(&mut existing.diagnostics);
-    let normalized = normalize_update_input(input)?;
+    if options.mode.semantics() == CatalogSemantics::IcuNative {
+        reject_ambiguous_native_plural_ids(&input, &existing)?;
+    }
+    let normalized = normalize_update_input(input, options.mode)?;
     let merge_context = MergeCatalogContext {
         locale: locale.as_deref(),
         source_locale: options.source_locale,
@@ -402,12 +405,45 @@ fn parse_catalog_projection(
     ))
 }
 
+// A catalog may have been created by source-first input using the raw ID.
+// That entry cannot safely be assumed to be the synthesized structured plural.
+fn reject_ambiguous_native_plural_ids(
+    input: &CatalogUpdateInput,
+    existing: &Catalog,
+) -> Result<(), ApiError> {
+    if let CatalogUpdateInput::Structured(messages) = input {
+        let identities: rustc_hash::FxHashSet<_> = existing
+            .messages
+            .iter()
+            .map(|message| (message.msgid.as_str(), message.msgctxt.as_deref()))
+            .collect();
+        for message in messages {
+            if let ExtractedMessage::Plural(message) = message {
+                let variable = derive_plural_variable(&message.placeholders)
+                    .unwrap_or_else(|| "count".to_owned());
+                let identity = synthesize_icu_plural_source(&variable, &message.source);
+                if message.msgid != identity
+                    && identities.contains(&(message.msgid.as_str(), message.msgctxt.as_deref()))
+                {
+                    return Err(ApiError::Conflict(format!(
+                        "structured plural ID {:?} matches an existing entry but differs from its synthesized ICU identity {:?}",
+                        message.msgid, identity
+                    )));
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
 /// Collapses the accepted extractor input shapes into one merge-oriented form.
 ///
 /// The result keeps only the fields that matter for catalog identity and merge
-/// semantics, while also projecting source-first ICU plurals into the same
-/// structured plural representation used by `CatalogUpdateInput::Structured`.
-fn normalize_update_input(input: CatalogUpdateInput) -> Result<Vec<NormalizedMessage>, ApiError> {
+/// semantics. Native structured plurals use their serialized ICU source as identity.
+fn normalize_update_input(
+    input: CatalogUpdateInput,
+    mode: super::CatalogMode,
+) -> Result<Vec<NormalizedMessage>, ApiError> {
     let mut messages = Vec::<NormalizedMessage>::new();
 
     match input {
@@ -458,7 +494,29 @@ fn normalize_update_input(input: CatalogUpdateInput) -> Result<Vec<NormalizedMes
         }
     }
 
-    merge_normalized_messages(messages)
+    let mut messages = merge_normalized_messages(messages)?;
+    if mode.semantics() == CatalogSemantics::IcuNative {
+        for message in &mut messages {
+            if let NormalizedKind::Plural { source } = &message.kind {
+                let variable = derive_plural_variable(&message.placeholders)
+                    .unwrap_or_else(|| "count".to_owned());
+                message.msgid = synthesize_icu_plural_source(&variable, source);
+            }
+        }
+        return merge_normalized_messages(messages).map_err(|error| {
+            if mode == super::CatalogMode::IcuFcl {
+                match error {
+                    ApiError::Conflict(message) => {
+                        ApiError::Conflict(format!("duplicate FCL identity: {message}"))
+                    }
+                    other => other,
+                }
+            } else {
+                error
+            }
+        });
+    }
+    Ok(messages)
 }
 
 /// Merges duplicate extractor entries that refer to the same gettext identity.
@@ -610,6 +668,7 @@ fn merge_catalogs(
             next,
             is_source_locale,
             message_profile,
+            context.semantics,
             context.overwrite_source_translations,
             diagnostics,
         );
@@ -699,6 +758,7 @@ fn merge_message(
     next: NormalizedMessage,
     is_source_locale: bool,
     plural_profile: &PluralProfile,
+    semantics: CatalogSemantics,
     overwrite_source_translations: bool,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> (CanonicalMessage, MergeOutcome) {
@@ -755,6 +815,14 @@ fn merge_message(
             };
             let changed = previous.is_none_or(|previous| previous != translation);
             (translation, changed)
+        }
+        // Native ICU formats persist structured plurals as singular ICU strings.
+        // Keep the stored translation when the synthesized source identity matches.
+        (NormalizedKind::Plural { .. }, Some(previous @ CanonicalTranslation::Singular { .. }))
+            if semantics == CatalogSemantics::IcuNative
+                && !(is_source_locale && overwrite_source_translations) =>
+        {
+            (previous, false)
         }
         // Reuse an existing plural translation when the source plural is
         // unchanged and we're not overwriting source-locale text. Binding the
