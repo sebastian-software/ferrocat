@@ -1,3 +1,5 @@
+#![cfg(feature = "catalog")]
+
 #[path = "../../../conformance/harness.rs"]
 mod harness;
 

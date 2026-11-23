@@ -1182,9 +1182,23 @@ fn import_message_from_po(
                 "classic gettext plural requires compat mode".to_owned(),
             ));
         }
-        // Move the parsed slot values into the category map instead of copying
-        // them; surplus slots beyond the locale's categories are dropped.
         let plural_profile = plural_profiles.for_slots(nplurals.or(Some(item.msgstr.len())));
+        // Read-only projections remain tolerant, but a writing operation must
+        // not silently discard a translation outside the supported profile.
+        if opaque_capture == OpaqueCapture::Keep
+            && let BorrowedMsgStr::Plural(values) = &item.msgstr
+            && let Some((index, _)) = values
+                .iter()
+                .enumerate()
+                .skip(plural_profile.categories().len())
+                .find(|(_, value)| !value.is_empty())
+        {
+            return Err(ApiError::Unsupported(format!(
+                "catalog entry {:?} has a nonempty msgstr[{index}] outside its supported plural slot count {}",
+                item.msgid,
+                plural_profile.categories().len(),
+            )));
+        }
         CanonicalTranslation::Plural {
             source: PluralSource {
                 one: Some(item.msgid.as_ref().to_owned()),
