@@ -243,10 +243,7 @@ pub fn update_catalog(
         .or_else(|| existing.locale.clone())
         .or_else(|| existing.headers.get("Language").cloned());
     let mut diagnostics = mem::take(&mut existing.diagnostics);
-    if options.mode.semantics() == CatalogSemantics::IcuNative {
-        reject_ambiguous_native_plural_ids(&input, &existing)?;
-    }
-    let normalized = normalize_update_input(input, options.mode)?;
+    let normalized = normalize_update_input(input, options.mode, &existing)?;
     let merge_context = MergeCatalogContext {
         locale: locale.as_deref(),
         source_locale: options.source_locale,
@@ -405,37 +402,6 @@ fn parse_catalog_projection(
     ))
 }
 
-// A catalog may have been created by source-first input using the raw ID.
-// That entry cannot safely be assumed to be the synthesized structured plural.
-fn reject_ambiguous_native_plural_ids(
-    input: &CatalogUpdateInput,
-    existing: &Catalog,
-) -> Result<(), ApiError> {
-    if let CatalogUpdateInput::Structured(messages) = input {
-        let identities: rustc_hash::FxHashSet<_> = existing
-            .messages
-            .iter()
-            .map(|message| (message.msgid.as_str(), message.msgctxt.as_deref()))
-            .collect();
-        for message in messages {
-            if let ExtractedMessage::Plural(message) = message {
-                let variable = derive_plural_variable(&message.placeholders)
-                    .unwrap_or_else(|| "count".to_owned());
-                let identity = synthesize_icu_plural_source(&variable, &message.source);
-                if message.msgid != identity
-                    && identities.contains(&(message.msgid.as_str(), message.msgctxt.as_deref()))
-                {
-                    return Err(ApiError::Conflict(format!(
-                        "structured plural ID {:?} matches an existing entry but differs from its synthesized ICU identity {:?}",
-                        message.msgid, identity
-                    )));
-                }
-            }
-        }
-    }
-    Ok(())
-}
-
 /// Collapses the accepted extractor input shapes into one merge-oriented form.
 ///
 /// The result keeps only the fields that matter for catalog identity and merge
@@ -443,6 +409,7 @@ fn reject_ambiguous_native_plural_ids(
 fn normalize_update_input(
     input: CatalogUpdateInput,
     mode: super::CatalogMode,
+    existing: &Catalog,
 ) -> Result<Vec<NormalizedMessage>, ApiError> {
     let mut messages = Vec::<NormalizedMessage>::new();
 
@@ -495,26 +462,47 @@ fn normalize_update_input(
     }
 
     let mut messages = merge_normalized_messages(messages)?;
-    if mode.semantics() == CatalogSemantics::IcuNative {
+    if mode.semantics() == CatalogSemantics::IcuNative
+        && messages
+            .iter()
+            .any(|message| matches!(message.kind, NormalizedKind::Plural { .. }))
+    {
+        // Raw duplicates have already combined their placeholder hints. A raw ID
+        // that names an existing entry cannot safely be assumed to refer to the
+        // different synthesized ICU identity.
+        let existing_ids: rustc_hash::FxHashSet<_> = existing
+            .messages
+            .iter()
+            .map(|message| (message.msgid.as_str(), message.msgctxt.as_deref()))
+            .collect();
         for message in &mut messages {
             if let NormalizedKind::Plural { source } = &message.kind {
                 let variable = derive_plural_variable(&message.placeholders)
                     .unwrap_or_else(|| "count".to_owned());
-                message.msgid = synthesize_icu_plural_source(&variable, source);
+                let identity = synthesize_icu_plural_source(&variable, source);
+                if message.msgid != identity
+                    && existing_ids.contains(&(message.msgid.as_str(), message.msgctxt.as_deref()))
+                {
+                    return Err(ApiError::Conflict(format!(
+                        "structured plural ID {:?} matches an existing entry but differs from its synthesized ICU identity {:?}",
+                        message.msgid, identity
+                    )));
+                }
+                message.msgid = identity;
             }
         }
-        return merge_normalized_messages(messages).map_err(|error| {
-            if mode == super::CatalogMode::IcuFcl {
-                match error {
-                    ApiError::Conflict(message) => {
-                        ApiError::Conflict(format!("duplicate FCL identity: {message}"))
-                    }
-                    other => other,
-                }
-            } else {
-                error
+        // Distinct raw IDs must not collapse into one persisted identity.
+        let mut identities = rustc_hash::FxHashSet::default();
+        for message in &messages {
+            if !identities.insert((message.msgid.as_str(), message.msgctxt.as_deref())) {
+                let label = if mode == super::CatalogMode::IcuFcl {
+                    "duplicate FCL identity"
+                } else {
+                    "duplicate ICU identity"
+                };
+                return Err(ApiError::Conflict(format!("{label}: {:?}", message.msgid)));
             }
-        });
+        }
     }
     Ok(messages)
 }

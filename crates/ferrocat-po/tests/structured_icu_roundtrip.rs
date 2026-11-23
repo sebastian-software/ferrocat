@@ -107,3 +107,20 @@ fn native_structured_plural_rejects_ambiguous_existing_raw_id() {
         assert!(matches!(result, Err(ferrocat_po::ApiError::Conflict(_))));
     }
 }
+
+#[test]
+fn distinct_raw_plural_ids_with_the_same_native_identity_conflict() {
+    for mode in [CatalogMode::IcuPo, CatalogMode::IcuFcl] {
+        let CatalogUpdateInput::Structured(mut first) = input("first", "items") else {
+            unreachable!()
+        };
+        let CatalogUpdateInput::Structured(second) = input("second", "items") else {
+            unreachable!()
+        };
+        first.extend(second);
+        let result = update_catalog(
+            UpdateCatalogOptions::new("en", CatalogUpdateInput::Structured(first)).with_mode(mode),
+        );
+        assert!(matches!(result, Err(ferrocat_po::ApiError::Conflict(_))));
+    }
+}
