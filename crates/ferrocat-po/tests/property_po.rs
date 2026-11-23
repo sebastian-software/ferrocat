@@ -1,9 +1,8 @@
 use std::collections::BTreeMap;
 
-use ferrocat_po::{
-    CatalogMode, ParseCatalogOptions, SerializeOptions, parse_catalog, parse_po, parse_po_borrowed,
-    stringify_po,
-};
+#[cfg(feature = "catalog")]
+use ferrocat_po::{CatalogMode, ParseCatalogOptions, parse_catalog};
+use ferrocat_po::{SerializeOptions, parse_po, parse_po_borrowed, stringify_po};
 use proptest::prelude::*;
 
 fn msgid_strategy() -> impl Strategy<Value = String> {
@@ -37,6 +36,7 @@ fn render_po(entries: &[(String, String)]) -> String {
     out
 }
 
+#[cfg(feature = "catalog")]
 fn render_fcl(entries: &[(String, String)]) -> String {
     // The entries come from a `BTreeMap`, so they are already sorted and unique
     // by id as FCL requires, and the generated charset contains no `\t`, `\n`, or
@@ -78,6 +78,7 @@ proptest! {
         prop_assert_eq!(borrowed, owned);
     }
 
+    #[cfg(feature = "catalog")]
     #[test]
     fn catalog_api_accepts_equivalent_generated_po_and_fcl(entries in entries_strategy()) {
         let po = parse_catalog(
