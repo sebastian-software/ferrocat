@@ -1,9 +1,8 @@
 //! The real output the ferrocat.dev homepage shows.
 //!
-//! This program depends on the published `ferrocat` crate from crates.io, at
-//! the exact version in `Cargo.toml`, and prints one JSON document:
-//! a catalog update, the same catalog as PO and as FCL, ICU checks, a review
-//! after a human correction, and a compiled runtime artifact.
+//! This program runs the workspace's Ferrocat code. Its JSON output includes
+//! a catalog update, PO and FCL output, ICU checks, a review after a human
+//! correction, and a compiled runtime artifact.
 //! `pnpm sample:write` in `docs/` writes it to `app/data/home-samples.json`;
 //! `pnpm sample:check` compares it with the committed file.
 
@@ -215,7 +214,7 @@ fn review() -> Result<Value> {
     let corrected = "Zahlungspflichtig bestellen";
     let lock = machine_translation_hash(EffectiveTranslationRef::Singular(machine));
     let seeded = format!(
-        "%FCL1\tsource=en\tlocale=de\nPay now\tcheckout\t{machine}\tlock={lock}\tai=example/mt:0.92\n"
+        "%FCL2\tsource=en\tlocale=de\nPay now\tscheckout\t{machine}\tlock={lock}\tai=example/mt:0.92\n"
     );
     let before = update(CatalogMode::IcuFcl, &seeded, vec![pay_now()])?;
     let after = before.replace(&format!("\t{machine}\t"), &format!("\t{corrected}\t"));

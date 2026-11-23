@@ -9,11 +9,11 @@ import {
 } from "ferramenta-family/monografie";
 
 import { FileLines } from "./file-lines";
-import { renderedWith, samples, spelled } from "./home-data";
+import { samples, spelled } from "./home-data";
 import "./catalog-specimens.css";
 
-/* The homepage's catalog specimens: every file and report here is real output
-   of the published crate, from app/data/home-samples.json. */
+/* The files and reports come from the workspace's Ferrocat code through
+   app/data/home-samples.json. */
 
 const { update, storage, icu, review, runtime } = samples;
 
@@ -70,11 +70,11 @@ export function UpdateSpecimen() {
         <UpdatedCatalog />
       </MonoFacing>
       <MonoCaption>
-        Real output of ferrocat {renderedWith}: {plural(stats.added, "message", "messages")} added
-        with an empty translation, {plural(stats.unchanged, "message", "messages")} kept with
-        {stats.unchanged === 1 ? " its" : " their"} translation, and{" "}
-        {plural(stats.obsoleteMarked, "message", "messages")} the code no longer uses marked
-        obsolete, with the date.
+        Ferrocat adds {plural(stats.added, "message", "messages")} with an empty translation, keeps{" "}
+        {plural(stats.unchanged, "message", "messages")} with
+        {stats.unchanged === 1 ? " its" : " their"} translation, and marks{" "}
+        {plural(stats.obsoleteMarked, "message", "messages")} the code no longer uses as obsolete
+        and records the date.
       </MonoCaption>
     </MonoWide>
   );
@@ -110,10 +110,10 @@ export function StorageSpecimen() {
         </MonoSheet>
       </MonoFacing>
       <MonoCaption>
-        Real output of ferrocat {renderedWith}. In FCL each message is one line, and{" "}
-        <span className="fc-tab-sample" aria-hidden="true" /> marks a tab between its fields:
-        message, context, translation, then where it comes from (<code>r=</code>) and the note for
-        translators (<code>c=</code>).
+        In FCL each message occupies one line. The{" "}
+        <span className="fc-tab-sample" aria-hidden="true" /> marks a tab between fields. A context
+        field of <code>n</code> means no context, while <code>s</code> prefixes a context string.
+        The <code>r=</code> and <code>c=</code> fields give the source and translator note.
       </MonoCaption>
     </MonoWide>
   );
@@ -163,7 +163,7 @@ export function IcuSpecimen() {
           </div>
         </MonoSheet>
       </MonoFacing>
-      <MonoCaption>Real output of ferrocat {renderedWith}. Choose a translation above.</MonoCaption>
+      <MonoCaption>Choose a translation above to see what Ferrocat reports.</MonoCaption>
     </MonoWide>
   );
 }
@@ -199,9 +199,8 @@ export function ReviewSpecimen() {
         ]}
       />
       <MonoCaption>
-        Real output of ferrocat {renderedWith}, <code>review_catalogs()</code> comparing the two
-        states. The fingerprint (<code>lock=</code>) still belongs to “{review.machine}”, so the new
-        value is reported as a person’s change, not as machine output.
+        <code>review_catalogs()</code> compares the two states. The fingerprint (<code>lock=</code>)
+        still belongs to “{review.machine}”, so Ferrocat reports the new value as a person’s change.
       </MonoCaption>
     </MonoWide>
   );
@@ -222,7 +221,7 @@ export function RuntimeSpecimen() {
         </MonoSheet>
       </MonoFacing>
       <MonoCaption>
-        Real output of ferrocat {renderedWith}, with English as the fallback.
+        Ferrocat compiles the German catalog with English as the fallback.
         {missing !== undefined && (
           <>
             {" "}
