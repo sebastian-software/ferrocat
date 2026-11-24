@@ -1,4 +1,4 @@
-use crate::scan::find_escapable_byte;
+use crate::scan::{find_escapable_byte, has_byte};
 use crate::text::{escape_string_into, escape_string_into_with_first_escape};
 use crate::{PoFile, PoItem, SerializeOptions};
 
@@ -255,8 +255,11 @@ fn try_write_simple_keyword(
     index: Option<usize>,
     options: &SerializeOptions,
 ) -> bool {
-    let first_escape = find_escapable_byte(value.as_bytes());
-    if matches!(first_escape, Some(index) if value.as_bytes()[index] == b'\n') {
+    let bytes = value.as_bytes();
+    let first_escape = find_escapable_byte(bytes);
+    if let Some(index) = first_escape
+        && (bytes[index] == b'\n' || has_byte(b'\n', &bytes[index + 1..]))
+    {
         return false;
     }
 
@@ -496,8 +499,19 @@ fn folded_split_point(input: &str, start: usize, max_len: usize) -> usize {
     }
 
     let end = clamp_char_boundary(input, start, start + max_len);
-    if input.as_bytes()[end - 1] == b'\\' {
-        end - 1
+    let trailing_backslashes = input.as_bytes()[start..end]
+        .iter()
+        .rev()
+        .take_while(|&&byte| byte == b'\\')
+        .count();
+    if !trailing_backslashes.is_multiple_of(2) {
+        if end - 1 > start {
+            end - 1
+        } else {
+            // `input` starts with a two-byte escape at `start` and `max_len == 1`;
+            // keep the escape intact so folding always makes progress.
+            clamp_char_boundary(input, start, (start + 2).min(input.len()))
+        }
     } else {
         end
     }
@@ -738,5 +752,70 @@ msgstr "Datei"
 
         assert!(output.contains("msgid \"\"\n\"Some line that contain special characters \\\" and\"\n\" that \\t is very, very, very long...: %s \\n\"\n"));
         assert!(output.contains("msgid \"\"\n\"Some line that contain special characters \"\n\"\\\"foobar\\\" and that contains whitespace at the \"\n\"end          \"\n"));
+    }
+
+    #[test]
+    fn renders_multiline_when_escape_precedes_newline() {
+        let file = PoFile {
+            headers: vec![],
+            comments: vec![],
+            extracted_comments: vec![],
+            items: vec![PoItem {
+                msgid: "Say \"Hi\"\nSecond".to_owned(),
+                msgstr: MsgStr::from("Sag \\\"Hallo\\\"\nZweite".to_owned()),
+                ..PoItem::new(2)
+            }],
+        };
+
+        let compact = stringify_po(&file, &SerializeOptions::default());
+        assert!(compact.contains("msgid \"Say \\\"Hi\\\"\\n\"\n\"Second\"\n"));
+        let reparsed = parse_po(&compact).expect("reparse compact multiline");
+        assert_eq!(reparsed.items[0].msgid, file.items[0].msgid);
+        assert_eq!(reparsed.items[0].msgstr[0], file.items[0].msgstr[0]);
+
+        let unfolded = stringify_po(
+            &file,
+            &SerializeOptions {
+                fold_length: 0,
+                compact_multiline: false,
+            },
+        );
+        assert!(unfolded.contains("msgid \"\"\n\"Say \\\"Hi\\\"\\n\"\n\"Second\"\n"));
+    }
+
+    #[test]
+    fn folds_escaped_backslashes_and_tiny_limits_without_corrupting_output() {
+        let payloads = [
+            "aaaa\\bbbb",
+            "\\\\\\\"\\t\\n",
+            "path\\to\\\\very\\\\long\\\\file\"name",
+        ];
+        for payload in payloads {
+            let file = PoFile {
+                headers: vec![],
+                comments: vec![],
+                extracted_comments: vec![],
+                items: vec![PoItem {
+                    msgid: payload.to_owned(),
+                    msgid_plural: Some(payload.to_owned()),
+                    msgstr: MsgStr::from(vec![payload.to_owned(), payload.to_owned()]),
+                    ..PoItem::new(2)
+                }],
+            };
+            for fold_length in 1..=20 {
+                let output = stringify_po(
+                    &file,
+                    &SerializeOptions {
+                        fold_length,
+                        compact_multiline: true,
+                    },
+                );
+                let reparsed = parse_po(&output)
+                    .unwrap_or_else(|error| panic!("fold_length={fold_length}: {error}\n{output}"));
+                assert_eq!(reparsed.items[0].msgid, payload);
+                assert_eq!(reparsed.items[0].msgid_plural.as_deref(), Some(payload));
+                assert_eq!(reparsed.items[0].msgstr[0], payload);
+            }
+        }
     }
 }
