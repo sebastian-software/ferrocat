@@ -3,7 +3,8 @@ use memchr::{memchr_iter, memchr2_iter};
 use crate::line_state::{PoLineContext, PoLineState};
 use crate::scan::{
     CommentKind, Keyword, LineKind, LineScanner, checked_plural_forms, checked_plural_index,
-    classify_line, split_once_byte, trim_ascii, unrecognized_po_line,
+    classify_line, find_byte, find_quoted_bounds, split_once_byte, trim_ascii,
+    unrecognized_po_line,
 };
 use crate::text::{extract_quoted_bytes_cow, for_each_reference_token};
 use crate::utf8::input_slice_as_str;
@@ -189,34 +190,105 @@ fn reject_unsupported_declared_charset(input: &[u8]) -> Result<(), ParseError> {
 }
 
 fn declared_charset(input: &[u8]) -> Option<&str> {
+    let input = input.strip_prefix(b"\xef\xbb\xbf").unwrap_or(input);
+    let mut saw_empty_msgid = false;
+    let mut in_header_msgstr = false;
+    let mut in_content_type = false;
+
+    for line in LineScanner::new(input) {
+        if line.obsolete {
+            return None;
+        }
+        match classify_line(line.trimmed) {
+            LineKind::Comment(_) if !saw_empty_msgid => {}
+            LineKind::Keyword(Keyword::Id) if !saw_empty_msgid => {
+                let (start, end) = find_quoted_bounds(line.trimmed)?;
+                if start != end {
+                    return None;
+                }
+                saw_empty_msgid = true;
+            }
+            LineKind::Continuation if saw_empty_msgid && !in_header_msgstr => {
+                let (start, end) = find_quoted_bounds(line.trimmed)?;
+                if start != end {
+                    return None;
+                }
+            }
+            LineKind::Keyword(Keyword::Str) if saw_empty_msgid && !in_header_msgstr => {
+                in_header_msgstr = true;
+                if let Some(charset) =
+                    charset_in_header_fragment(line.trimmed, &mut in_content_type)
+                {
+                    return Some(charset);
+                }
+            }
+            LineKind::Continuation if in_header_msgstr => {
+                if let Some(charset) =
+                    charset_in_header_fragment(line.trimmed, &mut in_content_type)
+                {
+                    return Some(charset);
+                }
+            }
+            _ => return None,
+        }
+    }
+
+    None
+}
+
+fn charset_in_header_fragment<'a>(line: &'a [u8], in_content_type: &mut bool) -> Option<&'a str> {
     const CONTENT_TYPE: &[u8] = b"content-type:";
     const CHARSET: &[u8] = b"charset=";
 
-    if let Some(content_type_start) = find_ascii_case(input, CONTENT_TYPE) {
-        let line_end = input[content_type_start..]
-            .iter()
-            .position(|byte| matches!(byte, b'\n' | b'\r'))
-            .map_or(input.len(), |relative_end| {
-                content_type_start + relative_end
-            });
+    let (start, end) = find_quoted_bounds(line)?;
+    let mut rest = &line[start..end];
 
-        let line = &input[content_type_start..line_end];
-        let charset_start = find_ascii_case(line, CHARSET)? + CHARSET.len();
+    while !rest.is_empty() {
+        let (segment, ended_line, next_rest) = match find_escaped_newline(rest) {
+            Some(pos) => (&rest[..pos], true, &rest[pos + 2..]),
+            None => (rest, false, &b""[..]),
+        };
 
-        let value_end = line[charset_start..]
-            .iter()
-            .position(|byte| {
-                matches!(byte, b'\\' | b'"' | b'\'' | b';') || byte.is_ascii_whitespace()
-            })
-            .map_or(line.len(), |relative| charset_start + relative);
+        let search_slice = if *in_content_type {
+            Some(segment)
+        } else {
+            find_ascii_case(segment, CONTENT_TYPE).map(|pos| &segment[pos + CONTENT_TYPE.len()..])
+        };
 
-        if value_end == charset_start {
-            return None;
+        if let Some(after_header) = search_slice {
+            if let Some(charset_pos) = find_ascii_case(after_header, CHARSET) {
+                let value = &after_header[charset_pos + CHARSET.len()..];
+                let value_end = value
+                    .iter()
+                    .position(|byte| {
+                        matches!(byte, b'\\' | b'"' | b'\'' | b';') || byte.is_ascii_whitespace()
+                    })
+                    .unwrap_or(value.len());
+                if value_end > 0 {
+                    return std::str::from_utf8(&value[..value_end]).ok();
+                }
+            }
+            *in_content_type = !ended_line;
+        } else if ended_line {
+            *in_content_type = false;
         }
 
-        return std::str::from_utf8(&line[charset_start..value_end]).ok();
+        rest = next_rest;
     }
 
+    None
+}
+
+fn find_escaped_newline(bytes: &[u8]) -> Option<usize> {
+    let mut offset = 0usize;
+    while let Some(relative) = find_byte(b'\\', &bytes[offset..]) {
+        let pos = offset + relative;
+        match bytes.get(pos + 1) {
+            Some(b'n') => return Some(pos),
+            Some(_) => offset = pos + 2,
+            None => return None,
+        }
+    }
     None
 }
 
@@ -760,6 +832,48 @@ msgstr "Datei"
         let input = b"msgid \"charset=ISO-8859-1\"\nmsgstr \"\"\n";
 
         assert_eq!(declared_charset(input), None);
+    }
+
+    #[test]
+    fn parse_po_bytes_scopes_declared_charset_to_leading_header() {
+        let headerless = b"msgid \"Content-Type: text/plain; charset=ISO-8859-1\"\nmsgstr \"\"\n";
+        let parsed = parse_po_bytes(headerless).expect("headerless message content must parse");
+        assert_eq!(
+            parsed.items[0].msgid,
+            "Content-Type: text/plain; charset=ISO-8859-1"
+        );
+
+        let header_without_ct = b"msgid \"\"\nmsgstr \"\"\n\"Language: de\\n\"\n\nmsgid \"Content-Type: text/plain; charset=ISO-8859-1\"\nmsgstr \"\"\n";
+        let parsed = parse_po_bytes(header_without_ct)
+            .expect("non-header Content-Type must not trigger charset rejection");
+        assert_eq!(parsed.items.len(), 1);
+
+        let bom_non_utf8 =
+            b"\xef\xbb\xbf# comment \xa9\nmsgid \"\"\n\"\"\nmsgstr \"\"\n\"Content-Type: text/plain; \"\n\"charset=ISO-8859-1\\n\"\n\nmsgid \"caf\xe9\"\nmsgstr \"\"\n";
+        let error =
+            parse_po_bytes(bom_non_utf8).expect_err("multiline header charset should be rejected");
+        assert!(error.message().contains("ISO-8859-1"));
+
+        assert_eq!(
+            declared_charset(b"#~ msgid \"\"\n#~ msgstr \"Content-Type: charset=ISO-8859-1\\n\"\n"),
+            None
+        );
+        assert_eq!(
+            declared_charset(
+                b"msgid \"\"\n\"non-empty\"\nmsgstr \"Content-Type: charset=ISO-8859-1\\n\"\n"
+            ),
+            None
+        );
+        assert_eq!(
+            declared_charset(b"msgid \"\"\nmsgstr \"Content-Type: text/plain; charset=\\n\"\n"),
+            None
+        );
+        assert_eq!(
+            declared_charset(
+                b"msgid \"\"\nmsgstr \"X-Test: a\\\\nb\\nContent-Type: text/plain; charset=ISO-8859-1\\n\"\n"
+            ),
+            Some("ISO-8859-1")
+        );
     }
 
     #[test]
