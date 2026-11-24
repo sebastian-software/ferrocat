@@ -6,7 +6,7 @@ use crate::line_state::{PoLineContext, PoLineState};
 use crate::scan::{
     CommentKind, Keyword, LineKind, LineScanner, checked_plural_forms, checked_plural_index,
     classify_line, find_byte, find_quoted_bounds, has_byte, split_once_byte, trim_ascii,
-    unrecognized_po_line,
+    trim_ascii_start, unrecognized_po_line,
 };
 use crate::serialize::{write_keyword, write_prefixed_line};
 use crate::text::{escape_string_into, unescape_string_known, validate_quoted_content};
@@ -73,6 +73,8 @@ impl MergeBorrowedItem<'_> {
 struct ParserState<'a> {
     item: MergeBorrowedItem<'a>,
     header_entries: Vec<MergeHeader<'a>>,
+    header_entries_faithful: bool,
+    header_line_open: bool,
     msgstr: BorrowedMsgStr<'a>,
     line: PoLineState,
 }
@@ -82,6 +84,8 @@ impl<'a> ParserState<'a> {
         Self {
             item: MergeBorrowedItem::new(nplurals),
             header_entries: Vec::new(),
+            header_entries_faithful: true,
+            header_line_open: false,
             msgstr: BorrowedMsgStr::None,
             line: PoLineState::default(),
         }
@@ -95,6 +99,8 @@ impl<'a> ParserState<'a> {
     fn reset_after_take(&mut self, nplurals: usize) {
         self.item.nplurals = nplurals;
         self.header_entries.clear();
+        self.header_entries_faithful = true;
+        self.header_line_open = false;
         self.msgstr = BorrowedMsgStr::None;
         self.line.reset();
     }
@@ -105,6 +111,39 @@ impl<'a> ParserState<'a> {
 
     fn append_msgstr(&mut self, plural_index: usize, value: Cow<'a, str>) {
         self.msgstr.append_slot(plural_index, value);
+    }
+
+    fn push_header_fragment(&mut self, line_bytes: &'a [u8], starts_new_msgstr: bool) {
+        if starts_new_msgstr {
+            self.header_entries.clear();
+            self.header_line_open = false;
+        }
+        if !self.header_entries_faithful {
+            return;
+        }
+
+        let Some(raw) = merge_quoted_raw(line_bytes) else {
+            self.header_entries_faithful = false;
+            return;
+        };
+
+        if self.header_line_open
+            || !header_fragment_is_borrowable(raw)
+            || !push_borrowed_header_segments(raw, &mut self.header_entries)
+        {
+            self.header_entries_faithful = false;
+            return;
+        }
+
+        self.header_line_open = !raw.is_empty() && !raw.ends_with(br"\n");
+    }
+
+    fn header_msgstr(&self) -> &str {
+        match &self.msgstr {
+            BorrowedMsgStr::None => "",
+            BorrowedMsgStr::Singular(value) => value.as_ref(),
+            BorrowedMsgStr::Plural(values) => values.first().map_or("", Cow::as_ref),
+        }
     }
 
     fn materialize_msgstr(&mut self) {
@@ -217,6 +256,7 @@ pub fn merge_catalog<'a>(
 }
 
 fn parse_merge_po(input: &str) -> Result<MergeBorrowedFile<'_>, ParseError> {
+    let input = input.strip_prefix('\u{feff}').unwrap_or(input);
     let mut file = MergeBorrowedFile {
         nplurals: 2,
         ..MergeBorrowedFile::default()
@@ -360,8 +400,7 @@ fn parse_keyword_line<'a>(
                 at_line_position(extract_merge_quoted_cow(line_bytes), position)?,
             );
             if is_header_candidate(state) {
-                let headers = at_line_position(parse_header_fragment(line_bytes), position)?;
-                state.header_entries.extend(headers);
+                state.push_header_fragment(line_bytes, true);
             }
         }
         Keyword::Ctxt => {
@@ -390,8 +429,7 @@ fn append_continuation<'a>(
         Some(PoLineContext::Str) => {
             state.append_msgstr(state.line.plural_index(), value);
             if is_header_candidate(state) {
-                let headers = at_line_position(parse_header_fragment(line_bytes), position)?;
-                state.header_entries.extend(headers);
+                state.push_header_fragment(line_bytes, false);
             }
         }
         Some(PoLineContext::Id) => state.item.msgid.to_mut().push_str(value.as_ref()),
@@ -438,7 +476,11 @@ fn finish_item<'a>(
     if is_header_state(state) && file.headers.is_empty() && file.items.is_empty() {
         file.comments = std::mem::take(&mut state.item.comments);
         file.extracted_comments = std::mem::take(&mut state.item.extracted_comments);
-        file.headers = std::mem::take(&mut state.header_entries);
+        if state.header_entries_faithful {
+            file.headers = std::mem::take(&mut state.header_entries);
+        } else {
+            parse_owned_headers(state.header_msgstr(), &mut file.headers);
+        }
         *current_nplurals = match file
             .headers
             .iter()
@@ -482,26 +524,15 @@ fn is_header_candidate(state: &ParserState<'_>) -> bool {
         && state.line.plural_index() == 0
 }
 
-fn parse_header_fragment(line_bytes: &[u8]) -> Result<Vec<MergeHeader<'_>>, ParseError> {
-    let Some(raw) = merge_quoted_raw(line_bytes) else {
-        return Ok(Vec::new());
-    };
-
-    if header_fragment_is_borrowable(raw) {
-        return Ok(parse_header_fragment_borrowed(raw));
-    }
-
-    parse_header_fragment_owned(line_bytes)
-}
-
-fn parse_header_fragment_borrowed(raw: &[u8]) -> Vec<MergeHeader<'_>> {
-    let mut headers = Vec::new();
+fn push_borrowed_header_segments<'a>(raw: &'a [u8], out: &mut Vec<MergeHeader<'a>>) -> bool {
     let mut start = 0usize;
     let mut index = 0usize;
 
     while index < raw.len() {
         if raw[index] == b'\\' && raw.get(index + 1) == Some(&b'n') {
-            push_borrowed_header_segment(&raw[start..index], &mut headers);
+            if !push_borrowed_header_segment(&raw[start..index], out) {
+                return false;
+            }
             index += 2;
             start = index;
             continue;
@@ -509,13 +540,16 @@ fn parse_header_fragment_borrowed(raw: &[u8]) -> Vec<MergeHeader<'_>> {
         index += 1;
     }
 
-    push_borrowed_header_segment(&raw[start..], &mut headers);
-    headers
+    push_borrowed_header_segment(&raw[start..], out)
 }
 
-fn push_borrowed_header_segment<'a>(segment: &'a [u8], out: &mut Vec<MergeHeader<'a>>) {
+fn push_borrowed_header_segment<'a>(segment: &'a [u8], out: &mut Vec<MergeHeader<'a>>) -> bool {
+    let segment = trim_ascii_start(segment);
     if segment.is_empty() {
-        return;
+        return true;
+    }
+    if segment.starts_with(b"#~") {
+        return false;
     }
     if let Some((key_bytes, value_bytes)) = split_once_byte(segment, b':') {
         out.push(MergeHeader {
@@ -523,23 +557,18 @@ fn push_borrowed_header_segment<'a>(segment: &'a [u8], out: &mut Vec<MergeHeader
             value: Cow::Borrowed(trimmed_str(value_bytes)),
         });
     }
+    true
 }
 
-fn parse_header_fragment_owned(line_bytes: &[u8]) -> Result<Vec<MergeHeader<'_>>, ParseError> {
-    let decoded = extract_merge_quoted_cow(line_bytes)?;
-    let mut headers = Vec::new();
-    for segment in decoded.split('\n') {
-        if segment.is_empty() {
-            continue;
-        }
-        if let Some((key, value)) = segment.split_once(':') {
-            headers.push(MergeHeader {
-                key: Cow::Owned(key.trim().to_owned()),
-                value: Cow::Owned(value.trim().to_owned()),
+fn parse_owned_headers<'a>(raw: &str, out: &mut Vec<MergeHeader<'a>>) {
+    for line in LineScanner::new(raw.as_bytes()) {
+        if let Some((key_bytes, value_bytes)) = split_once_byte(line.trimmed, b':') {
+            out.push(MergeHeader {
+                key: Cow::Owned(trimmed_str(key_bytes).to_owned()),
+                value: Cow::Owned(trimmed_str(value_bytes).to_owned()),
             });
         }
     }
-    Ok(headers)
 }
 
 fn header_fragment_is_borrowable(raw: &[u8]) -> bool {
@@ -1021,8 +1050,7 @@ mod tests {
 
     use super::{
         MergeHeader, MergeMessageInput, estimate_merge_capacity, extract_merge_quoted_cow,
-        find_existing_index, header_fragment_is_borrowable, merge_catalog, parse_header_fragment,
-        parse_merge_po,
+        find_existing_index, header_fragment_is_borrowable, merge_catalog, parse_merge_po,
     };
     use crate::{BorrowedMsgStr, parse_po};
 
@@ -1116,8 +1144,12 @@ mod tests {
         ));
         assert!(!header_fragment_is_borrowable(br#"Language: \"de\"\n"#));
         assert_eq!(
-            parse_header_fragment(br#""Language: de\nPlural-Forms: nplurals=3; plural=(n>1);\n""#)
-                .expect("header fragment"),
+            parse_merge_po(concat!(
+                "msgid \"\"\nmsgstr \"\"\n",
+                "\"Language: de\\nPlural-Forms: nplurals=3; plural=(n>1);\\n\"\n",
+            ))
+            .expect("borrowable multi-header fragment")
+            .headers,
             vec![
                 MergeHeader {
                     key: Cow::Borrowed("Language"),
@@ -1336,16 +1368,22 @@ mod tests {
 
     #[test]
     fn merge_handles_owned_header_fragments_and_missing_quotes() {
+        let escaped_headers = parse_merge_po(concat!(
+            "msgid \"\"\n",
+            "msgstr \"Language: de\\\\nPlural-Forms: nplurals=2;\\\\n\"\n",
+        ))
+        .expect("owned escaped header fragment");
         assert_eq!(
-            parse_header_fragment(br#""Language: de\\nPlural-Forms: nplurals=2;\\n""#)
-                .expect("owned escaped header fragment"),
+            escaped_headers.headers,
             vec![MergeHeader {
                 key: Cow::Owned("Language".to_owned()),
                 value: Cow::Owned("de\\nPlural-Forms: nplurals=2;\\n".to_owned()),
             }]
         );
         assert_eq!(
-            parse_header_fragment(b"msgstr").expect("missing quotes"),
+            parse_merge_po("msgid \"\"\nmsgstr\n")
+                .expect("missing quotes")
+                .headers,
             Vec::new()
         );
         assert_eq!(
@@ -1361,6 +1399,54 @@ mod tests {
             .nplurals,
             2
         );
+    }
+
+    #[test]
+    fn merge_strips_utf8_bom_and_preserves_multiline_headers() {
+        let existing = concat!(
+            "\u{feff}msgid \"\"\n",
+            "msgstr \"\"\n",
+            "\"Language: pl\\n\"\n",
+            "\"Plural-Forms: nplurals=3; plural=n==1 ? 0 : n%10>=2 && n%10<=4 && (n%100<10 \"\n",
+            "\"|| n%100>=20) ? 1 : 2;\\n\"\n",
+            "\n",
+            "msgid \"item\"\n",
+            "msgid_plural \"items\"\n",
+            "msgstr[0] \"element\"\n",
+            "msgstr[1] \"elementy\"\n",
+            "msgstr[2] \"elementow\"\n",
+        );
+        let extracted = [MergeMessageInput {
+            msgid: Cow::Borrowed("item"),
+            msgid_plural: Some(Cow::Borrowed("items")),
+            ..MergeMessageInput::default()
+        }];
+
+        let merged = merge_catalog(existing, &extracted).expect("merge BOM + multiline header");
+        let reparsed = parse_po(&merged).expect("reparse merged");
+
+        assert_eq!(
+            reparsed
+                .headers
+                .iter()
+                .find(|header| header.key == "Plural-Forms")
+                .map(|header| header.value.as_str()),
+            Some(
+                "nplurals=3; plural=n==1 ? 0 : n%10>=2 && n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2;"
+            )
+        );
+        assert_eq!(reparsed.items[0].nplurals, 3);
+        assert_eq!(reparsed.items[0].msgstr.len(), 3);
+        assert_eq!(reparsed.items[0].msgstr[2], "elementow");
+
+        let obsolete_header_line = parse_merge_po(concat!(
+            "msgid \"\"\n",
+            "msgstr \"\"\n",
+            "\"#~ Language: de\\n\"\n",
+        ))
+        .expect("obsolete-prefixed header falls back to owned decode");
+        assert_eq!(obsolete_header_line.headers[0].key, "Language");
+        assert_eq!(obsolete_header_line.headers[0].value, "de");
     }
 
     #[test]
