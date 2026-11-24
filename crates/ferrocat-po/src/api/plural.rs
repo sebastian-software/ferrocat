@@ -38,6 +38,9 @@ pub(super) enum IcuPluralProjection {
 
 pub(super) type PluralCategoryCache = Mutex<HashMap<String, Option<Vec<&'static str>>>>;
 
+const MAX_PLURAL_CATEGORY_CACHE_ENTRIES: usize = 256;
+const MAX_CACHED_LOCALE_LEN: usize = 64;
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct PluralProfile {
     categories: Vec<&'static str>,
@@ -533,12 +536,19 @@ pub(super) fn cached_icu_plural_categories_for(
         .and_then(|locale| PluralRules::try_new_cardinal(locale.into()).ok())
         .map(|rules| rules.categories().map(plural_category_name).collect());
 
-    match cache.lock() {
-        Ok(mut guard) => {
-            guard.insert(normalized, resolved.clone());
-        }
-        Err(poisoned) => {
-            poisoned.into_inner().insert(normalized, resolved.clone());
+    if normalized.len() <= MAX_CACHED_LOCALE_LEN {
+        match cache.lock() {
+            Ok(mut guard) => {
+                if guard.len() < MAX_PLURAL_CATEGORY_CACHE_ENTRIES {
+                    guard.insert(normalized, resolved.clone());
+                }
+            }
+            Err(poisoned) => {
+                let mut guard = poisoned.into_inner();
+                if guard.len() < MAX_PLURAL_CATEGORY_CACHE_ENTRIES {
+                    guard.insert(normalized, resolved.clone());
+                }
+            }
         }
     }
 
@@ -1350,6 +1360,23 @@ mod tests {
         assert_eq!(
             PluralProfile::for_gettext_slots(Some("und"), Some(1)).nplurals(),
             1
+        );
+    }
+
+    #[test]
+    fn plural_category_cache_bounds_entries_and_skips_oversized_keys() {
+        let cache = Mutex::new(HashMap::new());
+        let oversized = "x".repeat(super::MAX_CACHED_LOCALE_LEN + 1);
+        assert_eq!(cached_icu_plural_categories_for(&oversized, &cache), None);
+        assert!(cache.lock().expect("lock").is_empty());
+
+        for index in 0..(super::MAX_PLURAL_CATEGORY_CACHE_ENTRIES + 16) {
+            let locale = format!("invalid-locale-{index}!!");
+            assert_eq!(cached_icu_plural_categories_for(&locale, &cache), None);
+        }
+        assert_eq!(
+            cache.lock().expect("lock").len(),
+            super::MAX_PLURAL_CATEGORY_CACHE_ENTRIES
         );
     }
 }

@@ -510,7 +510,7 @@ pub(super) fn for_each_placeholder_comment(
 }
 
 fn is_numeric_placeholder(name: &str) -> bool {
-    name.chars().all(|ch| ch.is_ascii_digit())
+    !name.is_empty() && name.bytes().all(|byte| byte.is_ascii_digit())
 }
 
 /// Renders one generated placeholder comment, folding embedded newlines into
@@ -770,6 +770,21 @@ mod tests {
         assert!(diagnostics.is_empty());
         assert_eq!(output.matches("#. placeholder {0}: user name\n").count(), 1);
         assert!(output.contains("#. placeholder {0}: account\n"));
+    }
+
+    #[test]
+    fn for_each_placeholder_comment_ignores_empty_placeholder_name() {
+        let placeholders = BTreeMap::from([(String::new(), vec!["ignored".to_owned()])]);
+        let mut emitted = Vec::new();
+
+        for_each_placeholder_comment(
+            &[],
+            &placeholders,
+            &PlaceholderCommentMode::default(),
+            |comment| emitted.push(comment.to_owned()),
+        );
+
+        assert!(emitted.is_empty());
     }
 
     #[test]

@@ -609,7 +609,17 @@ fn merge_catalogs(
             Default::default(),
         );
         for (index, message) in existing.messages.iter().enumerate() {
-            existing_index.insert((message.msgid.as_str(), message.msgctxt.as_deref()), index);
+            let key = (message.msgid.as_str(), message.msgctxt.as_deref());
+            existing_index
+                .entry(key)
+                .and_modify(|existing_slot| {
+                    if existing.messages[*existing_slot].obsolete.is_some()
+                        && message.obsolete.is_none()
+                    {
+                        *existing_slot = index;
+                    }
+                })
+                .or_insert(index);
         }
 
         for next in &normalized {
@@ -1609,6 +1619,43 @@ mod tests {
 
         assert!(messages[0].obsolete.is_none());
         assert!(messages[1].obsolete.is_some());
+    }
+
+    #[test]
+    fn update_catalog_prefers_active_entry_over_obsolete_duplicate() {
+        let active_then_obsolete = concat!(
+            "msgid \"Save\"\n",
+            "msgstr \"Speichern\"\n\n",
+            "#~ msgid \"Save\"\n",
+            "#~ msgstr \"Veraltet\"\n",
+        );
+        let obsolete_then_active = concat!(
+            "#~ msgid \"Save\"\n",
+            "#~ msgstr \"Veraltet\"\n\n",
+            "msgid \"Save\"\n",
+            "msgstr \"Speichern\"\n",
+        );
+
+        for existing in [active_then_obsolete, obsolete_then_active] {
+            let result = super::update_catalog(
+                super::UpdateCatalogOptions::new(
+                    "en",
+                    super::CatalogUpdateInput::SourceFirst(vec![
+                        super::super::SourceExtractedMessage {
+                            msgid: "Save".to_owned(),
+                            ..Default::default()
+                        },
+                    ]),
+                )
+                .with_locale("de")
+                .with_existing(existing)
+                .with_obsolete_strategy(super::ObsoleteStrategy::Delete),
+            )
+            .expect("update catalog");
+
+            assert!(result.content.contains("msgstr \"Speichern\""));
+            assert!(!result.content.contains("Veraltet"));
+        }
     }
 
     fn test_message(file: &str, msgid: &str, msgctxt: Option<&str>) -> CanonicalMessage {
