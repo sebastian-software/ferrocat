@@ -8,23 +8,23 @@
       "target": "msgid \"\"\nmsgstr \"\"\n\"Language: de\\n\"\n\"Content-Type: text/plain; charset=UTF-8\\n\"\n\nmsgctxt \"checkout\"\nmsgid \"Pay now\"\nmsgstr \"\"\n\nmsgctxt \"greeting\"\nmsgid \"Hello {name}\"\nmsgstr \"Hallo {name}\"\n",
       "report": "Catalog audit: 2 source messages, 1 target locales, 1 diagnostics (1 errors, 0 warnings, 0 info)\nerror catalog.empty_translation [de \"checkout\" / \"Pay now\"; de]: Locale `de` has an empty translation.",
       "json": {
-        "diagnostics": [
-          {
-            "code": "catalog.empty_translation",
-            "message": "Locale `de` has an empty translation.",
-            "name": "de",
-            "severity": "error",
-            "source_key": { "locale": "de", "msgctxt": "checkout", "msgid": "Pay now" }
-          }
-        ],
         "summary": {
-          "diagnostics": 1,
-          "errors": 1,
-          "infos": 0,
           "source_messages": 2,
           "target_locales": 1,
-          "warnings": 0
-        }
+          "diagnostics": 1,
+          "errors": 1,
+          "warnings": 0,
+          "infos": 0
+        },
+        "diagnostics": [
+          {
+            "severity": "error",
+            "code": "catalog.empty_translation",
+            "message": "Locale `de` has an empty translation.",
+            "source_key": { "locale": "de", "msgid": "Pay now", "msgctxt": "checkout" },
+            "name": "de"
+          }
+        ]
       },
       "exitCode": 1
     },
@@ -35,15 +35,15 @@
       "target": "msgid \"\"\nmsgstr \"\"\n\"Language: de\\n\"\n\"Content-Type: text/plain; charset=UTF-8\\n\"\n\nmsgctxt \"checkout\"\nmsgid \"Pay now\"\nmsgstr \"Jetzt bezahlen\"\n\nmsgctxt \"greeting\"\nmsgid \"Hello {name}\"\nmsgstr \"Hallo {name}\"\n",
       "report": "Catalog audit: 2 source messages, 1 target locales, 0 diagnostics (0 errors, 0 warnings, 0 info)\nNo catalog audit diagnostics.",
       "json": {
-        "diagnostics": [],
         "summary": {
-          "diagnostics": 0,
-          "errors": 0,
-          "infos": 0,
           "source_messages": 2,
           "target_locales": 1,
-          "warnings": 0
-        }
+          "diagnostics": 0,
+          "errors": 0,
+          "warnings": 0,
+          "infos": 0
+        },
+        "diagnostics": []
       },
       "exitCode": 0
     }
