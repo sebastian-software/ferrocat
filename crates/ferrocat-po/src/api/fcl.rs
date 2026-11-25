@@ -7,13 +7,19 @@
 //! helpers so it stays equivalent to the catalog's canonical representation.
 
 use std::borrow::Cow;
-use std::collections::{BTreeMap, BTreeSet};
+use std::cmp::Ordering;
+use std::collections::BTreeMap;
+
+use rustc_hash::FxHashSet;
 
 use super::catalog::{
     CanonicalMessage, CanonicalTranslation, Catalog, OpaqueCapture, OpaqueMetadata, parse_origin,
     split_placeholder_comments,
 };
-use super::collation::{CollationPrefix, storage_collation_prefix};
+use super::collation::{
+    CollationPrefix, MAX_CONTINUATION_ROUNDS, PREFIX_BYTES, collect_colliding_runs,
+    storage_collation_prefix, storage_collation_prefix_from,
+};
 use super::export::for_each_placeholder_comment;
 use super::mt::{
     MachineMetadata, format_ai_descriptor, machine_translation_hash, parse_ai_descriptor,
@@ -183,7 +189,8 @@ fn fcl_target(message: &CanonicalMessage) -> Cow<'_, str> {
 /// while FCL has no separate obsolete namespace, and synthesized plural IDs can
 /// also collide with a literal singular ID.
 pub(super) fn validate_catalog_fcl(catalog: &Catalog) -> Result<(), ApiError> {
-    let mut identities = BTreeSet::new();
+    let mut identities =
+        FxHashSet::with_capacity_and_hasher(catalog.messages.len(), Default::default());
     for message in &catalog.messages {
         let id = fcl_id(message);
         if !identities.insert((id, message.msgctxt.as_deref())) {
@@ -197,7 +204,21 @@ pub(super) fn validate_catalog_fcl(catalog: &Catalog) -> Result<(), ApiError> {
     Ok(())
 }
 
-fn write_entry(out: &mut String, message: &CanonicalMessage, render: &RenderOptions<'_>) {
+fn write_origin_tag(out: &mut String, file: &str, scope: Option<&str>) {
+    out.push_str("\tr=");
+    escape_into(out, file);
+    if let Some(scope) = scope {
+        out.push('#');
+        escape_into(out, scope);
+    }
+}
+
+fn write_entry<'a>(
+    out: &mut String,
+    message: &'a CanonicalMessage,
+    render: &RenderOptions<'_>,
+    origins_scratch: &mut Vec<(&'a str, Option<&'a str>)>,
+) {
     escape_into(out, &fcl_id(message));
     out.push('\t');
     match &message.msgctxt {
@@ -214,20 +235,22 @@ fn write_entry(out: &mut String, message: &CanonicalMessage, render: &RenderOpti
     if render.include_origins {
         // References are file-only; sort for determinism and drop duplicates that
         // distinct origins can now collapse to.
-        let refs = message
-            .origins
-            .iter()
-            .map(|origin| (origin.file.as_str(), origin.scope.as_deref()))
-            .collect::<BTreeSet<_>>();
-        let mut reference = String::new();
-        for (file, scope) in refs {
-            reference.clear();
-            reference.push_str(file);
-            if let Some(scope) = scope {
-                reference.push('#');
-                reference.push_str(scope);
+        match message.origins.as_slice() {
+            [] => {}
+            [origin] => write_origin_tag(out, &origin.file, origin.scope.as_deref()),
+            origins => {
+                origins_scratch.clear();
+                origins_scratch.extend(
+                    origins
+                        .iter()
+                        .map(|origin| (origin.file.as_str(), origin.scope.as_deref())),
+                );
+                origins_scratch.sort_unstable();
+                origins_scratch.dedup();
+                for &(file, scope) in origins_scratch.iter() {
+                    write_origin_tag(out, file, scope);
+                }
             }
-            write_tag(out, "r", &reference);
         }
     }
 
@@ -288,67 +311,146 @@ fn write_entry(out: &mut String, message: &CanonicalMessage, render: &RenderOpti
 struct FclCollatedKey {
     message: CollationKey,
     context: CollationKey,
-    raw_message: String,
-    raw_context: Option<String>,
-    obsolete: bool,
 }
 
-fn fcl_collated_key(message: &CanonicalMessage) -> FclCollatedKey {
-    let id = fcl_id(message);
+fn fcl_collated_key(id: &str, message: &CanonicalMessage) -> FclCollatedKey {
     FclCollatedKey {
-        message: storage_collation_key(&id),
+        message: storage_collation_key(id),
         context: storage_collation_key(message.msgctxt.as_deref().unwrap_or("")),
-        raw_message: id.into_owned(),
-        raw_context: message.msgctxt.clone(),
-        obsolete: message.obsolete.is_some(),
     }
 }
 
-/// Applies the same packed-prefix strategy as the shared catalog sort, using
-/// FCL's serialized `id` column so plural IDs validate after a round trip.
-fn sort_fcl_messages_collated(messages: &mut [&CanonicalMessage]) {
-    if messages.len() < 2 {
-        return;
-    }
-
-    let prefixes: Vec<CollationPrefix> = messages
-        .iter()
-        .map(|message| storage_collation_prefix(&fcl_id(message)))
-        .collect();
-    let mut order: Vec<usize> = (0..messages.len()).collect();
-    order.sort_unstable_by_key(|&index| prefixes[index]);
-
-    let mut start = 0;
-    while start < order.len() {
-        let prefix = prefixes[order[start]];
-        let mut end = start + 1;
-        while end < order.len() && prefixes[order[end]] == prefix {
-            end += 1;
-        }
-        if end - start > 1 {
-            let mut run: Vec<(FclCollatedKey, usize)> = order[start..end]
-                .iter()
-                .map(|&index| (fcl_collated_key(messages[index]), index))
-                .collect();
-            run.sort_by(|left, right| left.0.cmp(&right.0));
-            for (slot, (_, index)) in order[start..end].iter_mut().zip(run) {
-                *slot = index;
+/// Compares two FCL2 entries whose initial `storage_collation_prefix` tied,
+/// using continuation prefixes before falling back to full collation keys
+/// without cloning `msgid` or `msgctxt`.
+fn cmp_fcl_collated_on_prefix_tie(
+    left: &CanonicalMessage,
+    right: &CanonicalMessage,
+    prefix: &CollationPrefix,
+) -> Ordering {
+    if left.msgid != right.msgid {
+        if prefix[PREFIX_BYTES - 1] != 0 {
+            for round in 1..=MAX_CONTINUATION_ROUNDS {
+                let skip = round * PREFIX_BYTES;
+                let left_cont = storage_collation_prefix_from(&left.msgid, skip);
+                let right_cont = storage_collation_prefix_from(&right.msgid, skip);
+                match left_cont.cmp(&right_cont) {
+                    Ordering::Equal => {
+                        if left_cont[PREFIX_BYTES - 1] == 0 {
+                            break;
+                        }
+                    }
+                    non_eq => return non_eq,
+                }
             }
         }
-        start = end;
-    }
-
-    let mut destination = vec![0_usize; order.len()];
-    for (position, &source) in order.iter().enumerate() {
-        destination[source] = position;
-    }
-    for position in 0..destination.len() {
-        while destination[position] != position {
-            let target = destination[position];
-            messages.swap(position, target);
-            destination.swap(position, target);
+        let msg_ord = storage_collation_key(&left.msgid).cmp(&storage_collation_key(&right.msgid));
+        if msg_ord != Ordering::Equal {
+            return msg_ord;
         }
     }
+
+    if left.msgctxt != right.msgctxt {
+        let left_ctx = left.msgctxt.as_deref().unwrap_or("");
+        let right_ctx = right.msgctxt.as_deref().unwrap_or("");
+        let ctx_prefix_ord =
+            storage_collation_prefix(left_ctx).cmp(&storage_collation_prefix(right_ctx));
+        if ctx_prefix_ord != Ordering::Equal {
+            return ctx_prefix_ord;
+        }
+        let ctx_ord = storage_collation_key(left_ctx).cmp(&storage_collation_key(right_ctx));
+        if ctx_ord != Ordering::Equal {
+            return ctx_ord;
+        }
+    }
+
+    left.msgid
+        .cmp(&right.msgid)
+        .then_with(|| left.msgctxt.cmp(&right.msgctxt))
+        .then_with(|| left.obsolete.is_some().cmp(&right.obsolete.is_some()))
+}
+
+fn sort_fcl_run_by_full_key(messages: &[CanonicalMessage], run: &mut [usize]) {
+    let mut keyed: Vec<(FclCollatedKey, Cow<'_, str>, usize)> = run
+        .iter()
+        .map(|&index| {
+            let message = &messages[index];
+            let id = fcl_id(message);
+            let key = fcl_collated_key(&id, message);
+            (key, id, index)
+        })
+        .collect();
+    keyed.sort_by(|left, right| {
+        let left_message = &messages[left.2];
+        let right_message = &messages[right.2];
+        left.0
+            .cmp(&right.0)
+            .then_with(|| left.1.cmp(&right.1))
+            .then_with(|| left_message.msgctxt.cmp(&right_message.msgctxt))
+            .then_with(|| {
+                left_message
+                    .obsolete
+                    .is_some()
+                    .cmp(&right_message.obsolete.is_some())
+            })
+    });
+    for (slot, (_, _, index)) in run.iter_mut().zip(keyed) {
+        *slot = index;
+    }
+}
+
+/// Applies the same packed-prefix and multi-round continuation strategy as the
+/// shared catalog sort, using FCL's serialized `id` column so plural IDs
+/// validate after a round trip.
+fn fcl_collated_order(messages: &[CanonicalMessage]) -> Vec<usize> {
+    let mut order: Vec<usize> = (0..messages.len()).collect();
+    if messages.len() < 2 {
+        return order;
+    }
+
+    let mut keyed: Vec<(CollationPrefix, usize)> = messages
+        .iter()
+        .enumerate()
+        .map(|(index, message)| (storage_collation_prefix(&fcl_id(message)), index))
+        .collect();
+    keyed.sort_unstable_by_key(|&(prefix, _)| prefix);
+
+    let mut pending = Vec::new();
+    let mut unresolved = Vec::new();
+    collect_colliding_runs(&keyed, 0, &mut pending, &mut unresolved);
+
+    let mut split = Vec::new();
+    for round in 1..=MAX_CONTINUATION_ROUNDS {
+        if pending.is_empty() {
+            break;
+        }
+        let skip = round * PREFIX_BYTES;
+        for (start, end) in pending.drain(..) {
+            let first_id = fcl_id(&messages[keyed[start].1]);
+            if keyed[start + 1..end]
+                .iter()
+                .all(|&(_, index)| fcl_id(&messages[index]) == first_id)
+            {
+                unresolved.push((start, end));
+                continue;
+            }
+            for entry in &mut keyed[start..end] {
+                entry.0 = storage_collation_prefix_from(&fcl_id(&messages[entry.1]), skip);
+            }
+            keyed[start..end].sort_unstable_by_key(|&(prefix, _)| prefix);
+            collect_colliding_runs(&keyed[start..end], start, &mut split, &mut unresolved);
+        }
+        std::mem::swap(&mut pending, &mut split);
+    }
+    unresolved.append(&mut pending);
+
+    for (slot, &(_, index)) in order.iter_mut().zip(keyed.iter()) {
+        *slot = index;
+    }
+    for (start, end) in unresolved {
+        sort_fcl_run_by_full_key(messages, &mut order[start..end]);
+    }
+    order
 }
 
 /// Renders an internal [`Catalog`] as FCL text.
@@ -373,10 +475,15 @@ pub(super) fn stringify_catalog_fcl(
     write_tag(&mut out, "order", "collated");
     out.push('\n');
 
-    let mut messages: Vec<&CanonicalMessage> = catalog.messages.iter().collect();
-    sort_fcl_messages_collated(&mut messages);
-    for message in messages {
-        write_entry(&mut out, message, render);
+    let order = fcl_collated_order(&catalog.messages);
+    let mut origins_scratch = Vec::new();
+    for index in order {
+        write_entry(
+            &mut out,
+            &catalog.messages[index],
+            render,
+            &mut origins_scratch,
+        );
     }
     out
 }
@@ -700,7 +807,9 @@ pub(super) fn parse_catalog_to_internal_fcl(
     // and any blank lines only saves reallocations.
     let estimated_entries = memchr::memchr_iter(b'\n', content.as_bytes()).count();
     let mut messages: Vec<CanonicalMessage> = Vec::with_capacity(estimated_entries);
-    let mut previous_collated_key: Option<FclCollatedKey> = None;
+    let mut previous_prefix: Option<CollationPrefix> = None;
+    let check_v2_collated =
+        parsed_header.order == FclOrder::Collated && parsed_header.version == FclVersion::V2;
     let legacy_collated =
         parsed_header.version == FclVersion::V1 && parsed_header.order == FclOrder::Collated;
     for (index, line) in lines {
@@ -737,24 +846,27 @@ pub(super) fn parse_catalog_to_internal_fcl(
                 )));
             }
         }
-        if parsed_header.order == FclOrder::Collated && parsed_header.version == FclVersion::V2 {
-            let key = fcl_collated_key(&message);
-            if previous_collated_key
-                .as_ref()
-                .is_some_and(|previous| key < *previous)
-            {
-                return Err(ApiError::InvalidArguments(format!(
-                    "FCL entries must follow the declared collated order; line {} is out of order",
-                    index + 1
-                )));
+        if check_v2_collated {
+            let prefix = storage_collation_prefix(&message.msgid);
+            if let (Some(prev_prefix), Some(previous)) = (previous_prefix, messages.last()) {
+                let order = match prefix.cmp(&prev_prefix) {
+                    Ordering::Equal => cmp_fcl_collated_on_prefix_tie(&message, previous, &prefix),
+                    non_eq => non_eq,
+                };
+                if order.is_lt() {
+                    return Err(ApiError::InvalidArguments(format!(
+                        "FCL entries must follow the declared collated order; line {} is out of order",
+                        index + 1
+                    )));
+                }
             }
-            previous_collated_key = Some(key);
+            previous_prefix = Some(prefix);
         }
         messages.push(message);
     }
 
     if legacy_collated {
-        let mut identities = rustc_hash::FxHashSet::default();
+        let mut identities = FxHashSet::default();
         for message in &messages {
             if !identities.insert((message.msgid.as_str(), message.msgctxt.as_deref())) {
                 return Err(ApiError::Conflict(format!(

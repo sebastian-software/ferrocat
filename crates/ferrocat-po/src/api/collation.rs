@@ -4,7 +4,7 @@ use super::catalog::CanonicalMessage;
 use crate::collation::{CollationKey, UNCOVERED_TAG, collation_key, is_combining, row};
 use crate::collation_table::{RANGE_START, ROWS};
 
-const PREFIX_BYTES: usize = 32;
+pub(super) const PREFIX_BYTES: usize = 32;
 pub(super) type CollationPrefix = [u8; PREFIX_BYTES];
 
 /// Packs the first primary weights of `text` into a comparison prefix.
@@ -31,30 +31,35 @@ fn collation_prefix_with_fallback(text: &str, stable: bool) -> CollationPrefix {
         }
     };
 
-    if text.is_ascii() {
-        for &byte in text.as_bytes() {
-            if written == PREFIX_BYTES {
-                break;
+    // Process leading ASCII bytes directly without pre-scanning the entire string
+    // with `is_ascii()`. Combining marks live in U+0300..=U+036F (multi-byte UTF-8)
+    // and contribute zero primary weights, so ASCII bytes before the first non-ASCII
+    // byte always emit their exact primary weights.
+    let bytes = text.as_bytes();
+    let mut i = 0;
+    while i < bytes.len() && written < PREFIX_BYTES {
+        let byte = bytes[i];
+        if byte >= 0x80 {
+            for character in text[i..].chars() {
+                if written == PREFIX_BYTES {
+                    break;
+                }
+                if is_combining(character) {
+                    continue;
+                }
+                match row(character) {
+                    Some(found) if found.primary != 0 => push(found.primary, &mut written),
+                    _ => push_uncovered_prefix(character, &mut push, &mut written, stable),
+                }
             }
-            let index = usize::from(byte).wrapping_sub(RANGE_START as usize);
-            match ROWS.get(index) {
-                Some(row) if row.primary != 0 => push(row.primary, &mut written),
-                _ => push_uncovered_prefix(char::from(byte), &mut push, &mut written, stable),
-            }
+            return packed;
         }
-    } else {
-        for character in text.chars() {
-            if written == PREFIX_BYTES {
-                break;
-            }
-            if is_combining(character) {
-                continue;
-            }
-            match row(character) {
-                Some(found) if found.primary != 0 => push(found.primary, &mut written),
-                _ => push_uncovered_prefix(character, &mut push, &mut written, stable),
-            }
+        let index = usize::from(byte).wrapping_sub(RANGE_START as usize);
+        match ROWS.get(index) {
+            Some(row) if row.primary != 0 => push(row.primary, &mut written),
+            _ => push_uncovered_prefix(char::from(byte), &mut push, &mut written, stable),
         }
+        i += 1;
     }
 
     packed
@@ -72,6 +77,14 @@ fn collation_prefix_with_fallback(text: &str, stable: bool) -> CollationPrefix {
 /// Only continuation rounds for colliding runs pay this function's
 /// skip-relative bounds check; the hot first pass uses [`collation_prefix`].
 pub(super) fn collation_prefix_from(text: &str, skip: usize) -> CollationPrefix {
+    collation_prefix_from_with_fallback(text, skip, false)
+}
+
+pub(super) fn storage_collation_prefix_from(text: &str, skip: usize) -> CollationPrefix {
+    collation_prefix_from_with_fallback(text, skip, true)
+}
+
+fn collation_prefix_from_with_fallback(text: &str, skip: usize, stable: bool) -> CollationPrefix {
     let mut packed: CollationPrefix = [0; PREFIX_BYTES];
     let mut position = 0_usize;
     let end = skip.saturating_add(PREFIX_BYTES);
@@ -85,30 +98,31 @@ pub(super) fn collation_prefix_from(text: &str, skip: usize) -> CollationPrefix 
         *position += 1;
     };
 
-    if text.is_ascii() {
-        for &byte in text.as_bytes() {
-            if position >= end {
-                break;
+    let bytes = text.as_bytes();
+    let mut i = 0;
+    while i < bytes.len() && position < end {
+        let byte = bytes[i];
+        if byte >= 0x80 {
+            for character in text[i..].chars() {
+                if position >= end {
+                    break;
+                }
+                if is_combining(character) {
+                    continue;
+                }
+                match row(character) {
+                    Some(found) if found.primary != 0 => push(found.primary, &mut position),
+                    _ => push_uncovered_prefix(character, &mut push, &mut position, stable),
+                }
             }
-            let index = usize::from(byte).wrapping_sub(RANGE_START as usize);
-            match ROWS.get(index) {
-                Some(row) if row.primary != 0 => push(row.primary, &mut position),
-                _ => push_uncovered_prefix(char::from(byte), &mut push, &mut position, false),
-            }
+            return packed;
         }
-    } else {
-        for character in text.chars() {
-            if position >= end {
-                break;
-            }
-            if is_combining(character) {
-                continue;
-            }
-            match row(character) {
-                Some(found) if found.primary != 0 => push(found.primary, &mut position),
-                _ => push_uncovered_prefix(character, &mut push, &mut position, false),
-            }
+        let index = usize::from(byte).wrapping_sub(RANGE_START as usize);
+        match ROWS.get(index) {
+            Some(row) if row.primary != 0 => push(row.primary, &mut position),
+            _ => push_uncovered_prefix(char::from(byte), &mut push, &mut position, stable),
         }
+        i += 1;
     }
 
     packed
@@ -149,7 +163,7 @@ fn collated_message_key(message: &CanonicalMessage) -> CollatedMessageKey {
 /// Continuation rounds attempted before a colliding run falls back to full
 /// keys. ICU headers routinely fill the first prefix, and occasionally the
 /// second; the cap keeps pathological corpora from re-bucketing forever.
-const MAX_CONTINUATION_ROUNDS: usize = 3;
+pub(super) const MAX_CONTINUATION_ROUNDS: usize = 3;
 
 /// A prefix of only zero bytes: the text has no primary weight left at this
 /// offset, so no further continuation can tell its bucket apart.
@@ -160,7 +174,7 @@ const EXHAUSTED_PREFIX: CollationPrefix = [0; PREFIX_BYTES];
 ///
 /// Singletons are already ordered. Runs whose key is exhausted are handed
 /// straight to `unresolved`, since continuing them only repacks zeros.
-fn collect_colliding_runs(
+pub(super) fn collect_colliding_runs(
     keyed: &[(CollationPrefix, usize)],
     base: usize,
     splittable: &mut Vec<(usize, usize)>,

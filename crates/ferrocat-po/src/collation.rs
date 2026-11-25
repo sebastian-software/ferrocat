@@ -22,6 +22,8 @@ Known limits:
   is only code-point order here.
 */
 
+use smallvec::SmallVec;
+
 use crate::collation_table::{EXTRA, MARK_START, MARK_WEIGHTS, RANGE_START, ROWS, Row};
 
 /// Opaque, owned sort key for Ferrocat's compact CLDR root catalog order.
@@ -99,8 +101,8 @@ pub(crate) fn row(character: char) -> Option<&'static Row> {
 struct Levels {
     /// Doubles as the finished key buffer; secondary and tertiary are appended.
     primary: Vec<u8>,
-    secondary: Vec<u8>,
-    tertiary: Vec<u8>,
+    secondary: SmallVec<[u8; 16]>,
+    tertiary: SmallVec<[u8; 64]>,
     primary_position: u32,
     stable_uncovered: bool,
 }
@@ -195,8 +197,8 @@ fn make_collation_key(text: &str, stable_uncovered: bool) -> CollationKey {
 
     let mut levels = Levels {
         primary: Vec::with_capacity(text.len() * 2 + 8),
-        secondary: Vec::new(),
-        tertiary: Vec::with_capacity(text.len()),
+        secondary: SmallVec::new(),
+        tertiary: SmallVec::new(),
         primary_position: 0,
         stable_uncovered,
     };
