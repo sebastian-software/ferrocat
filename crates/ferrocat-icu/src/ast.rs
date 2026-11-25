@@ -6,7 +6,7 @@ pub struct IcuMessage {
 }
 
 /// Distinguishes cardinal and ordinal plural forms.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum IcuPluralKind {
     /// Cardinal plural categories such as `one` and `other`.
     Cardinal,
@@ -117,4 +117,16 @@ pub enum IcuNode {
         /// `<name/>` form.
         children: Vec<Self>,
     },
+}
+
+#[cfg(test)]
+mod tests {
+    use super::IcuPluralKind;
+
+    #[test]
+    fn icu_plural_kind_is_copy() {
+        let kind = IcuPluralKind::Cardinal;
+        let copied = kind;
+        assert_eq!(kind, copied);
+    }
 }
