@@ -725,8 +725,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 ```
 
 Set `CatalogCoverageOptions::with_details(true)` when callers also need
-per-message rows. File discovery, threshold failures, JSON/table formatting, and
-pseudo-locale filtering stay outside the core API.
+per-message rows, or `CatalogCoverageOptions::with_locales(...)` to limit the
+report to specific target locales. File discovery, threshold failures,
+JSON/table formatting, and pseudo-locale filtering stay outside the core API.
 
 `parse_catalog_for_review` retains only semantic fuzzy identities and returns a
 normalized catalog directly. Arbitrary flags and translator comments remain
@@ -791,8 +792,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 ```
 
 Set `CatalogReviewOptions::with_details(false)` when callers need summary-only
-output without large per-message vectors. Git history lookup, PR comments,
-repository layout, and reviewer UI remain caller responsibilities.
+output without large per-message vectors, or
+`CatalogReviewOptions::with_locales(...)` to limit the report to specific target
+locales. Git history lookup, PR comments, repository layout, and reviewer UI
+remain caller responsibilities.
 
 <span id="compiledkey" />
 

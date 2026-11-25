@@ -385,6 +385,7 @@ pub ferrocat_po::CatalogCoverageOptions::source_locale: &'a str
 impl<'a> ferrocat_po::CatalogCoverageOptions<'a>
 pub fn ferrocat_po::CatalogCoverageOptions<'a>::new(&'a str) -> Self
 pub const fn ferrocat_po::CatalogCoverageOptions<'a>::with_details(self, bool) -> Self
+pub fn ferrocat_po::CatalogCoverageOptions<'a>::with_locales(self, &'a [&'a str]) -> Self
 pub struct ferrocat_po::CatalogCoverageReport
 pub ferrocat_po::CatalogCoverageReport::locales: alloc::vec::Vec<ferrocat_po::CatalogLocaleCoverage>
 pub ferrocat_po::CatalogCoverageReport::source_messages: usize
@@ -459,6 +460,7 @@ pub ferrocat_po::CatalogReviewOptions::source_locale: &'a str
 impl<'a> ferrocat_po::CatalogReviewOptions<'a>
 pub fn ferrocat_po::CatalogReviewOptions<'a>::new(&'a str) -> Self
 pub const fn ferrocat_po::CatalogReviewOptions<'a>::with_details(self, bool) -> Self
+pub fn ferrocat_po::CatalogReviewOptions<'a>::with_locales(self, &'a [&'a str]) -> Self
 pub struct ferrocat_po::CatalogReviewReport
 pub ferrocat_po::CatalogReviewReport::locales: alloc::vec::Vec<ferrocat_po::CatalogLocaleReview>
 pub ferrocat_po::CatalogReviewReport::source_changes: ferrocat_po::CatalogSourceChangeReport
@@ -827,12 +829,10 @@ pub ferrocat_po::ParseCatalogOptions::content: &'a str
 pub ferrocat_po::ParseCatalogOptions::locale: core::option::Option<&'a str>
 pub ferrocat_po::ParseCatalogOptions::mode: ferrocat_po::CatalogMode
 pub ferrocat_po::ParseCatalogOptions::source_locale: &'a str
-pub ferrocat_po::ParseCatalogOptions::strict: bool
 impl<'a> ferrocat_po::ParseCatalogOptions<'a>
 pub fn ferrocat_po::ParseCatalogOptions<'a>::new(&'a str, &'a str) -> Self
 pub fn ferrocat_po::ParseCatalogOptions<'a>::with_locale(self, &'a str) -> Self
 pub fn ferrocat_po::ParseCatalogOptions<'a>::with_mode(self, ferrocat_po::CatalogMode) -> Self
-pub fn ferrocat_po::ParseCatalogOptions<'a>::with_strict(self, bool) -> Self
 pub struct ferrocat_po::ParseError
 impl ferrocat_po::ParseError
 pub fn ferrocat_po::ParseError::message(&self) -> &str

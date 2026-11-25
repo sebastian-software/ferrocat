@@ -157,15 +157,24 @@ fn coverage_report_filters_requested_locales() {
 
     let report = measure_catalog_coverage(
         &[&source, &de, &fr],
-        &CatalogCoverageOptions {
-            locales: &requested,
-            ..CatalogCoverageOptions::new("en")
-        },
+        &CatalogCoverageOptions::new("en").with_locales(&requested),
     )
     .expect("coverage");
 
     assert_eq!(report.target_locales, 1);
     assert_eq!(report.locales[0].locale, "fr");
+}
+
+#[test]
+fn coverage_options_with_locales_sets_target_filter() {
+    let locales = ["de", "fr"];
+    let options = CatalogCoverageOptions::new("en")
+        .with_locales(&locales)
+        .with_details(true);
+
+    assert_eq!(options.source_locale, "en");
+    assert_eq!(options.locales, &locales);
+    assert!(options.include_details);
 }
 
 #[test]
