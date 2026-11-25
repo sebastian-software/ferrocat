@@ -14,13 +14,14 @@ use rustc_hash::{FxHashMap, FxHashSet};
 
 use super::catalog::{
     CanonicalMessage, CanonicalTranslation, Catalog, OpaqueCapture, OpaqueMetadata, parse_origin,
-    split_placeholder_comments,
+    parse_placeholder_comment,
 };
 use super::collation::{
     CollationPrefix, MAX_CONTINUATION_ROUNDS, PREFIX_BYTES, collect_colliding_runs,
     storage_collation_prefix, storage_collation_prefix_from,
 };
-use super::export::for_each_placeholder_comment;
+use super::export::for_each_placeholder_comment_with_scratch;
+use super::helpers::dedupe_placeholders;
 use super::mt::{
     MachineMetadata, format_ai_descriptor, machine_translation_hash, parse_ai_descriptor,
     validate_machine_metadata,
@@ -184,26 +185,6 @@ fn fcl_target(message: &CanonicalMessage) -> Cow<'_, str> {
     }
 }
 
-/// Rejects catalog states that cannot be represented as unique FCL entry
-/// identities. Active and obsolete PO entries can legally share an identity,
-/// while FCL has no separate obsolete namespace, and synthesized plural IDs can
-/// also collide with a literal singular ID.
-pub(super) fn validate_catalog_fcl(catalog: &Catalog) -> Result<(), ApiError> {
-    let mut identities =
-        FxHashSet::with_capacity_and_hasher(catalog.messages.len(), Default::default());
-    for message in &catalog.messages {
-        let id = fcl_id(message);
-        if !identities.insert((id, message.msgctxt.as_deref())) {
-            return Err(ApiError::Conflict(format!(
-                "catalog contains duplicate FCL identity for id {:?} and context {:?}",
-                fcl_id(message),
-                message.msgctxt
-            )));
-        }
-    }
-    Ok(())
-}
-
 fn write_origin_tag(out: &mut String, file: &str, scope: Option<&str>) {
     out.push_str("\tr=");
     escape_into(out, file);
@@ -218,6 +199,7 @@ fn write_entry<'a>(
     message: &'a CanonicalMessage,
     render: &RenderOptions<'_>,
     origins_scratch: &mut Vec<(&'a str, Option<&'a str>)>,
+    placeholder_scratch: &mut String,
 ) {
     escape_into(out, &fcl_id(message));
     out.push('\t');
@@ -259,10 +241,11 @@ fn write_entry<'a>(
     for comment in &message.comments {
         write_tag(out, "c", comment);
     }
-    for_each_placeholder_comment(
+    for_each_placeholder_comment_with_scratch(
         &message.comments,
         &message.placeholders,
         &render.print_placeholders_in_comments,
+        placeholder_scratch,
         |comment| {
             write_tag(out, "c", comment);
         },
@@ -397,7 +380,7 @@ fn sort_fcl_run_by_full_key(
     messages: &[CanonicalMessage],
     run: &mut [usize],
     plural_ids: &mut FxHashMap<usize, String>,
-) {
+) -> Result<(), ApiError> {
     ensure_cached_fcl_ids(messages, run.iter().copied(), plural_ids);
     let mut keyed: Vec<(FclCollatedKey, &str, usize)> = run
         .iter()
@@ -422,18 +405,30 @@ fn sort_fcl_run_by_full_key(
                     .cmp(&right_message.obsolete.is_some())
             })
     });
+    // Every duplicate FCL `(id, msgctxt)` identity collides on all prefix rounds,
+    // so it is guaranteed to land adjacent inside one unresolved run here.
+    for pair in keyed.windows(2) {
+        if pair[0].1 == pair[1].1 && messages[pair[0].2].msgctxt == messages[pair[1].2].msgctxt {
+            return Err(ApiError::Conflict(format!(
+                "catalog contains duplicate FCL identity for id {:?} and context {:?}",
+                pair[1].1, messages[pair[1].2].msgctxt
+            )));
+        }
+    }
     for (slot, (_, _, index)) in run.iter_mut().zip(keyed) {
         *slot = index;
     }
+    Ok(())
 }
 
 /// Applies the same packed-prefix and multi-round continuation strategy as the
 /// shared catalog sort, using FCL's serialized `id` column so plural IDs
-/// validate after a round trip.
-fn fcl_collated_order(messages: &[CanonicalMessage]) -> Vec<usize> {
+/// validate after a round trip. Rejects duplicate FCL `(id, msgctxt)`
+/// identities without building a separate full-catalog hash set.
+fn fcl_collated_order(messages: &[CanonicalMessage]) -> Result<Vec<usize>, ApiError> {
     let mut order: Vec<usize> = (0..messages.len()).collect();
     if messages.len() < 2 {
-        return order;
+        return Ok(order);
     }
 
     let mut keyed: Vec<(CollationPrefix, usize)> = messages
@@ -483,9 +478,9 @@ fn fcl_collated_order(messages: &[CanonicalMessage]) -> Vec<usize> {
         *slot = index;
     }
     for (start, end) in unresolved {
-        sort_fcl_run_by_full_key(messages, &mut order[start..end], &mut plural_ids);
+        sort_fcl_run_by_full_key(messages, &mut order[start..end], &mut plural_ids)?;
     }
-    order
+    Ok(order)
 }
 
 /// Renders an internal [`Catalog`] as FCL text.
@@ -498,7 +493,9 @@ pub(super) fn stringify_catalog_fcl(
     locale: Option<&str>,
     source_locale: &str,
     render: &RenderOptions<'_>,
-) -> String {
+) -> Result<String, ApiError> {
+    let order = fcl_collated_order(&catalog.messages)?;
+
     // Reserve a rough output budget up front so growth does not repeatedly
     // reallocate; the estimate only needs to be in the right ballpark.
     let mut out = String::with_capacity(catalog.messages.len() * 128 + 64);
@@ -510,28 +507,38 @@ pub(super) fn stringify_catalog_fcl(
     write_tag(&mut out, "order", "collated");
     out.push('\n');
 
-    let order = fcl_collated_order(&catalog.messages);
     let mut origins_scratch = Vec::new();
+    let mut placeholder_scratch = String::new();
     for index in order {
         write_entry(
             &mut out,
             &catalog.messages[index],
             render,
             &mut origins_scratch,
+            &mut placeholder_scratch,
         );
     }
-    out
+    Ok(out)
 }
 
 // --- parse ----------------------------------------------------------------
 
+#[inline]
 fn is_conflict_marker(line: &str) -> bool {
+    // Guard on the first byte so normal entries skip all four marker checks.
     // A valid entry has at least three tab-separated fields, even when its ID
     // begins with marker characters. Diff3 also uses a `|||||||` base marker.
-    ["<<<<<<<", "|||||||", "=======", ">>>>>>>"]
-        .iter()
-        .any(|marker| line.starts_with(marker))
-        && line.bytes().filter(|&byte| byte == b'\t').take(2).count() < 2
+    let Some(&first) = line.as_bytes().first() else {
+        return false;
+    };
+    let matches_marker = match first {
+        b'<' => line.starts_with("<<<<<<<"),
+        b'|' => line.starts_with("|||||||"),
+        b'=' => line.starts_with("======="),
+        b'>' => line.starts_with(">>>>>>>"),
+        _ => false,
+    };
+    matches_marker && line.bytes().filter(|&byte| byte == b'\t').take(2).count() < 2
 }
 
 fn parse_header(line: &str, source_locale: &str) -> Result<FclHeader, ApiError> {
@@ -630,7 +637,8 @@ fn parse_entry(
     };
     let value = unescape(field(&mut fields, "target")?, version)?.into_owned();
     let mut origins: PoVec<CatalogOrigin> = PoVec::new();
-    let mut raw_comments: Vec<Cow<'_, str>> = Vec::new();
+    let mut comments: Vec<String> = Vec::new();
+    let mut placeholders: BTreeMap<String, Vec<String>> = BTreeMap::new();
     let mut translator_comments: Vec<String> = Vec::new();
     let mut flags: Vec<String> = Vec::new();
     let mut obsolete: Option<ObsoleteInfo> = None;
@@ -655,7 +663,15 @@ fn parse_entry(
             }
             b"c" => {
                 validate_tag_order(&mut last_tag_rank, TAG_RANK_COMMENT, "c")?;
-                raw_comments.push(unescape(raw_value, version)?);
+                let comment = unescape(raw_value, version)?;
+                if let Some((name, val)) = parse_placeholder_comment(&comment) {
+                    placeholders
+                        .entry(name.to_owned())
+                        .or_default()
+                        .push(val.to_owned());
+                } else {
+                    comments.push(comment.into_owned());
+                }
             }
             b"tc" => {
                 validate_tag_order(&mut last_tag_rank, TAG_RANK_TRANSLATOR_COMMENT, "tc")?;
@@ -725,7 +741,11 @@ fn parse_entry(
         None
     };
 
-    let (comments, placeholders) = split_placeholder_comments(raw_comments);
+    let placeholders = if placeholders.is_empty() {
+        placeholders
+    } else {
+        dedupe_placeholders(placeholders)
+    };
 
     Ok(CanonicalMessage {
         msgid,
@@ -818,6 +838,50 @@ impl<'a> Iterator for SplitTab<'a> {
     }
 }
 
+/// SIMD `memchr`-backed line splitter matching `str::lines()` semantics (`\n`
+/// and `\r\n`, omitting any empty trailing slice after a final `\n`, preserving
+/// interior bare `\r` bytes so FCL2 can reject them and FCL1 can retain them).
+struct FclLines<'a> {
+    rest: &'a [u8],
+    has_cr: bool,
+}
+
+impl<'a> FclLines<'a> {
+    #[inline]
+    fn new(bytes: &'a [u8], has_cr: bool) -> Self {
+        Self {
+            rest: bytes,
+            has_cr,
+        }
+    }
+}
+
+impl<'a> Iterator for FclLines<'a> {
+    type Item = &'a str;
+
+    #[inline]
+    fn next(&mut self) -> Option<&'a str> {
+        if self.rest.is_empty() {
+            return None;
+        }
+        match find_byte(b'\n', self.rest) {
+            Some(index) => {
+                let mut line = &self.rest[..index];
+                if self.has_cr && line.last() == Some(&b'\r') {
+                    line = &line[..line.len() - 1];
+                }
+                self.rest = &self.rest[index + 1..];
+                Some(input_slice_as_str(line))
+            }
+            None => {
+                let line = self.rest;
+                self.rest = &[];
+                Some(input_slice_as_str(line))
+            }
+        }
+    }
+}
+
 /// Parses FCL text into the internal [`Catalog`] representation.
 pub(super) fn parse_catalog_to_internal_fcl(
     content: &str,
@@ -833,7 +897,9 @@ pub(super) fn parse_catalog_to_internal_fcl(
     }
     super::validate_source_locale(source_locale)?;
 
-    let mut lines = content.lines().enumerate();
+    let bytes = content.as_bytes();
+    let has_cr = find_byte(b'\r', bytes).is_some();
+    let mut lines = FclLines::new(bytes, has_cr).enumerate();
     let header = lines.next().map(|(_, line)| line).ok_or_else(|| {
         ApiError::InvalidArguments(
             "FCL catalog must start with a `%FCL1` or `%FCL2` header".to_owned(),
@@ -844,15 +910,16 @@ pub(super) fn parse_catalog_to_internal_fcl(
 
     // The entry count is at most the newline count; over-reserving by the header
     // and any blank lines only saves reallocations.
-    let estimated_entries = memchr::memchr_iter(b'\n', content.as_bytes()).count();
+    let estimated_entries = memchr::memchr_iter(b'\n', bytes).count();
     let mut messages: Vec<CanonicalMessage> = Vec::with_capacity(estimated_entries);
     let mut previous_prefix: Option<CollationPrefix> = None;
     let check_v2_collated =
         parsed_header.order == FclOrder::Collated && parsed_header.version == FclVersion::V2;
+    let check_v2_raw_cr = has_cr && parsed_header.version == FclVersion::V2;
     let legacy_collated =
         parsed_header.version == FclVersion::V1 && parsed_header.order == FclOrder::Collated;
     for (index, line) in lines {
-        if parsed_header.version == FclVersion::V2 && find_byte(b'\r', line.as_bytes()).is_some() {
+        if check_v2_raw_cr && find_byte(b'\r', line.as_bytes()).is_some() {
             return Err(ApiError::InvalidArguments(format!(
                 "invalid FCL entry on line {}: raw carriage return must be escaped as \\r",
                 index + 1
@@ -955,6 +1022,7 @@ mod tests {
             "en",
             &RenderOptions::default(),
         )
+        .expect("serialize FCL")
     }
 
     #[test]
@@ -1131,7 +1199,8 @@ mod tests {
             diagnostics: Vec::new(),
         };
 
-        let text = stringify_catalog_fcl(&catalog, Some("de"), "en", &RenderOptions::default());
+        let text = stringify_catalog_fcl(&catalog, Some("de"), "en", &RenderOptions::default())
+            .expect("serialize FCL");
 
         assert_eq!(text.matches("\tr=src/app.rs#Greeting").count(), 1);
         assert!(text.contains("\tc=Translator note"));
@@ -1295,7 +1364,8 @@ mod tests {
         )
         .expect("parse PO");
 
-        let text = stringify_catalog_fcl(&catalog, Some("de"), "en", &RenderOptions::default());
+        let text = stringify_catalog_fcl(&catalog, Some("de"), "en", &RenderOptions::default())
+            .expect("serialize FCL");
 
         assert!(text.contains("\tc=extracted note\ttc=translator note\tf=fuzzy\tf=x-custom\n"));
     }
@@ -1364,7 +1434,8 @@ mod tests {
             diagnostics: Vec::new(),
         };
 
-        let text = stringify_catalog_fcl(&catalog, Some("de"), "en", &RenderOptions::default());
+        let text = stringify_catalog_fcl(&catalog, Some("de"), "en", &RenderOptions::default())
+            .expect("serialize FCL");
         assert!(text.starts_with("%FCL2\tsource=en\tlocale=de\torder=collated\n"));
         // Both id and target columns are synthesized ICU plural strings, and the
         // lock/ai block survives because the lock matches the plural translation.
@@ -1419,7 +1490,8 @@ mod tests {
             diagnostics: Vec::new(),
         };
 
-        let text = stringify_catalog_fcl(&catalog, Some("de"), "en", &RenderOptions::default());
+        let text = stringify_catalog_fcl(&catalog, Some("de"), "en", &RenderOptions::default())
+            .expect("serialize FCL");
         assert!(text.contains("Hello\tn\tHallo"));
         assert!(!text.contains("mt."));
     }
@@ -1489,7 +1561,8 @@ mod tests {
             diagnostics: Vec::new(),
         };
 
-        let text = stringify_catalog_fcl(&catalog, Some("de"), "en", &RenderOptions::default());
+        let text = stringify_catalog_fcl(&catalog, Some("de"), "en", &RenderOptions::default())
+            .expect("serialize FCL");
         let reparsed = parse_catalog_to_internal_fcl(
             &text,
             Some("de"),
@@ -1567,5 +1640,27 @@ mod tests {
         )
         .expect("FCL1 keeps legacy interpretation");
         assert_eq!(fcl1_parsed.messages.len(), 1);
+    }
+
+    #[test]
+    fn fcl_lines_matches_std_lines_across_terminators() {
+        for input in [
+            "",
+            "\n",
+            "\r\n",
+            "\r",
+            "a",
+            "a\n",
+            "a\r\n",
+            "a\n\nb",
+            "a\r\n\r\nb\r\n",
+            "a\rb\nc\r",
+            "héllo\nworld\r\n!",
+        ] {
+            let has_cr = crate::scan::find_byte(b'\r', input.as_bytes()).is_some();
+            let got: Vec<&str> = super::FclLines::new(input.as_bytes(), has_cr).collect();
+            let expected: Vec<&str> = input.lines().collect();
+            assert_eq!(got, expected, "input={input:?}");
+        }
     }
 }

@@ -211,8 +211,10 @@ impl<'a> BorrowedMsgStr<'a> {
     pub(crate) fn expand_singular_to_plural_width(&mut self, width: usize) {
         match self {
             Self::Singular(value) => {
-                let mut values = vec![std::mem::take(value)];
-                values.resize(width.max(1), Cow::Borrowed(""));
+                let target_len = width.max(1);
+                let mut values = Vec::with_capacity(target_len);
+                values.push(std::mem::take(value));
+                values.resize(target_len, Cow::Borrowed(""));
                 *self = Self::Plural(values);
             }
             Self::Plural(values) if values.len() == 1 => {
@@ -223,23 +225,30 @@ impl<'a> BorrowedMsgStr<'a> {
     }
 
     fn promote_plural(&mut self, plural_index: usize) -> &mut Vec<Cow<'a, str>> {
+        let target_len = plural_index + 1;
         match self {
             Self::None => {
-                *self = Self::Plural(Vec::with_capacity(2));
-                self.promote_plural(plural_index)
+                let mut values = Vec::with_capacity(target_len.max(2));
+                values.resize(target_len, Cow::Borrowed(""));
+                *self = Self::Plural(values);
             }
             Self::Singular(value) => {
                 let value = std::mem::take(value);
-                *self = Self::Plural(vec![value]);
-                self.promote_plural(plural_index)
+                let mut values = Vec::with_capacity(target_len.max(2));
+                values.push(value);
+                values.resize(target_len, Cow::Borrowed(""));
+                *self = Self::Plural(values);
             }
             Self::Plural(values) => {
-                if values.len() <= plural_index {
-                    values.resize(plural_index + 1, Cow::Borrowed(""));
+                if values.len() < target_len {
+                    values.resize(target_len, Cow::Borrowed(""));
                 }
-                values
             }
         }
+        let Self::Plural(values) = self else {
+            unreachable!("promote_plural always yields Plural storage");
+        };
+        values
     }
 
     /// Converts the borrowed payload into an owned [`MsgStr`].
@@ -284,6 +293,18 @@ impl<'a> ParserState<'a> {
 
     fn reset(&mut self, nplurals: usize) {
         *self = Self::new(nplurals);
+    }
+
+    #[inline]
+    fn reset_after_take(&mut self, nplurals: usize) {
+        self.item.nplurals = nplurals;
+        if !self.header_entries.is_empty() {
+            self.header_entries.clear();
+        }
+        self.header_entries_faithful = true;
+        self.header_line_open = false;
+        self.msgstr = BorrowedMsgStr::None;
+        self.line.reset();
     }
 
     fn set_msgstr(&mut self, plural_index: usize, value: Cow<'a, str>) {
@@ -443,7 +464,9 @@ fn parse_comment_line<'a>(
         }
         CommentKind::Flags => {
             for flag in trimmed_str(&line_bytes[2..]).split(',') {
-                state.item.flags.push(Cow::Borrowed(flag.trim()));
+                let flag = flag.trim_ascii();
+                let flag = if flag.is_ascii() { flag } else { flag.trim() };
+                state.item.flags.push(Cow::Borrowed(flag));
             }
         }
         CommentKind::Extracted => state
@@ -619,7 +642,7 @@ fn finish_item<'a>(
 
     state.item.nplurals = *current_nplurals;
     file.items.push(std::mem::take(&mut state.item));
-    state.reset(*current_nplurals);
+    state.reset_after_take(*current_nplurals);
     Ok(())
 }
 

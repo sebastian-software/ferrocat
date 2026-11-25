@@ -195,6 +195,32 @@ fn make_collation_key(text: &str, stable_uncovered: bool) -> CollationKey {
         };
     }
 
+    // Printable ASCII (`0x20..=0x7E`, `ROWS[0..95]`) has non-zero primary and
+    // zero secondary weight for every code point, so primary and tertiary levels
+    // can be written directly into one exact-sized buffer without `SmallVec`
+    // spills or secondary bookkeeping.
+    let raw_bytes = text.as_bytes();
+    if raw_bytes
+        .iter()
+        .all(|&byte| byte.wrapping_sub(RANGE_START as u8) <= 94)
+    {
+        let len = raw_bytes.len();
+        let mut bytes = vec![0u8; len * 2];
+        let (primary, tertiary) = bytes.split_at_mut(len);
+        for ((&byte, primary_slot), tertiary_slot) in raw_bytes.iter().zip(primary).zip(tertiary) {
+            let row = &ROWS[usize::from(byte - RANGE_START as u8)];
+            debug_assert!(row.primary != 0 && row.secondary == 0);
+            *primary_slot = row.primary;
+            *tertiary_slot = u8::from(row.upper);
+        }
+        let end = u32::try_from(len).unwrap_or(u32::MAX);
+        return CollationKey {
+            bytes,
+            primary_end: end,
+            secondary_end: end,
+        };
+    }
+
     let mut levels = Levels {
         primary: Vec::with_capacity(text.len() * 2 + 8),
         secondary: SmallVec::new(),
@@ -235,5 +261,41 @@ fn make_collation_key(text: &str, stable_uncovered: bool) -> CollationKey {
         bytes: primary,
         primary_end: u32::try_from(primary_end).unwrap_or(u32::MAX),
         secondary_end: u32::try_from(secondary_end).unwrap_or(u32::MAX),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn printable_ascii_fast_path_matches_general_key_builder() {
+        for text in [
+            "Hello, World!",
+            "{count, plural, one {# item in cart} other {# items in cart}}",
+            " !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~",
+        ] {
+            let fast = make_collation_key(text, false);
+            let mut levels = Levels {
+                primary: Vec::with_capacity(text.len() * 2 + 8),
+                secondary: SmallVec::new(),
+                tertiary: SmallVec::new(),
+                primary_position: 0,
+                stable_uncovered: false,
+            };
+            for ch in text.chars() {
+                levels.push_char(ch);
+            }
+            let primary_end = levels.primary.len();
+            levels.primary.extend_from_slice(&levels.secondary);
+            let secondary_end = levels.primary.len();
+            levels.primary.extend_from_slice(&levels.tertiary);
+            let expected = CollationKey {
+                bytes: levels.primary,
+                primary_end: u32::try_from(primary_end).unwrap_or(u32::MAX),
+                secondary_end: u32::try_from(secondary_end).unwrap_or(u32::MAX),
+            };
+            assert_eq!(fast, expected, "text={text:?}");
+        }
     }
 }

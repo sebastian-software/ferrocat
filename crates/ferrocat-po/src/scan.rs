@@ -170,6 +170,7 @@ pub struct LineScanner<'a> {
     bytes: &'a [u8],
     offset: usize,
     line_number: usize,
+    has_cr: bool,
     finished: bool,
 }
 
@@ -179,6 +180,7 @@ impl<'a> LineScanner<'a> {
             bytes,
             offset: 0,
             line_number: 1,
+            has_cr: find_byte(b'\r', bytes).is_some(),
             finished: false,
         }
     }
@@ -195,31 +197,54 @@ impl<'a> Iterator for LineScanner<'a> {
                 return None;
             }
             let raw_offset = self.offset;
-            let line_end = find_either(b'\n', b'\r', &self.bytes[self.offset..])
-                .map_or(self.bytes.len(), |relative| self.offset + relative);
-            let separator = self.bytes.get(line_end).copied();
+            let (raw, next_offset) = if !self.has_cr {
+                match find_byte(b'\n', &self.bytes[self.offset..]) {
+                    Some(relative) => {
+                        let line_end = self.offset + relative;
+                        (&self.bytes[self.offset..line_end], line_end + 1)
+                    }
+                    None => (&self.bytes[self.offset..], self.bytes.len()),
+                }
+            } else {
+                let line_end = find_either(b'\n', b'\r', &self.bytes[self.offset..])
+                    .map_or(self.bytes.len(), |relative| self.offset + relative);
+                let separator = self.bytes.get(line_end).copied();
+                let next_offset = match separator {
+                    Some(b'\r') if self.bytes.get(line_end + 1) == Some(&b'\n') => line_end + 2,
+                    Some(b'\r' | b'\n') => line_end + 1,
+                    Some(_) => unreachable!("line separator search only returns CR or LF"),
+                    None => self.bytes.len(),
+                };
+                (&self.bytes[self.offset..line_end], next_offset)
+            };
             let line_number = self.line_number;
             self.line_number += 1;
-            let raw = &self.bytes[self.offset..line_end];
+            self.offset = next_offset;
 
-            self.offset = match separator {
-                Some(b'\r') if self.bytes.get(line_end + 1) == Some(&b'\n') => line_end + 2,
-                Some(b'\r' | b'\n') => line_end + 1,
-                Some(_) => unreachable!("line separator search only returns CR or LF"),
-                None => self.bytes.len(),
+            let (mut trimmed, mut content_offset) = match raw.first() {
+                None => {
+                    if self.offset == self.bytes.len() {
+                        return None;
+                    }
+                    continue;
+                }
+                // All ASCII whitespace bytes (`\t`, `\n`, `\x0b`, `\x0c`, `\r`, `' '`)
+                // are `<= 0x20`, so any leading byte `> b' '` skips the trim loop.
+                Some(&first) if first > b' ' => (raw, raw_offset),
+                Some(_) => {
+                    let trimmed = trim_ascii_start(raw);
+                    if trimmed.is_empty() {
+                        if self.offset == self.bytes.len() {
+                            return None;
+                        }
+                        continue;
+                    }
+                    (trimmed, raw_offset + raw.len() - trimmed.len())
+                }
             };
 
-            let mut trimmed = trim_ascii_start(raw);
-            let mut content_offset = raw_offset + raw.len() - trimmed.len();
-            if trimmed.is_empty() {
-                if self.offset == self.bytes.len() {
-                    return None;
-                }
-                continue;
-            }
-
             let mut obsolete = false;
-            if trimmed.starts_with(b"#~") {
+            if trimmed[0] == b'#' && trimmed.get(1) == Some(&b'~') {
                 let after_marker = &trimmed[2..];
                 trimmed = trim_ascii_start(after_marker);
                 content_offset += 2 + after_marker.len() - trimmed.len();
@@ -319,20 +344,44 @@ pub fn classify_line(line: &[u8]) -> LineKind {
             Some(b' ') | None => LineKind::Comment(CommentKind::Translator),
             _ => LineKind::Comment(CommentKind::Other),
         },
-        Some(b'm')
-            if line.starts_with(b"msgid_plural") && has_keyword_boundary(line, 12, false) =>
-        {
-            LineKind::Keyword(Keyword::IdPlural)
-        }
-        Some(b'm') if line.starts_with(b"msgid") && has_keyword_boundary(line, 5, false) => {
-            LineKind::Keyword(Keyword::Id)
-        }
-        Some(b'm') if line.starts_with(b"msgstr") && has_keyword_boundary(line, 6, true) => {
-            LineKind::Keyword(Keyword::Str)
-        }
-        Some(b'm') if line.starts_with(b"msgctxt") && has_keyword_boundary(line, 7, false) => {
-            LineKind::Keyword(Keyword::Ctxt)
-        }
+        // Inline byte dispatch avoids emitting dynamic `memcmp` calls for short
+        // PO keywords and checks the common `msgstr`/`msgid` forms in one switch.
+        Some(b'm') if line.len() >= 5 && line[1] == b's' && line[2] == b'g' => match line[3] {
+            b's' if line.len() >= 6
+                && line[4] == b't'
+                && line[5] == b'r'
+                && has_keyword_boundary(line, 6, true) =>
+            {
+                LineKind::Keyword(Keyword::Str)
+            }
+            b'i' if line[4] == b'd' => {
+                if has_keyword_boundary(line, 5, false) {
+                    LineKind::Keyword(Keyword::Id)
+                } else if line.len() >= 12
+                    && line[5] == b'_'
+                    && line[6] == b'p'
+                    && line[7] == b'l'
+                    && line[8] == b'u'
+                    && line[9] == b'r'
+                    && line[10] == b'a'
+                    && line[11] == b'l'
+                    && has_keyword_boundary(line, 12, false)
+                {
+                    LineKind::Keyword(Keyword::IdPlural)
+                } else {
+                    LineKind::Other
+                }
+            }
+            b'c' if line.len() >= 7
+                && line[4] == b't'
+                && line[5] == b'x'
+                && line[6] == b't'
+                && has_keyword_boundary(line, 7, false) =>
+            {
+                LineKind::Keyword(Keyword::Ctxt)
+            }
+            _ => LineKind::Other,
+        },
         _ => LineKind::Other,
     }
 }

@@ -328,7 +328,9 @@ fn parse_comment_line<'a>(
         CommentKind::Reference => state.item.references.push(trimmed_str(&line_bytes[2..])),
         CommentKind::Flags => {
             for flag in trimmed_str(&line_bytes[2..]).split(',') {
-                state.item.flags.push(flag.trim());
+                let flag = flag.trim_ascii();
+                let flag = if flag.is_ascii() { flag } else { flag.trim() };
+                state.item.flags.push(flag);
             }
         }
         CommentKind::Extracted => state
