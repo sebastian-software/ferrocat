@@ -1,4 +1,6 @@
-use memchr::{memchr_iter, memchr2_iter};
+use std::borrow::Cow;
+
+use memchr::memchr_iter;
 
 use crate::line_state::{PoLineContext, PoLineState};
 use crate::scan::{
@@ -189,15 +191,15 @@ fn reject_unsupported_declared_charset(input: &[u8]) -> Result<(), ParseError> {
     )))
 }
 
-fn declared_charset(input: &[u8]) -> Option<&str> {
+fn declared_charset(input: &[u8]) -> Option<Cow<'_, str>> {
     let input = input.strip_prefix(b"\xef\xbb\xbf").unwrap_or(input);
     let mut saw_empty_msgid = false;
     let mut in_header_msgstr = false;
-    let mut in_content_type = false;
+    let mut current_line = Vec::new();
 
     for line in LineScanner::new(input) {
         if line.obsolete {
-            return None;
+            break;
         }
         match classify_line(line.trimmed) {
             LineKind::Comment(_) if !saw_empty_msgid => {}
@@ -216,100 +218,102 @@ fn declared_charset(input: &[u8]) -> Option<&str> {
             }
             LineKind::Keyword(Keyword::Str) if saw_empty_msgid && !in_header_msgstr => {
                 in_header_msgstr = true;
-                if let Some(charset) =
-                    charset_in_header_fragment(line.trimmed, &mut in_content_type)
-                {
+                if let Some(charset) = scan_header_fragment(line.trimmed, &mut current_line) {
                     return Some(charset);
                 }
             }
             LineKind::Continuation if in_header_msgstr => {
-                if let Some(charset) =
-                    charset_in_header_fragment(line.trimmed, &mut in_content_type)
-                {
+                if let Some(charset) = scan_header_fragment(line.trimmed, &mut current_line) {
                     return Some(charset);
                 }
             }
-            _ => return None,
+            _ => break,
         }
+    }
+
+    if in_header_msgstr && !current_line.is_empty() {
+        return charset_from_header_line(&current_line).map(|value| Cow::Owned(value.to_owned()));
     }
 
     None
 }
 
-fn charset_in_header_fragment<'a>(line: &'a [u8], in_content_type: &mut bool) -> Option<&'a str> {
-    const CONTENT_TYPE: &[u8] = b"content-type:";
-    const CHARSET: &[u8] = b"charset=";
-
+fn scan_header_fragment<'a>(line: &'a [u8], current_line: &mut Vec<u8>) -> Option<Cow<'a, str>> {
     let (start, end) = find_quoted_bounds(line)?;
-    let mut rest = &line[start..end];
+    let raw = &line[start..end];
+    let mut index = 0usize;
 
-    while !rest.is_empty() {
-        let (segment, ended_line, next_rest) = match find_escaped_newline(rest) {
-            Some(pos) => (&rest[..pos], true, &rest[pos + 2..]),
-            None => (rest, false, &b""[..]),
+    while index < raw.len() {
+        let Some(relative) = find_byte(b'\\', &raw[index..]) else {
+            current_line.extend_from_slice(&raw[index..]);
+            break;
+        };
+        let pos = index + relative;
+        let segment = &raw[index..pos];
+        let Some(&escaped) = raw.get(pos + 1) else {
+            current_line.extend_from_slice(segment);
+            current_line.push(b'\\');
+            break;
         };
 
-        let search_slice = if *in_content_type {
-            Some(segment)
-        } else {
-            find_ascii_case(segment, CONTENT_TYPE).map(|pos| &segment[pos + CONTENT_TYPE.len()..])
-        };
-
-        if let Some(after_header) = search_slice {
-            if let Some(charset_pos) = find_ascii_case(after_header, CHARSET) {
-                let value = &after_header[charset_pos + CHARSET.len()..];
-                let value_end = value
-                    .iter()
-                    .position(|byte| {
-                        matches!(byte, b'\\' | b'"' | b'\'' | b';') || byte.is_ascii_whitespace()
-                    })
-                    .unwrap_or(value.len());
-                if value_end > 0 {
-                    return std::str::from_utf8(&value[..value_end]).ok();
+        match escaped {
+            b'n' | b'r' => {
+                if current_line.is_empty() {
+                    if let Some(charset) = charset_from_header_line(segment) {
+                        return Some(Cow::Borrowed(charset));
+                    }
+                } else {
+                    current_line.extend_from_slice(segment);
+                    if let Some(charset) = charset_from_header_line(current_line) {
+                        return Some(Cow::Owned(charset.to_owned()));
+                    }
+                    current_line.clear();
                 }
             }
-            *in_content_type = !ended_line;
-        } else if ended_line {
-            *in_content_type = false;
+            b't' => {
+                current_line.extend_from_slice(segment);
+                current_line.push(b'\t');
+            }
+            other => {
+                current_line.extend_from_slice(segment);
+                current_line.push(other);
+            }
         }
 
-        rest = next_rest;
+        index = pos + 2;
     }
 
     None
 }
 
-fn find_escaped_newline(bytes: &[u8]) -> Option<usize> {
-    let mut offset = 0usize;
-    while let Some(relative) = find_byte(b'\\', &bytes[offset..]) {
-        let pos = offset + relative;
-        match bytes.get(pos + 1) {
-            Some(b'n') => return Some(pos),
-            Some(_) => offset = pos + 2,
-            None => return None,
+fn charset_from_header_line(line: &[u8]) -> Option<&str> {
+    let (key, value) = split_once_byte(trim_ascii(line), b':')?;
+    if !trim_ascii(key).eq_ignore_ascii_case(b"content-type") {
+        return None;
+    }
+
+    for part in value.split(|&byte| byte == b';') {
+        let Some((name, raw_value)) = split_once_byte(part, b'=') else {
+            continue;
+        };
+        if !trim_ascii(name).eq_ignore_ascii_case(b"charset") {
+            continue;
+        }
+        let raw_value = trim_ascii(raw_value);
+        let unquoted = raw_value
+            .strip_prefix(b"\"")
+            .or_else(|| raw_value.strip_prefix(b"'"))
+            .unwrap_or(raw_value);
+        let value_end = unquoted
+            .iter()
+            .position(|byte| matches!(byte, b'"' | b'\'' | b'\\') || byte.is_ascii_whitespace())
+            .unwrap_or(unquoted.len());
+        if value_end > 0 {
+            return std::str::from_utf8(&unquoted[..value_end]).ok();
         }
     }
+
     None
-}
-
-fn find_ascii_case(haystack: &[u8], needle: &[u8]) -> Option<usize> {
-    let Some((&first, rest)) = needle.split_first() else {
-        return Some(0);
-    };
-
-    let matches_at = |index: usize| {
-        haystack
-            .get(index + 1..index + 1 + rest.len())
-            .is_some_and(|tail| tail.eq_ignore_ascii_case(rest))
-    };
-
-    if first.is_ascii_alphabetic() {
-        let lower = first.to_ascii_lowercase();
-        let upper = first.to_ascii_uppercase();
-        memchr2_iter(lower, upper, haystack).find(|&index| matches_at(index))
-    } else {
-        memchr_iter(first, haystack).find(|&index| matches_at(index))
-    }
 }
 
 fn parse_line(
@@ -567,7 +571,7 @@ fn trimmed_string(bytes: &[u8]) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{declared_charset, find_ascii_case, parse_po, parse_po_bytes};
+    use super::{declared_charset, parse_po, parse_po_bytes};
 
     const MULTI_LINE: &str = r#"# French translation of Link (6.x-2.9)
 # Copyright (c) 2011 by the French translation team
@@ -813,18 +817,7 @@ msgstr "Datei"
     fn declared_charset_reads_header_value_case_insensitively() {
         let input = b"msgid \"\"\nmsgstr \"\"\n\"Content-Type: text/plain; CHARSET=utf8\\n\"\n\n";
 
-        assert_eq!(declared_charset(input), Some("utf8"));
-    }
-
-    #[test]
-    fn ascii_case_search_matches_alpha_and_non_alpha_anchors() {
-        assert_eq!(
-            find_ascii_case(b"xxCONTENT-TYPE: text/plain", b"content-type:"),
-            Some(2)
-        );
-        assert_eq!(find_ascii_case(b"name=value", b"=VALUE"), Some(4));
-        assert_eq!(find_ascii_case(b"anything", b""), Some(0));
-        assert_eq!(find_ascii_case(b"anything", b"missing"), None);
+        assert_eq!(declared_charset(input).as_deref(), Some("utf8"));
     }
 
     #[test]
@@ -832,6 +825,34 @@ msgstr "Datei"
         let input = b"msgid \"charset=ISO-8859-1\"\nmsgstr \"\"\n";
 
         assert_eq!(declared_charset(input), None);
+    }
+
+    #[test]
+    fn parse_po_bytes_assembles_split_charset_and_matches_content_type_by_name() {
+        let split_utf8 = b"msgid \"\"\nmsgstr \"\"\n\"Content-Type: text/plain; charset=UT\"\n\"F-8\\n\"\n\nmsgid \"Hello\"\nmsgstr \"Hallo\"\n";
+        let parsed = parse_po_bytes(split_utf8).expect("split UTF-8 charset must parse");
+        assert_eq!(parsed.headers[0].key, "Content-Type");
+        assert_eq!(parsed.headers[0].value, "text/plain; charset=UTF-8");
+        assert_eq!(parsed.items[0].msgstr[0], "Hallo");
+
+        let x_notes = b"msgid \"\"\nmsgstr \"\"\n\"X-Notes: Content-Type: text/plain; \"\n\"charset=ISO-8859-1\\n\"\n\"Content-Type: text/plain; charset=UTF-8\\n\"\n\nmsgid \"Hello\"\nmsgstr \"Hallo\"\n";
+        let parsed = parse_po_bytes(x_notes)
+            .expect("Content-Type text inside X-Notes must not trigger charset rejection");
+        assert_eq!(parsed.headers.len(), 2);
+        assert_eq!(parsed.headers[0].key, "X-Notes");
+        assert_eq!(parsed.headers[1].key, "Content-Type");
+
+        let split_header_name =
+            b"msgid \"\"\nmsgstr \"\"\n\"Content-\"\n\"Type: text/plain;\\tcharset=\\\"ISO-8859-1\\\"\"\n";
+        let error = parse_po_bytes(split_header_name)
+            .expect_err("split non-UTF-8 Content-Type without trailing newline should fail");
+        assert!(error.message().contains("ISO-8859-1"));
+
+        let other_param_charset = b"msgid \"\"\nmsgstr \"\"\n\"Content-Type: text/plain; x-charset=ISO-8859-1; charset=UTF-8\\n\"\n";
+        assert_eq!(
+            declared_charset(other_param_charset).as_deref(),
+            Some("UTF-8")
+        );
     }
 
     #[test]
@@ -871,7 +892,8 @@ msgstr "Datei"
         assert_eq!(
             declared_charset(
                 b"msgid \"\"\nmsgstr \"X-Test: a\\\\nb\\nContent-Type: text/plain; charset=ISO-8859-1\\n\"\n"
-            ),
+            )
+            .as_deref(),
             Some("ISO-8859-1")
         );
     }
