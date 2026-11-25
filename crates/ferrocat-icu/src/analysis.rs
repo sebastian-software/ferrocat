@@ -473,7 +473,7 @@ fn visit_nodes(nodes: &[IcuNode], analysis: &mut IcuAnalysis) {
                 push_argument(analysis, name, argument_kind);
                 analysis.plurals.push(IcuPluralSummary {
                     name: name.clone(),
-                    kind: kind.clone(),
+                    kind: *kind,
                     offset: *offset,
                     selectors: selectors(options),
                 });
@@ -753,7 +753,7 @@ fn compare_selects(
 }
 
 fn plural_key(plural: &IcuPluralSummary) -> (&str, IcuPluralKind) {
-    (plural.name.as_str(), plural.kind.clone())
+    (plural.name.as_str(), plural.kind)
 }
 
 fn plural_map(analysis: &IcuAnalysis) -> BTreeMap<(&str, IcuPluralKind), &IcuPluralSummary> {

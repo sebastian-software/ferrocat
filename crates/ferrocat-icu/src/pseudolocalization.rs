@@ -142,7 +142,7 @@ fn pseudolocalize_node(node: &IcuNode, options: &IcuPseudolocalizationOptions<'_
             options: cases,
         } => IcuNode::Plural {
             name: name.clone(),
-            kind: kind.clone(),
+            kind: *kind,
             offset: *offset,
             options: pseudolocalize_options(cases, options),
         },
