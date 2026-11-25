@@ -148,7 +148,7 @@ where
     match config.format {
         OutputFormat::Text => write_text_report(&report, stdout)?,
         OutputFormat::Json => {
-            serde_json::to_writer_pretty(&mut *stdout, &json_report(&report)).map_err(|error| {
+            serde_json::to_writer_pretty(&mut *stdout, &report).map_err(|error| {
                 CliError::runtime(format!("failed to write JSON report: {error}"))
             })?;
             writeln!(stdout)?;
@@ -220,51 +220,6 @@ fn format_source_key(source_key: &ferrocat_po::CatalogAuditMessageRef) -> String
         Some(msgctxt) => format!("{locale} {msgctxt:?} / {:?}", source_key.msgid),
         None => format!("{locale} {:?}", source_key.msgid),
     }
-}
-
-fn json_report(report: &CatalogAuditReport) -> serde_json::Value {
-    serde_json::json!({
-        "summary": {
-            "source_messages": report.summary.source_messages,
-            "target_locales": report.summary.target_locales,
-            "diagnostics": report.summary.diagnostics,
-            "errors": report.summary.errors,
-            "warnings": report.summary.warnings,
-            "infos": report.summary.infos,
-        },
-        "diagnostics": report
-            .diagnostics
-            .iter()
-            .map(json_diagnostic)
-            .collect::<Vec<_>>(),
-    })
-}
-
-fn json_diagnostic(diagnostic: &ferrocat_po::CatalogAuditDiagnostic) -> serde_json::Value {
-    let severity = match diagnostic.severity {
-        DiagnosticSeverity::Info => "info",
-        DiagnosticSeverity::Warning => "warning",
-        DiagnosticSeverity::Error => "error",
-    };
-    let source_key = diagnostic
-        .source_key
-        .as_ref()
-        .map(|source_key| {
-            serde_json::json!({
-                "locale": source_key.locale.as_deref(),
-                "msgid": source_key.msgid.as_str(),
-                "msgctxt": source_key.msgctxt.as_deref(),
-            })
-        })
-        .unwrap_or(serde_json::Value::Null);
-
-    serde_json::json!({
-        "severity": severity,
-        "code": diagnostic.code.as_str(),
-        "message": diagnostic.message.as_str(),
-        "source_key": source_key,
-        "name": diagnostic.name.as_deref(),
-    })
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
