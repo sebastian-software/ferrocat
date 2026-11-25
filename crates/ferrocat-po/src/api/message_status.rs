@@ -31,7 +31,8 @@ pub(super) fn active_message_keys(
 ) -> BTreeSet<CatalogMessageKey> {
     catalog
         .iter()
-        .filter_map(|(key, message)| (message.obsolete.is_none()).then_some(key.clone()))
+        .filter(|message| message.obsolete.is_none())
+        .map(CatalogMessage::key)
         .collect()
 }
 
@@ -39,7 +40,7 @@ pub(super) fn classify_expected_message(
     target_catalog: &NormalizedParsedCatalog,
     key: &CatalogMessageKey,
 ) -> CatalogMessageStatus {
-    let Some(message) = target_catalog.get(key) else {
+    let Some((index, message)) = target_catalog.get_with_index(key) else {
         return CatalogMessageStatus::Missing;
     };
     if message.obsolete.is_some() {
@@ -48,18 +49,20 @@ pub(super) fn classify_expected_message(
     if translation_is_empty(message) {
         return CatalogMessageStatus::Empty;
     }
-    if target_catalog.is_fuzzy(key) {
+    if target_catalog.is_fuzzy_index(index) {
         return CatalogMessageStatus::Fuzzy;
     }
     CatalogMessageStatus::Translated
 }
 
 pub(super) fn is_extra_target_message(
-    source_keys: &BTreeSet<CatalogMessageKey>,
-    key: &CatalogMessageKey,
+    source_catalog: &NormalizedParsedCatalog,
     message: &CatalogMessage,
 ) -> bool {
-    message.obsolete.is_none() && !source_keys.contains(key)
+    message.obsolete.is_none()
+        && !source_catalog
+            .get_by_parts(&message.msgid, message.msgctxt.as_deref())
+            .is_some_and(|source_message| source_message.obsolete.is_none())
 }
 
 pub(super) fn translation_is_empty(message: &CatalogMessage) -> bool {

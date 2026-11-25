@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, btree_map, hash_map};
+use std::collections::{BTreeMap, hash_map};
 use std::fmt;
 use std::hash::{Hash, Hasher};
 use std::path::{Path, PathBuf};
@@ -133,6 +133,19 @@ impl From<Vec<SourceExtractedMessage>> for CatalogUpdateInput {
     }
 }
 
+/// Structured plural translation payload for [`TranslationShape::Plural`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
+pub struct PluralTranslation {
+    /// Source-side plural forms.
+    pub source: PluralSource,
+    /// Translation values keyed by plural category.
+    pub translation: BTreeMap<String, String>,
+    /// Variable name used when re-synthesizing ICU plural strings.
+    pub variable: String,
+}
+
 /// Public translation shape returned from parsed catalogs.
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
@@ -143,15 +156,9 @@ pub enum TranslationShape {
         /// The current translation value.
         value: String,
     },
-    /// Message represented by structured plural categories.
-    Plural {
-        /// Source-side plural forms.
-        source: PluralSource,
-        /// Translation values keyed by plural category.
-        translation: BTreeMap<String, String>,
-        /// Variable name used when re-synthesizing ICU plural strings.
-        variable: String,
-    },
+    /// Message represented by structured plural categories (boxed to keep
+    /// singular [`CatalogMessage`] entries compact in memory).
+    Plural(Box<PluralTranslation>),
 }
 
 /// Borrowed view over a message translation.
@@ -193,8 +200,9 @@ pub struct CatalogMessage {
     /// (with an optional write-once `since` date, see [`ObsoleteInfo`]).
     pub obsolete: Option<ObsoleteInfo>,
     /// Optional metadata when the current value is machine-managed (see
-    /// [`MachineMetadata`]).
-    pub machine: Option<MachineMetadata>,
+    /// [`MachineMetadata`]; boxed to keep entries without machine metadata
+    /// compact in memory).
+    pub machine: Option<Box<MachineMetadata>>,
 }
 
 /// Obsolete-entry payload. Presence on [`CatalogMessage::obsolete`] marks the
@@ -224,8 +232,8 @@ impl CatalogMessage {
     pub fn effective_translation(&self) -> EffectiveTranslationRef<'_> {
         match &self.translation {
             TranslationShape::Singular { value } => EffectiveTranslationRef::Singular(value),
-            TranslationShape::Plural { translation, .. } => {
-                EffectiveTranslationRef::Plural(translation)
+            TranslationShape::Plural(plural) => {
+                EffectiveTranslationRef::Plural(&plural.translation)
             }
         }
     }
@@ -233,8 +241,8 @@ impl CatalogMessage {
     pub(super) fn effective_translation_owned(&self) -> EffectiveTranslation {
         match &self.translation {
             TranslationShape::Singular { value } => EffectiveTranslation::Singular(value.clone()),
-            TranslationShape::Plural { translation, .. } => {
-                EffectiveTranslation::Plural(translation.clone())
+            TranslationShape::Plural(plural) => {
+                EffectiveTranslation::Plural(plural.translation.clone())
             }
         }
     }
@@ -253,14 +261,10 @@ impl CatalogMessage {
                     EffectiveTranslation::Singular(value.clone())
                 }
             }
-            TranslationShape::Plural {
-                source,
-                translation,
-                ..
-            } => {
+            TranslationShape::Plural(plural) => {
                 let profile = PluralProfile::for_locale(locale);
                 EffectiveTranslation::Plural(
-                    profile.source_fallback_translation(translation, source),
+                    profile.source_fallback_translation(&plural.translation, &plural.source),
                 )
             }
         }
@@ -279,15 +283,11 @@ impl CatalogMessage {
                     EffectiveTranslation::Singular(value.clone())
                 }
             }
-            TranslationShape::Plural {
-                source,
-                translation,
-                ..
-            } => {
+            TranslationShape::Plural(plural) => {
                 let profile =
                     cached_profile.get_or_insert_with(|| PluralProfile::for_locale(locale));
                 EffectiveTranslation::Plural(
-                    profile.source_fallback_translation(translation, source),
+                    profile.source_fallback_translation(&plural.translation, &plural.source),
                 )
             }
         }
@@ -1030,7 +1030,7 @@ enum HashSlot {
 #[derive(Debug, Clone, PartialEq)]
 pub struct NormalizedParsedCatalog {
     pub(super) catalog: ParsedCatalog,
-    pub(super) key_index: BTreeMap<CatalogMessageKey, usize>,
+    sorted_indices: Vec<usize>,
     msgid_hash_index: FxHashMap<u64, HashSlot>,
     review_fuzzy_indices: Option<FxHashSet<usize>>,
 }
@@ -1052,41 +1052,60 @@ impl NormalizedParsedCatalog {
         catalog: ParsedCatalog,
         review_fuzzy_indices: Option<FxHashSet<usize>>,
     ) -> Result<Self, ApiError> {
-        let mut key_index = BTreeMap::new();
         let mut msgid_hash_index = FxHashMap::<u64, HashSlot>::with_capacity_and_hasher(
             catalog.messages.len(),
             Default::default(),
         );
         for (index, message) in catalog.messages.iter().enumerate() {
-            let key = message.key();
-            match key_index.entry(key) {
-                btree_map::Entry::Vacant(entry) => {
-                    entry.insert(index);
-                }
-                btree_map::Entry::Occupied(entry) => {
-                    let key = entry.key();
-                    return Err(ApiError::Conflict(format!(
-                        "duplicate parsed catalog message for msgid {:?} and context {:?}",
-                        key.msgid, key.msgctxt
-                    )));
-                }
-            }
             match msgid_hash_index.entry(message_id_hash(&message.msgid)) {
                 hash_map::Entry::Vacant(entry) => {
                     entry.insert(HashSlot::One(index));
                 }
                 hash_map::Entry::Occupied(mut entry) => match entry.get_mut() {
                     HashSlot::One(first) => {
+                        let existing = &catalog.messages[*first];
+                        if existing.msgid == message.msgid && existing.msgctxt == message.msgctxt {
+                            return Err(ApiError::Conflict(format!(
+                                "duplicate parsed catalog message for msgid {:?} and context {:?}",
+                                message.msgid, message.msgctxt
+                            )));
+                        }
                         let first = *first;
                         *entry.get_mut() = HashSlot::Many(vec![first, index]);
                     }
-                    HashSlot::Many(indices) => indices.push(index),
+                    HashSlot::Many(indices) => {
+                        if indices.iter().any(|&existing_index| {
+                            let existing = &catalog.messages[existing_index];
+                            existing.msgid == message.msgid && existing.msgctxt == message.msgctxt
+                        }) {
+                            return Err(ApiError::Conflict(format!(
+                                "duplicate parsed catalog message for msgid {:?} and context {:?}",
+                                message.msgid, message.msgctxt
+                            )));
+                        }
+                        indices.push(index);
+                    }
                 },
             }
         }
+        let mut sorted_indices: Vec<usize> = (0..catalog.messages.len()).collect();
+        sorted_indices.sort_unstable_by(|&left, &right| {
+            let left_msg = &catalog.messages[left];
+            let right_msg = &catalog.messages[right];
+            left_msg
+                .msgid
+                .as_str()
+                .cmp(right_msg.msgid.as_str())
+                .then_with(|| {
+                    left_msg
+                        .msgctxt
+                        .as_deref()
+                        .cmp(&right_msg.msgctxt.as_deref())
+                })
+        });
         Ok(Self {
             catalog,
-            key_index,
+            sorted_indices,
             msgid_hash_index,
             review_fuzzy_indices,
         })
@@ -1112,16 +1131,12 @@ impl NormalizedParsedCatalog {
         }
     }
 
-    pub(super) fn is_fuzzy(&self, key: &CatalogMessageKey) -> bool {
-        let Some(fuzzy_indices) = self.review_fuzzy_indices.as_ref() else {
-            return false;
-        };
-        if fuzzy_indices.is_empty() {
-            return false;
-        }
-        self.key_index
-            .get(key)
-            .is_some_and(|index| fuzzy_indices.contains(index))
+    pub(super) fn is_fuzzy_index(&self, index: usize) -> bool {
+        self.review_fuzzy_indices
+            .as_ref()
+            .is_some_and(|fuzzy_indices| {
+                !fuzzy_indices.is_empty() && fuzzy_indices.contains(&index)
+            })
     }
 
     /// Returns the underlying parsed catalog.
@@ -1136,12 +1151,32 @@ impl NormalizedParsedCatalog {
         self.catalog
     }
 
+    pub(super) fn index_by_parts(&self, msgid: &str, msgctxt: Option<&str>) -> Option<usize> {
+        match self.msgid_hash_index.get(&message_id_hash(msgid))? {
+            HashSlot::One(index) => {
+                let message = &self.catalog.messages[*index];
+                (message.msgid.as_str() == msgid && message.msgctxt.as_deref() == msgctxt)
+                    .then_some(*index)
+            }
+            HashSlot::Many(indices) => indices.iter().copied().find(|&index| {
+                let message = &self.catalog.messages[index];
+                message.msgid.as_str() == msgid && message.msgctxt.as_deref() == msgctxt
+            }),
+        }
+    }
+
+    pub(super) fn get_with_index(
+        &self,
+        key: &CatalogMessageKey,
+    ) -> Option<(usize, &CatalogMessage)> {
+        let index = self.index_by_parts(&key.msgid, key.msgctxt.as_deref())?;
+        Some((index, &self.catalog.messages[index]))
+    }
+
     /// Returns a message by key.
     #[must_use]
     pub fn get(&self, key: &CatalogMessageKey) -> Option<&CatalogMessage> {
-        self.key_index
-            .get(key)
-            .map(|index| &self.catalog.messages[*index])
+        self.get_by_parts(&key.msgid, key.msgctxt.as_deref())
     }
 
     /// Returns a message by borrowed `msgid` and optional context parts.
@@ -1150,24 +1185,14 @@ impl NormalizedParsedCatalog {
     /// already have borrowed source identity fields.
     #[must_use]
     pub fn get_by_parts(&self, msgid: &str, msgctxt: Option<&str>) -> Option<&CatalogMessage> {
-        match self.msgid_hash_index.get(&message_id_hash(msgid))? {
-            HashSlot::One(index) => {
-                let message = &self.catalog.messages[*index];
-                (message.msgid.as_str() == msgid && message.msgctxt.as_deref() == msgctxt)
-                    .then_some(message)
-            }
-            HashSlot::Many(indices) => indices.iter().find_map(|index| {
-                let message = &self.catalog.messages[*index];
-                (message.msgid.as_str() == msgid && message.msgctxt.as_deref() == msgctxt)
-                    .then_some(message)
-            }),
-        }
+        self.index_by_parts(msgid, msgctxt)
+            .map(|index| &self.catalog.messages[index])
     }
 
     /// Returns `true` if a message for `key` exists.
     #[must_use]
     pub fn contains_key(&self, key: &CatalogMessageKey) -> bool {
-        self.key_index.contains_key(key)
+        self.get(key).is_some()
     }
 
     /// Returns `true` if a message exists for borrowed `msgid` and context parts.
@@ -1182,11 +1207,18 @@ impl NormalizedParsedCatalog {
         self.catalog.messages.len()
     }
 
-    /// Iterates over all indexed messages in key order.
-    pub fn iter(&self) -> impl Iterator<Item = (&CatalogMessageKey, &CatalogMessage)> + '_ {
-        self.key_index
+    pub(super) fn iter_with_indices(&self) -> impl Iterator<Item = (usize, &CatalogMessage)> + '_ {
+        self.sorted_indices
             .iter()
-            .map(|(key, index)| (key, &self.catalog.messages[*index]))
+            .copied()
+            .map(|index| (index, &self.catalog.messages[index]))
+    }
+
+    /// Iterates over all indexed messages in `(msgid, msgctxt)` key order.
+    pub fn iter(&self) -> impl Iterator<Item = &CatalogMessage> + '_ {
+        self.sorted_indices
+            .iter()
+            .map(|&index| &self.catalog.messages[index])
     }
 
     /// Returns the effective translation for `key`, if present.
@@ -2117,8 +2149,8 @@ mod tests {
         CombineCatalogOptions, Diagnostic, DiagnosticSeverity, EffectiveTranslation,
         EffectiveTranslationRef, MergeCatalogsThreeWayOptions, NormalizedParsedCatalog,
         ObsoleteStrategy, OrderBy, ParseCatalogOptions, ParsedCatalog, PlaceholderCommentMode,
-        PluralEncoding, PluralSource, RenderOptions, TranslationShape, UpdateCatalogFileOptions,
-        UpdateCatalogOptions, WriteDurability,
+        PluralEncoding, PluralSource, PluralTranslation, RenderOptions, TranslationShape,
+        UpdateCatalogFileOptions, UpdateCatalogOptions, WriteDurability,
     };
     use crate::ParseError;
 
@@ -2168,7 +2200,7 @@ mod tests {
         let plural = CatalogMessage {
             msgid: "{count, plural, one {# file} other {# files}}".to_owned(),
             msgctxt: None,
-            translation: TranslationShape::Plural {
+            translation: TranslationShape::Plural(Box::new(PluralTranslation {
                 source: PluralSource {
                     one: Some("{count} file".to_owned()),
                     other: "{count} files".to_owned(),
@@ -2178,7 +2210,7 @@ mod tests {
                     ("other".to_owned(), "{count} Dateien".to_owned()),
                 ]),
                 variable: "count".to_owned(),
-            },
+            })),
             comments: Vec::new(),
             origin: crate::PoVec::new(),
             obsolete: None,
@@ -2635,5 +2667,102 @@ mod tests {
         let roundtrip_diagnostic: Diagnostic = serde_json::from_value(diagnostic_json)
             .expect("diagnostic deserialization must succeed");
         assert_eq!(roundtrip_diagnostic, diagnostic);
+
+        let plural_message = CatalogMessage {
+            msgid: "items".to_owned(),
+            msgctxt: None,
+            translation: TranslationShape::Plural(Box::new(PluralTranslation {
+                source: PluralSource {
+                    one: Some("1 item".to_owned()),
+                    other: "{count} items".to_owned(),
+                },
+                translation: BTreeMap::from([
+                    ("one".to_owned(), "1 Artikel".to_owned()),
+                    ("other".to_owned(), "{count} Artikel".to_owned()),
+                ]),
+                variable: "count".to_owned(),
+            })),
+            comments: Vec::new(),
+            origin: crate::PoVec::new(),
+            obsolete: None,
+            machine: Some(Box::new(super::MachineMetadata {
+                lock: "abc123".to_owned(),
+                ai: None,
+            })),
+        };
+        let plural_json = serde_json::to_value(&plural_message)
+            .expect("plural catalog message serialization must succeed");
+        assert_eq!(plural_json["translation"]["kind"], "plural");
+        assert_eq!(plural_json["translation"]["variable"], "count");
+        assert_eq!(plural_json["machine"]["lock"], "abc123");
+        let roundtrip_plural: CatalogMessage = serde_json::from_value(plural_json)
+            .expect("plural catalog message deserialization must succeed");
+        assert_eq!(roundtrip_plural, plural_message);
+
+        let unknown_plural_field = serde_json::json!({
+            "kind": "plural",
+            "source": { "one": null, "other": "items" },
+            "translation": { "other": "Artikel" },
+            "variable": "count",
+            "extra": true
+        });
+        assert!(serde_json::from_value::<TranslationShape>(unknown_plural_field).is_err());
+    }
+
+    #[test]
+    fn normalized_catalog_iter_preserves_key_order_and_rejects_multi_context_duplicates() {
+        let make = |msgid: &str, msgctxt: Option<&str>| CatalogMessage {
+            msgid: msgid.to_owned(),
+            msgctxt: msgctxt.map(str::to_owned),
+            translation: TranslationShape::Singular {
+                value: String::new(),
+            },
+            comments: Vec::new(),
+            origin: crate::PoVec::new(),
+            obsolete: None,
+            machine: None,
+        };
+        let parsed = ParsedCatalog {
+            locale: Some("de".to_owned()),
+            semantics: CatalogSemantics::IcuNative,
+            headers: BTreeMap::new(),
+            messages: vec![
+                make("Beta", None),
+                make("Alpha", Some("menu")),
+                make("Alpha", None),
+                make("Alpha", Some("button")),
+            ],
+            diagnostics: Vec::new(),
+        };
+        let normalized = parsed.into_normalized_view().expect("normalized");
+        let ordered = normalized
+            .iter()
+            .map(|message| (message.msgid.as_str(), message.msgctxt.as_deref()))
+            .collect::<Vec<_>>();
+        assert_eq!(
+            ordered,
+            vec![
+                ("Alpha", None),
+                ("Alpha", Some("button")),
+                ("Alpha", Some("menu")),
+                ("Beta", None),
+            ]
+        );
+
+        let dup_parsed = ParsedCatalog {
+            locale: Some("de".to_owned()),
+            semantics: CatalogSemantics::IcuNative,
+            headers: BTreeMap::new(),
+            messages: vec![
+                make("Alpha", None),
+                make("Alpha", Some("button")),
+                make("Alpha", Some("button")),
+            ],
+            diagnostics: Vec::new(),
+        };
+        assert!(matches!(
+            dup_parsed.into_normalized_view(),
+            Err(ApiError::Conflict(_))
+        ));
     }
 }

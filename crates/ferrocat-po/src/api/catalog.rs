@@ -31,7 +31,8 @@ use super::{
     ApiError, CatalogMessage, CatalogOrigin, CatalogSemantics, CatalogStats, CatalogStorageFormat,
     CatalogUpdateInput, CatalogUpdateResult, Diagnostic, DiagnosticSeverity, ExtractedMessage,
     ObsoleteInfo, ObsoleteStrategy, OrderBy, ParseCatalogOptions, ParsedCatalog, PluralEncoding,
-    PluralSource, TranslationShape, UpdateCatalogFileOptions, UpdateCatalogOptions,
+    PluralSource, PluralTranslation, TranslationShape, UpdateCatalogFileOptions,
+    UpdateCatalogOptions,
 };
 use crate::{BorrowedMsgStr, BorrowedPoFile, BorrowedPoItem, PoVec, parse_po_borrowed};
 
@@ -70,8 +71,13 @@ pub(super) struct CanonicalMessage {
     pub(super) origins: PoVec<CatalogOrigin>,
     pub(super) placeholders: BTreeMap<String, Vec<String>>,
     pub(super) obsolete: Option<ObsoleteInfo>,
-    pub(super) machine: Option<MachineMetadata>,
+    pub(super) machine: Option<Box<MachineMetadata>>,
 }
+
+const _: () = assert!(
+    mem::size_of::<CanonicalMessage>() >= mem::size_of::<CatalogMessage>(),
+    "CanonicalMessage must stay at least as large as CatalogMessage for in-place collect reuse"
+);
 
 /// Translator-owned `#` comments and per-entry `#,` flags, preserved opaquely
 /// across updates; exact `fuzzy` is observed only by the review projection
@@ -135,15 +141,16 @@ impl OpaqueMetadata {
 pub(super) const PO_OBSOLETE_SINCE_KEY: &str = "obsolete-since";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) struct CanonicalPlural {
+    pub(super) source: PluralSource,
+    pub(super) translation_by_category: BTreeMap<String, String>,
+    pub(super) variable: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) enum CanonicalTranslation {
-    Singular {
-        value: String,
-    },
-    Plural {
-        source: PluralSource,
-        translation_by_category: BTreeMap<String, String>,
-        variable: String,
-    },
+    Singular { value: String },
+    Plural(Box<CanonicalPlural>),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -641,10 +648,9 @@ fn merge_catalogs(
             previous
                 .as_ref()
                 .and_then(|message| match &message.translation {
-                    CanonicalTranslation::Plural {
-                        translation_by_category,
-                        ..
-                    } => Some(translation_by_category.len()),
+                    CanonicalTranslation::Plural(plural) => {
+                        Some(plural.translation_by_category.len())
+                    }
                     CanonicalTranslation::Singular { .. } => None,
                 })
         } else {
@@ -818,24 +824,16 @@ fn merge_message(
         // unchanged and we're not overwriting source-locale text. Binding the
         // inner `Plural` here means a non-plural previous simply falls through
         // to the rebuild arm below.
-        (
-            NormalizedKind::Plural { source },
-            Some(CanonicalTranslation::Plural {
-                source: previous_source,
-                translation_by_category: mut previous_translation_by_category,
-                variable: previous_variable,
-            }),
-        ) if !(is_source_locale && overwrite_source_translations) => {
+        (NormalizedKind::Plural { source }, Some(CanonicalTranslation::Plural(mut previous)))
+            if !(is_source_locale && overwrite_source_translations) =>
+        {
             let categories_changed = plural_profile
-                .materialize_translation_in_place(&mut previous_translation_by_category);
-            let source_changed = source != previous_source;
+                .materialize_translation_in_place(&mut previous.translation_by_category);
+            let source_changed = source != previous.source;
+            previous.source = source;
 
             (
-                CanonicalTranslation::Plural {
-                    source,
-                    translation_by_category: previous_translation_by_category,
-                    variable: previous_variable,
-                },
+                CanonicalTranslation::Plural(previous),
                 categories_changed || source_changed,
             )
         }
@@ -860,11 +858,11 @@ fn merge_message(
                 plural_profile.empty_translation()
             };
 
-            let translation = CanonicalTranslation::Plural {
+            let translation = CanonicalTranslation::Plural(Box::new(CanonicalPlural {
                 source,
                 translation_by_category,
                 variable,
-            };
+            }));
             let changed = previous.is_none_or(|previous| previous != translation);
             (translation, changed)
         }
@@ -896,7 +894,7 @@ fn merge_message(
 
 fn extract_plural_variable(translation: Option<&CanonicalTranslation>) -> Option<String> {
     match translation {
-        Some(CanonicalTranslation::Plural { variable, .. }) => Some(variable.clone()),
+        Some(CanonicalTranslation::Plural(plural)) => Some(plural.variable.clone()),
         Some(CanonicalTranslation::Singular { .. }) | None => None,
     }
 }
@@ -932,7 +930,7 @@ pub(super) fn apply_header_defaults(
         match (parsed_header.raw.as_deref(), profile.gettext_header()) {
             (None, Some(header)) => {
                 if messages.iter().any(|message| {
-                    matches!(&message.translation, CanonicalTranslation::Plural { translation_by_category, .. } if translation_by_category.len() != profile.nplurals())
+                    matches!(&message.translation, CanonicalTranslation::Plural(plural) if plural.translation_by_category.len() != profile.nplurals())
                 }) {
                     diagnostics.push(Diagnostic::new(
                         DiagnosticSeverity::Info,
@@ -1190,7 +1188,7 @@ fn import_message_from_po(
                 plural_profile.categories().len(),
             )));
         }
-        CanonicalTranslation::Plural {
+        CanonicalTranslation::Plural(Box::new(CanonicalPlural {
             source: PluralSource {
                 one: Some(item.msgid.as_ref().to_owned()),
                 other: msgid_plural.into_owned(),
@@ -1207,7 +1205,7 @@ fn import_message_from_po(
                 .map(|(category, value)| ((*category).to_owned(), value))
                 .collect(),
             variable: "count".to_owned(),
-        }
+        }))
     } else {
         if semantics == CatalogSemantics::IcuNative
             && matches!(item.msgstr, BorrowedMsgStr::Plural(_))
@@ -1252,7 +1250,7 @@ fn import_obsolete(
 
 fn import_machine_metadata(
     metadata: &[(Cow<'_, str>, Cow<'_, str>)],
-) -> Result<Option<MachineMetadata>, ApiError> {
+) -> Result<Option<Box<MachineMetadata>>, ApiError> {
     let mut lock = None;
     let mut ai = None;
     for (key, value) in metadata {
@@ -1283,7 +1281,7 @@ fn import_machine_metadata(
         ai: ai.map(|value| parse_ai_descriptor(value)),
     };
     validate_machine_metadata(&metadata)?;
-    Ok(Some(metadata))
+    Ok(Some(Box::new(metadata)))
 }
 
 /// Splits extractor-style placeholder comments back out of the generic
@@ -1462,16 +1460,13 @@ fn validate_plural_forms_header(
 pub(super) fn public_message_from_canonical(message: CanonicalMessage) -> CatalogMessage {
     let translation = match message.translation {
         CanonicalTranslation::Singular { value } => TranslationShape::Singular { value },
-        CanonicalTranslation::Plural {
-            source,
-            translation_by_category,
-            variable,
-            ..
-        } => TranslationShape::Plural {
-            source,
-            translation: translation_by_category,
-            variable,
-        },
+        CanonicalTranslation::Plural(plural) => {
+            TranslationShape::Plural(Box::new(PluralTranslation {
+                source: plural.source,
+                translation: plural.translation_by_category,
+                variable: plural.variable,
+            }))
+        }
     };
 
     CatalogMessage {

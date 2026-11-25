@@ -137,6 +137,7 @@ pub use ferrocat::ParsedCatalog
 pub use ferrocat::PlaceholderCommentMode
 pub use ferrocat::PluralEncoding
 pub use ferrocat::PluralSource
+pub use ferrocat::PluralTranslation
 pub use ferrocat::PoFile
 pub use ferrocat::PoItem
 pub use ferrocat::PoVec
@@ -294,6 +295,7 @@ pub use ferrocat::catalog::ParsedCatalog
 pub use ferrocat::catalog::PlaceholderCommentMode
 pub use ferrocat::catalog::PluralEncoding
 pub use ferrocat::catalog::PluralSource
+pub use ferrocat::catalog::PluralTranslation
 pub use ferrocat::catalog::PoVec
 pub use ferrocat::catalog::RenderOptions
 pub use ferrocat::catalog::SourceExtractedMessage

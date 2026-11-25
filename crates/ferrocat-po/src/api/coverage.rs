@@ -203,6 +203,7 @@ pub fn measure_catalog_coverage(
         target_catalog.require_review_state("measure_catalog_coverage")?;
         locale_reports.push(coverage_for_locale(
             target_locale,
+            source_catalog,
             target_catalog,
             &source_keys,
             options.include_details,
@@ -218,6 +219,7 @@ pub fn measure_catalog_coverage(
 
 fn coverage_for_locale(
     locale: &str,
+    source_catalog: &NormalizedParsedCatalog,
     target_catalog: &NormalizedParsedCatalog,
     source_keys: &std::collections::BTreeSet<CatalogMessageKey>,
     include_details: bool,
@@ -240,13 +242,13 @@ fn coverage_for_locale(
         }
     }
 
-    for (key, message) in target_catalog.iter() {
-        if is_extra_target_message(source_keys, key, message) {
+    for message in target_catalog.iter() {
+        if is_extra_target_message(source_catalog, message) {
             increment_status(&mut coverage, CatalogMessageStatus::Extra);
             if include_details {
                 coverage.details.push(CatalogCoverageMessage {
                     locale: locale.to_owned(),
-                    source_key: key.clone(),
+                    source_key: message.key(),
                     status: CatalogMessageStatus::Extra,
                 });
             }

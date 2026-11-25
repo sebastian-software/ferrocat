@@ -83,6 +83,22 @@ that nested value. The artifact JSON schema remains version 1. For persisted
 artifacts and indexes, include the Ferrocat version, key strategy, and ICU
 syntax policy in the cache key alongside the catalog inputs.
 
+### Compact catalog memory layouts
+
+To shrink `CatalogMessage` and eliminate duplicate key storage in
+`NormalizedParsedCatalog`:
+
+- `TranslationShape::Plural` now wraps `Box<PluralTranslation>` instead of inline
+  fields (`TranslationShape::Plural(plural)` with `plural.source`,
+  `plural.translation`, and `plural.variable`). Its JSON representation is
+  unchanged (`{"kind": "plural", ...}`).
+- `CatalogMessage::machine` is now `Option<Box<MachineMetadata>>`. Its JSON
+  representation is unchanged.
+- `NormalizedParsedCatalog::iter()` now yields `&CatalogMessage` directly in
+  `(msgid, msgctxt)` key order instead of `(&CatalogMessageKey, &CatalogMessage)`.
+  Read `message.msgid` / `message.msgctxt` directly, or call `message.key()` when
+  an owned `CatalogMessageKey` is needed.
+
 ### Removed no-op parse option
 
 `ParseCatalogOptions::strict` and `ParseCatalogOptions::with_strict(...)` have

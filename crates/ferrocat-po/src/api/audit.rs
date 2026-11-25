@@ -228,6 +228,14 @@ impl CatalogAuditMessageRef {
             msgctxt: key.msgctxt.clone(),
         }
     }
+
+    fn from_message(locale: Option<&str>, message: &CatalogMessage) -> Self {
+        Self {
+            locale: locale.map(str::to_owned),
+            msgid: message.msgid.clone(),
+            msgctxt: message.msgctxt.clone(),
+        }
+    }
 }
 
 /// One machine-readable catalog audit diagnostic.
@@ -401,9 +409,12 @@ pub fn audit_catalogs(
             target: &mut target_icu_cache,
         };
         audit_target_catalog(
+            AuditSourceContext {
+                catalog: source_catalog,
+                keys: &source_keys,
+            },
             target_catalog,
             target_locale,
-            &source_keys,
             options,
             icu_options,
             &mut icu_caches,
@@ -484,22 +495,23 @@ fn audit_catalog_entries(
     mut parsed_icu_cache: Option<&mut ParsedIcuCache>,
     report: &mut CatalogAuditReport,
 ) {
-    for (key, message) in catalog.iter() {
+    for (index, message) in catalog.iter_with_indices() {
         if options.checks.obsolete_entries && message.obsolete.is_some() {
             report.diagnostics.push(CatalogAuditDiagnostic::new(
                 DiagnosticSeverity::Info,
                 DiagnosticCode::from_static(diagnostic_codes::catalog::OBSOLETE_ENTRY),
                 "Catalog contains an obsolete entry.",
-                Some(CatalogAuditMessageRef::new(locale, key)),
+                Some(CatalogAuditMessageRef::from_message(locale, message)),
                 None,
             ));
         }
-        if options.checks.fuzzy_flags && message.obsolete.is_none() && catalog.is_fuzzy(key) {
+        if options.checks.fuzzy_flags && message.obsolete.is_none() && catalog.is_fuzzy_index(index)
+        {
             report.diagnostics.push(CatalogAuditDiagnostic::new(
                 DiagnosticSeverity::Info,
                 DiagnosticCode::from_static(diagnostic_codes::catalog::FUZZY_FLAG),
                 "Catalog entry carries a fuzzy review marker.",
-                Some(CatalogAuditMessageRef::new(locale, key)),
+                Some(CatalogAuditMessageRef::from_message(locale, message)),
                 Some("fuzzy".to_owned()),
             ));
         }
@@ -511,29 +523,33 @@ fn audit_catalog_entries(
                 icu_options.syntax_policy,
                 cache_parse,
                 locale,
-                key,
                 report,
             );
             if let (Some(cache), Some(parsed_candidate)) =
                 (parsed_icu_cache.as_deref_mut(), parsed_candidate)
             {
-                cache.insert(key.clone(), parsed_candidate);
+                cache.insert(message.key(), parsed_candidate);
             }
         }
     }
 }
 
+struct AuditSourceContext<'a> {
+    catalog: &'a NormalizedParsedCatalog,
+    keys: &'a BTreeSet<CatalogMessageKey>,
+}
+
 fn audit_target_catalog(
+    source: AuditSourceContext<'_>,
     target_catalog: &NormalizedParsedCatalog,
     target_locale: &str,
-    source_keys: &BTreeSet<CatalogMessageKey>,
     options: &CatalogAuditOptions<'_>,
     icu_options: &CatalogAuditIcuOptions,
     icu_caches: &mut AuditIcuCaches<'_>,
     report: &mut CatalogAuditReport,
 ) {
     if options.checks.completeness {
-        for key in source_keys {
+        for key in source.keys {
             match classify_expected_message(target_catalog, key) {
                 CatalogMessageStatus::Missing | CatalogMessageStatus::Obsolete => {
                     report.diagnostics.push(CatalogAuditDiagnostic::new(
@@ -564,15 +580,18 @@ fn audit_target_catalog(
     }
 
     if options.checks.extra_messages {
-        for (key, message) in target_catalog.iter() {
-            if is_extra_target_message(source_keys, key, message) {
+        for message in target_catalog.iter() {
+            if is_extra_target_message(source.catalog, message) {
                 report.diagnostics.push(CatalogAuditDiagnostic::new(
                     DiagnosticSeverity::Warning,
                     DiagnosticCode::from_static(diagnostic_codes::catalog::EXTRA_TRANSLATION),
                     format!(
                         "Locale `{target_locale}` contains an active message that is not present in the source catalog."
                     ),
-                    Some(CatalogAuditMessageRef::new(Some(target_locale), key)),
+                    Some(CatalogAuditMessageRef::from_message(
+                        Some(target_locale),
+                        message,
+                    )),
                     Some(target_locale.to_owned()),
                 ));
             }
@@ -583,7 +602,7 @@ fn audit_target_catalog(
         audit_icu_compatibility(
             target_catalog,
             target_locale,
-            source_keys,
+            source.keys,
             icu_options,
             icu_caches.source,
             icu_caches.target,
@@ -598,7 +617,6 @@ fn audit_icu_syntax_for_message(
     syntax_policy: IcuSyntaxPolicy,
     cache_parse: bool,
     locale: Option<&str>,
-    key: &CatalogMessageKey,
     report: &mut CatalogAuditReport,
 ) -> Option<Option<IcuMessage>> {
     let cache_candidate = if !cache_parse {
@@ -628,7 +646,7 @@ fn audit_icu_syntax_for_message(
                     DiagnosticSeverity::Error,
                     DiagnosticCode::from_static(diagnostic_codes::icu::INVALID_SYNTAX),
                     format!("Catalog message is not valid ICU MessageFormat v1: {error}"),
-                    Some(CatalogAuditMessageRef::new(locale, key)),
+                    Some(CatalogAuditMessageRef::from_message(locale, message)),
                     None,
                 ));
             }
