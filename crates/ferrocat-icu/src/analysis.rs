@@ -557,25 +557,26 @@ fn unique_names<'a>(names: impl IntoIterator<Item = &'a String>) -> Vec<String> 
     out
 }
 
-fn argument_map(analysis: &IcuAnalysis) -> BTreeMap<&str, IcuArgumentKind> {
-    analysis
-        .arguments
-        .iter()
-        .map(|argument| (argument.name.as_str(), argument.kind))
-        .collect()
+fn argument_map(analysis: &IcuAnalysis) -> BTreeMap<&str, BTreeSet<IcuArgumentKind>> {
+    let mut out = BTreeMap::<&str, BTreeSet<IcuArgumentKind>>::new();
+    for argument in &analysis.arguments {
+        out.entry(argument.name.as_str())
+            .or_default()
+            .insert(argument.kind);
+    }
+    out
 }
 
-fn formatter_map(analysis: &IcuAnalysis) -> BTreeMap<(&str, IcuArgumentKind), Option<&str>> {
-    analysis
-        .formatters
-        .iter()
-        .map(|formatter| {
-            (
-                (formatter.name.as_str(), formatter.kind),
-                formatter.style.as_deref().map(str::trim),
-            )
-        })
-        .collect()
+fn formatter_map(
+    analysis: &IcuAnalysis,
+) -> BTreeMap<(&str, IcuArgumentKind), BTreeSet<Option<&str>>> {
+    let mut out = BTreeMap::<(&str, IcuArgumentKind), BTreeSet<Option<&str>>>::new();
+    for formatter in &analysis.formatters {
+        out.entry((formatter.name.as_str(), formatter.kind))
+            .or_default()
+            .insert(formatter.style.as_deref().map(str::trim));
+    }
+    out
 }
 
 fn selector_set(selectors: &[String]) -> BTreeSet<&str> {
@@ -598,8 +599,8 @@ fn compare_arguments(
     let source_arguments = argument_map(source);
     let translation_arguments = argument_map(translation);
 
-    for (name, source_kind) in &source_arguments {
-        let Some(translation_kind) = translation_arguments.get(name) else {
+    for (name, source_kinds) in &source_arguments {
+        let Some(translation_kinds) = translation_arguments.get(name) else {
             report.diagnostics.push(IcuDiagnostic::new(
                 IcuDiagnosticSeverity::Error,
                 diagnostic_codes::icu::MISSING_ARGUMENT,
@@ -608,13 +609,22 @@ fn compare_arguments(
             ));
             continue;
         };
-        if source_kind != translation_kind {
+        if source_kinds != translation_kinds {
+            let message = match (
+                single_set_item(source_kinds),
+                single_set_item(translation_kinds),
+            ) {
+                (Some(source_kind), Some(translation_kind)) => format!(
+                    "Translation changes ICU argument `{name}` from {source_kind:?} to {translation_kind:?}."
+                ),
+                _ => format!(
+                    "Translation changes ICU argument `{name}` from {source_kinds:?} to {translation_kinds:?}."
+                ),
+            };
             report.diagnostics.push(IcuDiagnostic::new(
                 IcuDiagnosticSeverity::Error,
                 diagnostic_codes::icu::ARGUMENT_KIND_CHANGED,
-                format!(
-                    "Translation changes ICU argument `{name}` from {source_kind:?} to {translation_kind:?}."
-                ),
+                message,
                 Some((*name).to_owned()),
             ));
         }
@@ -644,18 +654,27 @@ fn compare_formatter_styles(
     let source_formatters = formatter_map(source);
     let translation_formatters = formatter_map(translation);
 
-    for ((name, kind), source_style) in source_formatters {
-        let Some(translation_style) = translation_formatters.get(&(name, kind)) else {
+    for ((name, kind), source_styles) in &source_formatters {
+        let Some(translation_styles) = translation_formatters.get(&(*name, *kind)) else {
             continue;
         };
-        if source_style != *translation_style {
+        if source_styles != translation_styles {
+            let message = match (
+                single_set_item(source_styles),
+                single_set_item(translation_styles),
+            ) {
+                (Some(source_style), Some(translation_style)) => format!(
+                    "Translation changes ICU formatter style for `{name}` from {source_style:?} to {translation_style:?}."
+                ),
+                _ => format!(
+                    "Translation changes ICU formatter style for `{name}` from {source_styles:?} to {translation_styles:?}."
+                ),
+            };
             report.diagnostics.push(IcuDiagnostic::new(
                 IcuDiagnosticSeverity::Error,
                 diagnostic_codes::icu::FORMATTER_STYLE_CHANGED,
-                format!(
-                    "Translation changes ICU formatter style for `{name}` from {source_style:?} to {translation_style:?}."
-                ),
-                Some(name.to_owned()),
+                message,
+                Some((*name).to_owned()),
             ));
         }
     }
@@ -752,16 +771,36 @@ fn compare_selects(
     }
 }
 
+fn single_set_item<T: Copy>(set: &BTreeSet<T>) -> Option<T> {
+    if set.len() == 1 {
+        set.iter().next().copied()
+    } else {
+        None
+    }
+}
+
 fn plural_key(plural: &IcuPluralSummary) -> (&str, IcuPluralKind) {
     (plural.name.as_str(), plural.kind)
 }
 
-fn plural_map(analysis: &IcuAnalysis) -> BTreeMap<(&str, IcuPluralKind), &IcuPluralSummary> {
-    analysis
-        .plurals
-        .iter()
-        .map(|plural| (plural_key(plural), plural))
-        .collect()
+struct AggregatedPlural<'a> {
+    offsets: BTreeSet<u32>,
+    selectors: BTreeSet<&'a str>,
+}
+
+fn plural_map(analysis: &IcuAnalysis) -> BTreeMap<(&str, IcuPluralKind), AggregatedPlural<'_>> {
+    let mut out = BTreeMap::<(&str, IcuPluralKind), AggregatedPlural<'_>>::new();
+    for plural in &analysis.plurals {
+        let entry = out
+            .entry(plural_key(plural))
+            .or_insert_with(|| AggregatedPlural {
+                offsets: BTreeSet::new(),
+                selectors: BTreeSet::new(),
+            });
+        entry.offsets.insert(plural.offset);
+        entry.selectors.extend(selector_set(&plural.selectors));
+    }
+    out
 }
 
 fn compare_plurals(
@@ -772,34 +811,40 @@ fn compare_plurals(
     let source_plurals = plural_map(source);
     let translation_plurals = plural_map(translation);
 
-    for (key, source_plural) in source_plurals {
-        let Some(translation_plural) = translation_plurals.get(&key) else {
+    for ((name, kind), source_plural) in &source_plurals {
+        let Some(translation_plural) = translation_plurals.get(&(*name, *kind)) else {
             continue;
         };
-        if source_plural.offset != translation_plural.offset {
+        if source_plural.offsets != translation_plural.offsets {
+            let message = match (
+                single_set_item(&source_plural.offsets),
+                single_set_item(&translation_plural.offsets),
+            ) {
+                (Some(source_offset), Some(translation_offset)) => format!(
+                    "Translation changes ICU plural offset for `{name}` from {source_offset} to {translation_offset}."
+                ),
+                _ => format!(
+                    "Translation changes ICU plural offset for `{name}` from {:?} to {:?}.",
+                    source_plural.offsets, translation_plural.offsets
+                ),
+            };
             report.diagnostics.push(IcuDiagnostic::new(
                 IcuDiagnosticSeverity::Error,
                 diagnostic_codes::icu::PLURAL_OFFSET_CHANGED,
-                format!(
-                    "Translation changes ICU plural offset for `{}` from {} to {}.",
-                    source_plural.name, source_plural.offset, translation_plural.offset
-                ),
-                Some(source_plural.name.clone()),
+                message,
+                Some((*name).to_owned()),
             ));
         }
 
-        let translation_selectors = selector_set(&translation_plural.selectors);
-        for selector in &source_plural.selectors {
-            let selector = selector.as_str();
-            if !translation_selectors.contains(selector) {
+        for &selector in &source_plural.selectors {
+            if !translation_plural.selectors.contains(selector) {
                 report.diagnostics.push(IcuDiagnostic::new(
                     IcuDiagnosticSeverity::Error,
                     diagnostic_codes::icu::MISSING_PLURAL_SELECTOR,
                     format!(
-                        "Translation is missing ICU plural selector `{selector}` for `{}`.",
-                        source_plural.name
+                        "Translation is missing ICU plural selector `{selector}` for `{name}`."
                     ),
-                    Some(format!("{}:{selector}", source_plural.name)),
+                    Some(format!("{name}:{selector}")),
                 ));
             }
         }
@@ -1159,5 +1204,90 @@ mod tests {
         assert!(!options.report_extra_tags);
         assert!(!options.report_extra_selectors);
         assert!(!options.report_pattern_styles);
+    }
+
+    #[test]
+    fn compare_icu_messages_handles_repeated_variables_across_roles_and_order() {
+        let source = parse_icu("{count} ({count, number})").expect("source");
+        let reordered = parse_icu("({count, number}) {count}").expect("reordered");
+        let report = compare_icu_messages(&source, &reordered, &IcuCompatibilityOptions::default());
+        assert!(
+            report.diagnostics.is_empty(),
+            "reordering repeated variable roles should not emit diagnostics: {:?}",
+            report.diagnostics
+        );
+
+        let dropped_role = parse_icu("{count} ({count})").expect("dropped role");
+        let dropped_report =
+            compare_icu_messages(&source, &dropped_role, &IcuCompatibilityOptions::default());
+        assert_eq!(
+            dropped_report
+                .diagnostics
+                .iter()
+                .map(|diagnostic| diagnostic.code.as_str())
+                .collect::<Vec<_>>(),
+            vec!["icu.argument_kind_changed"]
+        );
+
+        let multi_format_src = parse_icu("{d, date, short} / {d, date, full}").expect("src");
+        let multi_format_reordered = parse_icu("{d, date, full} / {d, date, short}").expect("tr");
+        assert!(
+            compare_icu_messages(
+                &multi_format_src,
+                &multi_format_reordered,
+                &IcuCompatibilityOptions::default()
+            )
+            .diagnostics
+            .is_empty()
+        );
+
+        let multi_format_changed = parse_icu("{d, date, short} / {d, date, medium}").expect("chg");
+        assert_eq!(
+            compare_icu_messages(
+                &multi_format_src,
+                &multi_format_changed,
+                &IcuCompatibilityOptions::default()
+            )
+            .diagnostics
+            .iter()
+            .map(|diagnostic| diagnostic.code.as_str())
+            .collect::<Vec<_>>(),
+            vec!["icu.formatter_style_changed"]
+        );
+
+        let multi_plural_src = parse_icu(
+            "{mode, select, a {{n, plural, offset:1 =0 {none} other {#}}} other {{n, plural, one {#} other {#}}}}",
+        )
+        .expect("multi plural src");
+        let multi_plural_reordered = parse_icu(
+            "{mode, select, other {{n, plural, one {#} other {#}}} a {{n, plural, offset:1 =0 {none} other {#}}}}",
+        )
+        .expect("multi plural reordered");
+        assert!(
+            compare_icu_messages(
+                &multi_plural_src,
+                &multi_plural_reordered,
+                &IcuCompatibilityOptions::default()
+            )
+            .diagnostics
+            .is_empty()
+        );
+
+        let multi_plural_changed = parse_icu(
+            "{mode, select, other {{n, plural, one {#} other {#}}} a {{n, plural, offset:2 =0 {none} other {#}}}}",
+        )
+        .expect("multi plural changed");
+        assert_eq!(
+            compare_icu_messages(
+                &multi_plural_src,
+                &multi_plural_changed,
+                &IcuCompatibilityOptions::default()
+            )
+            .diagnostics
+            .iter()
+            .map(|diagnostic| diagnostic.code.as_str())
+            .collect::<Vec<_>>(),
+            vec!["icu.plural_offset_changed"]
+        );
     }
 }
