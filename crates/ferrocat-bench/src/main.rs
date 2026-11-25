@@ -1302,20 +1302,20 @@ fn render_po_catalog(parsed: &ParsedCatalog) -> String {
 fn render_canonical_id(message: &CatalogMessage) -> String {
     match &message.translation {
         TranslationShape::Singular { .. } => message.msgid.clone(),
-        TranslationShape::Plural {
-            source, variable, ..
-        } => synthesize_icu_plural(variable, source.one.as_deref(), &source.other),
+        TranslationShape::Plural(plural) => synthesize_icu_plural(
+            &plural.variable,
+            plural.source.one.as_deref(),
+            &plural.source.other,
+        ),
     }
 }
 
 fn render_canonical_translation(message: &CatalogMessage) -> String {
     match &message.translation {
         TranslationShape::Singular { value } => value.clone(),
-        TranslationShape::Plural {
-            translation,
-            variable,
-            ..
-        } => synthesize_icu_plural_map(variable, translation),
+        TranslationShape::Plural(plural) => {
+            synthesize_icu_plural_map(&plural.variable, &plural.translation)
+        }
     }
 }
 fn synthesize_icu_plural_map(

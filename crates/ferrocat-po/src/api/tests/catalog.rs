@@ -424,17 +424,16 @@ fn parse_catalog_projects_gettext_plural_into_structured_shape() {
     .expect("parse");
 
     match &parsed.messages[0].translation {
-        TranslationShape::Plural {
-            source,
-            translation,
-            variable,
-        } => {
-            assert_eq!(source.one.as_deref(), Some("book"));
-            assert_eq!(source.other, "books");
-            assert_eq!(variable, "count");
-            assert_eq!(translation.get("one").map(String::as_str), Some("Buch"));
+        TranslationShape::Plural(plural) => {
+            assert_eq!(plural.source.one.as_deref(), Some("book"));
+            assert_eq!(plural.source.other, "books");
+            assert_eq!(plural.variable, "count");
             assert_eq!(
-                translation.get("other").map(String::as_str),
+                plural.translation.get("one").map(String::as_str),
+                Some("Buch")
+            );
+            assert_eq!(
+                plural.translation.get("other").map(String::as_str),
                 Some("Buecher")
             );
         }
@@ -566,14 +565,17 @@ fn parse_catalog_uses_icu_plural_categories_for_french_gettext() {
     .expect("parse");
 
     match &parsed.messages[0].translation {
-        TranslationShape::Plural { translation, .. } => {
-            assert_eq!(translation.get("one").map(String::as_str), Some("fichier"));
+        TranslationShape::Plural(plural) => {
             assert_eq!(
-                translation.get("many").map(String::as_str),
+                plural.translation.get("one").map(String::as_str),
+                Some("fichier")
+            );
+            assert_eq!(
+                plural.translation.get("many").map(String::as_str),
                 Some("millions de fichiers")
             );
             assert_eq!(
-                translation.get("other").map(String::as_str),
+                plural.translation.get("other").map(String::as_str),
                 Some("fichiers")
             );
         }
@@ -601,11 +603,17 @@ fn parse_catalog_prefers_gettext_slot_count_when_it_disagrees_with_locale_catego
     .expect("parse");
 
     match &parsed.messages[0].translation {
-        TranslationShape::Plural { translation, .. } => {
-            assert_eq!(translation.len(), 2);
-            assert_eq!(translation.get("one").map(String::as_str), Some("livre"));
-            assert_eq!(translation.get("other").map(String::as_str), Some("livres"));
-            assert!(translation.get("many").is_none());
+        TranslationShape::Plural(plural) => {
+            assert_eq!(plural.translation.len(), 2);
+            assert_eq!(
+                plural.translation.get("one").map(String::as_str),
+                Some("livre")
+            );
+            assert_eq!(
+                plural.translation.get("other").map(String::as_str),
+                Some("livres")
+            );
+            assert!(!plural.translation.contains_key("many"));
         }
         other => panic!("expected plural translation, got {other:?}"),
     }
@@ -1213,15 +1221,14 @@ fn update_catalog_gettext_preserves_previous_plural_variable_and_translations() 
     .expect("parse updated catalog");
 
     match &parsed.messages[0].translation {
-        TranslationShape::Plural {
-            translation,
-            variable,
-            ..
-        } => {
-            assert_eq!(variable, "count");
-            assert_eq!(translation.get("one").map(String::as_str), Some("Buch"));
+        TranslationShape::Plural(plural) => {
+            assert_eq!(plural.variable, "count");
             assert_eq!(
-                translation.get("other").map(String::as_str),
+                plural.translation.get("one").map(String::as_str),
+                Some("Buch")
+            );
+            assert_eq!(
+                plural.translation.get("other").map(String::as_str),
                 Some("Buecher")
             );
         }

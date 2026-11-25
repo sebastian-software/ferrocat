@@ -73,8 +73,8 @@ pub use self::types::{
     ExtractedPluralMessage, ExtractedSingularMessage, IcuSyntaxPolicy,
     MergeCatalogsThreeWayOptions, NormalizedParsedCatalog, ObsoleteInfo, ObsoleteStrategy, OrderBy,
     ParseCatalogOptions, ParsedCatalog, PlaceholderCommentMode, PluralEncoding, PluralSource,
-    RenderOptions, SourceExtractedMessage, TranslationShape, UpdateCatalogFileOptions,
-    UpdateCatalogOptions, WriteDurability,
+    PluralTranslation, RenderOptions, SourceExtractedMessage, TranslationShape,
+    UpdateCatalogFileOptions, UpdateCatalogOptions, WriteDurability,
 };
 fn validate_source_locale(source_locale: &str) -> Result<(), ApiError> {
     if source_locale.trim().is_empty() {

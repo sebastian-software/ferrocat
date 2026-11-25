@@ -151,17 +151,14 @@ const COMMENT_LINE_OVERHEAD: usize = 4;
 fn translation_len(translation: &CanonicalTranslation) -> usize {
     match translation {
         CanonicalTranslation::Singular { value } => value.len(),
-        CanonicalTranslation::Plural {
-            source,
-            translation_by_category,
-            ..
-        } => {
+        CanonicalTranslation::Plural(plural) => {
             // Plural messages add a `msgid_plural` line plus one quoted
             // `msgstr[n] ""` line per category.
-            source.one.as_ref().map_or(0, String::len)
-                + source.other.len()
+            plural.source.one.as_ref().map_or(0, String::len)
+                + plural.source.other.len()
                 + 16
-                + translation_by_category
+                + plural
+                    .translation_by_category
                     .values()
                     .map(|value| value.len() + 14)
                     .sum::<usize>()
@@ -218,11 +215,10 @@ fn write_catalog_po_message(
             );
             Ok(())
         }
-        CanonicalTranslation::Plural {
-            source,
-            translation_by_category,
-            variable,
-        } => {
+        CanonicalTranslation::Plural(plural) => {
+            let source = &plural.source;
+            let translation_by_category = &plural.translation_by_category;
+            let variable = &plural.variable;
             if options.mode.semantics() == CatalogSemantics::IcuNative {
                 let msgid = synthesize_icu_plural_source(variable, source);
                 let msgstr = synthesize_icu_plural(variable, translation_by_category);
@@ -451,7 +447,7 @@ fn write_metadata_line(out: &mut String, obsolete_prefix: &str, key: &str, value
 }
 
 pub(super) fn valid_machine_metadata(message: &CanonicalMessage) -> Option<&MachineMetadata> {
-    let metadata = message.machine.as_ref()?;
+    let metadata = message.machine.as_deref()?;
     if validate_machine_metadata(metadata).is_err() {
         return None;
     }
@@ -462,10 +458,9 @@ pub(super) fn valid_machine_metadata(message: &CanonicalMessage) -> Option<&Mach
 fn canonical_translation_ref(translation: &CanonicalTranslation) -> EffectiveTranslationRef<'_> {
     match translation {
         CanonicalTranslation::Singular { value } => EffectiveTranslationRef::Singular(value),
-        CanonicalTranslation::Plural {
-            translation_by_category,
-            ..
-        } => EffectiveTranslationRef::Plural(translation_by_category),
+        CanonicalTranslation::Plural(plural) => {
+            EffectiveTranslationRef::Plural(&plural.translation_by_category)
+        }
     }
 }
 
@@ -532,6 +527,7 @@ pub(super) fn write_placeholder_comment(out: &mut String, name: &str, value: &st
 
 #[cfg(test)]
 mod tests {
+    use super::super::catalog::CanonicalPlural;
     use super::super::{
         AiProvenance, CatalogMode, CatalogOrigin, CatalogUpdateInput, ObsoleteInfo, PluralSource,
     };
@@ -562,14 +558,14 @@ mod tests {
     }
 
     fn plural_message(translation_by_category: BTreeMap<String, String>) -> CanonicalMessage {
-        message_with_translation(CanonicalTranslation::Plural {
+        message_with_translation(CanonicalTranslation::Plural(Box::new(CanonicalPlural {
             source: PluralSource {
                 one: Some("item".to_owned()),
                 other: "items".to_owned(),
             },
             translation_by_category,
             variable: "count".to_owned(),
-        })
+        })))
     }
 
     #[test]
@@ -708,13 +704,13 @@ mod tests {
             since: Some("2026-07-01".to_owned()),
         });
         let lock = machine_translation_hash(EffectiveTranslationRef::Singular("Hallo"));
-        message.machine = Some(MachineMetadata {
+        message.machine = Some(Box::new(MachineMetadata {
             lock: lock.clone(),
             ai: Some(AiProvenance {
                 model: "openai/gpt-5.5-high".to_owned(),
                 confidence: Some(0.92),
             }),
-        });
+        }));
 
         let catalog = Catalog {
             headers: BTreeMap::from([("Language".to_owned(), "de".to_owned())]),
@@ -897,20 +893,20 @@ mod tests {
         assert!(valid_machine_metadata(&singular_message("Hallo")).is_none());
 
         let mut stale = singular_message("Hallo");
-        stale.machine = Some(MachineMetadata {
+        stale.machine = Some(Box::new(MachineMetadata {
             lock: machine_translation_hash(EffectiveTranslationRef::Singular("Tschuess")),
             ai: None,
-        });
+        }));
         assert!(valid_machine_metadata(&stale).is_none());
 
         let mut invalid = singular_message("Hallo");
-        invalid.machine = Some(MachineMetadata {
+        invalid.machine = Some(Box::new(MachineMetadata {
             lock: machine_translation_hash(EffectiveTranslationRef::Singular("Hallo")),
             ai: Some(AiProvenance {
                 model: String::new(),
                 confidence: None,
             }),
-        });
+        }));
         assert!(valid_machine_metadata(&invalid).is_none());
 
         let translations = BTreeMap::from([
@@ -919,13 +915,13 @@ mod tests {
         ]);
         let hash = machine_translation_hash(EffectiveTranslationRef::Plural(&translations));
         let mut plural = plural_message(translations);
-        plural.machine = Some(MachineMetadata {
+        plural.machine = Some(Box::new(MachineMetadata {
             lock: hash.clone(),
             ai: Some(AiProvenance {
                 model: "openai/gpt-5.5-high".to_owned(),
                 confidence: Some(0.95),
             }),
-        });
+        }));
 
         assert_eq!(
             valid_machine_metadata(&plural).map(|metadata| metadata.lock.as_str()),

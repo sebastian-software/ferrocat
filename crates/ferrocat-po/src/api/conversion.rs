@@ -352,7 +352,7 @@ mod tests {
     use crate::PoVec;
 
     use super::super::PluralSource;
-    use super::super::catalog::{CanonicalMessage, CanonicalTranslation, Catalog};
+    use super::super::catalog::{CanonicalMessage, CanonicalPlural, CanonicalTranslation, Catalog};
     use super::*;
 
     #[test]
@@ -361,7 +361,7 @@ mod tests {
             messages: vec![CanonicalMessage {
                 msgid: "item".to_owned(),
                 msgctxt: None,
-                translation: CanonicalTranslation::Plural {
+                translation: CanonicalTranslation::Plural(Box::new(CanonicalPlural {
                     source: PluralSource {
                         one: Some("item".to_owned()),
                         other: "items".to_owned(),
@@ -371,7 +371,7 @@ mod tests {
                         "Artikel".to_owned(),
                     )]),
                     variable: "count".to_owned(),
-                },
+                })),
                 comments: Vec::new(),
                 opaque: None,
                 origins: PoVec::new(),

@@ -820,7 +820,7 @@ struct TranslationMergeOutcome {
 fn translation_shape(translation: &CanonicalTranslation) -> TranslationKind {
     match translation {
         CanonicalTranslation::Singular { .. } => TranslationKind::Singular,
-        CanonicalTranslation::Plural { .. } => TranslationKind::Plural,
+        CanonicalTranslation::Plural(_) => TranslationKind::Plural,
     }
 }
 
@@ -847,15 +847,11 @@ fn merge_combine_translation(
             }
         }
         (
-            CanonicalTranslation::Plural {
-                translation_by_category: target,
-                ..
-            },
-            CanonicalTranslation::Plural {
-                translation_by_category: source,
-                ..
-            },
+            CanonicalTranslation::Plural(target_plural),
+            CanonicalTranslation::Plural(source_plural),
         ) => {
+            let target = &mut target_plural.translation_by_category;
+            let source = &source_plural.translation_by_category;
             let categories = target
                 .keys()
                 .chain(source.keys())
@@ -905,16 +901,9 @@ fn has_meaningful_translation_conflict(
             CanonicalTranslation::Singular { value: left },
             CanonicalTranslation::Singular { value: right },
         ) => !left.is_empty() && !right.is_empty() && left != right,
-        (
-            CanonicalTranslation::Plural {
-                translation_by_category: left,
-                ..
-            },
-            CanonicalTranslation::Plural {
-                translation_by_category: right,
-                ..
-            },
-        ) => {
+        (CanonicalTranslation::Plural(left_plural), CanonicalTranslation::Plural(right_plural)) => {
+            let left = &left_plural.translation_by_category;
+            let right = &right_plural.translation_by_category;
             let categories = left.keys().chain(right.keys()).collect::<BTreeSet<_>>();
             categories.into_iter().any(|category| {
                 let left = left.get(category).map(String::as_str).unwrap_or_default();

@@ -100,7 +100,7 @@ impl NormalizedParsedCatalog {
         let mut entries = BTreeMap::new();
         let mut plural_profile = None;
 
-        for (source_key, message) in self.iter() {
+        for message in self.iter() {
             let effective = source_locale.map_or_else(
                 || message.effective_translation_owned(),
                 |source_locale| {
@@ -120,15 +120,16 @@ impl NormalizedParsedCatalog {
                 ApiError::InvalidArguments(format!(
                     "catalog semantics {:?} were inconsistent with message {:?} / {:?}",
                     self.parsed_catalog().semantics,
-                    source_key.msgctxt,
-                    source_key.msgid
+                    message.msgctxt,
+                    message.msgid
                 ))
             })?;
             let translation = canonicalize_compiled_translation(translation, options.syntax_policy);
-            let compiled_key = key_generator(options.key_strategy, source_key);
+            let source_key = message.key();
+            let compiled_key = key_generator(options.key_strategy, &source_key);
             let compiled_message = CompiledMessage {
                 key: compiled_key.clone(),
-                source_key: source_key.clone(),
+                source_key,
                 translation,
             };
 
@@ -137,8 +138,8 @@ impl NormalizedParsedCatalog {
                     "compiled catalog key collision for {:?} / {:?} and {:?} / {:?} using key {}",
                     existing.source_key.msgctxt,
                     existing.source_key.msgid,
-                    source_key.msgctxt,
-                    source_key.msgid,
+                    message.msgctxt,
+                    message.msgid,
                     compiled_key
                 )));
             }
@@ -293,14 +294,13 @@ fn compiled_translation_for_message(
         (TranslationShape::Singular { .. }, EffectiveTranslation::Singular(value)) => {
             Some(CompiledTranslation::Singular(value))
         }
-        (TranslationShape::Plural { variable, .. }, EffectiveTranslation::Plural(values)) => {
-            match semantics {
-                CatalogSemantics::IcuNative => Some(CompiledTranslation::Singular(
-                    synthesize_icu_plural(variable, &values),
-                )),
-                CatalogSemantics::GettextCompat => Some(CompiledTranslation::Plural(values)),
-            }
-        }
+        (TranslationShape::Plural(plural), EffectiveTranslation::Plural(values)) => match semantics
+        {
+            CatalogSemantics::IcuNative => Some(CompiledTranslation::Singular(
+                synthesize_icu_plural(&plural.variable, &values),
+            )),
+            CatalogSemantics::GettextCompat => Some(CompiledTranslation::Plural(values)),
+        },
         _ => None,
     }
 }
@@ -460,10 +460,10 @@ pub(super) fn compiled_catalog_translation_kind_for_message(
 ) -> CompiledCatalogTranslationKind {
     match (semantics, &message.translation) {
         (_, TranslationShape::Singular { .. }) => CompiledCatalogTranslationKind::Singular,
-        (CatalogSemantics::IcuNative, TranslationShape::Plural { .. }) => {
+        (CatalogSemantics::IcuNative, TranslationShape::Plural(_)) => {
             CompiledCatalogTranslationKind::Singular
         }
-        (CatalogSemantics::GettextCompat, TranslationShape::Plural { .. }) => {
+        (CatalogSemantics::GettextCompat, TranslationShape::Plural(_)) => {
             CompiledCatalogTranslationKind::Plural
         }
     }
@@ -565,9 +565,9 @@ fn collect_compiled_catalog_artifact_source_keys(
 ) -> BTreeSet<CatalogMessageKey> {
     let mut source_keys = BTreeSet::new();
     for catalog in locales.values() {
-        for (source_key, message) in catalog.iter() {
+        for message in catalog.iter() {
             if message.obsolete.is_none() {
-                source_keys.insert(source_key.clone());
+                source_keys.insert(message.key());
             }
         }
     }
@@ -1045,11 +1045,11 @@ fn rendered_compiled_catalog_artifact_message_for_message(
 
     match (&message.translation, effective) {
         (TranslationShape::Singular { .. }, EffectiveTranslation::Singular(value)) => Some(value),
-        (TranslationShape::Plural { variable, .. }, EffectiveTranslation::Plural(translation)) => {
-            Some(synthesize_icu_plural(variable, &translation))
+        (TranslationShape::Plural(plural), EffectiveTranslation::Plural(translation)) => {
+            Some(synthesize_icu_plural(&plural.variable, &translation))
         }
         (TranslationShape::Singular { .. }, EffectiveTranslation::Plural(_))
-        | (TranslationShape::Plural { .. }, EffectiveTranslation::Singular(_)) => None,
+        | (TranslationShape::Plural(_), EffectiveTranslation::Singular(_)) => None,
     }
 }
 
@@ -1058,8 +1058,8 @@ fn rendered_compiled_catalog_artifact_message_for_message(
 fn message_has_runtime_translation(message: &CatalogMessage) -> bool {
     match &message.translation {
         TranslationShape::Singular { value } => !value.is_empty(),
-        TranslationShape::Plural { translation, .. } => {
-            translation.values().any(|value| !value.is_empty())
+        TranslationShape::Plural(plural) => {
+            plural.translation.values().any(|value| !value.is_empty())
         }
     }
 }
@@ -1095,7 +1095,7 @@ mod unit_tests {
         validate_compiled_catalog_semantics,
     };
     use crate::ParsedCatalog;
-    use crate::api::PluralSource;
+    use crate::api::{PluralSource, PluralTranslation};
 
     fn normalized_catalog(
         locale: Option<&str>,
@@ -1130,7 +1130,7 @@ mod unit_tests {
         CatalogMessage {
             msgid: msgid.to_owned(),
             msgctxt: None,
-            translation: TranslationShape::Plural {
+            translation: TranslationShape::Plural(Box::new(PluralTranslation {
                 source: PluralSource {
                     one: Some("# file".to_owned()),
                     other: "# files".to_owned(),
@@ -1140,7 +1140,7 @@ mod unit_tests {
                     ("other".to_owned(), "# Dateien".to_owned()),
                 ]),
                 variable: "count".to_owned(),
-            },
+            })),
             comments: Vec::new(),
             origin: crate::PoVec::new(),
             obsolete: None,

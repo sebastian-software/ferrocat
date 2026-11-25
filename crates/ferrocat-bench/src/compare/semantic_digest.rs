@@ -128,7 +128,7 @@ impl CatalogSemanticSummary {
         let catalog = normalized.parsed_catalog();
         let messages = normalized
             .iter()
-            .map(|(_, message)| CatalogMessageSummary::from_message(message))
+            .map(CatalogMessageSummary::from_message)
             .collect::<Vec<_>>();
         let diagnostics = catalog
             .diagnostics
@@ -193,15 +193,12 @@ impl CatalogTranslationSummary {
     pub(super) fn from_translation(translation: &TranslationShape) -> Self {
         match translation {
             TranslationShape::Singular { value } => Self::Singular(value.clone()),
-            TranslationShape::Plural {
-                source,
-                translation,
-                variable,
-            } => Self::Plural {
-                source_one: source.one.clone(),
-                source_other: source.other.clone(),
-                variable: variable.clone(),
-                forms: translation
+            TranslationShape::Plural(plural) => Self::Plural {
+                source_one: plural.source.one.clone(),
+                source_other: plural.source.other.clone(),
+                variable: plural.variable.clone(),
+                forms: plural
+                    .translation
                     .iter()
                     .map(|(category, value)| (category.clone(), value.clone()))
                     .collect(),

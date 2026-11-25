@@ -448,7 +448,7 @@ fn machine_translation_review(
 ) -> CatalogMachineTranslationReview {
     let mut report = CatalogMachineTranslationReview::default();
 
-    for (source_key, message) in current_target.iter() {
+    for message in current_target.iter() {
         if message.obsolete.is_some() {
             continue;
         }
@@ -457,7 +457,7 @@ fn machine_translation_review(
         if include_details {
             report.details.push(CatalogMachineTranslationMessage {
                 locale: locale.to_owned(),
-                source_key: source_key.clone(),
+                source_key: message.key(),
                 status,
             });
         }
@@ -467,7 +467,7 @@ fn machine_translation_review(
 }
 
 fn machine_translation_status(message: &CatalogMessage) -> CatalogMachineTranslationStatus {
-    let Some(metadata) = message.machine.as_ref() else {
+    let Some(metadata) = message.machine.as_deref() else {
         return CatalogMachineTranslationStatus::Absent;
     };
     if validate_machine_metadata(metadata).is_err() {
@@ -676,13 +676,13 @@ mod tests {
                 comments: Vec::new(),
                 origin: crate::PoVec::new(),
                 obsolete: None,
-                machine: Some(MachineMetadata {
+                machine: Some(Box::new(MachineMetadata {
                     lock: machine_translation_hash(EffectiveTranslationRef::Singular("Hallo")),
                     ai: Some(AiProvenance {
                         model: String::new(),
                         confidence: None,
                     }),
-                }),
+                })),
             }],
         );
 

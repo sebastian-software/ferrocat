@@ -166,9 +166,10 @@ fn write_tag(out: &mut String, key: &str, value: &str) {
 fn fcl_id(message: &CanonicalMessage) -> Cow<'_, str> {
     match &message.translation {
         CanonicalTranslation::Singular { .. } => Cow::Borrowed(message.msgid.as_str()),
-        CanonicalTranslation::Plural {
-            source, variable, ..
-        } => Cow::Owned(synthesize_icu_plural_source(variable, source)),
+        CanonicalTranslation::Plural(plural) => Cow::Owned(synthesize_icu_plural_source(
+            &plural.variable,
+            &plural.source,
+        )),
     }
 }
 
@@ -176,11 +177,10 @@ fn fcl_id(message: &CanonicalMessage) -> Cow<'_, str> {
 fn fcl_target(message: &CanonicalMessage) -> Cow<'_, str> {
     match &message.translation {
         CanonicalTranslation::Singular { value } => Cow::Borrowed(value.as_str()),
-        CanonicalTranslation::Plural {
-            translation_by_category,
-            variable,
-            ..
-        } => Cow::Owned(synthesize_icu_plural(variable, translation_by_category)),
+        CanonicalTranslation::Plural(plural) => Cow::Owned(synthesize_icu_plural(
+            &plural.variable,
+            &plural.translation_by_category,
+        )),
     }
 }
 
@@ -287,13 +287,12 @@ fn write_entry<'a>(
 
     // The lock/ai block is only emitted when the lock still matches the value
     // (stale machine metadata is dropped).
-    if let Some(machine) = message.machine.as_ref() {
+    if let Some(machine) = message.machine.as_deref() {
         let translation_ref = match &message.translation {
             CanonicalTranslation::Singular { value } => EffectiveTranslationRef::Singular(value),
-            CanonicalTranslation::Plural {
-                translation_by_category,
-                ..
-            } => EffectiveTranslationRef::Plural(translation_by_category),
+            CanonicalTranslation::Plural(plural) => {
+                EffectiveTranslationRef::Plural(&plural.translation_by_category)
+            }
         };
         if validate_machine_metadata(machine).is_ok()
             && machine.lock == machine_translation_hash(translation_ref)
@@ -376,13 +375,10 @@ fn ensure_cached_fcl_ids(
     plural_ids: &mut FxHashMap<usize, String>,
 ) {
     for index in indices {
-        if let CanonicalTranslation::Plural {
-            source, variable, ..
-        } = &messages[index].translation
-        {
+        if let CanonicalTranslation::Plural(plural) = &messages[index].translation {
             plural_ids
                 .entry(index)
-                .or_insert_with(|| synthesize_icu_plural_source(variable, source));
+                .or_insert_with(|| synthesize_icu_plural_source(&plural.variable, &plural.source));
         }
     }
 }
@@ -715,7 +711,7 @@ fn parse_entry(
     let machine = if let Some(lock) = lock {
         let metadata = MachineMetadata { lock, ai };
         validate_machine_metadata(&metadata)?;
-        Some(metadata)
+        Some(Box::new(metadata))
     } else if ai.is_some() {
         return Err(ApiError::InvalidArguments(
             "FCL `ai` tag requires a `lock` tag".to_owned(),
@@ -838,6 +834,11 @@ pub(super) fn parse_catalog_to_internal_fcl(
             "FCL catalog must start with a `%FCL1` or `%FCL2` header".to_owned(),
         )
     })?;
+    if header.starts_with(FCL2_MAGIC) && find_byte(b'\r', header.as_bytes()).is_some() {
+        return Err(ApiError::InvalidArguments(
+            "invalid FCL header: raw carriage return must be escaped as \\r".to_owned(),
+        ));
+    }
     let parsed_header = parse_header(header, source_locale)?;
     let locale = locale_override.map(str::to_owned).or(parsed_header.locale);
 
@@ -851,6 +852,12 @@ pub(super) fn parse_catalog_to_internal_fcl(
     let legacy_collated =
         parsed_header.version == FclVersion::V1 && parsed_header.order == FclOrder::Collated;
     for (index, line) in lines {
+        if parsed_header.version == FclVersion::V2 && find_byte(b'\r', line.as_bytes()).is_some() {
+            return Err(ApiError::InvalidArguments(format!(
+                "invalid FCL entry on line {}: raw carriage return must be escaped as \\r",
+                index + 1
+            )));
+        }
         if line.is_empty() {
             continue;
         }
@@ -1325,26 +1332,28 @@ mod tests {
         let message = super::CanonicalMessage {
             msgid: "file.count".to_owned(),
             msgctxt: None,
-            translation: super::CanonicalTranslation::Plural {
-                source: crate::PluralSource {
-                    one: Some("{count} file".to_owned()),
-                    other: "{count} files".to_owned(),
+            translation: super::CanonicalTranslation::Plural(Box::new(
+                super::super::catalog::CanonicalPlural {
+                    source: crate::PluralSource {
+                        one: Some("{count} file".to_owned()),
+                        other: "{count} files".to_owned(),
+                    },
+                    translation_by_category,
+                    variable: "count".to_owned(),
                 },
-                translation_by_category,
-                variable: "count".to_owned(),
-            },
+            )),
             comments: Vec::new(),
             opaque: None,
             origins: super::PoVec::new(),
             placeholders: std::collections::BTreeMap::new(),
             obsolete: None,
-            machine: Some(super::MachineMetadata {
+            machine: Some(Box::new(super::MachineMetadata {
                 lock: hash,
                 ai: Some(crate::AiProvenance {
                     model: "example/mt".to_owned(),
                     confidence: Some(0.90),
                 }),
-            }),
+            })),
         };
         let catalog = super::Catalog {
             locale: Some("de".to_owned()),
@@ -1393,13 +1402,13 @@ mod tests {
             origins: super::PoVec::new(),
             placeholders: std::collections::BTreeMap::new(),
             obsolete: None,
-            machine: Some(super::MachineMetadata {
+            machine: Some(Box::new(super::MachineMetadata {
                 lock: stale,
                 ai: Some(crate::AiProvenance {
                     model: "example/mt".to_owned(),
                     confidence: Some(0.90),
                 }),
-            }),
+            })),
         };
         let catalog = super::Catalog {
             locale: Some("de".to_owned()),
@@ -1451,17 +1460,19 @@ mod tests {
         let plural = |suffix: &str| super::CanonicalMessage {
             msgid: format!("{shared}_{suffix}"),
             msgctxt: None,
-            translation: super::CanonicalTranslation::Plural {
-                source: crate::PluralSource {
-                    one: Some(format!("{shared} one {suffix}")),
-                    other: format!("{shared} other {suffix}"),
+            translation: super::CanonicalTranslation::Plural(Box::new(
+                super::super::catalog::CanonicalPlural {
+                    source: crate::PluralSource {
+                        one: Some(format!("{shared} one {suffix}")),
+                        other: format!("{shared} other {suffix}"),
+                    },
+                    translation_by_category: std::collections::BTreeMap::from([
+                        ("one".to_owned(), format!("eins {suffix}")),
+                        ("other".to_owned(), format!("viele {suffix}")),
+                    ]),
+                    variable: "count".to_owned(),
                 },
-                translation_by_category: std::collections::BTreeMap::from([
-                    ("one".to_owned(), format!("eins {suffix}")),
-                    ("other".to_owned(), format!("viele {suffix}")),
-                ]),
-                variable: "count".to_owned(),
-            },
+            )),
             comments: Vec::new(),
             opaque: None,
             origins: super::PoVec::new(),
@@ -1490,5 +1501,61 @@ mod tests {
         assert_eq!(reparsed.messages.len(), 2);
         assert!(reparsed.messages[0].msgid.contains("one a"));
         assert!(reparsed.messages[1].msgid.contains("one z"));
+    }
+
+    #[test]
+    fn fcl2_rejects_raw_carriage_return_inside_lines_while_accepting_crlf() {
+        let crlf = format!(
+            "{}\tsource=en\torder=collated\r\nhello\tn\thallo\r\n",
+            super::FCL2_MAGIC
+        );
+        let parsed = parse_catalog_to_internal_fcl(
+            &crlf,
+            None,
+            "en",
+            CatalogSemantics::IcuNative,
+            OpaqueCapture::Keep,
+        )
+        .expect("CRLF line endings are valid in FCL2");
+        assert_eq!(parsed.messages.len(), 1);
+
+        let raw_cr_in_entry = format!(
+            "{}\tsource=en\torder=collated\nhello\tn\thallo\rworld\n",
+            super::FCL2_MAGIC
+        );
+        let error = parse_catalog_to_internal_fcl(
+            &raw_cr_in_entry,
+            None,
+            "en",
+            CatalogSemantics::IcuNative,
+            OpaqueCapture::Keep,
+        )
+        .expect_err("raw CR inside FCL2 entry line must be rejected");
+        assert!(error.to_string().contains("raw carriage return"));
+
+        let raw_cr_in_header = format!(
+            "{}\tsource=en\r\torder=collated\nhello\tn\thallo\n",
+            super::FCL2_MAGIC
+        );
+        let header_error = parse_catalog_to_internal_fcl(
+            &raw_cr_in_header,
+            None,
+            "en",
+            CatalogSemantics::IcuNative,
+            OpaqueCapture::Keep,
+        )
+        .expect_err("raw CR inside FCL2 header must be rejected");
+        assert!(header_error.to_string().contains("raw carriage return"));
+
+        let fcl1_raw_cr = format!("{FCL_MAGIC}\tsource=en\nhello\t\thallo\rworld\n");
+        let fcl1_parsed = parse_catalog_to_internal_fcl(
+            &fcl1_raw_cr,
+            None,
+            "en",
+            CatalogSemantics::IcuNative,
+            OpaqueCapture::Keep,
+        )
+        .expect("FCL1 keeps legacy interpretation");
+        assert_eq!(fcl1_parsed.messages.len(), 1);
     }
 }

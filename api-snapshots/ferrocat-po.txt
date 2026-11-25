@@ -255,10 +255,7 @@ pub enum ferrocat_po::PluralEncoding
 pub ferrocat_po::PluralEncoding::Gettext
 pub ferrocat_po::PluralEncoding::Icu
 pub enum ferrocat_po::TranslationShape
-pub ferrocat_po::TranslationShape::Plural
-pub ferrocat_po::TranslationShape::Plural::source: ferrocat_po::PluralSource
-pub ferrocat_po::TranslationShape::Plural::translation: alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>
-pub ferrocat_po::TranslationShape::Plural::variable: alloc::string::String
+pub ferrocat_po::TranslationShape::Plural(alloc::boxed::Box<ferrocat_po::PluralTranslation>)
 pub ferrocat_po::TranslationShape::Singular
 pub ferrocat_po::TranslationShape::Singular::value: alloc::string::String
 #[non_exhaustive] pub enum ferrocat_po::WriteDurability
@@ -435,7 +432,7 @@ pub ferrocat_po::CatalogMachineTranslationReview::invalid: usize
 pub ferrocat_po::CatalogMachineTranslationReview::stale: usize
 pub struct ferrocat_po::CatalogMessage
 pub ferrocat_po::CatalogMessage::comments: alloc::vec::Vec<alloc::string::String>
-pub ferrocat_po::CatalogMessage::machine: core::option::Option<ferrocat_po::MachineMetadata>
+pub ferrocat_po::CatalogMessage::machine: core::option::Option<alloc::boxed::Box<ferrocat_po::MachineMetadata>>
 pub ferrocat_po::CatalogMessage::msgctxt: core::option::Option<alloc::string::String>
 pub ferrocat_po::CatalogMessage::msgid: alloc::string::String
 pub ferrocat_po::CatalogMessage::obsolete: core::option::Option<ferrocat_po::ObsoleteInfo>
@@ -819,7 +816,7 @@ pub fn ferrocat_po::NormalizedParsedCatalog::get(&self, &ferrocat_po::CatalogMes
 pub fn ferrocat_po::NormalizedParsedCatalog::get_by_parts(&self, &str, core::option::Option<&str>) -> core::option::Option<&ferrocat_po::CatalogMessage>
 pub const fn ferrocat_po::NormalizedParsedCatalog::has_review_state(&self) -> bool
 pub fn ferrocat_po::NormalizedParsedCatalog::into_parsed_catalog(self) -> ferrocat_po::ParsedCatalog
-pub fn ferrocat_po::NormalizedParsedCatalog::iter(&self) -> impl core::iter::traits::iterator::Iterator<Item = (&ferrocat_po::CatalogMessageKey, &ferrocat_po::CatalogMessage)> + '_
+pub fn ferrocat_po::NormalizedParsedCatalog::iter(&self) -> impl core::iter::traits::iterator::Iterator<Item = &ferrocat_po::CatalogMessage> + '_
 pub fn ferrocat_po::NormalizedParsedCatalog::message_count(&self) -> usize
 pub const fn ferrocat_po::NormalizedParsedCatalog::parsed_catalog(&self) -> &ferrocat_po::ParsedCatalog
 pub struct ferrocat_po::ObsoleteInfo
@@ -862,6 +859,10 @@ pub fn ferrocat_po::ParsedCatalog::into_normalized_view_assuming_no_fuzzy(self) 
 pub struct ferrocat_po::PluralSource
 pub ferrocat_po::PluralSource::one: core::option::Option<alloc::string::String>
 pub ferrocat_po::PluralSource::other: alloc::string::String
+pub struct ferrocat_po::PluralTranslation
+pub ferrocat_po::PluralTranslation::source: ferrocat_po::PluralSource
+pub ferrocat_po::PluralTranslation::translation: alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>
+pub ferrocat_po::PluralTranslation::variable: alloc::string::String
 pub struct ferrocat_po::PoFile
 pub ferrocat_po::PoFile::comments: alloc::vec::Vec<alloc::string::String>
 pub ferrocat_po::PoFile::extracted_comments: alloc::vec::Vec<alloc::string::String>
