@@ -3,10 +3,10 @@ use std::borrow::Cow;
 use crate::line_state::{PoLineContext, PoLineState};
 use crate::scan::{
     CommentKind, Keyword, LineKind, LineScanner, checked_plural_forms, checked_plural_index,
-    classify_line, find_quoted_bounds, has_byte, split_once_byte, trim_ascii, trim_ascii_start,
+    classify_line, find_quoted_raw_from, has_byte, split_once_byte, trim_ascii, trim_ascii_start,
     unrecognized_po_line,
 };
-use crate::text::{extract_quoted_bytes_cow, for_each_reference_token};
+use crate::text::{extract_quoted_bytes_cow_from, for_each_reference_token};
 use crate::utf8::input_slice_as_str;
 use crate::{Header, MsgStr, ParseError, ParsePosition, PoFile, PoItem, PoVec};
 
@@ -315,11 +315,11 @@ impl<'a> ParserState<'a> {
             return;
         }
 
-        let Some((start, end)) = find_quoted_bounds(line_bytes) else {
+        let search_from = if starts_new_msgstr { 6 } else { 0 };
+        let Some(raw) = find_quoted_raw_from(line_bytes, search_from) else {
             self.header_entries_faithful = false;
             return;
         };
-        let raw = &line_bytes[start..end];
 
         if self.header_line_open
             || !header_fragment_is_borrowable(raw)
@@ -494,14 +494,15 @@ fn parse_keyword_line<'a>(
                 .line
                 .mark_keyword(PoLineContext::IdPlural, 0, obsolete);
             state.item.msgid_plural = Some(at_line_position(
-                extract_quoted_bytes_cow(line_bytes),
+                extract_quoted_bytes_cow_from(line_bytes, 12),
                 position,
             )?);
         }
         Keyword::Id => {
             finish_item(state, file, current_nplurals, position)?;
             state.line.mark_keyword(PoLineContext::Id, 0, obsolete);
-            state.item.msgid = at_line_position(extract_quoted_bytes_cow(line_bytes), position)?;
+            state.item.msgid =
+                at_line_position(extract_quoted_bytes_cow_from(line_bytes, 5), position)?;
         }
         Keyword::Str => {
             let plural_index = checked_plural_index(line_bytes, position)?;
@@ -510,7 +511,7 @@ fn parse_keyword_line<'a>(
                 .mark_keyword(PoLineContext::Str, plural_index, obsolete);
             state.set_msgstr(
                 plural_index,
-                at_line_position(extract_quoted_bytes_cow(line_bytes), position)?,
+                at_line_position(extract_quoted_bytes_cow_from(line_bytes, 6), position)?,
             );
             if is_header_candidate(state) {
                 state.push_header_fragment(line_bytes, true);
@@ -520,7 +521,7 @@ fn parse_keyword_line<'a>(
             finish_item(state, file, current_nplurals, position)?;
             state.line.mark_keyword(PoLineContext::Ctxt, 0, obsolete);
             state.item.msgctxt = Some(at_line_position(
-                extract_quoted_bytes_cow(line_bytes),
+                extract_quoted_bytes_cow_from(line_bytes, 7),
                 position,
             )?);
         }
@@ -536,7 +537,7 @@ fn append_continuation<'a>(
     state: &mut ParserState<'a>,
 ) -> Result<(), ParseError> {
     state.line.mark_continuation(obsolete);
-    let value = at_line_position(extract_quoted_bytes_cow(line_bytes), position)?;
+    let value = at_line_position(extract_quoted_bytes_cow_from(line_bytes, 0), position)?;
 
     match state.line.context() {
         Some(PoLineContext::Str) => {
