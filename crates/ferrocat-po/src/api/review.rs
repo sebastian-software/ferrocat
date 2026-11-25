@@ -35,6 +35,8 @@ impl<'a> CatalogReviewOptions<'a> {
     }
 
     /// Returns options that review only the given target locales.
+    ///
+    /// An empty slice selects all available non-source locales.
     #[must_use]
     pub fn with_locales(mut self, locales: &'a [&'a str]) -> Self {
         self.locales = locales;

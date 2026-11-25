@@ -125,6 +125,7 @@ jobs:
       - name: Check documented feature profiles
         run: |
           cargo check -p ferrocat-po --no-default-features --locked
+          cargo test -p ferrocat-po --no-default-features --doc --locked
           cargo check -p ferrocat-po --no-default-features --features serde --locked
           cargo test -p ferrocat-po --no-default-features --features collation --test collation --locked
           cargo check -p ferrocat-po --no-default-features --features catalog --locked
