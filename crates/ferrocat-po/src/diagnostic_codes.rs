@@ -54,7 +54,8 @@ mod code_type {
             &self.0
         }
 
-        /// Consumes this code and returns its canonical string without copying.
+        /// Consumes this code and returns its canonical string, reusing owned
+        /// storage and copying borrowed static codes.
         #[must_use]
         pub fn into_string(self) -> String {
             self.0.into_owned()
