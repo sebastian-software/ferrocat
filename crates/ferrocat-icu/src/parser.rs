@@ -1218,8 +1218,9 @@ mod tests {
             "{count, plural, offset:1 =0 {none} one {# item} other {{gender, select, male {his} other {their}} items}}",
             "{rank, selectordinal, one {#st} two {#nd} few {#rd} other {#th}}",
             "<0>hello <br/> <b>{name}</b></0>",
-            // >16 selectors to exercise overflow path in validate_options
+            // >16 selectors to exercise overflow path in validate_options (valid and duplicate with Unicode prefix)
             "{k, select, s0 {a} s1 {a} s2 {a} s3 {a} s4 {a} s5 {a} s6 {a} s7 {a} s8 {a} s9 {a} s10 {a} s11 {a} s12 {a} s13 {a} s14 {a} s15 {a} s16 {a} other {z}}",
+            "é\n{k, select, s0 {a} s1 {a} s2 {a} s3 {a} s4 {a} s5 {a} s6 {a} s7 {a} s8 {a} s9 {a} s10 {a} s11 {a} s12 {a} s13 {a} s14 {a} s15 {a} s16 {a} s16 {b} other {z}}",
             // Invalid cases
             "hello}",
             "{broken",

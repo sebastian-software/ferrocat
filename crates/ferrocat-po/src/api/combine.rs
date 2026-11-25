@@ -159,8 +159,16 @@ impl CombineState {
             if self.inferred_locale.is_none() {
                 self.inferred_locale = locale;
             }
-            self.entries.reserve(messages.len());
-            self.index.reserve(messages.len());
+            let eligible = if config.include_obsolete {
+                messages.len()
+            } else {
+                messages
+                    .iter()
+                    .filter(|message| message.obsolete.is_none())
+                    .count()
+            };
+            self.entries.reserve(eligible);
+            self.index.reserve(eligible);
         }
         self.diagnostics.extend(diagnostics);
 

@@ -10,7 +10,7 @@ use std::borrow::Cow;
 use std::cmp::Ordering;
 use std::collections::BTreeMap;
 
-use rustc_hash::FxHashSet;
+use rustc_hash::{FxHashMap, FxHashSet};
 
 use super::catalog::{
     CanonicalMessage, CanonicalTranslation, Catalog, OpaqueCapture, OpaqueMetadata, parse_origin,
@@ -370,13 +370,45 @@ fn cmp_fcl_collated_on_prefix_tie(
         .then_with(|| left.obsolete.is_some().cmp(&right.obsolete.is_some()))
 }
 
-fn sort_fcl_run_by_full_key(messages: &[CanonicalMessage], run: &mut [usize]) {
-    let mut keyed: Vec<(FclCollatedKey, Cow<'_, str>, usize)> = run
+fn ensure_cached_fcl_ids(
+    messages: &[CanonicalMessage],
+    indices: impl IntoIterator<Item = usize>,
+    plural_ids: &mut FxHashMap<usize, String>,
+) {
+    for index in indices {
+        if let CanonicalTranslation::Plural {
+            source, variable, ..
+        } = &messages[index].translation
+        {
+            plural_ids
+                .entry(index)
+                .or_insert_with(|| synthesize_icu_plural_source(variable, source));
+        }
+    }
+}
+
+fn fcl_id_with_cache<'a>(
+    messages: &'a [CanonicalMessage],
+    index: usize,
+    plural_ids: &'a FxHashMap<usize, String>,
+) -> &'a str {
+    plural_ids
+        .get(&index)
+        .map_or(messages[index].msgid.as_str(), String::as_str)
+}
+
+fn sort_fcl_run_by_full_key(
+    messages: &[CanonicalMessage],
+    run: &mut [usize],
+    plural_ids: &mut FxHashMap<usize, String>,
+) {
+    ensure_cached_fcl_ids(messages, run.iter().copied(), plural_ids);
+    let mut keyed: Vec<(FclCollatedKey, &str, usize)> = run
         .iter()
         .map(|&index| {
             let message = &messages[index];
-            let id = fcl_id(message);
-            let key = fcl_collated_key(&id, message);
+            let id = fcl_id_with_cache(messages, index, plural_ids);
+            let key = fcl_collated_key(id, message);
             (key, id, index)
         })
         .collect();
@@ -385,7 +417,7 @@ fn sort_fcl_run_by_full_key(messages: &[CanonicalMessage], run: &mut [usize]) {
         let right_message = &messages[right.2];
         left.0
             .cmp(&right.0)
-            .then_with(|| left.1.cmp(&right.1))
+            .then_with(|| left.1.cmp(right.1))
             .then_with(|| left_message.msgctxt.cmp(&right_message.msgctxt))
             .then_with(|| {
                 left_message
@@ -419,6 +451,7 @@ fn fcl_collated_order(messages: &[CanonicalMessage]) -> Vec<usize> {
     let mut unresolved = Vec::new();
     collect_colliding_runs(&keyed, 0, &mut pending, &mut unresolved);
 
+    let mut plural_ids = FxHashMap::default();
     let mut split = Vec::new();
     for round in 1..=MAX_CONTINUATION_ROUNDS {
         if pending.is_empty() {
@@ -426,16 +459,22 @@ fn fcl_collated_order(messages: &[CanonicalMessage]) -> Vec<usize> {
         }
         let skip = round * PREFIX_BYTES;
         for (start, end) in pending.drain(..) {
-            let first_id = fcl_id(&messages[keyed[start].1]);
+            ensure_cached_fcl_ids(
+                messages,
+                keyed[start..end].iter().map(|&(_, index)| index),
+                &mut plural_ids,
+            );
+            let first_id = fcl_id_with_cache(messages, keyed[start].1, &plural_ids);
             if keyed[start + 1..end]
                 .iter()
-                .all(|&(_, index)| fcl_id(&messages[index]) == first_id)
+                .all(|&(_, index)| fcl_id_with_cache(messages, index, &plural_ids) == first_id)
             {
                 unresolved.push((start, end));
                 continue;
             }
             for entry in &mut keyed[start..end] {
-                entry.0 = storage_collation_prefix_from(&fcl_id(&messages[entry.1]), skip);
+                let id = fcl_id_with_cache(messages, entry.1, &plural_ids);
+                entry.0 = storage_collation_prefix_from(id, skip);
             }
             keyed[start..end].sort_unstable_by_key(|&(prefix, _)| prefix);
             collect_colliding_runs(&keyed[start..end], start, &mut split, &mut unresolved);
@@ -448,7 +487,7 @@ fn fcl_collated_order(messages: &[CanonicalMessage]) -> Vec<usize> {
         *slot = index;
     }
     for (start, end) in unresolved {
-        sort_fcl_run_by_full_key(messages, &mut order[start..end]);
+        sort_fcl_run_by_full_key(messages, &mut order[start..end], &mut plural_ids);
     }
     order
 }
@@ -1417,5 +1456,53 @@ mod tests {
         .expect("parse");
         assert_eq!(catalog.locale.as_deref(), Some("fr"));
         assert_eq!(catalog.messages.len(), 2);
+    }
+
+    #[test]
+    fn sorts_long_colliding_structured_plurals_through_full_key_fallback() {
+        let shared = "a".repeat(140);
+        let plural = |suffix: &str| super::CanonicalMessage {
+            msgid: format!("{shared}_{suffix}"),
+            msgctxt: None,
+            translation: super::CanonicalTranslation::Plural {
+                source: crate::PluralSource {
+                    one: Some(format!("{shared} one {suffix}")),
+                    other: format!("{shared} other {suffix}"),
+                },
+                translation_by_category: std::collections::BTreeMap::from([
+                    ("one".to_owned(), format!("eins {suffix}")),
+                    ("other".to_owned(), format!("viele {suffix}")),
+                ]),
+                variable: "count".to_owned(),
+            },
+            comments: Vec::new(),
+            opaque: None,
+            origins: super::PoVec::new(),
+            placeholders: std::collections::BTreeMap::new(),
+            obsolete: None,
+            machine: None,
+        };
+        let catalog = super::Catalog {
+            locale: Some("de".to_owned()),
+            headers: std::collections::BTreeMap::new(),
+            file_comments: Vec::new(),
+            file_extracted_comments: Vec::new(),
+            messages: vec![plural("z"), plural("a")],
+            diagnostics: Vec::new(),
+        };
+
+        let text = stringify_catalog_fcl(&catalog, Some("de"), "en", &RenderOptions::default());
+        let reparsed = parse_catalog_to_internal_fcl(
+            &text,
+            Some("de"),
+            "en",
+            CatalogSemantics::IcuNative,
+            false,
+            OpaqueCapture::Keep,
+        )
+        .expect("sorted long colliding plurals must round-trip in collated order");
+        assert_eq!(reparsed.messages.len(), 2);
+        assert!(reparsed.messages[0].msgid.contains("one a"));
+        assert!(reparsed.messages[1].msgid.contains("one z"));
     }
 }
