@@ -66,7 +66,6 @@ pub fn convert_catalog(
         options.source_locale,
         options.source_mode.semantics(),
         options.source_mode.plural_encoding(),
-        false,
         options.source_mode.storage_format(),
         OpaqueCapture::Keep,
     )?;

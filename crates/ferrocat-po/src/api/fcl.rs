@@ -823,7 +823,6 @@ pub(super) fn parse_catalog_to_internal_fcl(
     locale_override: Option<&str>,
     source_locale: &str,
     semantics: CatalogSemantics,
-    _strict: bool,
     opaque_capture: OpaqueCapture,
 ) -> Result<Catalog, ApiError> {
     if semantics != CatalogSemantics::IcuNative {
@@ -940,7 +939,6 @@ mod tests {
             None,
             "en",
             CatalogSemantics::IcuNative,
-            false,
             OpaqueCapture::Keep,
         )
         .expect("parse FCL");
@@ -1007,7 +1005,6 @@ mod tests {
                 None,
                 "en",
                 CatalogSemantics::IcuNative,
-                false,
                 OpaqueCapture::Keep,
             )
             .is_err()
@@ -1020,7 +1017,6 @@ mod tests {
                 None,
                 "en",
                 CatalogSemantics::IcuNative,
-                false,
                 OpaqueCapture::Keep,
             )
             .is_err()
@@ -1053,7 +1049,6 @@ mod tests {
                 None,
                 "en",
                 CatalogSemantics::IcuNative,
-                false,
                 OpaqueCapture::Keep,
             )
             .is_err()
@@ -1066,7 +1061,6 @@ mod tests {
                 None,
                 "en",
                 CatalogSemantics::IcuNative,
-                false,
                 OpaqueCapture::Keep,
             )
             .is_err()
@@ -1079,7 +1073,6 @@ mod tests {
             None,
             "en",
             CatalogSemantics::IcuNative,
-            false,
             OpaqueCapture::Keep,
         )
         .is_err()
@@ -1180,7 +1173,6 @@ mod tests {
             None,
             "en",
             CatalogSemantics::IcuNative,
-            false,
             OpaqueCapture::Discard,
         )
         .expect("discard projection should validate opaque tags");
@@ -1197,7 +1189,6 @@ mod tests {
                     None,
                     "en",
                     CatalogSemantics::IcuNative,
-                    false,
                     OpaqueCapture::Discard,
                 )
                 .is_err()
@@ -1292,7 +1283,6 @@ mod tests {
             "en",
             CatalogSemantics::IcuNative,
             crate::api::PluralEncoding::Icu,
-            false,
             crate::api::CatalogStorageFormat::Po,
             OpaqueCapture::Keep,
         )
@@ -1379,7 +1369,6 @@ mod tests {
             None,
             "en",
             CatalogSemantics::IcuNative,
-            false,
             OpaqueCapture::Keep,
         )
         .expect("parse plural FCL");
@@ -1435,7 +1424,6 @@ mod tests {
                 None,
                 "en",
                 CatalogSemantics::GettextCompat,
-                false,
                 OpaqueCapture::Keep,
             )
             .is_err()
@@ -1450,7 +1438,6 @@ mod tests {
             Some("fr"),
             "en",
             CatalogSemantics::IcuNative,
-            false,
             OpaqueCapture::Keep,
         )
         .expect("parse");
@@ -1497,7 +1484,6 @@ mod tests {
             Some("de"),
             "en",
             CatalogSemantics::IcuNative,
-            false,
             OpaqueCapture::Keep,
         )
         .expect("sorted long colliding plurals must round-trip in collated order");

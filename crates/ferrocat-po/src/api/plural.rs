@@ -1,4 +1,4 @@
-//! Shared plural and ICU projection helpers for the catalog API.
+//! Shared plural helpers for the catalog API.
 //!
 //! The key design goal in this module is conservative interoperability: we use
 //! locale-aware plural categories when they are safe to apply, and otherwise we
@@ -8,34 +8,11 @@ use std::collections::{BTreeMap, HashMap};
 use std::mem;
 use std::sync::{Mutex, OnceLock};
 
-use ferrocat_icu::{IcuMessage, IcuNode, IcuPluralKind, parse_icu};
 use icu_locale::Locale;
 use icu_plurals::{PluralCategory, PluralRules};
-use memchr::memchr;
 use smallvec::{SmallVec, smallvec};
 
 use super::PluralSource;
-
-#[allow(
-    dead_code,
-    reason = "ICU projection remains available for lazy/on-demand bridges."
-)]
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(super) struct ParsedIcuPlural {
-    pub(super) variable: String,
-    pub(super) branches: BTreeMap<String, String>,
-}
-
-#[allow(
-    dead_code,
-    reason = "ICU projection remains available for lazy/on-demand bridges."
-)]
-pub(super) enum IcuPluralProjection {
-    NotPlural,
-    Projected(ParsedIcuPlural),
-    Unsupported(&'static str),
-    Malformed,
-}
 
 pub(super) type PluralCategories = SmallVec<[&'static str; 6]>;
 
@@ -482,29 +459,6 @@ impl<'a> GettextPluralProfiles<'a> {
     }
 }
 
-/// Materializes a sparse plural category map against an explicit category order.
-///
-/// Missing categories become empty strings so downstream export and fallback
-/// code can treat the map as dense without extra branching.
-#[allow(
-    dead_code,
-    reason = "ICU projection remains available for lazy/on-demand bridges."
-)]
-pub(super) fn materialize_plural_categories(
-    categories: &[&'static str],
-    translation: &BTreeMap<String, String>,
-) -> BTreeMap<String, String> {
-    categories
-        .iter()
-        .map(|category| {
-            (
-                (*category).to_owned(),
-                translation.get(*category).cloned().unwrap_or_default(),
-            )
-        })
-        .collect()
-}
-
 pub(super) fn icu_plural_categories_for(locale: &str) -> Option<PluralCategories> {
     static CACHE: OnceLock<PluralCategoryCache> = OnceLock::new();
 
@@ -727,291 +681,6 @@ fn render_icu_plural(variable: &str, branches: &[(&str, &str)]) -> String {
     out
 }
 
-/// Projects the narrow ICU plural subset that Ferrocat can round-trip through
-/// the current catalog plural model.
-///
-/// Unsupported but valid ICU constructs report `Unsupported` so callers can
-/// keep the message as singular with a targeted diagnostic instead of failing
-/// or guessing.
-#[allow(
-    dead_code,
-    reason = "ICU projection remains available for lazy/on-demand bridges."
-)]
-pub(super) fn project_icu_plural(input: &str) -> IcuPluralProjection {
-    if !looks_like_projectable_icu_plural(input.as_bytes()) {
-        return IcuPluralProjection::NotPlural;
-    }
-
-    let Ok(message) = parse_icu(input) else {
-        return IcuPluralProjection::Malformed;
-    };
-
-    let Some(IcuNode::Plural {
-        name,
-        kind: IcuPluralKind::Cardinal,
-        offset,
-        options,
-    }) = only_node(&message)
-    else {
-        return IcuPluralProjection::NotPlural;
-    };
-
-    if *offset != 0 {
-        return IcuPluralProjection::Unsupported(
-            "ICU plural offset syntax is not projected into the current catalog plural model.",
-        );
-    }
-
-    let mut branches = BTreeMap::new();
-    for option in options {
-        if option.selector.starts_with('=') {
-            return IcuPluralProjection::Unsupported(
-                "ICU exact-match plural selectors are not projected into the current catalog plural model.",
-            );
-        }
-
-        let value = match render_projectable_icu_nodes(&option.value) {
-            Ok(value) => value,
-            Err(message) => return IcuPluralProjection::Unsupported(message),
-        };
-        branches.insert(option.selector.clone(), value);
-    }
-
-    if !branches.contains_key("other") {
-        return IcuPluralProjection::Malformed;
-    }
-
-    IcuPluralProjection::Projected(ParsedIcuPlural {
-        variable: name.clone(),
-        branches,
-    })
-}
-
-#[inline]
-#[allow(
-    dead_code,
-    reason = "ICU projection remains available for lazy/on-demand bridges."
-)]
-fn looks_like_projectable_icu_plural(input: &[u8]) -> bool {
-    let input = trim_ascii(input);
-    let Some(first) = input.first().copied() else {
-        return false;
-    };
-
-    match first {
-        b'<' => return false,
-        b'{' => {}
-        _ => return false,
-    }
-
-    let Some(after_open) = input.get(1..) else {
-        return false;
-    };
-    let Some(first_comma) = memchr(b',', after_open) else {
-        return false;
-    };
-    if first_comma == 0 {
-        return true;
-    }
-
-    let after_name = trim_ascii_start(&after_open[first_comma + 1..]);
-    let Some((kind, _tail)) = split_icu_kind(after_name) else {
-        return true;
-    };
-
-    if kind == b"plural" {
-        return true;
-    }
-
-    !matches!(
-        kind,
-        b"number"
-            | b"date"
-            | b"time"
-            | b"list"
-            | b"duration"
-            | b"ago"
-            | b"name"
-            | b"select"
-            | b"selectordinal"
-    )
-}
-
-#[allow(
-    dead_code,
-    reason = "ICU projection remains available for lazy/on-demand bridges."
-)]
-fn trim_ascii(input: &[u8]) -> &[u8] {
-    trim_ascii_end(trim_ascii_start(input))
-}
-
-#[allow(
-    dead_code,
-    reason = "ICU projection remains available for lazy/on-demand bridges."
-)]
-fn trim_ascii_start(input: &[u8]) -> &[u8] {
-    let start = input
-        .iter()
-        .position(|byte| !byte.is_ascii_whitespace())
-        .unwrap_or(input.len());
-    &input[start..]
-}
-
-#[allow(
-    dead_code,
-    reason = "ICU projection remains available for lazy/on-demand bridges."
-)]
-fn trim_ascii_end(input: &[u8]) -> &[u8] {
-    let end = input
-        .iter()
-        .rposition(|byte| !byte.is_ascii_whitespace())
-        .map(|index| index + 1)
-        .unwrap_or(0);
-    &input[..end]
-}
-
-#[allow(
-    dead_code,
-    reason = "ICU projection remains available for lazy/on-demand bridges."
-)]
-fn split_icu_kind(input: &[u8]) -> Option<(&[u8], &[u8])> {
-    let token_end = input
-        .iter()
-        .position(|byte| byte.is_ascii_whitespace() || matches!(byte, b',' | b'}'))
-        .unwrap_or(input.len());
-    let kind = input.get(..token_end)?;
-    if kind.is_empty() {
-        return None;
-    }
-    Some((kind, input.get(token_end..).unwrap_or_default()))
-}
-
-#[allow(
-    dead_code,
-    reason = "ICU projection remains available for lazy/on-demand bridges."
-)]
-fn only_node(message: &IcuMessage) -> Option<&IcuNode> {
-    match message.nodes.as_slice() {
-        [node] => Some(node),
-        _ => None,
-    }
-}
-
-/// Re-renders a projected ICU subtree back into a string while rejecting nested
-/// select/plural constructs that the catalog model cannot represent.
-#[allow(
-    dead_code,
-    reason = "ICU projection remains available for lazy/on-demand bridges."
-)]
-fn render_projectable_icu_nodes(nodes: &[IcuNode]) -> Result<String, &'static str> {
-    let mut out = String::new();
-    for node in nodes {
-        render_projectable_icu_node(node, &mut out)?;
-    }
-    Ok(out)
-}
-
-#[allow(
-    dead_code,
-    reason = "ICU projection remains available for lazy/on-demand bridges."
-)]
-fn render_projectable_icu_node(node: &IcuNode, out: &mut String) -> Result<(), &'static str> {
-    match node {
-        IcuNode::Literal(value) => append_escaped_icu_literal(out, value),
-        IcuNode::Argument { name } => {
-            out.push('{');
-            out.push_str(name);
-            out.push('}');
-        }
-        IcuNode::Number { name, style } => render_formatter("number", name, style.as_deref(), out),
-        IcuNode::Date { name, style } => render_formatter("date", name, style.as_deref(), out),
-        IcuNode::Time { name, style } => render_formatter("time", name, style.as_deref(), out),
-        IcuNode::List { name, style } => render_formatter("list", name, style.as_deref(), out),
-        IcuNode::Duration { name, style } => {
-            render_formatter("duration", name, style.as_deref(), out);
-        }
-        IcuNode::Ago { name, style } => render_formatter("ago", name, style.as_deref(), out),
-        IcuNode::Name { name, style } => render_formatter("name", name, style.as_deref(), out),
-        IcuNode::Pound => out.push('#'),
-        IcuNode::Tag { name, children } => {
-            out.push('<');
-            out.push_str(name);
-            if children.is_empty() {
-                out.push_str("/>");
-            } else {
-                out.push('>');
-                for child in children {
-                    render_projectable_icu_node(child, out)?;
-                }
-                out.push_str("</");
-                out.push_str(name);
-                out.push('>');
-            }
-        }
-        IcuNode::Select { .. } | IcuNode::Plural { .. } => {
-            return Err(
-                "Nested ICU select/plural structures are not projected into the current catalog plural model.",
-            );
-        }
-        #[allow(
-            unreachable_patterns,
-            reason = "cargo package verifies ferrocat-po against the latest published ferrocat-icu until this release publishes the dependency crate first."
-        )]
-        _ => {
-            return Err(
-                "Unsupported ICU node is not projected into the current catalog plural model.",
-            );
-        }
-    }
-
-    Ok(())
-}
-
-#[allow(
-    dead_code,
-    reason = "ICU projection remains available for lazy/on-demand bridges."
-)]
-fn render_formatter(kind: &str, name: &str, style: Option<&str>, out: &mut String) {
-    out.push('{');
-    out.push_str(name);
-    out.push_str(", ");
-    out.push_str(kind);
-    if let Some(style) = style {
-        out.push_str(", ");
-        out.push_str(style);
-    }
-    out.push('}');
-}
-
-/// Escapes ICU-sensitive literal characters only when needed, keeping the
-/// common literal path allocation-light.
-#[allow(
-    dead_code,
-    reason = "ICU projection remains available for lazy/on-demand bridges."
-)]
-fn append_escaped_icu_literal(out: &mut String, value: &str) {
-    if !value
-        .as_bytes()
-        .iter()
-        .any(|byte| matches!(byte, b'\'' | b'{' | b'}' | b'#' | b'<' | b'>'))
-    {
-        out.push_str(value);
-        return;
-    }
-
-    for ch in value.chars() {
-        match ch {
-            '\'' => out.push_str("''"),
-            '{' | '}' | '#' | '<' | '>' => {
-                out.push('\'');
-                out.push(ch);
-                out.push('\'');
-            }
-            _ => out.push(ch),
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use std::collections::{BTreeMap, HashMap};
@@ -1020,11 +689,9 @@ mod tests {
     use super::{
         GETTEXT_ARABIC_HEADER, GETTEXT_ONE_FORM_HEADER, GETTEXT_POLISH_HEADER,
         GETTEXT_SLAVIC_THREE_FORM_HEADER, GETTEXT_ZERO_ONE_HEADER, GettextPluralProfiles,
-        IcuPluralProjection, PluralProfile, cached_icu_plural_categories_for,
-        derive_plural_variable, expected_gettext_nplurals_for_locale, fallback_plural_categories,
-        looks_like_projectable_icu_plural, materialize_plural_categories, normalize_plural_locale,
-        ordered_plural_branches, project_icu_plural, split_icu_kind, synthesize_icu_plural,
-        synthesize_icu_plural_source,
+        PluralProfile, cached_icu_plural_categories_for, derive_plural_variable,
+        expected_gettext_nplurals_for_locale, fallback_plural_categories, normalize_plural_locale,
+        ordered_plural_branches, synthesize_icu_plural, synthesize_icu_plural_source,
     };
 
     #[test]
@@ -1048,50 +715,6 @@ mod tests {
             PluralProfile::for_gettext_slots(Some("vi-VN"), Some(1)).categories(),
             &["other"]
         );
-    }
-
-    #[test]
-    fn plural_fast_scan_skips_plain_and_mixed_messages() {
-        assert!(!looks_like_projectable_icu_plural(
-            b"Bench 1: Hello {name}, you have {count} items."
-        ));
-        assert!(!looks_like_projectable_icu_plural(
-            b"<link>{name}</link> updated benchmark entry."
-        ));
-        assert!(!looks_like_projectable_icu_plural(
-            b"{count, number, integer}"
-        ));
-        assert!(!looks_like_projectable_icu_plural(b"{name}"));
-    }
-
-    #[test]
-    fn plural_fast_scan_keeps_plural_candidates() {
-        assert!(looks_like_projectable_icu_plural(
-            b"{count, plural, one {# item} other {# items}}"
-        ));
-        assert!(looks_like_projectable_icu_plural(
-            b"{count,plural,one {# item} other {# items}}"
-        ));
-        assert!(looks_like_projectable_icu_plural(
-            b"{count, plural one {# item} other {# items}}"
-        ));
-        assert!(looks_like_projectable_icu_plural(b"{count, plura"));
-    }
-
-    #[test]
-    fn project_icu_plural_keeps_formatter_messages_singular() {
-        assert!(matches!(
-            project_icu_plural("Bench 1: {count, number, integer} items for {name}."),
-            IcuPluralProjection::NotPlural
-        ));
-        assert!(matches!(
-            project_icu_plural("<link>{name}</link> updated benchmark entry."),
-            IcuPluralProjection::NotPlural
-        ));
-        assert!(matches!(
-            project_icu_plural("{count, number, integer}"),
-            IcuPluralProjection::NotPlural
-        ));
     }
 
     #[test]
@@ -1137,16 +760,6 @@ mod tests {
         assert_eq!(
             profile.gettext_header().as_deref(),
             Some(GETTEXT_ZERO_ONE_HEADER)
-        );
-        assert_eq!(
-            materialize_plural_categories(
-                &["one", "other"],
-                &BTreeMap::from([("one".to_owned(), "eins".to_owned())]),
-            ),
-            BTreeMap::from([
-                ("one".to_owned(), "eins".to_owned()),
-                ("other".to_owned(), String::new()),
-            ])
         );
 
         // Repeated lookups reuse the cached profile instead of rebuilding it.
@@ -1243,7 +856,7 @@ mod tests {
     }
 
     #[test]
-    fn synthesize_and_project_icu_plural_cover_supported_and_unsupported_cases() {
+    fn synthesize_icu_plural_renders_expected_forms_without_reallocation() {
         let synthesized = synthesize_icu_plural(
             "count",
             &BTreeMap::from([
@@ -1278,78 +891,11 @@ mod tests {
         // requested capacity when no reallocation happens, so equality with the
         // final length pins the no-growth contract.
         assert_eq!(synthesized.capacity(), synthesized.len());
-
-        assert!(matches!(
-            project_icu_plural("{count, plural, offset:1 one {# file} other {# files}}"),
-            IcuPluralProjection::Unsupported(message) if message.contains("offset")
-        ));
-        assert!(matches!(
-            project_icu_plural("{count, plural, =0 {none} other {# files}}"),
-            IcuPluralProjection::Unsupported(message) if message.contains("exact-match")
-        ));
-        assert!(matches!(
-            project_icu_plural("{count, plural, one {{gender, select, other {# file}}} other {# files}}"),
-            IcuPluralProjection::Unsupported(message) if message.contains("Nested ICU")
-        ));
-        assert!(matches!(
-            project_icu_plural("{count, plural, one {# file}}"),
-            IcuPluralProjection::Malformed
-        ));
-        assert!(matches!(
-            project_icu_plural("plain text"),
-            IcuPluralProjection::NotPlural
-        ));
-    }
-
-    #[test]
-    fn project_icu_plural_renders_supported_nested_leaf_nodes() {
-        let projection = project_icu_plural(
-            "{count, plural, one {It''s '{'one'}' <b>{name}</b><0/> {price, number, integer} {created, date, short} {time, time, HH:mm} {items, list, conjunction} {elapsed, duration} {since, ago} {person, name}} other {# files}}",
-        );
-
-        match projection {
-            IcuPluralProjection::Projected(parsed) => {
-                assert_eq!(parsed.variable, "count");
-                assert_eq!(
-                    parsed.branches.get("one").map(String::as_str),
-                    Some(
-                        "It''s '{'one'}' <b>{name}</b><0/> {price, number, integer} {created, date, short} {time, time, HH:mm} {items, list, conjunction} {elapsed, duration} {since, ago} {person, name}"
-                    )
-                );
-                assert_eq!(
-                    parsed.branches.get("other").map(String::as_str),
-                    Some("# files")
-                );
-            }
-            _ => panic!("expected projected plural"),
-        }
-    }
-
-    #[test]
-    fn project_icu_plural_reports_malformed_and_non_plural_candidates() {
-        assert!(matches!(
-            project_icu_plural("{count, plural, one {# file} other {# files}"),
-            IcuPluralProjection::Malformed
-        ));
-        assert!(matches!(
-            project_icu_plural("{rank, selectordinal, one {#st} other {#th}}"),
-            IcuPluralProjection::NotPlural
-        ));
-        assert!(!looks_like_projectable_icu_plural(b""));
-        assert!(!looks_like_projectable_icu_plural(b"{"));
-        assert!(looks_like_projectable_icu_plural(b"{, plural"));
-        assert!(looks_like_projectable_icu_plural(b"{count,"));
-        assert!(looks_like_projectable_icu_plural(b"{count, unknown"));
     }
 
     #[test]
     fn locale_normalization_and_cache_helpers_cover_hits_and_misses() {
         assert_eq!(normalize_plural_locale(" pt_BR "), "pt-BR");
-        assert_eq!(
-            split_icu_kind(b"plural, one {x}").map(|(kind, _)| kind),
-            Some(&b"plural"[..])
-        );
-        assert_eq!(split_icu_kind(b"").map(|(kind, _)| kind), None);
 
         let cache = Mutex::new(HashMap::new());
         assert_eq!(cached_icu_plural_categories_for("   ", &cache), None);
