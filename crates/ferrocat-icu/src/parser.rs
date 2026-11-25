@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use crate::ast::{IcuMessage, IcuNode, IcuOption, IcuPluralKind};
 use crate::error::IcuParseError;
 
@@ -59,12 +61,51 @@ pub fn parse_icu_with_options(
     input: &str,
     options: &IcuParserOptions,
 ) -> Result<IcuMessage, IcuParseError> {
+    if input.is_empty() {
+        return Ok(IcuMessage { nodes: Vec::new() });
+    }
+    if is_plain_literal(input.as_bytes(), options) {
+        return Ok(IcuMessage {
+            nodes: vec![IcuNode::Literal(input.to_owned())],
+        });
+    }
     let mut parser = Parser::new(input, options);
     let nodes = parser.parse_nodes(None, 0)?;
     if !parser.is_eof() {
         return Err(parser.error("Unexpected trailing input"));
     }
     Ok(IcuMessage { nodes })
+}
+
+/// Validates ICU `MessageFormat` input without allocating an owned AST.
+pub(crate) fn validate_icu_with_options(
+    input: &str,
+    options: &IcuParserOptions,
+) -> Result<(), IcuParseError> {
+    if input.is_empty() || is_plain_literal(input.as_bytes(), options) {
+        return Ok(());
+    }
+    let mut parser = Parser::new(input, options);
+    parser.validate_nodes(None, 0)?;
+    if !parser.is_eof() {
+        return Err(parser.error("Unexpected trailing input"));
+    }
+    Ok(())
+}
+
+#[inline]
+fn is_plain_literal(bytes: &[u8], options: &IcuParserOptions) -> bool {
+    if options.ignore_tag {
+        memchr::memchr3(b'{', b'}', b'\'', bytes).is_none()
+    } else {
+        find_literal_stop(bytes, false).is_none()
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum BorrowedSelector<'a> {
+    Exact(u32),
+    Keyword(&'a str),
 }
 
 struct Parser<'a> {
@@ -95,8 +136,8 @@ impl<'a> Parser<'a> {
         until_tag: Option<&str>,
         plural_depth: usize,
     ) -> Result<Vec<IcuNode>, IcuParseError> {
-        let mut nodes = Vec::with_capacity(4);
-        let mut literal = String::with_capacity(16);
+        let mut nodes = Vec::new();
+        let mut literal = String::new();
 
         while let Some(byte) = self.byte_at() {
             if byte == b'}' {
@@ -128,7 +169,7 @@ impl<'a> Parser<'a> {
                     self.pos += 1;
                     nodes.push(IcuNode::Pound);
                 }
-                b'\'' => literal.push_str(&self.parse_apostrophe_literal()?),
+                b'\'' => self.parse_apostrophe_literal_into(&mut literal)?,
                 b'<' => {
                     // A `<` that is not an open tag (close tags are handled above):
                     // copy it as a literal byte and continue scanning.
@@ -152,6 +193,52 @@ impl<'a> Parser<'a> {
         Ok(nodes)
     }
 
+    fn validate_nodes(
+        &mut self,
+        until_tag: Option<&'a str>,
+        plural_depth: usize,
+    ) -> Result<(), IcuParseError> {
+        while let Some(byte) = self.byte_at() {
+            if byte == b'}' {
+                break;
+            }
+
+            if let Some(tag_name) = until_tag {
+                if self.starts_with_close_tag(tag_name) {
+                    break;
+                }
+                if !self.options.ignore_tag && self.peek_close_tag() {
+                    return Err(self.error("Mismatched closing tag"));
+                }
+            } else if !self.options.ignore_tag && self.peek_close_tag() {
+                return Err(self.error("Unexpected closing tag"));
+            }
+
+            match byte {
+                b'{' => self.validate_argument(plural_depth)?,
+                b'<' if !self.options.ignore_tag && self.peek_open_tag() => {
+                    self.validate_tag(plural_depth)?;
+                }
+                b'#' if plural_depth > 0 => {
+                    self.pos += 1;
+                }
+                b'\'' => self.skip_apostrophe_literal()?,
+                b'<' => {
+                    self.pos += 1;
+                }
+                _ => {
+                    let rest = &self.input_bytes[self.pos..];
+                    let stop = find_literal_stop(rest, plural_depth > 0)
+                        .unwrap_or(rest.len())
+                        .max(1);
+                    self.pos += stop;
+                }
+            }
+        }
+
+        Ok(())
+    }
+
     fn parse_nested_nodes(
         &mut self,
         until_tag: Option<&str>,
@@ -168,10 +255,26 @@ impl<'a> Parser<'a> {
         result
     }
 
+    fn validate_nested_nodes(
+        &mut self,
+        until_tag: Option<&'a str>,
+        plural_depth: usize,
+    ) -> Result<(), IcuParseError> {
+        if self.nesting_depth >= MAX_NESTING_DEPTH {
+            return Err(self.error(format!(
+                "ICU message exceeds maximum nesting depth of {MAX_NESTING_DEPTH}"
+            )));
+        }
+        self.nesting_depth += 1;
+        let result = self.validate_nodes(until_tag, plural_depth);
+        self.nesting_depth -= 1;
+        result
+    }
+
     fn parse_argument(&mut self, plural_depth: usize) -> Result<IcuNode, IcuParseError> {
         self.expect_char('{')?;
         self.skip_whitespace();
-        let name = self.parse_identifier()?;
+        let name = self.parse_identifier_str()?.to_owned();
         self.skip_whitespace();
 
         if self.consume_char('}') {
@@ -180,10 +283,10 @@ impl<'a> Parser<'a> {
 
         self.expect_char(',')?;
         self.skip_whitespace();
-        let kind = self.parse_identifier()?;
+        let kind = self.parse_identifier_str()?;
         self.skip_whitespace();
 
-        match kind.as_str() {
+        match kind {
             "number" => self.parse_simple_formatter(name, FormatterKind::Number),
             "date" => self.parse_simple_formatter(name, FormatterKind::Date),
             "time" => self.parse_simple_formatter(name, FormatterKind::Time),
@@ -198,14 +301,74 @@ impl<'a> Parser<'a> {
         }
     }
 
+    fn validate_argument(&mut self, plural_depth: usize) -> Result<(), IcuParseError> {
+        self.expect_char('{')?;
+        self.skip_whitespace();
+        let _name = self.parse_identifier_str()?;
+        self.skip_whitespace();
+
+        if self.consume_char('}') {
+            return Ok(());
+        }
+
+        self.expect_char(',')?;
+        self.skip_whitespace();
+        let kind = self.parse_identifier_str()?;
+        self.skip_whitespace();
+
+        match kind {
+            "number" | "date" | "time" | "list" | "duration" | "ago" | "name" => {
+                if self.consume_char(',') {
+                    self.skip_until_closing_brace()?;
+                }
+                self.expect_char('}')?;
+                Ok(())
+            }
+            "select" => {
+                if self.consume_char(',') {
+                    self.skip_whitespace();
+                }
+                let has_other = self.validate_options(plural_depth)?;
+                if self.options.requires_other_clause && !has_other {
+                    return Err(self.error("Select argument requires an \"other\" clause"));
+                }
+                self.expect_char('}')?;
+                Ok(())
+            }
+            "plural" | "selectordinal" => {
+                if self.consume_char(',') {
+                    self.skip_whitespace();
+                }
+                self.skip_whitespace();
+                if self.starts_with_bytes(Self::OFFSET_PREFIX) {
+                    self.pos += Self::OFFSET_PREFIX.len();
+                    self.skip_whitespace();
+                    let _offset = self.parse_unsigned_int()?;
+                    self.skip_whitespace();
+                    if self.starts_with_bytes(Self::OFFSET_PREFIX) {
+                        return Err(self.error("Duplicate plural offset"));
+                    }
+                }
+                let has_other = self.validate_options(plural_depth + 1)?;
+                if self.options.requires_other_clause && !has_other {
+                    return Err(self.error("Plural argument requires an \"other\" clause"));
+                }
+                self.expect_char('}')?;
+                Ok(())
+            }
+            _ => Err(self.error("Unsupported ICU argument type")),
+        }
+    }
+
     fn parse_simple_formatter(
         &mut self,
         name: String,
         kind: FormatterKind,
     ) -> Result<IcuNode, IcuParseError> {
         let style = if self.consume_char(',') {
-            let style = self.read_until_closing_brace()?.trim().to_owned();
-            Some(style).filter(|style| !style.is_empty())
+            let raw_style = self.read_until_closing_brace()?;
+            let trimmed = raw_style.trim();
+            (!trimmed.is_empty()).then(|| trimmed.to_owned())
         } else {
             None
         };
@@ -304,43 +467,103 @@ impl<'a> Parser<'a> {
         Ok(options)
     }
 
+    fn validate_options(&mut self, plural_depth: usize) -> Result<bool, IcuParseError> {
+        let mut stack_selectors = [BorrowedSelector::Keyword(""); 16];
+        let mut stack_len = 0usize;
+        let mut overflow_selectors: Vec<BorrowedSelector<'a>> = Vec::new();
+        let mut has_other = false;
+
+        loop {
+            self.skip_whitespace();
+            if self.byte_at() == Some(b'}') {
+                break;
+            }
+            let selector = self.parse_selector_borrowed()?;
+            let is_duplicate = stack_selectors[..stack_len].contains(&selector)
+                || overflow_selectors.contains(&selector);
+            if is_duplicate {
+                return Err(self.error("Duplicate ICU selector"));
+            }
+            if selector == BorrowedSelector::Keyword("other") {
+                has_other = true;
+            }
+            if stack_len < stack_selectors.len() {
+                stack_selectors[stack_len] = selector;
+                stack_len += 1;
+            } else {
+                overflow_selectors.push(selector);
+            }
+            self.skip_whitespace();
+            self.expect_char('{')?;
+            self.validate_nested_nodes(None, plural_depth)?;
+            self.expect_char('}')?;
+        }
+
+        if stack_len == 0 {
+            return Err(self.error("Expected at least one ICU option"));
+        }
+
+        Ok(has_other)
+    }
+
     fn parse_tag(&mut self, plural_depth: usize) -> Result<IcuNode, IcuParseError> {
         self.expect_char('<')?;
-        let name = self.parse_tag_name()?;
+        let name = self.parse_tag_name_str()?;
         if self.starts_with_bytes(Self::SELF_CLOSING_TAG_SUFFIX) {
             self.pos += Self::SELF_CLOSING_TAG_SUFFIX.len();
             return Ok(IcuNode::Tag {
-                name,
+                name: name.to_owned(),
                 children: Vec::new(),
             });
         }
         self.expect_char('>')?;
-        let children = self.parse_nested_nodes(Some(&name), plural_depth)?;
+        let children = self.parse_nested_nodes(Some(name), plural_depth)?;
         self.expect_bytes(Self::CLOSE_TAG_PREFIX)?;
-        let close_name = self.parse_tag_name()?;
+        let close_name = self.parse_tag_name_str()?;
         if close_name != name {
             return Err(self.error("Mismatched closing tag"));
         }
         self.expect_char('>')?;
-        Ok(IcuNode::Tag { name, children })
+        Ok(IcuNode::Tag {
+            name: name.to_owned(),
+            children,
+        })
     }
 
-    fn parse_apostrophe_literal(&mut self) -> Result<String, IcuParseError> {
+    fn validate_tag(&mut self, plural_depth: usize) -> Result<(), IcuParseError> {
+        self.expect_char('<')?;
+        let name = self.parse_tag_name_str()?;
+        if self.starts_with_bytes(Self::SELF_CLOSING_TAG_SUFFIX) {
+            self.pos += Self::SELF_CLOSING_TAG_SUFFIX.len();
+            return Ok(());
+        }
+        self.expect_char('>')?;
+        self.validate_nested_nodes(Some(name), plural_depth)?;
+        self.expect_bytes(Self::CLOSE_TAG_PREFIX)?;
+        let close_name = self.parse_tag_name_str()?;
+        if close_name != name {
+            return Err(self.error("Mismatched closing tag"));
+        }
+        self.expect_char('>')?;
+        Ok(())
+    }
+
+    fn parse_apostrophe_literal_into(&mut self, out: &mut String) -> Result<(), IcuParseError> {
         let start = self.pos;
         self.expect_char('\'')?;
 
         if self.consume_char('\'') {
-            return Ok("'".to_owned());
+            out.push('\'');
+            return Ok(());
         }
 
-        let mut out = String::with_capacity(8);
         while let Some(byte) = self.byte_at() {
             if byte == b'\'' {
                 self.pos += 1;
                 if self.consume_char('\'') {
                     out.push('\'');
                 } else {
-                    return Ok(out);
+                    return Ok(());
                 }
             } else {
                 let rest = &self.input_bytes[self.pos..];
@@ -357,14 +580,56 @@ impl<'a> Parser<'a> {
         ))
     }
 
-    fn read_until_closing_brace(&mut self) -> Result<String, IcuParseError> {
-        let mut out = String::with_capacity(8);
+    fn skip_apostrophe_literal(&mut self) -> Result<(), IcuParseError> {
+        let start = self.pos;
+        self.expect_char('\'')?;
+
+        if self.consume_char('\'') {
+            return Ok(());
+        }
+
+        while let Some(byte) = self.byte_at() {
+            if byte == b'\'' {
+                self.pos += 1;
+                if !self.consume_char('\'') {
+                    return Ok(());
+                }
+            } else {
+                let rest = &self.input_bytes[self.pos..];
+                let stop = memchr::memchr(b'\'', rest).unwrap_or(rest.len()).max(1);
+                self.pos += stop;
+            }
+        }
+
+        Err(IcuParseError::syntax(
+            "Unterminated apostrophe escape",
+            self.input,
+            start,
+        ))
+    }
+
+    fn read_until_closing_brace(&mut self) -> Result<Cow<'a, str>, IcuParseError> {
+        let start = self.pos;
+        let rest = &self.input_bytes[start..];
+        match memchr::memchr2(b'}', b'\'', rest) {
+            Some(stop) if rest[stop] == b'}' => {
+                self.pos = start + stop;
+                return Ok(Cow::Borrowed(&self.input[start..self.pos]));
+            }
+            None => {
+                self.pos = self.input.len();
+                return Err(self.error("Unterminated ICU argument"));
+            }
+            Some(_) => {}
+        }
+
+        let mut out = String::new();
         while let Some(byte) = self.byte_at() {
             if byte == b'}' {
-                return Ok(out);
+                return Ok(Cow::Owned(out));
             }
             if byte == b'\'' {
-                out.push_str(&self.parse_apostrophe_literal()?);
+                self.parse_apostrophe_literal_into(&mut out)?;
             } else {
                 let rest = &self.input_bytes[self.pos..];
                 let stop = memchr::memchr2(b'}', b'\'', rest)
@@ -377,11 +642,36 @@ impl<'a> Parser<'a> {
         Err(self.error("Unterminated ICU argument"))
     }
 
+    fn skip_until_closing_brace(&mut self) -> Result<(), IcuParseError> {
+        while let Some(byte) = self.byte_at() {
+            if byte == b'}' {
+                return Ok(());
+            }
+            if byte == b'\'' {
+                self.skip_apostrophe_literal()?;
+            } else {
+                let rest = &self.input_bytes[self.pos..];
+                let stop = memchr::memchr2(b'}', b'\'', rest)
+                    .unwrap_or(rest.len())
+                    .max(1);
+                self.pos += stop;
+            }
+        }
+        Err(self.error("Unterminated ICU argument"))
+    }
+
     fn parse_selector(&mut self) -> Result<String, IcuParseError> {
+        match self.parse_selector_borrowed()? {
+            BorrowedSelector::Exact(number) => Ok(format!("={number}")),
+            BorrowedSelector::Keyword(keyword) => Ok(keyword.to_owned()),
+        }
+    }
+
+    fn parse_selector_borrowed(&mut self) -> Result<BorrowedSelector<'a>, IcuParseError> {
         let start = self.pos;
         if self.consume_char('=') {
             let number = self.parse_unsigned_int()?;
-            return Ok(format!("={number}"));
+            return Ok(BorrowedSelector::Exact(number));
         }
 
         while let Some(byte) = self.byte_at() {
@@ -399,10 +689,10 @@ impl<'a> Parser<'a> {
             return Err(self.error("Expected ICU selector"));
         }
 
-        Ok(self.input[start..self.pos].to_owned())
+        Ok(BorrowedSelector::Keyword(&self.input[start..self.pos]))
     }
 
-    fn parse_identifier(&mut self) -> Result<String, IcuParseError> {
+    fn parse_identifier_str(&mut self) -> Result<&'a str, IcuParseError> {
         let start = self.pos;
         while let Some(byte) = self.byte_at() {
             if byte.is_ascii_whitespace() || matches!(byte, b'{' | b'}' | b',' | b'<' | b'>') {
@@ -419,10 +709,10 @@ impl<'a> Parser<'a> {
             return Err(self.error("Expected ICU identifier"));
         }
 
-        Ok(self.input[start..self.pos].to_owned())
+        Ok(&self.input[start..self.pos])
     }
 
-    fn parse_tag_name(&mut self) -> Result<String, IcuParseError> {
+    fn parse_tag_name_str(&mut self) -> Result<&'a str, IcuParseError> {
         let start = self.pos;
         while let Some(byte) = self.byte_at() {
             if byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'-' | b'.') {
@@ -436,7 +726,7 @@ impl<'a> Parser<'a> {
             return Err(self.error("Expected tag name"));
         }
 
-        Ok(self.input[start..self.pos].to_owned())
+        Ok(&self.input[start..self.pos])
     }
 
     fn parse_unsigned_int(&mut self) -> Result<u32, IcuParseError> {
@@ -914,5 +1204,74 @@ mod tests {
 
         let error = parse_icu("<a>broken</>").expect_err("invalid closing tag");
         assert!(error.message.contains("Mismatched closing tag"));
+    }
+
+    #[test]
+    fn validate_icu_matches_parse_icu_for_valid_and_invalid_inputs() {
+        let cases = [
+            "",
+            "Plain literal without special chars",
+            "Literal with # outside plural and < not a tag",
+            "Hello {name}!",
+            "Escaped ''apostrophe'' and '{not_arg}' and '<not_tag>'",
+            "{n, number} {n, number, currency} {n, number, 'prefix '0.00} {d, date, short} {t, time, ::HHmm} {l, list, disjunction} {u, duration} {a, ago} {p, name}",
+            "{count, plural, offset:1 =0 {none} one {# item} other {{gender, select, male {his} other {their}} items}}",
+            "{rank, selectordinal, one {#st} two {#nd} few {#rd} other {#th}}",
+            "<0>hello <br/> <b>{name}</b></0>",
+            // >16 selectors to exercise overflow path in validate_options
+            "{k, select, s0 {a} s1 {a} s2 {a} s3 {a} s4 {a} s5 {a} s6 {a} s7 {a} s8 {a} s9 {a} s10 {a} s11 {a} s12 {a} s13 {a} s14 {a} s15 {a} s16 {a} other {z}}",
+            // Invalid cases
+            "hello}",
+            "{broken",
+            "{}",
+            "{name, }",
+            "{name, unknown}",
+            "{name, number, 'unterminated}",
+            "{name, number, unterminated",
+            "{n, plural, one {a}}",
+            "{x, select, a {1}}",
+            "{n, plural, }",
+            "{n, plural, one {a} one {b} other {c}}",
+            "{n, plural, =01 {a} =1 {b} other {c}}",
+            "{n, plural, =abc {a} other {b}}",
+            "{n, plural, offset:0 offset:1 other {a}}",
+            "{n, plural, offset:abc other {a}}",
+            "'unterminated",
+            "</b>",
+            "<a>broken</b>",
+            "<a>broken</>",
+            "<a>unclosed",
+            "<a",
+            // Exceeding max nesting depth
+            &"<b>".repeat(super::MAX_NESTING_DEPTH + 1),
+        ];
+
+        for input in cases {
+            let parsed = parse_icu(input).map(|_| ());
+            let validated = validate_icu(input);
+            assert_eq!(
+                validated, parsed,
+                "validate_icu disagreed with parse_icu for input {input:?}"
+            );
+        }
+
+        // Also verify with ignore_tag=true and requires_other_clause=false
+        let relaxed = IcuParserOptions::default()
+            .with_ignore_tag(true)
+            .with_requires_other_clause(false);
+        for input in [
+            "<b>Hello</b>",
+            "<b>Hello</b> {name}",
+            "{n, plural, one {#}}",
+            "{x, select, a {1}}",
+            "{x, select, a {1} a {2}}",
+        ] {
+            let parsed = parse_icu_with_options(input, &relaxed).map(|_| ());
+            let validated = super::validate_icu_with_options(input, &relaxed);
+            assert_eq!(
+                validated, parsed,
+                "validate_icu_with_options disagreed for {input:?}"
+            );
+        }
     }
 }

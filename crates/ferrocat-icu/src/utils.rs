@@ -8,16 +8,30 @@ use crate::ast::{IcuMessage, IcuNode, IcuOption, IcuPluralKind};
 ///
 /// Returns [`crate::IcuParseError`] when the input is malformed.
 pub fn validate_icu(input: &str) -> Result<(), crate::IcuParseError> {
-    crate::parse_icu(input).map(|_| ())
+    crate::parser::validate_icu_with_options(input, &crate::IcuParserOptions::default())
 }
 
 /// Extracts variable names in first-seen order.
 #[must_use]
 pub fn extract_variables(message: &IcuMessage) -> Vec<String> {
     let mut out = Vec::new();
-    let mut seen = BTreeSet::new();
+    let mut small = [""; 16];
+    let mut small_len = 0usize;
+    let mut large: Option<BTreeSet<&str>> = None;
     visit_nodes(&message.nodes, &mut |name| {
-        if seen.insert(name.to_owned()) {
+        if let Some(seen) = large.as_mut() {
+            if seen.insert(name) {
+                out.push(name.to_owned());
+            }
+        } else if !small[..small_len].contains(&name) {
+            if small_len < small.len() {
+                small[small_len] = name;
+                small_len += 1;
+            } else {
+                let mut set: BTreeSet<&str> = small.into_iter().collect();
+                set.insert(name);
+                large = Some(set);
+            }
             out.push(name.to_owned());
         }
     });
@@ -66,7 +80,7 @@ pub fn has_tag(message: &IcuMessage) -> bool {
     any_nodes(&message.nodes, &|node| matches!(node, IcuNode::Tag { .. }))
 }
 
-fn visit_nodes(nodes: &[IcuNode], visitor: &mut impl FnMut(&str)) {
+fn visit_nodes<'a>(nodes: &'a [IcuNode], visitor: &mut impl FnMut(&'a str)) {
     for node in nodes {
         match node {
             IcuNode::Literal(_) | IcuNode::Pound => {}
@@ -90,7 +104,7 @@ fn visit_nodes(nodes: &[IcuNode], visitor: &mut impl FnMut(&str)) {
     }
 }
 
-fn visit_options(options: &[IcuOption], visitor: &mut impl FnMut(&str)) {
+fn visit_options<'a>(options: &'a [IcuOption], visitor: &mut impl FnMut(&'a str)) {
     for option in options {
         visit_nodes(&option.value, visitor);
     }
@@ -149,5 +163,17 @@ mod tests {
         assert!(!has_select(&message));
         assert!(!has_select_ordinal(&message));
         assert!(!has_tag(&message));
+    }
+
+    #[test]
+    fn extracts_many_variables_in_first_seen_order_across_overflow_threshold() {
+        let input = (0..20)
+            .map(|i| format!("{{v{i}}}"))
+            .chain((0..20).rev().map(|i| format!("{{v{i}}}")))
+            .collect::<Vec<_>>()
+            .join(" ");
+        let message = parse_icu(&input).expect("parse");
+        let expected: Vec<String> = (0..20).map(|i| format!("v{i}")).collect();
+        assert_eq!(extract_variables(&message), expected);
     }
 }
