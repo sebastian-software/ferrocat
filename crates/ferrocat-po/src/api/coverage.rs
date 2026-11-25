@@ -29,6 +29,13 @@ impl<'a> CatalogCoverageOptions<'a> {
         }
     }
 
+    /// Returns options that measure coverage only for the given target locales.
+    #[must_use]
+    pub fn with_locales(mut self, locales: &'a [&'a str]) -> Self {
+        self.locales = locales;
+        self
+    }
+
     /// Returns options that include per-message detail rows.
     #[must_use]
     pub const fn with_details(mut self, include_details: bool) -> Self {

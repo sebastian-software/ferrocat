@@ -34,6 +34,13 @@ impl<'a> CatalogReviewOptions<'a> {
         }
     }
 
+    /// Returns options that review only the given target locales.
+    #[must_use]
+    pub fn with_locales(mut self, locales: &'a [&'a str]) -> Self {
+        self.locales = locales;
+        self
+    }
+
     /// Returns options that include source, translation, and metadata detail rows.
     #[must_use]
     pub const fn with_details(mut self, include_details: bool) -> Self {
@@ -305,11 +312,9 @@ pub fn review_catalogs(
         &current_source_keys,
         options.include_details,
     );
-    let coverage_options = CatalogCoverageOptions {
-        source_locale: options.source_locale,
-        locales: options.locales,
-        include_details: options.include_details,
-    };
+    let coverage_options = CatalogCoverageOptions::new(options.source_locale)
+        .with_locales(options.locales)
+        .with_details(options.include_details);
     let coverage = measure_catalog_coverage(current_catalogs, &coverage_options)?;
     let mut locales = Vec::with_capacity(target_locales.len());
 
@@ -776,10 +781,7 @@ mod tests {
         let report = review_catalogs(
             &[&source],
             &[&source, &de, &fr],
-            &CatalogReviewOptions {
-                locales: &requested,
-                ..CatalogReviewOptions::new("en")
-            },
+            &CatalogReviewOptions::new("en").with_locales(&requested),
         )
         .expect("review");
 
@@ -788,6 +790,18 @@ mod tests {
         assert_eq!(report.locales[1].locale, "fr");
         assert_eq!(report.summary.translation_changed, 0);
         assert_eq!(report.locales[0].translations.changed, 0);
+    }
+
+    #[test]
+    fn review_options_with_locales_sets_target_filter() {
+        let locales = ["de", "fr"];
+        let options = CatalogReviewOptions::new("en")
+            .with_locales(&locales)
+            .with_details(true);
+
+        assert_eq!(options.source_locale, "en");
+        assert_eq!(options.locales, &locales);
+        assert!(options.include_details);
     }
 
     #[test]
