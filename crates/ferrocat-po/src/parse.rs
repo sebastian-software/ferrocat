@@ -5,7 +5,7 @@ use memchr::memchr_iter;
 use crate::line_state::{PoLineContext, PoLineState};
 use crate::scan::{
     CommentKind, Keyword, LineKind, LineScanner, checked_plural_forms, checked_plural_index,
-    classify_line, find_byte, find_quoted_bounds, split_once_byte, trim_ascii,
+    classify_line, find_byte, find_quoted_bounds, split_once_byte, trim_ascii, trim_str_whitespace,
     unrecognized_po_line,
 };
 use crate::text::{extract_quoted_bytes_cow_from, for_each_reference_token};
@@ -367,9 +367,7 @@ fn parse_comment_line(
         }
         CommentKind::Flags => {
             for flag in trimmed_str(&line_bytes[2..]).split(',') {
-                let flag = flag.trim_ascii();
-                let flag = if flag.is_ascii() { flag } else { flag.trim() };
-                state.item.flags.push(flag.to_owned());
+                state.item.flags.push(trim_str_whitespace(flag).to_owned());
             }
         }
         CommentKind::Extracted => state

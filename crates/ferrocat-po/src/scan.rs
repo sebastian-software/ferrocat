@@ -292,6 +292,28 @@ pub fn trim_ascii_start(bytes: &[u8]) -> &[u8] {
     &bytes[start..]
 }
 
+/// Trims leading and trailing Unicode whitespace (matching [`str::trim`]),
+/// skipping the Unicode scan when both ends are graphic ASCII (`0x21..=0x7E`),
+/// which excludes every ASCII (including `\x0b`) and Unicode whitespace char.
+#[inline]
+pub fn trim_str_whitespace(input: &str) -> &str {
+    let bytes = input.as_bytes();
+    if bytes.is_empty()
+        || (bytes[0].is_ascii_graphic() && bytes[bytes.len() - 1].is_ascii_graphic())
+    {
+        return input;
+    }
+    let trimmed = input.trim_ascii();
+    let trimmed_bytes = trimmed.as_bytes();
+    if trimmed_bytes.is_empty()
+        || (trimmed_bytes[0].is_ascii_graphic()
+            && trimmed_bytes[trimmed_bytes.len() - 1].is_ascii_graphic())
+    {
+        return trimmed;
+    }
+    trimmed.trim()
+}
+
 #[inline]
 pub fn find_byte(byte: u8, haystack: &[u8]) -> Option<usize> {
     backend::find_byte(byte, haystack)

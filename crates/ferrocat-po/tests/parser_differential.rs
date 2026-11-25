@@ -54,6 +54,33 @@ fn owned_and_borrowed_parsers_match_on_shared_lf_inputs() {
     }
 }
 
+#[test]
+fn flag_trimming_strips_vertical_tab_and_unicode_whitespace_across_parsers() {
+    let input = "#, c-format,\x0bfuzzy, \u{00a0}python-format\u{00a0}\nmsgid \"Save\"\nmsgstr \"Speichern\"\n";
+    let expected = ["c-format", "fuzzy", "python-format"];
+
+    let owned = parse_po(input).expect("owned parse");
+    assert_eq!(owned.items[0].flags.as_slice(), expected);
+
+    let borrowed = parse_po_borrowed(input)
+        .expect("borrowed parse")
+        .into_owned();
+    assert_eq!(borrowed.items[0].flags.as_slice(), expected);
+
+    let merged = merge_catalog(
+        input,
+        &[MergeMessageInput {
+            msgid: Cow::Borrowed("Save"),
+            ..MergeMessageInput::default()
+        }],
+    )
+    .expect("merge catalog");
+    assert!(
+        merged.contains("#, c-format,fuzzy,python-format\n"),
+        "merged output lost normalized flags: {merged}"
+    );
+}
+
 /// The header block is split into header lines only after the whole header
 /// `msgstr` has been decoded. Header fragments that do not close a header line,
 /// that carry escapes, or that open an obsolete (`#~`) line must therefore not
