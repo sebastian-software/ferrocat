@@ -545,6 +545,11 @@ fn parse_header(line: &str, source_locale: &str) -> Result<FclHeader, ApiError> 
             ));
         }
     };
+    if version == FclVersion::V2 && find_byte(b'\r', line.as_bytes()).is_some() {
+        return Err(ApiError::InvalidArguments(
+            "invalid FCL header: raw carriage return must be escaped as \\r".to_owned(),
+        ));
+    }
     let mut locale = None;
     let mut declared_source: Option<String> = None;
     let mut order = FclOrder::LegacyBytewise;
@@ -834,11 +839,6 @@ pub(super) fn parse_catalog_to_internal_fcl(
             "FCL catalog must start with a `%FCL1` or `%FCL2` header".to_owned(),
         )
     })?;
-    if header.starts_with(FCL2_MAGIC) && find_byte(b'\r', header.as_bytes()).is_some() {
-        return Err(ApiError::InvalidArguments(
-            "invalid FCL header: raw carriage return must be escaped as \\r".to_owned(),
-        ));
-    }
     let parsed_header = parse_header(header, source_locale)?;
     let locale = locale_override.map(str::to_owned).or(parsed_header.locale);
 
@@ -1546,6 +1546,16 @@ mod tests {
         )
         .expect_err("raw CR inside FCL2 header must be rejected");
         assert!(header_error.to_string().contains("raw carriage return"));
+
+        let unknown_version_error = parse_catalog_to_internal_fcl(
+            "%FCL20\tsource=en\rbar\nhello\tn\thallo\n",
+            None,
+            "en",
+            CatalogSemantics::IcuNative,
+            OpaqueCapture::Keep,
+        )
+        .expect_err("unknown FCL version must report version error");
+        assert!(unknown_version_error.to_string().contains("%FCL1"));
 
         let fcl1_raw_cr = format!("{FCL_MAGIC}\tsource=en\nhello\t\thallo\rworld\n");
         let fcl1_parsed = parse_catalog_to_internal_fcl(

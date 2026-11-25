@@ -574,7 +574,13 @@ fn formatter_map(
     for formatter in &analysis.formatters {
         out.entry((formatter.name.as_str(), formatter.kind))
             .or_default()
-            .insert(formatter.style.as_deref().map(str::trim));
+            .insert(
+                formatter
+                    .style
+                    .as_deref()
+                    .map(str::trim)
+                    .filter(|style| !style.is_empty()),
+            );
     }
     out
 }
@@ -783,22 +789,22 @@ fn plural_key(plural: &IcuPluralSummary) -> (&str, IcuPluralKind) {
     (plural.name.as_str(), plural.kind)
 }
 
-struct AggregatedPlural<'a> {
-    offsets: BTreeSet<u32>,
+struct PluralBlockSignature<'a> {
+    offset: u32,
     selectors: BTreeSet<&'a str>,
 }
 
-fn plural_map(analysis: &IcuAnalysis) -> BTreeMap<(&str, IcuPluralKind), AggregatedPlural<'_>> {
-    let mut out = BTreeMap::<(&str, IcuPluralKind), AggregatedPlural<'_>>::new();
+fn plural_blocks_map(
+    analysis: &IcuAnalysis,
+) -> BTreeMap<(&str, IcuPluralKind), Vec<PluralBlockSignature<'_>>> {
+    let mut out = BTreeMap::<(&str, IcuPluralKind), Vec<PluralBlockSignature<'_>>>::new();
     for plural in &analysis.plurals {
-        let entry = out
-            .entry(plural_key(plural))
-            .or_insert_with(|| AggregatedPlural {
-                offsets: BTreeSet::new(),
-                selectors: BTreeSet::new(),
+        out.entry(plural_key(plural))
+            .or_default()
+            .push(PluralBlockSignature {
+                offset: plural.offset,
+                selectors: selector_set(&plural.selectors),
             });
-        entry.offsets.insert(plural.offset);
-        entry.selectors.extend(selector_set(&plural.selectors));
     }
     out
 }
@@ -808,24 +814,31 @@ fn compare_plurals(
     translation: &IcuAnalysis,
     report: &mut IcuCompatibilityReport,
 ) {
-    let source_plurals = plural_map(source);
-    let translation_plurals = plural_map(translation);
+    let source_plurals = plural_blocks_map(source);
+    let translation_plurals = plural_blocks_map(translation);
 
-    for ((name, kind), source_plural) in &source_plurals {
-        let Some(translation_plural) = translation_plurals.get(&(*name, *kind)) else {
+    for ((name, kind), source_blocks) in &source_plurals {
+        let Some(translation_blocks) = translation_plurals.get(&(*name, *kind)) else {
             continue;
         };
-        if source_plural.offsets != translation_plural.offsets {
+
+        let source_offsets: BTreeSet<u32> =
+            source_blocks.iter().map(|block| block.offset).collect();
+        let translation_offsets: BTreeSet<u32> = translation_blocks
+            .iter()
+            .map(|block| block.offset)
+            .collect();
+
+        if source_offsets != translation_offsets {
             let message = match (
-                single_set_item(&source_plural.offsets),
-                single_set_item(&translation_plural.offsets),
+                single_set_item(&source_offsets),
+                single_set_item(&translation_offsets),
             ) {
                 (Some(source_offset), Some(translation_offset)) => format!(
                     "Translation changes ICU plural offset for `{name}` from {source_offset} to {translation_offset}."
                 ),
                 _ => format!(
-                    "Translation changes ICU plural offset for `{name}` from {:?} to {:?}.",
-                    source_plural.offsets, translation_plural.offsets
+                    "Translation changes ICU plural offset for `{name}` from {source_offsets:?} to {translation_offsets:?}."
                 ),
             };
             report.diagnostics.push(IcuDiagnostic::new(
@@ -836,16 +849,48 @@ fn compare_plurals(
             ));
         }
 
-        for &selector in &source_plural.selectors {
-            if !translation_plural.selectors.contains(selector) {
-                report.diagnostics.push(IcuDiagnostic::new(
-                    IcuDiagnosticSeverity::Error,
-                    diagnostic_codes::icu::MISSING_PLURAL_SELECTOR,
-                    format!(
-                        "Translation is missing ICU plural selector `{selector}` for `{name}`."
-                    ),
-                    Some(format!("{name}:{selector}")),
-                ));
+        let mut reported_missing = BTreeSet::<&str>::new();
+        for source_block in source_blocks {
+            // Prefer translation blocks with the matching offset so moving an
+            // offset between plural blocks is caught instead of masked.
+            let same_offset_blocks: Vec<&PluralBlockSignature<'_>> = translation_blocks
+                .iter()
+                .filter(|block| block.offset == source_block.offset)
+                .collect();
+            let candidates: Vec<&PluralBlockSignature<'_>> = if same_offset_blocks.is_empty() {
+                translation_blocks.iter().collect()
+            } else {
+                same_offset_blocks
+            };
+
+            if candidates
+                .iter()
+                .any(|candidate| source_block.selectors.is_subset(&candidate.selectors))
+            {
+                continue;
+            }
+
+            let Some(best_match) = candidates.into_iter().min_by_key(|candidate| {
+                source_block
+                    .selectors
+                    .iter()
+                    .filter(|selector| !candidate.selectors.contains(**selector))
+                    .count()
+            }) else {
+                continue;
+            };
+
+            for &selector in &source_block.selectors {
+                if !best_match.selectors.contains(selector) && reported_missing.insert(selector) {
+                    report.diagnostics.push(IcuDiagnostic::new(
+                        IcuDiagnosticSeverity::Error,
+                        diagnostic_codes::icu::MISSING_PLURAL_SELECTOR,
+                        format!(
+                            "Translation is missing ICU plural selector `{selector}` for `{name}`."
+                        ),
+                        Some(format!("{name}:{selector}")),
+                    ));
+                }
             }
         }
     }
@@ -1288,6 +1333,60 @@ mod tests {
             .map(|diagnostic| diagnostic.code.as_str())
             .collect::<Vec<_>>(),
             vec!["icu.plural_offset_changed"]
+        );
+
+        // Moving an offset between two plural blocks for the same variable must
+        // be rejected instead of masked by independent offset/selector sets.
+        let moved_offset_src =
+            parse_icu("{n, plural, offset:1 =0 {none} other {#}} {n, plural, other {#}}")
+                .expect("moved offset src");
+        let moved_offset_tr =
+            parse_icu("{n, plural, =0 {none} other {#}} {n, plural, offset:1 other {#}}")
+                .expect("moved offset tr");
+        assert_eq!(
+            compare_icu_messages(
+                &moved_offset_src,
+                &moved_offset_tr,
+                &IcuCompatibilityOptions::default()
+            )
+            .diagnostics
+            .iter()
+            .map(|diagnostic| (diagnostic.code.as_str(), diagnostic.name.as_deref()))
+            .collect::<Vec<_>>(),
+            vec![("icu.missing_plural_selector", Some("n:=0"))]
+        );
+
+        // Reordering blocks while adding locale-specific selectors stays valid.
+        let moved_with_extra_locale_selector =
+            parse_icu("{n, plural, other {#}} {n, plural, offset:1 =0 {none} one {#} other {#}}")
+                .expect("extra locale selector");
+        assert!(
+            compare_icu_messages(
+                &moved_offset_src,
+                &moved_with_extra_locale_selector,
+                &IcuCompatibilityOptions::default()
+            )
+            .diagnostics
+            .is_empty()
+        );
+
+        // Caller-built ASTs with whitespace-only formatter style match `None`.
+        let ast_none = crate::IcuMessage {
+            nodes: vec![crate::IcuNode::Number {
+                name: "n".to_owned(),
+                style: None,
+            }],
+        };
+        let ast_blank = crate::IcuMessage {
+            nodes: vec![crate::IcuNode::Number {
+                name: "n".to_owned(),
+                style: Some("   ".to_owned()),
+            }],
+        };
+        assert!(
+            compare_icu_messages(&ast_none, &ast_blank, &IcuCompatibilityOptions::default())
+                .diagnostics
+                .is_empty()
         );
     }
 }
