@@ -13,12 +13,12 @@ use ferrocat_icu::{
 };
 use sha2::{Digest, Sha256};
 
-use crate::diagnostic_codes;
+use crate::diagnostic_codes::{self, DiagnosticCode};
 
 use super::icu_syntax::{
     canonicalize_icu_with_policy, parse_icu_with_syntax_policy, remap_icu_error,
 };
-use super::plural::synthesize_icu_plural;
+use super::plural::{PluralProfile, synthesize_icu_plural};
 use super::{
     ApiError, CatalogMessage, CatalogMessageKey, CatalogSemantics,
     CompileCatalogArtifactIcuOptions, CompileCatalogArtifactOptions,
@@ -98,11 +98,18 @@ impl NormalizedParsedCatalog {
             None
         };
         let mut entries = BTreeMap::new();
+        let mut plural_profile = None;
 
         for (source_key, message) in self.iter() {
             let effective = source_locale.map_or_else(
                 || message.effective_translation_owned(),
-                |source_locale| self.effective_translation_for_message(message, source_locale),
+                |source_locale| {
+                    self.effective_translation_for_message_with_profile(
+                        message,
+                        source_locale,
+                        &mut plural_profile,
+                    )
+                },
             );
             let translation = compiled_translation_for_message(
                 message,
@@ -314,10 +321,7 @@ fn compiled_translation_for_message(
 /// ```
 #[must_use]
 pub fn compiled_key(msgid: &str, msgctxt: Option<&str>) -> String {
-    compiled_key_for(
-        CompiledKeyStrategy::FerrocatV1,
-        &CatalogMessageKey::new(msgid, msgctxt.map(str::to_owned)),
-    )
+    ferrocat_v1_compiled_key(msgid, msgctxt)
 }
 
 /// Derives the stable runtime lookup key after policy-canonicalizing `msgid`.
@@ -365,24 +369,22 @@ pub(super) fn compiled_key_for_with_policy(
 }
 
 fn ferrocat_v1_compiled_key(msgid: &str, msgctxt: Option<&str>) -> String {
-    let mut payload =
-        Vec::with_capacity(16 + 1 + 4 + msgctxt.map_or(0, str::len) + 1 + 4 + msgid.len());
-    payload.extend_from_slice(b"ferrocat:compile:v1");
-    push_compiled_key_component(&mut payload, msgctxt);
-    push_compiled_key_component(&mut payload, Some(msgid));
-    let digest = Sha256::digest(&payload);
+    let mut hasher = Sha256::new();
+    hasher.update(b"ferrocat:compile:v1");
+    update_compiled_key_component(&mut hasher, msgctxt);
+    update_compiled_key_component(&mut hasher, Some(msgid));
+    let digest = hasher.finalize();
     base64_url_no_pad(&digest[..8])
 }
 
-fn push_compiled_key_component(out: &mut Vec<u8>, value: Option<&str>) {
+fn update_compiled_key_component(hasher: &mut Sha256, value: Option<&str>) {
     if let Some(value) = value {
-        out.push(1);
+        hasher.update([1u8]);
         let value_len = u32::try_from(value.len()).expect("compiled key component exceeds u32");
-        out.extend_from_slice(&value_len.to_be_bytes());
-        out.extend_from_slice(value.as_bytes());
+        hasher.update(value_len.to_be_bytes());
+        hasher.update(value.as_bytes());
     } else {
-        out.push(0);
-        out.extend_from_slice(&0u32.to_be_bytes());
+        hasher.update([0u8, 0, 0, 0, 0]);
     }
 }
 
@@ -683,6 +685,7 @@ where
     let mut compiled_keys = BTreeMap::<String, CatalogMessageKey>::new();
     let mut artifact = CompiledCatalogArtifact::default();
     let mut provenance = provenance;
+    let mut source_plural_profile = None;
 
     for source_key in source_keys {
         let compiled_key = compiled_key_for_with_policy(
@@ -701,7 +704,12 @@ where
             )));
         }
 
-        let resolved = resolve_compiled_catalog_artifact_message(locales, &source_key, options);
+        let resolved = resolve_compiled_catalog_artifact_message(
+            locales,
+            &source_key,
+            options,
+            &mut source_plural_profile,
+        );
         if let Some(provenance) = provenance.as_deref_mut() {
             provenance.messages.push(CompiledCatalogResolution {
                 key: compiled_key.clone(),
@@ -740,7 +748,9 @@ where
                 }
                 artifact.diagnostics.push(CompiledCatalogDiagnostic {
                     severity: DiagnosticSeverity::Error,
-                    code: diagnostic_codes::compile::INVALID_ICU_MESSAGE.into(),
+                    code: DiagnosticCode::from_static(
+                        diagnostic_codes::compile::INVALID_ICU_MESSAGE,
+                    ),
                     message: format!("Final runtime message failed ICU validation: {error}"),
                     key: compiled_key.clone(),
                     msgid: source_key.msgid.clone(),
@@ -768,6 +778,7 @@ where
                 resolved_icu,
                 options,
                 icu_options,
+                &mut source_plural_profile,
                 &mut artifact,
             );
             push_formatter_support_diagnostics(
@@ -844,6 +855,7 @@ fn push_icu_compatibility_diagnostics(
     resolved_icu: &ferrocat_icu::IcuMessage,
     options: &CompileCatalogArtifactOptions<'_>,
     icu_options: &CompileCatalogArtifactIcuOptions,
+    source_plural_profile: &mut Option<PluralProfile>,
     artifact: &mut CompiledCatalogArtifact,
 ) {
     if !options.icu_compatibility {
@@ -852,11 +864,12 @@ fn push_icu_compatibility_diagnostics(
     let Some(source_catalog) = locales.get(options.source_locale) else {
         return;
     };
-    let Some(source_message) = rendered_compiled_catalog_artifact_message(
+    let Some(source_message) = rendered_compiled_catalog_artifact_message_with_profile(
         source_catalog,
         target.source_key,
         options.source_locale,
         true,
+        source_plural_profile,
     ) else {
         return;
     };
@@ -866,7 +879,7 @@ fn push_icu_compatibility_diagnostics(
         Err(error) => {
             artifact.diagnostics.push(CompiledCatalogDiagnostic {
                 severity: DiagnosticSeverity::Error,
-                code: diagnostic_codes::icu::INVALID_SYNTAX.into(),
+                code: DiagnosticCode::from_static(diagnostic_codes::icu::INVALID_SYNTAX),
                 message: format!(
                     "ICU compatibility check could not parse the source message: {error}"
                 ),
@@ -919,6 +932,7 @@ fn resolve_compiled_catalog_artifact_message(
     catalogs: &BTreeMap<String, &NormalizedParsedCatalog>,
     source_key: &CatalogMessageKey,
     options: &CompileCatalogArtifactOptions<'_>,
+    source_plural_profile: &mut Option<PluralProfile>,
 ) -> Option<ResolvedArtifactMessage> {
     let msgid = source_key.msgid.as_str();
     let msgctxt = source_key.msgctxt.as_deref();
@@ -940,6 +954,7 @@ fn resolve_compiled_catalog_artifact_message(
             message,
             options.source_locale,
             false,
+            source_plural_profile,
         )
         .map(|message| ResolvedArtifactMessage {
             locale: locale.to_owned(),
@@ -964,6 +979,7 @@ fn resolve_compiled_catalog_artifact_message(
         message,
         options.source_locale,
         true,
+        source_plural_profile,
     )
     .map(|message| ResolvedArtifactMessage {
         locale: options.source_locale.to_owned(),
@@ -976,11 +992,29 @@ fn resolve_compiled_catalog_artifact_message(
 ///
 /// Plural messages are re-synthesized into ICU strings so runtime consumers see
 /// one uniform message format regardless of the catalog's stored plural encoding.
+#[cfg(test)]
 fn rendered_compiled_catalog_artifact_message(
     catalog: &NormalizedParsedCatalog,
     source_key: &CatalogMessageKey,
     source_locale: &str,
     use_source_fallback: bool,
+) -> Option<String> {
+    let mut profile = None;
+    rendered_compiled_catalog_artifact_message_with_profile(
+        catalog,
+        source_key,
+        source_locale,
+        use_source_fallback,
+        &mut profile,
+    )
+}
+
+fn rendered_compiled_catalog_artifact_message_with_profile(
+    catalog: &NormalizedParsedCatalog,
+    source_key: &CatalogMessageKey,
+    source_locale: &str,
+    use_source_fallback: bool,
+    cached_profile: &mut Option<PluralProfile>,
 ) -> Option<String> {
     let message = catalog.get_by_parts(source_key.msgid.as_str(), source_key.msgctxt.as_deref())?;
     rendered_compiled_catalog_artifact_message_for_message(
@@ -988,6 +1022,7 @@ fn rendered_compiled_catalog_artifact_message(
         message,
         source_locale,
         use_source_fallback,
+        cached_profile,
     )
 }
 
@@ -996,9 +1031,14 @@ fn rendered_compiled_catalog_artifact_message_for_message(
     message: &CatalogMessage,
     source_locale: &str,
     use_source_fallback: bool,
+    cached_profile: &mut Option<PluralProfile>,
 ) -> Option<String> {
     let effective = if use_source_fallback {
-        catalog.effective_translation_for_message(message, source_locale)
+        catalog.effective_translation_for_message_with_profile(
+            message,
+            source_locale,
+            cached_profile,
+        )
     } else {
         message.effective_translation_owned()
     };

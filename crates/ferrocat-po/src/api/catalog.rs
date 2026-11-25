@@ -256,7 +256,9 @@ pub fn update_catalog(
         merge_catalogs(existing, normalized, &merge_context, &mut diagnostics);
     merged.locale.clone_from(&locale);
     apply_storage_defaults(&mut merged, &options, locale.as_deref(), &mut diagnostics)?;
-    sort_messages(&mut merged.messages, options.render.order_by);
+    if options.mode.storage_format() != CatalogStorageFormat::Fcl {
+        sort_messages(&mut merged.messages, options.render.order_by);
+    }
     let content = export_catalog_content(&merged, &options, locale.as_deref(), &mut diagnostics)?;
 
     Ok(CatalogUpdateResult {
@@ -347,20 +349,14 @@ pub fn parse_catalog(options: ParseCatalogOptions<'_>) -> Result<ParsedCatalog, 
 pub fn parse_catalog_for_review(
     options: ParseCatalogOptions<'_>,
 ) -> Result<super::NormalizedParsedCatalog, ApiError> {
-    let (catalog, fuzzy_keys) = parse_catalog_projection(options, OpaqueCapture::ReviewState)?;
-    super::NormalizedParsedCatalog::new_with_review_state(catalog, fuzzy_keys)
+    let (catalog, fuzzy_indices) = parse_catalog_projection(options, OpaqueCapture::ReviewState)?;
+    super::NormalizedParsedCatalog::new_with_review_state(catalog, fuzzy_indices)
 }
 
 fn parse_catalog_projection(
     options: ParseCatalogOptions<'_>,
     opaque_capture: OpaqueCapture,
-) -> Result<
-    (
-        ParsedCatalog,
-        std::collections::BTreeSet<super::CatalogMessageKey>,
-    ),
-    ApiError,
-> {
+) -> Result<(ParsedCatalog, rustc_hash::FxHashSet<usize>), ApiError> {
     super::validate_source_locale(options.source_locale)?;
     let catalog = parse_catalog_to_internal(
         options.content,
@@ -372,17 +368,16 @@ fn parse_catalog_projection(
         options.mode.storage_format(),
         opaque_capture,
     )?;
-    let fuzzy_keys = if opaque_capture == OpaqueCapture::ReviewState {
+    let fuzzy_indices = if opaque_capture == OpaqueCapture::ReviewState {
         catalog
             .messages
             .iter()
-            .filter(|message| message.flags().iter().any(|flag| flag == "fuzzy"))
-            .map(|message| {
-                super::CatalogMessageKey::new(message.msgid.clone(), message.msgctxt.clone())
-            })
+            .enumerate()
+            .filter(|(_, message)| message.flags().iter().any(|flag| flag == "fuzzy"))
+            .map(|(index, _)| index)
             .collect()
     } else {
-        std::collections::BTreeSet::new()
+        rustc_hash::FxHashSet::default()
     };
     let messages = catalog
         .messages
@@ -398,7 +393,7 @@ fn parse_catalog_projection(
             messages,
             diagnostics: catalog.diagnostics,
         },
-        fuzzy_keys,
+        fuzzy_indices,
     ))
 }
 

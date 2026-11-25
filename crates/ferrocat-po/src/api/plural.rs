@@ -12,6 +12,7 @@ use ferrocat_icu::{IcuMessage, IcuNode, IcuPluralKind, parse_icu};
 use icu_locale::Locale;
 use icu_plurals::{PluralCategory, PluralRules};
 use memchr::memchr;
+use smallvec::{SmallVec, smallvec};
 
 use super::PluralSource;
 
@@ -36,14 +37,16 @@ pub(super) enum IcuPluralProjection {
     Malformed,
 }
 
-pub(super) type PluralCategoryCache = Mutex<HashMap<String, Option<Vec<&'static str>>>>;
+pub(super) type PluralCategories = SmallVec<[&'static str; 6]>;
+
+pub(super) type PluralCategoryCache = Mutex<HashMap<String, Option<PluralCategories>>>;
 
 const MAX_PLURAL_CATEGORY_CACHE_ENTRIES: usize = 256;
 const MAX_CACHED_LOCALE_LEN: usize = 64;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct PluralProfile {
-    categories: Vec<&'static str>,
+    categories: PluralCategories,
     gettext_header: Option<&'static str>,
 }
 
@@ -308,7 +311,7 @@ impl PluralProfile {
             .filter(|rule| nplurals.is_none() || nplurals == Some(rule.nplurals()))
         {
             return Self {
-                categories: rule.categories.to_vec(),
+                categories: SmallVec::from_slice(rule.categories),
                 gettext_header: Some(rule.header),
             };
         }
@@ -502,7 +505,7 @@ pub(super) fn materialize_plural_categories(
         .collect()
 }
 
-pub(super) fn icu_plural_categories_for(locale: &str) -> Option<Vec<&'static str>> {
+pub(super) fn icu_plural_categories_for(locale: &str) -> Option<PluralCategories> {
     static CACHE: OnceLock<PluralCategoryCache> = OnceLock::new();
 
     cached_icu_plural_categories_for(locale, CACHE.get_or_init(|| Mutex::new(HashMap::new())))
@@ -516,7 +519,7 @@ pub(super) fn icu_plural_categories_for(locale: &str) -> Option<Vec<&'static str
 pub(super) fn cached_icu_plural_categories_for(
     locale: &str,
     cache: &PluralCategoryCache,
-) -> Option<Vec<&'static str>> {
+) -> Option<PluralCategories> {
     let normalized = normalize_plural_locale(locale);
     if normalized.is_empty() {
         return None;
@@ -621,14 +624,14 @@ const fn plural_category_name(category: PluralCategory) -> &'static str {
 
 /// Produces a deterministic fallback category order when locale-derived CLDR
 /// categories are unavailable or incompatible with the observed slot count.
-pub(super) fn fallback_plural_categories(nplurals: Option<usize>) -> Vec<&'static str> {
+pub(super) fn fallback_plural_categories(nplurals: Option<usize>) -> PluralCategories {
     match nplurals.unwrap_or(2) {
-        0 | 1 => vec!["other"],
-        2 => vec!["one", "other"],
-        3 => vec!["one", "few", "other"],
-        4 => vec!["one", "few", "many", "other"],
-        5 => vec!["zero", "one", "few", "many", "other"],
-        _ => vec!["zero", "one", "two", "few", "many", "other"],
+        0 | 1 => smallvec!["other"],
+        2 => smallvec!["one", "other"],
+        3 => smallvec!["one", "few", "other"],
+        4 => smallvec!["one", "few", "many", "other"],
+        5 => smallvec!["zero", "one", "few", "many", "other"],
+        _ => smallvec!["zero", "one", "two", "few", "many", "other"],
     }
 }
 
@@ -1189,14 +1192,14 @@ mod tests {
 
     #[test]
     fn plural_category_fallbacks_and_sorting_are_deterministic() {
-        assert_eq!(fallback_plural_categories(Some(1)), vec!["other"]);
+        assert_eq!(fallback_plural_categories(Some(1)).as_slice(), &["other"]);
         assert_eq!(
-            fallback_plural_categories(Some(3)),
-            vec!["one", "few", "other"]
+            fallback_plural_categories(Some(3)).as_slice(),
+            &["one", "few", "other"]
         );
         assert_eq!(
-            fallback_plural_categories(Some(7)),
-            vec!["zero", "one", "two", "few", "many", "other"]
+            fallback_plural_categories(Some(7)).as_slice(),
+            &["zero", "one", "two", "few", "many", "other"]
         );
         assert_eq!(
             ordered_plural_branches(&BTreeMap::from([

@@ -8,6 +8,7 @@
 // This block has a matching copy in
 // crates/ferrocat-po/src/diagnostic_codes.rs; a test there keeps both in sync.
 // sync(diagnostic-code-type): begin
+use std::borrow::Cow;
 use std::fmt;
 use std::ops::Deref;
 
@@ -22,13 +23,21 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "serde", serde(transparent))]
-pub struct DiagnosticCode(String);
+pub struct DiagnosticCode(Cow<'static, str>);
 
 impl DiagnosticCode {
     /// Creates a diagnostic code from its canonical string spelling.
     #[must_use]
     pub fn new(code: impl Into<String>) -> Self {
-        Self(code.into())
+        Self(Cow::Owned(code.into()))
+    }
+
+    #[allow(
+        dead_code,
+        reason = "Used by feature-gated diagnostic emitters across crates."
+    )]
+    pub(crate) const fn from_static(code: &'static str) -> Self {
+        Self(Cow::Borrowed(code))
     }
 
     /// Returns the canonical string spelling.
@@ -40,7 +49,7 @@ impl DiagnosticCode {
     /// Consumes this code and returns its canonical string without copying.
     #[must_use]
     pub fn into_string(self) -> String {
-        self.0
+        self.0.into_owned()
     }
 }
 
