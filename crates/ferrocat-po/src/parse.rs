@@ -8,7 +8,7 @@ use crate::scan::{
     classify_line, find_byte, find_quoted_bounds, split_once_byte, trim_ascii,
     unrecognized_po_line,
 };
-use crate::text::{extract_quoted_bytes_cow, for_each_reference_token};
+use crate::text::{extract_quoted_bytes_cow_from, for_each_reference_token};
 use crate::utf8::input_slice_as_str;
 use crate::{Header, MsgStr, ParseError, ParsePosition, PoFile, PoItem};
 
@@ -418,14 +418,16 @@ fn parse_keyword_line(
                 .line
                 .mark_keyword(PoLineContext::IdPlural, 0, obsolete);
             state.item.msgid_plural = Some(
-                at_line_position(extract_quoted_bytes_cow(line_bytes), position)?.into_owned(),
+                at_line_position(extract_quoted_bytes_cow_from(line_bytes, 12), position)?
+                    .into_owned(),
             );
         }
         Keyword::Id => {
             finish_item(state, file, current_nplurals, position)?;
             state.line.mark_keyword(PoLineContext::Id, 0, obsolete);
             state.item.msgid =
-                at_line_position(extract_quoted_bytes_cow(line_bytes), position)?.into_owned();
+                at_line_position(extract_quoted_bytes_cow_from(line_bytes, 5), position)?
+                    .into_owned();
         }
         Keyword::Str => {
             let plural_index = checked_plural_index(line_bytes, position)?;
@@ -434,14 +436,16 @@ fn parse_keyword_line(
                 .mark_keyword(PoLineContext::Str, plural_index, obsolete);
             state.set_msgstr(
                 plural_index,
-                at_line_position(extract_quoted_bytes_cow(line_bytes), position)?.into_owned(),
+                at_line_position(extract_quoted_bytes_cow_from(line_bytes, 6), position)?
+                    .into_owned(),
             );
         }
         Keyword::Ctxt => {
             finish_item(state, file, current_nplurals, position)?;
             state.line.mark_keyword(PoLineContext::Ctxt, 0, obsolete);
             state.item.msgctxt = Some(
-                at_line_position(extract_quoted_bytes_cow(line_bytes), position)?.into_owned(),
+                at_line_position(extract_quoted_bytes_cow_from(line_bytes, 7), position)?
+                    .into_owned(),
             );
         }
     }
@@ -456,7 +460,7 @@ fn append_continuation(
     state: &mut ParserState,
 ) -> Result<(), ParseError> {
     state.line.mark_continuation(obsolete);
-    let value = at_line_position(extract_quoted_bytes_cow(line_bytes), position)?;
+    let value = at_line_position(extract_quoted_bytes_cow_from(line_bytes, 0), position)?;
 
     match state.line.context() {
         Some(PoLineContext::Str) => {

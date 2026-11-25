@@ -5,11 +5,11 @@ use rustc_hash::FxHashMap;
 use crate::line_state::{PoLineContext, PoLineState};
 use crate::scan::{
     CommentKind, Keyword, LineKind, LineScanner, checked_plural_forms, checked_plural_index,
-    classify_line, find_byte, find_quoted_bounds, has_byte, split_once_byte, trim_ascii,
-    trim_ascii_start, unrecognized_po_line,
+    classify_line, find_quoted_raw_from, has_byte, split_once_byte, trim_ascii, trim_ascii_start,
+    unrecognized_po_line,
 };
 use crate::serialize::{write_keyword, write_prefixed_line};
-use crate::text::{escape_string_into, unescape_string_known, validate_quoted_content};
+use crate::text::{escape_string_into, extract_quoted_bytes_cow_from};
 use crate::utf8::input_slice_as_str;
 use crate::{BorrowedMsgStr, ParseError, ParsePosition, SerializeOptions};
 
@@ -122,7 +122,8 @@ impl<'a> ParserState<'a> {
             return;
         }
 
-        let Some(raw) = merge_quoted_raw(line_bytes) else {
+        let search_from = if starts_new_msgstr { 6 } else { 0 };
+        let Some(raw) = find_quoted_raw_from(line_bytes, search_from) else {
             self.header_entries_faithful = false;
             return;
         };
@@ -197,16 +198,14 @@ pub fn merge_catalog<'a>(
 
     write_file_preamble(&mut out, &existing);
 
-    let mut existing_index =
-        FxHashMap::<&str, Vec<(Option<&str>, usize)>>::with_capacity_and_hasher(
-            existing.items.len(),
-            Default::default(),
-        );
+    let mut existing_index = FxHashMap::<(&str, Option<&str>), usize>::with_capacity_and_hasher(
+        existing.items.len(),
+        Default::default(),
+    );
     for (index, item) in existing.items.iter().enumerate() {
         existing_index
-            .entry(item.msgid.as_ref())
-            .or_default()
-            .push((item.msgctxt.as_deref(), index));
+            .entry((item.msgid.as_ref(), item.msgctxt.as_deref()))
+            .or_insert(index);
     }
 
     let mut matched = vec![false; existing.items.len()];
@@ -216,11 +215,9 @@ pub fn merge_catalog<'a>(
         if wrote_item {
             out.push('\n');
         }
-        let existing_index = find_existing_index(
-            &existing_index,
-            extracted.msgctxt.as_deref(),
-            extracted.msgid.as_ref(),
-        );
+        let existing_index = existing_index
+            .get(&(extracted.msgid.as_ref(), extracted.msgctxt.as_deref()))
+            .copied();
 
         match existing_index {
             Some(index) => {
@@ -381,14 +378,15 @@ fn parse_keyword_line<'a>(
                 .line
                 .mark_keyword(PoLineContext::IdPlural, 0, obsolete);
             state.item.msgid_plural = Some(at_line_position(
-                extract_merge_quoted_cow(line_bytes),
+                extract_quoted_bytes_cow_from(line_bytes, 12),
                 position,
             )?);
         }
         Keyword::Id => {
             finish_item(state, file, current_nplurals, position)?;
             state.line.mark_keyword(PoLineContext::Id, 0, obsolete);
-            state.item.msgid = at_line_position(extract_merge_quoted_cow(line_bytes), position)?;
+            state.item.msgid =
+                at_line_position(extract_quoted_bytes_cow_from(line_bytes, 5), position)?;
         }
         Keyword::Str => {
             let plural_index = checked_plural_index(line_bytes, position)?;
@@ -397,7 +395,7 @@ fn parse_keyword_line<'a>(
                 .mark_keyword(PoLineContext::Str, plural_index, obsolete);
             state.set_msgstr(
                 plural_index,
-                at_line_position(extract_merge_quoted_cow(line_bytes), position)?,
+                at_line_position(extract_quoted_bytes_cow_from(line_bytes, 6), position)?,
             );
             if is_header_candidate(state) {
                 state.push_header_fragment(line_bytes, true);
@@ -407,7 +405,7 @@ fn parse_keyword_line<'a>(
             finish_item(state, file, current_nplurals, position)?;
             state.line.mark_keyword(PoLineContext::Ctxt, 0, obsolete);
             state.item.msgctxt = Some(at_line_position(
-                extract_merge_quoted_cow(line_bytes),
+                extract_quoted_bytes_cow_from(line_bytes, 7),
                 position,
             )?);
         }
@@ -423,7 +421,7 @@ fn append_continuation<'a>(
     state: &mut ParserState<'a>,
 ) -> Result<(), ParseError> {
     state.line.mark_continuation(obsolete);
-    let value = at_line_position(extract_merge_quoted_cow(line_bytes), position)?;
+    let value = at_line_position(extract_quoted_bytes_cow_from(line_bytes, 0), position)?;
 
     match state.line.context() {
         Some(PoLineContext::Str) => {
@@ -584,49 +582,6 @@ fn header_fragment_is_borrowable(raw: &[u8]) -> bool {
         index += 1;
     }
     !has_byte(b'"', raw)
-}
-
-#[inline]
-fn extract_merge_quoted_cow(line_bytes: &[u8]) -> Result<Cow<'_, str>, ParseError> {
-    let Some(raw) = merge_quoted_raw(line_bytes) else {
-        return Ok(Cow::Borrowed(""));
-    };
-
-    if !validate_quoted_content(raw)? {
-        return Ok(Cow::Borrowed(bytes_to_str(raw)));
-    }
-
-    Ok(Cow::Owned(unescape_string_known(bytes_to_str(raw))?))
-}
-
-#[inline]
-fn merge_quoted_raw(line_bytes: &[u8]) -> Option<&[u8]> {
-    let start = match line_bytes.first() {
-        Some(b'"') => 1,
-        _ => find_byte(b'"', line_bytes)? + 1,
-    };
-
-    if start > line_bytes.len() {
-        return None;
-    }
-
-    if line_bytes.len() > start && line_bytes.last() == Some(&b'"') {
-        return Some(&line_bytes[start..line_bytes.len() - 1]);
-    }
-
-    let (quoted_start, quoted_end) = find_quoted_bounds(line_bytes)?;
-    Some(&line_bytes[quoted_start..quoted_end])
-}
-
-fn find_existing_index(
-    existing_index: &FxHashMap<&str, Vec<(Option<&str>, usize)>>,
-    msgctxt: Option<&str>,
-    msgid: &str,
-) -> Option<usize> {
-    let candidates = existing_index.get(msgid)?;
-    candidates
-        .iter()
-        .find_map(|(candidate_ctxt, index)| (*candidate_ctxt == msgctxt).then_some(*index))
 }
 
 fn estimate_merge_capacity(input: &str, extracted_messages: &[MergeMessageInput<'_>]) -> usize {
@@ -1046,12 +1001,11 @@ fn trimmed_str(bytes: &[u8]) -> &str {
 mod tests {
     use std::borrow::Cow;
 
-    use rustc_hash::FxHashMap;
-
     use super::{
-        MergeHeader, MergeMessageInput, estimate_merge_capacity, extract_merge_quoted_cow,
-        find_existing_index, header_fragment_is_borrowable, merge_catalog, parse_merge_po,
+        MergeHeader, MergeMessageInput, estimate_merge_capacity, header_fragment_is_borrowable,
+        merge_catalog, parse_merge_po,
     };
+    use crate::text::extract_quoted_bytes_cow_from;
     use crate::{BorrowedMsgStr, parse_po};
 
     #[test]
@@ -1132,11 +1086,11 @@ mod tests {
     #[test]
     fn merge_helpers_cover_header_and_lookup_paths() {
         assert_eq!(
-            extract_merge_quoted_cow(br#"msgid "plain""#),
+            extract_quoted_bytes_cow_from(br#"msgid "plain""#, 5),
             Ok(Cow::Borrowed("plain"))
         );
         assert_eq!(
-            extract_merge_quoted_cow(br#"msgid "line\nbreak""#),
+            extract_quoted_bytes_cow_from(br#"msgid "line\nbreak""#, 5),
             Ok(Cow::Owned("line\nbreak".to_owned()))
         );
         assert!(header_fragment_is_borrowable(
@@ -1171,14 +1125,22 @@ mod tests {
             .nplurals,
             4
         );
-        assert_eq!(
-            find_existing_index(
-                &FxHashMap::from_iter([("hello", vec![(Some("menu"), 3usize), (None, 1usize)],)]),
-                Some("menu"),
-                "hello",
-            ),
-            Some(3)
+        // Duplicate (msgid, msgctxt) in existing catalog keeps the first match.
+        let duplicate_existing = concat!(
+            "msgctxt \"menu\"\nmsgid \"hello\"\nmsgstr \"first\"\n\n",
+            "msgctxt \"menu\"\nmsgid \"hello\"\nmsgstr \"second\"\n",
         );
+        let merged_dup = merge_catalog(
+            duplicate_existing,
+            &[MergeMessageInput {
+                msgctxt: Some(Cow::Borrowed("menu")),
+                msgid: Cow::Borrowed("hello"),
+                ..MergeMessageInput::default()
+            }],
+        )
+        .expect("merge duplicate");
+        let reparsed_dup = parse_po(&merged_dup).expect("reparse duplicate");
+        assert_eq!(reparsed_dup.items[0].msgstr[0], "first");
         assert!(
             estimate_merge_capacity(
                 "msgid \"a\"\nmsgstr \"b\"\n",
@@ -1387,7 +1349,7 @@ mod tests {
             Vec::new()
         );
         assert_eq!(
-            extract_merge_quoted_cow(b"msgid").expect("missing quote"),
+            extract_quoted_bytes_cow_from(b"msgid", 5).expect("missing quote"),
             ""
         );
         assert_eq!(parse_merge_po("").expect("empty catalog").nplurals, 2);

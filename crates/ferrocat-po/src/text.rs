@@ -1,7 +1,7 @@
 use std::borrow::Cow;
 
 use crate::ParseError;
-use crate::scan::{find_byte, find_escapable_byte, find_quoted_bounds, has_byte};
+use crate::scan::{find_byte, find_either, find_escapable_byte, find_quoted_raw_from, has_byte};
 use crate::utf8::{input_slice_as_str, string_from_utf8};
 
 /// Escapes a PO string literal payload.
@@ -143,11 +143,18 @@ pub fn extract_quoted_cow(line: &str) -> Result<Cow<'_, str>, ParseError> {
 }
 
 pub fn extract_quoted_bytes_cow(line: &[u8]) -> Result<Cow<'_, str>, ParseError> {
-    let Some((start, end)) = find_quoted_bounds(line) else {
+    extract_quoted_bytes_cow_from(line, 0)
+}
+
+#[inline]
+pub(crate) fn extract_quoted_bytes_cow_from(
+    line: &[u8],
+    search_from: usize,
+) -> Result<Cow<'_, str>, ParseError> {
+    let Some(raw) = find_quoted_raw_from(line, search_from) else {
         return Ok(Cow::Borrowed(""));
     };
 
-    let raw = &line[start..end];
     if !validate_quoted_content(raw)? {
         return Ok(Cow::Borrowed(bytes_to_str(raw)));
     }
@@ -251,27 +258,24 @@ pub fn for_each_reference_token<'a>(input: &'a str, mut visit: impl FnMut(Cow<'a
 ///
 /// Returns [`ParseError`] when an unescaped quote is present.
 pub fn validate_quoted_content(raw: &[u8]) -> Result<bool, ParseError> {
-    let mut trailing_backslashes = 0usize;
-    let mut saw_backslash = false;
+    let Some(mut pos) = find_either(b'\\', b'"', raw) else {
+        return Ok(false);
+    };
 
-    for &byte in raw {
-        match byte {
-            b'\\' => {
-                trailing_backslashes += 1;
-                saw_backslash = true;
-            }
-            b'"' if has_even_trailing_backslashes(trailing_backslashes) => {
-                return Err(ParseError::new("unescaped quote in string literal"));
-            }
-            _ => trailing_backslashes = 0,
+    loop {
+        if raw[pos] == b'"' {
+            return Err(ParseError::new("unescaped quote in string literal"));
+        }
+        // `raw[pos] == b'\\'`: skip the backslash and the escaped byte (if any).
+        let next = pos + 2;
+        if next >= raw.len() {
+            return Ok(true);
+        }
+        match find_either(b'\\', b'"', &raw[next..]) {
+            Some(relative) => pos = next + relative,
+            None => return Ok(true),
         }
     }
-
-    Ok(saw_backslash)
-}
-
-fn has_even_trailing_backslashes(count: usize) -> bool {
-    count.is_multiple_of(2)
 }
 
 fn escape_string_from(out: &mut String, input: &str, bytes: &[u8], first_escape: usize) {

@@ -26,13 +26,16 @@ mod backend {
     #[inline]
     pub fn find_fcl_escapable_byte(haystack: &[u8]) -> Option<usize> {
         // FCL2 escapes CR as well as backslash, tab and LF.
-        match (
-            memchr3(b'\\', b'\t', b'\n', haystack),
-            memchr(b'\r', haystack),
-        ) {
-            (Some(a), Some(b)) => Some(a.min(b)),
-            (a, b) => a.or(b),
+        match memchr3(b'\\', b'\t', b'\n', haystack) {
+            Some(a) => memchr(b'\r', &haystack[..a]).or(Some(a)),
+            None => memchr(b'\r', haystack),
         }
+    }
+
+    #[inline]
+    pub(super) const fn is_escapable_byte(byte: u8) -> bool {
+        // PO escapes `0x07..=0x0d` (\a \b \t \n \v \f \r), `"`, and `\`.
+        byte.wrapping_sub(0x07) <= 6 || byte == b'"' || byte == b'\\'
     }
 
     #[cfg(target_arch = "aarch64")]
@@ -52,40 +55,55 @@ mod backend {
     }
 
     #[inline]
-    fn fallback_find_escapable_byte(haystack: &[u8]) -> Option<usize> {
-        let structural = memchr3(b'"', b'\\', b'\n', haystack);
-        let search_end = structural.unwrap_or(haystack.len());
-        let controls = &haystack[..search_end];
+    pub(super) fn fallback_find_escapable_byte(haystack: &[u8]) -> Option<usize> {
+        const REPEAT_01: u64 = 0x0101_0101_0101_0101;
+        const REPEAT_80: u64 = 0x8080_8080_8080_8080;
+        const REPEAT_QUOTE: u64 = u64::from_ne_bytes([b'"'; 8]);
+        const REPEAT_BACKSLASH: u64 = u64::from_ne_bytes([b'\\'; 8]);
+        const REPEAT_0E: u64 = 0x0e0e_0e0e_0e0e_0e0e;
 
-        min_option3(
-            structural,
-            memchr3(b'\t', b'\r', b'\x0b', controls),
-            memchr3(b'\x07', b'\x08', b'\x0c', controls),
-        )
-    }
-
-    #[inline]
-    fn min_option3(
-        first: Option<usize>,
-        second: Option<usize>,
-        third: Option<usize>,
-    ) -> Option<usize> {
-        min_option(min_option(first, second), third)
-    }
-
-    #[inline]
-    fn min_option(first: Option<usize>, second: Option<usize>) -> Option<usize> {
-        match (first, second) {
-            (Some(left), Some(right)) => Some(left.min(right)),
-            (Some(value), None) | (None, Some(value)) => Some(value),
-            (None, None) => None,
+        let mut offset = 0usize;
+        while offset + 8 <= haystack.len() {
+            let chunk = &haystack[offset..offset + 8];
+            let word = u64::from_ne_bytes([
+                chunk[0], chunk[1], chunk[2], chunk[3], chunk[4], chunk[5], chunk[6], chunk[7],
+            ]);
+            let q = word ^ REPEAT_QUOTE;
+            let has_quote = q.wrapping_sub(REPEAT_01) & !q & REPEAT_80;
+            let s = word ^ REPEAT_BACKSLASH;
+            let has_slash = s.wrapping_sub(REPEAT_01) & !s & REPEAT_80;
+            // Detects any byte < 0x0e (superset of 0x07..=0x0d; bytes 0x00..=0x06
+            // are rare in UTF-8 text and filtered by the exact scalar check below).
+            let has_low = word.wrapping_sub(REPEAT_0E) & !word & REPEAT_80;
+            if (has_quote | has_slash | has_low) != 0 {
+                for (i, &byte) in chunk.iter().enumerate() {
+                    if is_escapable_byte(byte) {
+                        return Some(offset + i);
+                    }
+                }
+            }
+            offset += 8;
         }
+
+        for (i, &byte) in haystack[offset..].iter().enumerate() {
+            if is_escapable_byte(byte) {
+                return Some(offset + i);
+            }
+        }
+        None
     }
 
     #[cfg(target_arch = "aarch64")]
     #[target_feature(enable = "neon")]
     unsafe fn neon_find_escapable_byte(haystack: &[u8]) -> Option<usize> {
-        use core::arch::aarch64::{vceqq_u8, vdupq_n_u8, vld1q_u8, vmaxvq_u8, vorrq_u8};
+        use core::arch::aarch64::{
+            vceqq_u8, vcleq_u8, vdupq_n_u8, vld1q_u8, vmaxvq_u8, vorrq_u8, vsubq_u8,
+        };
+
+        let low_controls = vdupq_n_u8(0x07);
+        let control_span = vdupq_n_u8(6);
+        let quote = vdupq_n_u8(b'"');
+        let backslash = vdupq_n_u8(b'\\');
 
         let mut offset = 0usize;
         while offset + 16 <= haystack.len() {
@@ -93,15 +111,10 @@ mod backend {
             // pointer arithmetic and NEON load stay within the slice bounds.
             let matched = unsafe {
                 let chunk = vld1q_u8(haystack.as_ptr().add(offset));
-                let mut matched = vceqq_u8(chunk, vdupq_n_u8(b'"'));
-                matched = vorrq_u8(matched, vceqq_u8(chunk, vdupq_n_u8(b'\\')));
-                matched = vorrq_u8(matched, vceqq_u8(chunk, vdupq_n_u8(b'\n')));
-                matched = vorrq_u8(matched, vceqq_u8(chunk, vdupq_n_u8(b'\t')));
-                matched = vorrq_u8(matched, vceqq_u8(chunk, vdupq_n_u8(b'\r')));
-                matched = vorrq_u8(matched, vceqq_u8(chunk, vdupq_n_u8(b'\x0b')));
-                matched = vorrq_u8(matched, vceqq_u8(chunk, vdupq_n_u8(b'\x07')));
-                matched = vorrq_u8(matched, vceqq_u8(chunk, vdupq_n_u8(b'\x08')));
-                vorrq_u8(matched, vceqq_u8(chunk, vdupq_n_u8(b'\x0c')))
+                let controls = vcleq_u8(vsubq_u8(chunk, low_controls), control_span);
+                let quotes = vceqq_u8(chunk, quote);
+                let slashes = vceqq_u8(chunk, backslash);
+                vorrq_u8(controls, vorrq_u8(quotes, slashes))
             };
             // SAFETY: some supported toolchains expose this NEON reduction as
             // unsafe; newer toolchains treat it as safe.
@@ -110,19 +123,7 @@ mod backend {
             if has_match {
                 return haystack[offset..offset + 16]
                     .iter()
-                    .position(|byte| {
-                        matches!(
-                            *byte,
-                            b'"' | b'\\'
-                                | b'\x07'
-                                | b'\x08'
-                                | b'\t'
-                                | b'\n'
-                                | b'\x0b'
-                                | b'\x0c'
-                                | b'\r'
-                        )
-                    })
+                    .position(|&byte| is_escapable_byte(byte))
                     .map(|index| offset + index);
             }
             offset += 16;
@@ -360,6 +361,26 @@ pub fn find_quoted_bounds(bytes: &[u8]) -> Option<(usize, usize)> {
     }
 }
 
+/// Fast-path slice of the raw bytes between the first and last `"` on a PO
+/// line starting at `search_from` (0 for continuations, keyword length for
+/// keyword lines). Avoids `memchr`/`memrchr` on the common canonical forms
+/// (`"..."` and `keyword "..."`).
+#[inline]
+pub fn find_quoted_raw_from(line_bytes: &[u8], search_from: usize) -> Option<&[u8]> {
+    let rest = line_bytes.get(search_from..)?;
+    let first_quote = match rest.first().copied() {
+        Some(b'"') => search_from,
+        Some(b' ') if rest.get(1) == Some(&b'"') => search_from + 1,
+        _ => search_from + find_byte(b'"', rest)?,
+    };
+    let start = first_quote + 1;
+    if line_bytes.len() > start && line_bytes[line_bytes.len() - 1] == b'"' {
+        return Some(&line_bytes[start..line_bytes.len() - 1]);
+    }
+    let last_quote = find_last_byte(b'"', &line_bytes[start..])?;
+    Some(&line_bytes[start..start + last_quote])
+}
+
 // Bound parser-created plural vectors while leaving room for uncommon catalogs.
 const MAX_PLURAL_SLOTS: usize = 128;
 
@@ -506,5 +527,60 @@ mod tests {
         assert_eq!(classify_line(b"msgstr_ \"x\""), LineKind::Other);
         assert_eq!(classify_line(b"msgid_plurality \"x\""), LineKind::Other);
         assert_eq!(classify_line(br#""continued""#), LineKind::Continuation);
+    }
+
+    #[test]
+    fn escapable_byte_scanners_match_scalar_reference_for_all_256_bytes() {
+        fn scalar_reference(haystack: &[u8]) -> Option<usize> {
+            haystack.iter().position(|&b| {
+                matches!(
+                    b,
+                    b'"' | b'\\' | b'\x07' | b'\x08' | b'\t' | b'\n' | b'\x0b' | b'\x0c' | b'\r'
+                )
+            })
+        }
+
+        // Verify every single byte value 0..=255 at positions spanning tail (<8),
+        // SWAR chunk (8..15), NEON chunk (16..31), and post-NEON tail (32..39).
+        for byte in 0u8..=255 {
+            assert_eq!(
+                super::backend::is_escapable_byte(byte),
+                scalar_reference(&[byte]).is_some(),
+                "is_escapable_byte mismatch for byte 0x{byte:02x}"
+            );
+            for pos in [0, 1, 7, 8, 15, 16, 17, 31, 32, 35] {
+                let mut buf = vec![b'a'; pos + 4];
+                buf[pos] = byte;
+                let expected = scalar_reference(&buf);
+                assert_eq!(
+                    find_escapable_byte(&buf),
+                    expected,
+                    "find_escapable_byte mismatch for 0x{byte:02x} at pos {pos}"
+                );
+                assert_eq!(
+                    super::backend::fallback_find_escapable_byte(&buf),
+                    expected,
+                    "fallback_find_escapable_byte mismatch for 0x{byte:02x} at pos {pos}"
+                );
+            }
+        }
+
+        // Verify non-escapable low control bytes (< 0x07) followed by a later
+        // escapable byte do not cause early return or missed matches.
+        let mut mixed = vec![b'a'; 40];
+        mixed[2] = 0x00;
+        mixed[10] = 0x06;
+        mixed[25] = b'"';
+        assert_eq!(find_escapable_byte(&mixed), Some(25));
+        assert_eq!(
+            super::backend::fallback_find_escapable_byte(&mixed),
+            Some(25)
+        );
+
+        // Verify FCL escapable scanner bounds CR search correctly.
+        assert_eq!(super::find_fcl_escapable_byte(b"abc\rdef\nghi"), Some(3));
+        assert_eq!(super::find_fcl_escapable_byte(b"abc\ndef\rghi"), Some(3));
+        assert_eq!(super::find_fcl_escapable_byte(b"abcdef\r"), Some(6));
+        assert_eq!(super::find_fcl_escapable_byte(b"plain text"), None);
     }
 }
