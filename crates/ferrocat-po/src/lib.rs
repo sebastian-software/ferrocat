@@ -50,52 +50,56 @@
 //! assert_eq!(file.items[0].msgstr[0], "Hallo");
 //! # Ok::<(), ferrocat_po::ParseError>(())
 //! ```
-//!
-//! ```rust
-//! use ferrocat_po::{
-//!     CompileCatalogArtifactOptions, CompileSelectedCatalogArtifactOptions,
-//!     CompiledCatalogIdIndex, ParseCatalogOptions, compile_catalog_artifact_selected,
-//!     parse_catalog,
-//! };
-//!
-//! let source = parse_catalog(
-//!     ParseCatalogOptions::new("msgid \"Hello\"\nmsgstr \"Hello\"\n", "en").with_locale("en"),
-//! )?
-//! .into_normalized_view()?;
-//! let requested = parse_catalog(
-//!     ParseCatalogOptions::new("msgid \"Hello\"\nmsgstr \"Hallo\"\n", "en").with_locale("de"),
-//! )?
-//! .into_normalized_view()?;
-//! let index = CompiledCatalogIdIndex::new(&[&requested, &source], ferrocat_po::CompiledKeyStrategy::FerrocatV1)?;
-//! let compiled_ids = index.iter().map(|(id, _)| id).collect::<Vec<_>>();
-//! let compiled = compile_catalog_artifact_selected(
-//!     &[&requested, &source],
-//!     &index,
-//!     &CompileSelectedCatalogArtifactOptions::new("de", "en", &compiled_ids),
-//! )?;
-//!
-//! assert_eq!(compiled.messages.len(), 1);
-//! # Ok::<(), Box<dyn std::error::Error>>(())
-//! ```
-//!
-//! ```rust
-//! use ferrocat_po::{
-//!     CatalogAuditOptions, ParseCatalogOptions, audit_catalogs, parse_catalog_for_review,
-//! };
-//!
-//! let source = parse_catalog_for_review(
-//!     ParseCatalogOptions::new("msgid \"Hello {name}\"\nmsgstr \"Hello {name}\"\n", "en")
-//!         .with_locale("en"),
-//! )?;
-//! let target = parse_catalog_for_review(
-//!     ParseCatalogOptions::new("msgid \"Hello {name}\"\nmsgstr \"Hallo\"\n", "en")
-//!         .with_locale("de"),
-//! )?;
-//! let report = audit_catalogs(&[&source, &target], &CatalogAuditOptions::new("en"))?;
-//!
-//! assert!(report.has_errors());
-//! # Ok::<(), Box<dyn std::error::Error>>(())
-//! ```
+#![cfg_attr(
+    feature = "catalog",
+    doc = r#"
+```rust
+use ferrocat_po::{
+    CompileCatalogArtifactOptions, CompileSelectedCatalogArtifactOptions,
+    CompiledCatalogIdIndex, ParseCatalogOptions, compile_catalog_artifact_selected,
+    parse_catalog,
+};
+
+let source = parse_catalog(
+    ParseCatalogOptions::new("msgid \"Hello\"\nmsgstr \"Hello\"\n", "en").with_locale("en"),
+)?
+.into_normalized_view()?;
+let requested = parse_catalog(
+    ParseCatalogOptions::new("msgid \"Hello\"\nmsgstr \"Hallo\"\n", "en").with_locale("de"),
+)?
+.into_normalized_view()?;
+let index = CompiledCatalogIdIndex::new(&[&requested, &source], ferrocat_po::CompiledKeyStrategy::FerrocatV1)?;
+let compiled_ids = index.iter().map(|(id, _)| id).collect::<Vec<_>>();
+let compiled = compile_catalog_artifact_selected(
+    &[&requested, &source],
+    &index,
+    &CompileSelectedCatalogArtifactOptions::new("de", "en", &compiled_ids),
+)?;
+
+assert_eq!(compiled.messages.len(), 1);
+# Ok::<(), Box<dyn std::error::Error>>(())
+```
+
+```rust
+use ferrocat_po::{
+    CatalogAuditOptions, ParseCatalogOptions, audit_catalogs, parse_catalog_for_review,
+};
+
+let source = parse_catalog_for_review(
+    ParseCatalogOptions::new("msgid \"Hello {name}\"\nmsgstr \"Hello {name}\"\n", "en")
+        .with_locale("en"),
+)?;
+let target = parse_catalog_for_review(
+    ParseCatalogOptions::new("msgid \"Hello {name}\"\nmsgstr \"Hallo\"\n", "en")
+        .with_locale("de"),
+)?;
+let report = audit_catalogs(&[&source, &target], &CatalogAuditOptions::new("en"))?;
+
+assert!(report.has_errors());
+# Ok::<(), Box<dyn std::error::Error>>(())
+```
+"#
+)]
 
 #[cfg(feature = "catalog")]
 #[cfg_attr(docsrs, doc(cfg(feature = "catalog")))]
