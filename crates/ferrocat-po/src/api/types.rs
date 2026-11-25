@@ -1942,15 +1942,12 @@ pub struct ParseCatalogOptions<'a> {
     pub source_locale: &'a str,
     /// High-level catalog mode used when interpreting catalog content.
     pub mode: CatalogMode,
-    /// Whether unsupported ICU plural projection cases should become hard errors.
-    pub strict: bool,
 }
 
 impl<'a> ParseCatalogOptions<'a> {
     /// Creates parse options with required fields set.
     ///
-    /// Optional fields default to an inferred locale, ICU-native PO mode, and
-    /// non-strict plural projection.
+    /// Optional fields default to an inferred locale and ICU-native PO mode.
     #[must_use]
     pub fn new(content: &'a str, source_locale: &'a str) -> Self {
         Self {
@@ -1958,7 +1955,6 @@ impl<'a> ParseCatalogOptions<'a> {
             locale: None,
             source_locale,
             mode: CatalogMode::default(),
-            strict: false,
         }
     }
 
@@ -1973,13 +1969,6 @@ impl<'a> ParseCatalogOptions<'a> {
     #[must_use]
     pub fn with_mode(mut self, mode: CatalogMode) -> Self {
         self.mode = mode;
-        self
-    }
-
-    /// Returns options that enable or disable strict plural projection.
-    #[must_use]
-    pub fn with_strict(mut self, strict: bool) -> Self {
-        self.strict = strict;
         self
     }
 }
@@ -2317,7 +2306,6 @@ mod tests {
         assert_eq!(parse.content, "msgid \"Hello\"\nmsgstr \"Hallo\"\n");
         assert_eq!(parse.source_locale, "en");
         assert_eq!(parse.mode, CatalogMode::IcuPo);
-        assert!(!parse.strict);
 
         let inputs = [CatalogCombineInput::labeled(
             "msgid \"Hello\"\nmsgstr \"Hallo\"\n",
@@ -2385,12 +2373,10 @@ mod tests {
 
         let parse = ParseCatalogOptions::new("content", "en")
             .with_locale("fr")
-            .with_mode(CatalogMode::IcuFcl)
-            .with_strict(true);
+            .with_mode(CatalogMode::IcuFcl);
 
         assert_eq!(parse.locale, Some("fr"));
         assert_eq!(parse.mode, CatalogMode::IcuFcl);
-        assert!(parse.strict);
 
         let input_paths = [PathBuf::from("base.po"), PathBuf::from("overlay.po")];
         let output_path = Path::new("messages.fcl");

@@ -420,7 +420,6 @@ fn parse_catalog_projects_gettext_plural_into_structured_shape() {
         locale: Some("de"),
         source_locale: "en",
         mode: CatalogMode::GettextPo,
-        strict: false,
     })
     .expect("parse");
 
@@ -454,7 +453,6 @@ fn normalized_view_indexes_messages_by_key() {
         locale: Some("de"),
         source_locale: "en",
         mode: CatalogMode::GettextPo,
-        strict: false,
     })
     .expect("parse");
 
@@ -483,7 +481,6 @@ fn normalized_view_rejects_duplicate_keys() {
         locale: Some("de"),
         source_locale: "en",
         mode: CatalogMode::GettextPo,
-        strict: false,
     })
     .expect("parse");
 
@@ -508,7 +505,6 @@ fn normalized_view_can_apply_source_locale_fallbacks() {
         locale: Some("en"),
         source_locale: "en",
         mode: CatalogMode::GettextPo,
-        strict: false,
     })
     .expect("parse");
 
@@ -541,7 +537,6 @@ fn normalized_view_skips_source_fallback_for_non_source_locale_catalogs() {
         locale: Some("de"),
         source_locale: "en",
         mode: CatalogMode::GettextPo,
-        strict: false,
     })
     .expect("parse");
 
@@ -567,7 +562,6 @@ fn parse_catalog_uses_icu_plural_categories_for_french_gettext() {
         locale: Some("fr"),
         source_locale: "en",
         mode: CatalogMode::GettextPo,
-        strict: false,
     })
     .expect("parse");
 
@@ -603,7 +597,6 @@ fn parse_catalog_prefers_gettext_slot_count_when_it_disagrees_with_locale_catego
         locale: Some("fr"),
         source_locale: "en",
         mode: CatalogMode::GettextPo,
-        strict: false,
     })
     .expect("parse");
 
@@ -630,7 +623,6 @@ fn parse_catalog_reports_plural_forms_locale_mismatch() {
         locale: Some("fr"),
         source_locale: "en",
         mode: CatalogMode::GettextPo,
-        strict: false,
     })
     .expect("parse");
 
@@ -675,7 +667,6 @@ fn parse_catalog_keeps_simple_icu_plural_as_singular_in_native_mode() {
         locale: Some("de"),
         source_locale: "en",
         mode: CatalogMode::IcuPo,
-        strict: false,
     })
     .expect("parse");
 
@@ -696,7 +687,6 @@ fn parse_catalog_keeps_nested_icu_plural_as_singular_without_projection_warning(
         locale: Some("de"),
         source_locale: "en",
         mode: CatalogMode::IcuPo,
-        strict: false,
     })
     .expect("parse");
 
@@ -708,7 +698,7 @@ fn parse_catalog_keeps_nested_icu_plural_as_singular_without_projection_warning(
 }
 
 #[test]
-fn parse_catalog_strict_keeps_malformed_icu_plural_as_singular_in_native_mode() {
+fn parse_catalog_keeps_malformed_icu_plural_as_singular_in_native_mode() {
     let parsed = parse_catalog(ParseCatalogOptions {
         content: concat!(
             "msgid \"{count, plural, one {# item} other {# items}\"\n",
@@ -717,9 +707,8 @@ fn parse_catalog_strict_keeps_malformed_icu_plural_as_singular_in_native_mode() 
         locale: Some("de"),
         source_locale: "en",
         mode: CatalogMode::IcuPo,
-        strict: true,
     })
-    .expect("strict parse");
+    .expect("parse");
 
     assert!(matches!(
         parsed.messages[0].translation,
@@ -1220,7 +1209,6 @@ fn update_catalog_gettext_preserves_previous_plural_variable_and_translations() 
         locale: Some("de"),
         source_locale: "en",
         mode: CatalogMode::GettextPo,
-        strict: false,
     })
     .expect("parse updated catalog");
 
@@ -1643,7 +1631,6 @@ fn parse_catalog_rejects_classic_plural_shape_in_native_mode() {
         locale: Some("en"),
         source_locale: "en",
         mode: CatalogMode::IcuPo,
-        strict: false,
     })
     .expect_err("classic plural should fail in native mode");
     assert!(matches!(with_plural_source, ApiError::Unsupported(_)));
@@ -1657,7 +1644,6 @@ fn parse_catalog_rejects_classic_plural_shape_in_native_mode() {
         locale: Some("en"),
         source_locale: "en",
         mode: CatalogMode::IcuPo,
-        strict: false,
     })
     .expect_err("plural msgstr should fail in native mode");
     assert!(matches!(plural_msgstr_only, ApiError::Unsupported(_)));
@@ -1675,7 +1661,6 @@ fn parse_catalog_reports_plural_expression_without_nplurals() {
         locale: Some("de"),
         source_locale: "en",
         mode: CatalogMode::GettextPo,
-        strict: false,
     })
     .expect("parse");
 
@@ -2900,7 +2885,6 @@ fn update_catalog_roundtrips_fcl_via_public_api() {
         locale: Some("de"),
         source_locale: "en",
         mode: CatalogMode::IcuFcl,
-        strict: false,
     })
     .expect("parse");
     assert_eq!(parsed.messages.len(), 1);
@@ -3011,7 +2995,6 @@ fn update_catalog_applies_default_collated_order_to_fcl() {
         source_locale: "en",
         locale: Some("en"),
         mode: CatalogMode::IcuFcl,
-        strict: false,
     })
     .expect("parse FCL output");
     assert_eq!(

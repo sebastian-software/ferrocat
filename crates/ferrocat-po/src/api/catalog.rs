@@ -223,7 +223,6 @@ pub fn update_catalog(
             options.source_locale,
             options.mode.semantics(),
             options.mode.plural_encoding(),
-            false,
             options.mode.storage_format(),
             OpaqueCapture::Keep,
         )?,
@@ -314,8 +313,8 @@ pub fn update_catalog_file(
 ///
 /// # Errors
 ///
-/// Returns [`ApiError`] when the catalog content cannot be parsed, the source
-/// locale is missing, or strict ICU projection fails.
+/// Returns [`ApiError`] when the catalog content cannot be parsed or the source
+/// locale is missing.
 ///
 /// # Examples
 ///
@@ -344,8 +343,7 @@ pub fn parse_catalog(options: ParseCatalogOptions<'_>) -> Result<ParsedCatalog, 
 /// # Errors
 ///
 /// Returns [`ApiError`] when the catalog content cannot be parsed, the source
-/// locale is missing, strict ICU projection fails, or duplicate message
-/// identities prevent normalization.
+/// locale is missing, or duplicate message identities prevent normalization.
 pub fn parse_catalog_for_review(
     options: ParseCatalogOptions<'_>,
 ) -> Result<super::NormalizedParsedCatalog, ApiError> {
@@ -364,7 +362,6 @@ fn parse_catalog_projection(
         options.source_locale,
         options.mode.semantics(),
         options.mode.plural_encoding(),
-        options.strict,
         options.mode.storage_format(),
         opaque_capture,
     )?;
@@ -1045,17 +1042,12 @@ fn apply_storage_defaults(
 ///
 /// Keeping this internal representation stable lets the public APIs share one
 /// import path before they diverge into normalized lookup or update/export work.
-#[expect(
-    clippy::too_many_arguments,
-    reason = "Internal fan-in shared by every catalog read path; a config struct would only relabel the same eight decisions."
-)]
 pub(super) fn parse_catalog_to_internal(
     content: &str,
     locale_override: Option<&str>,
     source_locale: &str,
     semantics: CatalogSemantics,
     plural_encoding: PluralEncoding,
-    strict: bool,
     storage_format: CatalogStorageFormat,
     opaque_capture: OpaqueCapture,
 ) -> Result<Catalog, ApiError> {
@@ -1065,7 +1057,6 @@ pub(super) fn parse_catalog_to_internal(
             locale_override,
             semantics,
             plural_encoding,
-            strict,
             opaque_capture,
         ),
         CatalogStorageFormat::Fcl => super::fcl::parse_catalog_to_internal_fcl(
@@ -1073,7 +1064,6 @@ pub(super) fn parse_catalog_to_internal(
             locale_override,
             source_locale,
             semantics,
-            strict,
             opaque_capture,
         ),
     }
@@ -1084,7 +1074,6 @@ fn parse_catalog_to_internal_po(
     locale_override: Option<&str>,
     semantics: CatalogSemantics,
     _plural_encoding: PluralEncoding,
-    strict: bool,
     opaque_capture: OpaqueCapture,
 ) -> Result<Catalog, ApiError> {
     // The borrowed parser keeps every field as a slice of `content`, so each
@@ -1125,7 +1114,6 @@ fn parse_catalog_to_internal_po(
             nplurals,
             semantics,
             opaque_capture,
-            strict,
             &mut diagnostics,
         )?;
         messages.push(message);
@@ -1147,15 +1135,13 @@ fn parse_catalog_to_internal_po(
 /// Converts one parsed `BorrowedPoItem` into the canonical internal message form.
 ///
 /// The branching is intentionally centralized here so that gettext plural slot
-/// import, ICU projection, and all associated diagnostics stay in one semantic
-/// decision point.
+/// import and associated validation stay in one semantic decision point.
 fn import_message_from_po(
     item: BorrowedPoItem<'_>,
     plural_profiles: &mut GettextPluralProfiles<'_>,
     nplurals: Option<usize>,
     semantics: CatalogSemantics,
     opaque_capture: OpaqueCapture,
-    _strict: bool,
     _diagnostics: &mut Vec<Diagnostic>,
 ) -> Result<CanonicalMessage, ApiError> {
     // Extractor-owned `#.` comments feed the canonical notes list (after the
