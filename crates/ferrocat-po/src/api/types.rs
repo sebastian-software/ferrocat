@@ -136,7 +136,6 @@ impl From<Vec<SourceExtractedMessage>> for CatalogUpdateInput {
 /// Structured plural translation payload for [`TranslationShape::Plural`].
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 pub struct PluralTranslation {
     /// Source-side plural forms.
     pub source: PluralSource,
@@ -1031,7 +1030,7 @@ enum HashSlot {
 pub struct NormalizedParsedCatalog {
     pub(super) catalog: ParsedCatalog,
     sorted_indices: Vec<usize>,
-    msgid_hash_index: FxHashMap<u64, HashSlot>,
+    identity_hash_index: FxHashMap<u64, HashSlot>,
     review_fuzzy_indices: Option<FxHashSet<usize>>,
 }
 
@@ -1052,12 +1051,13 @@ impl NormalizedParsedCatalog {
         catalog: ParsedCatalog,
         review_fuzzy_indices: Option<FxHashSet<usize>>,
     ) -> Result<Self, ApiError> {
-        let mut msgid_hash_index = FxHashMap::<u64, HashSlot>::with_capacity_and_hasher(
+        let mut identity_hash_index = FxHashMap::<u64, HashSlot>::with_capacity_and_hasher(
             catalog.messages.len(),
             Default::default(),
         );
         for (index, message) in catalog.messages.iter().enumerate() {
-            match msgid_hash_index.entry(message_id_hash(&message.msgid)) {
+            let hash = message_identity_hash(&message.msgid, message.msgctxt.as_deref());
+            match identity_hash_index.entry(hash) {
                 hash_map::Entry::Vacant(entry) => {
                     entry.insert(HashSlot::One(index));
                 }
@@ -1106,7 +1106,7 @@ impl NormalizedParsedCatalog {
         Ok(Self {
             catalog,
             sorted_indices,
-            msgid_hash_index,
+            identity_hash_index,
             review_fuzzy_indices,
         })
     }
@@ -1152,7 +1152,10 @@ impl NormalizedParsedCatalog {
     }
 
     pub(super) fn index_by_parts(&self, msgid: &str, msgctxt: Option<&str>) -> Option<usize> {
-        match self.msgid_hash_index.get(&message_id_hash(msgid))? {
+        match self
+            .identity_hash_index
+            .get(&message_identity_hash(msgid, msgctxt))?
+        {
             HashSlot::One(index) => {
                 let message = &self.catalog.messages[*index];
                 (message.msgid.as_str() == msgid && message.msgctxt.as_deref() == msgctxt)
@@ -1303,9 +1306,10 @@ impl NormalizedParsedCatalog {
     }
 }
 
-fn message_id_hash(msgid: &str) -> u64 {
+fn message_identity_hash(msgid: &str, msgctxt: Option<&str>) -> u64 {
     let mut hasher = FxHasher::default();
     msgid.hash(&mut hasher);
+    msgctxt.hash(&mut hasher);
     hasher.finish()
 }
 
@@ -2699,14 +2703,19 @@ mod tests {
             .expect("plural catalog message deserialization must succeed");
         assert_eq!(roundtrip_plural, plural_message);
 
-        let unknown_plural_field = serde_json::json!({
+        let plural_with_extra_field = serde_json::json!({
             "kind": "plural",
             "source": { "one": null, "other": "items" },
             "translation": { "other": "Artikel" },
             "variable": "count",
             "extra": true
         });
-        assert!(serde_json::from_value::<TranslationShape>(unknown_plural_field).is_err());
+        let deserialized: TranslationShape = serde_json::from_value(plural_with_extra_field)
+            .expect("plural JSON with extra fields remains readable");
+        assert!(matches!(
+            deserialized,
+            TranslationShape::Plural(plural) if plural.variable == "count"
+        ));
     }
 
     #[test]
@@ -2764,5 +2773,21 @@ mod tests {
             dup_parsed.into_normalized_view(),
             Err(ApiError::Conflict(_))
         ));
+
+        // Same msgid across many distinct contexts must distribute across hash
+        // buckets rather than degenerating into a single quadratic bucket.
+        let many_contexts = ParsedCatalog {
+            locale: Some("de".to_owned()),
+            semantics: CatalogSemantics::IcuNative,
+            headers: BTreeMap::new(),
+            messages: (0..2_000)
+                .map(|index| make("Open", Some(&format!("ctx-{index:04}"))))
+                .collect(),
+            diagnostics: Vec::new(),
+        };
+        let normalized_many = many_contexts.into_normalized_view().expect("many contexts");
+        assert_eq!(normalized_many.message_count(), 2_000);
+        assert!(normalized_many.identity_hash_index.len() > 1_900);
+        assert!(normalized_many.contains_parts("Open", Some("ctx-1999")));
     }
 }
