@@ -582,25 +582,23 @@ impl CompiledCatalogIdIndex {
         F: FnMut(CompiledKeyStrategy, &CatalogMessageKey, IcuSyntaxPolicy) -> String,
     {
         let mut ids = BTreeMap::<String, CatalogMessageKey>::new();
+        let mut seen_keys = rustc_hash::FxHashSet::<&CatalogMessageKey>::default();
 
         for catalog in catalogs {
             for (source_key, message) in catalog.iter() {
-                if message.obsolete.is_some() {
+                if message.obsolete.is_some() || !seen_keys.insert(source_key) {
                     continue;
                 }
                 let compiled_id = key_generator(key_strategy, source_key, syntax_policy);
                 if let Some(existing) = ids.get(&compiled_id) {
-                    if existing != source_key {
-                        return Err(ApiError::Conflict(format!(
-                            "compiled catalog key collision for {:?} / {:?} and {:?} / {:?} using key {}",
-                            existing.msgctxt,
-                            existing.msgid,
-                            source_key.msgctxt,
-                            source_key.msgid,
-                            compiled_id
-                        )));
-                    }
-                    continue;
+                    return Err(ApiError::Conflict(format!(
+                        "compiled catalog key collision for {:?} / {:?} and {:?} / {:?} using key {}",
+                        existing.msgctxt,
+                        existing.msgid,
+                        source_key.msgctxt,
+                        source_key.msgid,
+                        compiled_id
+                    )));
                 }
                 ids.insert(compiled_id, source_key.clone());
             }

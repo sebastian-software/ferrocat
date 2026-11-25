@@ -342,13 +342,13 @@ pub struct MessageMetadataDiagnostic {
 impl MessageMetadataDiagnostic {
     fn new(
         severity: IcuDiagnosticSeverity,
-        code: impl Into<DiagnosticCode>,
+        code: &'static str,
         message: impl Into<String>,
         name: impl Into<Option<String>>,
     ) -> Self {
         Self {
             severity,
-            code: code.into(),
+            code: DiagnosticCode::from_static(code),
             message: message.into(),
             name: name.into(),
         }

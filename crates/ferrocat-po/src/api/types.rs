@@ -1,9 +1,9 @@
-use std::collections::{BTreeMap, BTreeSet, btree_map};
+use std::collections::{BTreeMap, btree_map, hash_map};
 use std::fmt;
 use std::hash::{Hash, Hasher};
 use std::path::{Path, PathBuf};
 
-use rustc_hash::{FxHashMap, FxHasher};
+use rustc_hash::{FxHashMap, FxHashSet, FxHasher};
 
 use crate::{ParseError, PoVec, SerializeOptions, diagnostic_codes::DiagnosticCode};
 
@@ -265,6 +265,33 @@ impl CatalogMessage {
             }
         }
     }
+
+    pub(super) fn source_fallback_translation_with_profile(
+        &self,
+        locale: Option<&str>,
+        cached_profile: &mut Option<PluralProfile>,
+    ) -> EffectiveTranslation {
+        match &self.translation {
+            TranslationShape::Singular { value } => {
+                if value.is_empty() {
+                    EffectiveTranslation::Singular(self.msgid.clone())
+                } else {
+                    EffectiveTranslation::Singular(value.clone())
+                }
+            }
+            TranslationShape::Plural {
+                source,
+                translation,
+                ..
+            } => {
+                let profile =
+                    cached_profile.get_or_insert_with(|| PluralProfile::for_locale(locale));
+                EffectiveTranslation::Plural(
+                    profile.source_fallback_translation(translation, source),
+                )
+            }
+        }
+    }
 }
 
 /// Stable lookup key for catalog messages.
@@ -335,12 +362,12 @@ pub struct Diagnostic {
 impl Diagnostic {
     pub(super) fn new(
         severity: DiagnosticSeverity,
-        code: impl Into<DiagnosticCode>,
+        code: &'static str,
         message: impl Into<String>,
     ) -> Self {
         Self {
             severity,
-            code: code.into(),
+            code: DiagnosticCode::from_static(code),
             message: message.into(),
             msgid: None,
             msgctxt: None,
@@ -989,8 +1016,14 @@ impl ParsedCatalog {
     pub fn into_normalized_view_assuming_no_fuzzy(
         self,
     ) -> Result<NormalizedParsedCatalog, ApiError> {
-        NormalizedParsedCatalog::new_with_review_state(self, BTreeSet::new())
+        NormalizedParsedCatalog::new_with_review_state(self, FxHashSet::default())
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum HashSlot {
+    One(usize),
+    Many(Vec<usize>),
 }
 
 /// Parsed catalog with fast key-based lookup helpers.
@@ -998,8 +1031,8 @@ impl ParsedCatalog {
 pub struct NormalizedParsedCatalog {
     pub(super) catalog: ParsedCatalog,
     pub(super) key_index: BTreeMap<CatalogMessageKey, usize>,
-    msgid_hash_index: FxHashMap<u64, Vec<usize>>,
-    review_fuzzy_keys: Option<BTreeSet<CatalogMessageKey>>,
+    msgid_hash_index: FxHashMap<u64, HashSlot>,
+    review_fuzzy_indices: Option<FxHashSet<usize>>,
 }
 
 impl NormalizedParsedCatalog {
@@ -1010,17 +1043,17 @@ impl NormalizedParsedCatalog {
 
     pub(super) fn new_with_review_state(
         catalog: ParsedCatalog,
-        fuzzy_keys: BTreeSet<CatalogMessageKey>,
+        fuzzy_indices: FxHashSet<usize>,
     ) -> Result<Self, ApiError> {
-        Self::new_with_optional_review_state(catalog, Some(fuzzy_keys))
+        Self::new_with_optional_review_state(catalog, Some(fuzzy_indices))
     }
 
     fn new_with_optional_review_state(
         catalog: ParsedCatalog,
-        review_fuzzy_keys: Option<BTreeSet<CatalogMessageKey>>,
+        review_fuzzy_indices: Option<FxHashSet<usize>>,
     ) -> Result<Self, ApiError> {
         let mut key_index = BTreeMap::new();
-        let mut msgid_hash_index = FxHashMap::<u64, Vec<usize>>::with_capacity_and_hasher(
+        let mut msgid_hash_index = FxHashMap::<u64, HashSlot>::with_capacity_and_hasher(
             catalog.messages.len(),
             Default::default(),
         );
@@ -1038,16 +1071,24 @@ impl NormalizedParsedCatalog {
                     )));
                 }
             }
-            msgid_hash_index
-                .entry(message_id_hash(&message.msgid))
-                .or_default()
-                .push(index);
+            match msgid_hash_index.entry(message_id_hash(&message.msgid)) {
+                hash_map::Entry::Vacant(entry) => {
+                    entry.insert(HashSlot::One(index));
+                }
+                hash_map::Entry::Occupied(mut entry) => match entry.get_mut() {
+                    HashSlot::One(first) => {
+                        let first = *first;
+                        *entry.get_mut() = HashSlot::Many(vec![first, index]);
+                    }
+                    HashSlot::Many(indices) => indices.push(index),
+                },
+            }
         }
         Ok(Self {
             catalog,
             key_index,
             msgid_hash_index,
-            review_fuzzy_keys,
+            review_fuzzy_indices,
         })
     }
 
@@ -1058,7 +1099,7 @@ impl NormalizedParsedCatalog {
     /// The default [`super::parse_catalog`] projection intentionally does not.
     #[must_use]
     pub const fn has_review_state(&self) -> bool {
-        self.review_fuzzy_keys.is_some()
+        self.review_fuzzy_indices.is_some()
     }
 
     pub(super) fn require_review_state(&self, operation: &str) -> Result<(), ApiError> {
@@ -1072,9 +1113,15 @@ impl NormalizedParsedCatalog {
     }
 
     pub(super) fn is_fuzzy(&self, key: &CatalogMessageKey) -> bool {
-        self.review_fuzzy_keys
-            .as_ref()
-            .is_some_and(|keys| keys.contains(key))
+        let Some(fuzzy_indices) = self.review_fuzzy_indices.as_ref() else {
+            return false;
+        };
+        if fuzzy_indices.is_empty() {
+            return false;
+        }
+        self.key_index
+            .get(key)
+            .is_some_and(|index| fuzzy_indices.contains(index))
     }
 
     /// Returns the underlying parsed catalog.
@@ -1103,14 +1150,18 @@ impl NormalizedParsedCatalog {
     /// already have borrowed source identity fields.
     #[must_use]
     pub fn get_by_parts(&self, msgid: &str, msgctxt: Option<&str>) -> Option<&CatalogMessage> {
-        self.msgid_hash_index
-            .get(&message_id_hash(msgid))?
-            .iter()
-            .find_map(|index| {
+        match self.msgid_hash_index.get(&message_id_hash(msgid))? {
+            HashSlot::One(index) => {
                 let message = &self.catalog.messages[*index];
                 (message.msgid.as_str() == msgid && message.msgctxt.as_deref() == msgctxt)
                     .then_some(message)
-            })
+            }
+            HashSlot::Many(indices) => indices.iter().find_map(|index| {
+                let message = &self.catalog.messages[*index];
+                (message.msgid.as_str() == msgid && message.msgctxt.as_deref() == msgctxt)
+                    .then_some(message)
+            }),
+        }
     }
 
     /// Returns `true` if a message for `key` exists.
@@ -1193,6 +1244,27 @@ impl NormalizedParsedCatalog {
             .is_none_or(|locale| locale == source_locale)
         {
             message.source_fallback_translation(self.catalog.locale.as_deref())
+        } else {
+            message.effective_translation_owned()
+        }
+    }
+
+    pub(super) fn effective_translation_for_message_with_profile(
+        &self,
+        message: &CatalogMessage,
+        source_locale: &str,
+        cached_profile: &mut Option<PluralProfile>,
+    ) -> EffectiveTranslation {
+        if self
+            .catalog
+            .locale
+            .as_deref()
+            .is_none_or(|locale| locale == source_locale)
+        {
+            message.source_fallback_translation_with_profile(
+                self.catalog.locale.as_deref(),
+                cached_profile,
+            )
         } else {
             message.effective_translation_owned()
         }

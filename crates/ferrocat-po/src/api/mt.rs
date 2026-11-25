@@ -65,24 +65,24 @@ pub struct AiProvenance {
 /// ```
 #[must_use]
 pub fn machine_translation_hash(translation: EffectiveTranslationRef<'_>) -> String {
-    let mut payload = Vec::new();
-    payload.extend_from_slice(MACHINE_TRANSLATION_HASH_NAMESPACE);
+    let mut hasher = Sha256::new();
+    hasher.update(MACHINE_TRANSLATION_HASH_NAMESPACE);
     match translation {
         EffectiveTranslationRef::Singular(value) => {
-            push_hash_component(&mut payload, "singular");
-            push_hash_component(&mut payload, value);
+            update_hash_component(&mut hasher, "singular");
+            update_hash_component(&mut hasher, value);
         }
         EffectiveTranslationRef::Plural(values) => {
-            push_hash_component(&mut payload, "plural");
+            update_hash_component(&mut hasher, "plural");
             let count = u32::try_from(values.len()).expect("plural translation count exceeds u32");
-            payload.extend_from_slice(&count.to_be_bytes());
+            hasher.update(count.to_be_bytes());
             for (category, value) in values {
-                push_hash_component(&mut payload, category);
-                push_hash_component(&mut payload, value);
+                update_hash_component(&mut hasher, category);
+                update_hash_component(&mut hasher, value);
             }
         }
     }
-    let digest = Sha256::digest(&payload);
+    let digest = hasher.finalize();
     base64_url_no_pad(&digest[..16])
 }
 
@@ -147,11 +147,11 @@ fn parse_confidence(value: &str) -> Option<f32> {
         .filter(|confidence| (0.0..=1.0).contains(confidence))
 }
 
-fn push_hash_component(out: &mut Vec<u8>, value: &str) {
+fn update_hash_component(hasher: &mut Sha256, value: &str) {
     let value_len =
         u32::try_from(value.len()).expect("machine translation hash component exceeds u32");
-    out.extend_from_slice(&value_len.to_be_bytes());
-    out.extend_from_slice(value.as_bytes());
+    hasher.update(value_len.to_be_bytes());
+    hasher.update(value.as_bytes());
 }
 
 fn base64_url_no_pad(bytes: &[u8]) -> String {

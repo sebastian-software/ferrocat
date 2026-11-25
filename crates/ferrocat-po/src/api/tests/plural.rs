@@ -1,3 +1,5 @@
+use smallvec::smallvec;
+
 use super::*;
 
 #[test]
@@ -5,12 +7,12 @@ fn cached_icu_plural_categories_reads_poisoned_cache_entries() {
     let cache = Mutex::new(HashMap::new());
     let _ = std::panic::catch_unwind(|| {
         let mut guard = cache.lock().expect("lock");
-        guard.insert("fr".to_owned(), Some(vec!["one", "many", "other"]));
+        guard.insert("fr".to_owned(), Some(smallvec!["one", "many", "other"]));
         panic!("poison cache");
     });
 
     let categories = cached_icu_plural_categories_for("fr", &cache);
-    assert_eq!(categories, Some(vec!["one", "many", "other"]));
+    assert_eq!(categories, Some(smallvec!["one", "many", "other"]));
 }
 
 #[test]

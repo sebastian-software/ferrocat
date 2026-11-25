@@ -5,7 +5,10 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
+use std::hash::{Hash, Hasher};
 use std::path::{Path, PathBuf};
+
+use rustc_hash::{FxHashMap, FxHasher};
 
 use crate::SerializeOptions;
 use crate::diagnostic_codes;
@@ -89,6 +92,19 @@ impl<'a> CombineConfig<'a> {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum CombineIndexSlot {
+    One(usize),
+    Many(Vec<usize>),
+}
+
+fn combine_identity_hash(msgid: &str, msgctxt: Option<&str>) -> u64 {
+    let mut hasher = FxHasher::default();
+    msgid.hash(&mut hasher);
+    msgctxt.hash(&mut hasher);
+    hasher.finish()
+}
+
 #[derive(Debug, Clone, PartialEq)]
 struct CombineState {
     diagnostics: Vec<Diagnostic>,
@@ -97,7 +113,7 @@ struct CombineState {
     file_extracted_comments: Vec<String>,
     inferred_locale: Option<String>,
     entries: Vec<CombineEntry>,
-    index: BTreeMap<String, BTreeMap<Option<String>, usize>>,
+    index: FxHashMap<u64, CombineIndexSlot>,
     stats: CatalogCombineStats,
     labels: Vec<String>,
 }
@@ -111,7 +127,7 @@ impl CombineState {
             file_extracted_comments: Vec::new(),
             inferred_locale: locale.map(str::to_owned),
             entries: Vec::new(),
-            index: BTreeMap::new(),
+            index: FxHashMap::default(),
             stats: CatalogCombineStats {
                 inputs: input_count,
                 ..CatalogCombineStats::default()
@@ -143,6 +159,8 @@ impl CombineState {
             if self.inferred_locale.is_none() {
                 self.inferred_locale = locale;
             }
+            self.entries.reserve(messages.len());
+            self.index.reserve(messages.len());
         }
         self.diagnostics.extend(diagnostics);
 
@@ -165,8 +183,9 @@ impl CombineState {
         label_index: usize,
         conflict_strategy: CatalogConflictStrategy,
     ) -> Result<(), ApiError> {
-        let Some(existing_index) = self.message_index(&message) else {
-            self.insert_message_index(&message);
+        let hash = combine_identity_hash(&message.msgid, message.msgctxt.as_deref());
+        let Some(existing_index) = self.message_index(hash, &message) else {
+            self.insert_message_index(hash);
             self.entries.push(CombineEntry {
                 message,
                 definitions: 1,
@@ -188,22 +207,33 @@ impl CombineState {
         )
     }
 
-    fn message_index(&self, message: &CanonicalMessage) -> Option<usize> {
-        self.index
-            .get(message.msgid.as_str())
-            .and_then(|by_context| by_context.get(&message.msgctxt))
-            .copied()
+    fn message_index(&self, hash: u64, message: &CanonicalMessage) -> Option<usize> {
+        match self.index.get(&hash)? {
+            CombineIndexSlot::One(index) => {
+                let existing = &self.entries[*index].message;
+                (existing.msgid == message.msgid && existing.msgctxt == message.msgctxt)
+                    .then_some(*index)
+            }
+            CombineIndexSlot::Many(indices) => indices.iter().copied().find(|&index| {
+                let existing = &self.entries[index].message;
+                existing.msgid == message.msgid && existing.msgctxt == message.msgctxt
+            }),
+        }
     }
 
-    fn insert_message_index(&mut self, message: &CanonicalMessage) {
+    fn insert_message_index(&mut self, hash: u64) {
         let entry_index = self.entries.len();
-        if let Some(by_context) = self.index.get_mut(message.msgid.as_str()) {
-            by_context.insert(message.msgctxt.clone(), entry_index);
-        } else {
-            self.index.insert(
-                message.msgid.clone(),
-                BTreeMap::from([(message.msgctxt.clone(), entry_index)]),
-            );
+        match self.index.entry(hash) {
+            std::collections::hash_map::Entry::Vacant(slot) => {
+                slot.insert(CombineIndexSlot::One(entry_index));
+            }
+            std::collections::hash_map::Entry::Occupied(mut slot) => match slot.get_mut() {
+                CombineIndexSlot::One(first) => {
+                    let first = *first;
+                    *slot.get_mut() = CombineIndexSlot::Many(vec![first, entry_index]);
+                }
+                CombineIndexSlot::Many(indices) => indices.push(entry_index),
+            },
         }
     }
 
@@ -234,7 +264,9 @@ impl CombineState {
             self.inferred_locale.as_deref(),
             &mut self.diagnostics,
         )?;
-        sort_messages(&mut combined.messages, config.order_by);
+        if config.mode.storage_format() != CatalogStorageFormat::Fcl {
+            sort_messages(&mut combined.messages, config.order_by);
+        }
         let content =
             export_catalog_content_for_combine(&combined, config, self.inferred_locale.as_deref())?;
 
