@@ -15,10 +15,10 @@ Documentation, interactive examples, and benchmarks: **[ferrocat.dev](https://fe
 
 `ferrocat` is a Rust-native translation catalog engine. It treats localized copy as product data: parse it, update it, review it, measure it, audit it, and compile it into runtime payloads your application can ship with confidence.
 
-- **Built for build speed.** Scans bytes directly and moves messages instead of cloning them — **1218 MiB/s** borrowed PO parsing (~1.5 ms for 10,000 messages) and **410 MiB/s** catalog updates (~86x faster than GNU `msgmerge`).
-- **Git-safe storage.** Keep Gettext **PO** when translator tools read the file directly, or choose **FCL2** (one deterministically sorted line per message) so parallel branches merge cleanly in Git without losing untouched translations.
+- **Built for build speed.** Scans bytes directly and moves messages instead of cloning them — **1218 MiB/s** borrowed PO parsing (~1.5 ms for 10,000 messages), **410 MiB/s** plain Gettext merges (~86x faster than GNU `msgmerge`), and **204 MiB/s** full ICU catalog updates.
+- **Git-safe storage.** Keep Gettext **PO** when translator tools read the file directly, or choose **FCL2** (one deterministically sorted line per message) to reduce Git merge conflicts and keep untouched entries intact across parallel branches.
 - **ICU & release QA.** Parse and compare ICU MessageFormat v1 placeholders, plurals, selects, formatters, and rich-text tags — in Rust or via the standalone `ferrocat audit` CLI release gate.
-- **AI-translation aware.** Stamp machine-written values with an integrity `lock` plus optional model and confidence. When a human corrects the text, the lock goes stale so re-runs never silently overwrite their fix.
+- **AI-translation aware.** Stamp machine-written values with an integrity `lock` plus optional model and confidence. When a human edits the text, the lock stops matching so review and re-translation workflows can detect the correction and decide how to handle it.
 - **Explainable runtime artifacts.** Compile locale-resolved JSON maps with stable derived keys, fallback chains, explicit `missing` lists, and optional per-message provenance.
 
 ## Install
