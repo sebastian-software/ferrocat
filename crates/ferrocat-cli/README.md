@@ -13,7 +13,7 @@ ferrocat audit \
   --format text
 ```
 
-Pass `--storage fcl` to audit FCL catalogs instead of PO, and repeat `--target` or `--locale` to check multiple target languages.
+Pass `--storage fcl` to audit FCL catalogs instead of PO, repeat `--target <locale=path>` for each target catalog, and optionally repeat `--locale <locale>` to filter which supplied targets are audited.
 
 `ferrocat-cli` releases include a prebuilt `x86_64-unknown-linux-musl` archive
 named `ferrocat-<version>-x86_64-unknown-linux-musl.tar.gz`. The release
