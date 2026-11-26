@@ -29,7 +29,7 @@ export const meta: ArdoMetaFunction = () => [
 export const handle = { layout: "bare" };
 
 const releaseLine = version.split(".").slice(0, 2).join(".");
-const { conformance } = samples;
+const { conformance, speed } = samples;
 
 function Actions() {
   return (
@@ -63,7 +63,14 @@ function Opening() {
           ),
           label: "conformance checks from polib, pofile, Babel, ICU and FormatJS",
         },
-        { value: "3 modes", label: "Gettext PO, ICU PO and FCL, chosen explicitly" },
+        {
+          value: (
+            <>
+              <em>{speed.borrowedParse.mibPerSec.toLocaleString("en-US")}</em> MiB/s
+            </>
+          ),
+          label: `borrowed PO parsing on a ${speed.measured.messages.toLocaleString("en-US")}-message catalog`,
+        },
         {
           value: (
             <>
@@ -72,7 +79,10 @@ function Opening() {
           ),
           label: "per message in FCL, so unrelated edits merge cleanly",
         },
-        { value: `Rust ${rustVersion}+`, label: "MIT or Apache-2.0, library and CLI" },
+        {
+          value: `Rust ${rustVersion}+`,
+          label: "PO, ICU and FCL · MIT or Apache-2.0, library and CLI",
+        },
       ]}
     />
   );

@@ -65,7 +65,7 @@ function, class, route handler, or similar authoring unit around the text. It
 helps reviewers understand where the message came from; it does not replace
 `msgctxt` and does not change message identity.
 
-The published Ferrocat 3.x benchmarks compared PO with FCL1. Generate FCL catalogs with `CatalogMode::IcuFcl` and review changes in Git. Use PO when translation tools need to read the catalog directly.
+Generate FCL catalogs with `CatalogMode::IcuFcl` when Git diffs and automated updates are the priority; keep PO when translation tools need to read the catalog directly.
 
 Both PO and FCL can carry machine-translation metadata for AI-assisted workflows. Ferrocat keeps the storage compact, verifies the translation hash when writing, and drops stale metadata once the translated text has been edited.
 

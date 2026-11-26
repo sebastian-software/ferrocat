@@ -11,17 +11,15 @@ Rust-native translation catalog engine for Gettext PO, ICU MessageFormat, and FC
 [![MSRV](https://img.shields.io/badge/MSRV-1.94.0-blue.svg)](#compatibility-snapshot)
 <!-- mdtheme:badges:end -->
 
-Documentation: **[ferrocat.dev](https://ferrocat.dev)** — guides, API overview, benchmarks, and architecture decisions.
+Documentation, interactive examples, and benchmarks: **[ferrocat.dev](https://ferrocat.dev)**.
 
 `ferrocat` is a Rust-native translation catalog engine. It treats localized copy as product data: parse it, update it, review it, measure it, audit it, and compile it into runtime payloads your application can ship with confidence.
 
-The practical problem is simple: translations change constantly, and most projects need more than "load a JSON file at runtime." Teams need source identity, translator context, reviewable diffs, coverage numbers, release checks, fallback behavior, and a runtime shape that does not hide catalog problems until production. Ferrocat is built for that middle layer.
-
-You do not need to know PO files, ICU MessageFormat, or FCL to get started. What matters is that the catalog stays inspectable, testable, benchmarked, and portable across host-language adapters, instead of disappearing into format-specific tooling.
-
-## Project history
-
-[pofile-ts](https://github.com/sebastian-software/pofile-ts) is Ferrocat's TypeScript predecessor. It is retained as an archived reference and benchmark baseline; further development is focused on Ferrocat.
+- **Built for build speed.** Scans bytes directly and moves messages instead of cloning them — **1218 MiB/s** borrowed PO parsing (~1.5 ms for 10,000 messages) and **410 MiB/s** catalog updates (~86x faster than GNU `msgmerge`).
+- **Git-safe storage.** Keep Gettext **PO** when translator tools read the file directly, or choose **FCL2** (one deterministically sorted line per message) so parallel branches merge cleanly in Git without losing untouched translations.
+- **ICU & release QA.** Parse and compare ICU MessageFormat v1 placeholders, plurals, selects, formatters, and rich-text tags — in Rust or via the standalone `ferrocat audit` CLI release gate.
+- **AI-translation aware.** Stamp machine-written values with an integrity `lock` plus optional model and confidence. When a human corrects the text, the lock goes stale so re-runs never silently overwrite their fix.
+- **Explainable runtime artifacts.** Compile locale-resolved JSON maps with stable derived keys, fallback chains, explicit `missing` lists, and optional per-message provenance.
 
 ## Install
 
@@ -46,8 +44,10 @@ The `ferrocat-cli` GitHub release also publishes a prebuilt Linux musl archive f
 
 ## Quick Start
 
+### Low-level PO parse and serialize
+
 ```rust
-use ferrocat::{SerializeOptions, parse_po, stringify_po};
+use ferrocat::po::{SerializeOptions, parse_po, stringify_po};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut file = parse_po(
@@ -66,7 +66,45 @@ msgstr "world"
 }
 ```
 
-For the common "merge fresh extracted messages into an existing catalog" workflow, `merge_catalog` is the lean Gettext-style entry point. For N-way catalog overlays and `msgcat`-style set operations, use `combine_catalogs`; when catalogs already live on disk, `combine_catalog_files` adds format inference and atomic output replacement around the same semantics. For version-control workflows, `merge_catalogs_three_way` accepts explicit ancestor, ours, and theirs roles and preserves deletions instead of treating the ancestor as another overlay. Use `convert_catalog` or `convert_catalog_file` for explicit ICU-native PO ↔ FCL conversion without treating conversion as a one-input combine. For release checks across a source catalog and target catalogs, use `audit_catalogs`. For dashboards or translator handoffs, use `measure_catalog_coverage` and `review_catalogs`. For application delivery, compile requested-locale artifacts with fallback and ICU diagnostics; use `compile_catalog_artifact_report` when host tooling also needs per-message resolution provenance without changing the runtime artifact shape.
+### Release audit across source and target catalogs
+
+```rust
+use ferrocat::catalog::{
+    CatalogAuditOptions, ParseCatalogOptions, audit_catalogs, parse_catalog_for_review,
+};
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let source = parse_catalog_for_review(
+        ParseCatalogOptions::new(
+            "msgid \"Hello {name}\"\nmsgstr \"Hello {name}\"\n",
+            "en",
+        )
+        .with_locale("en"),
+    )?;
+    let target = parse_catalog_for_review(
+        ParseCatalogOptions::new("msgid \"Hello {name}\"\nmsgstr \"Hallo\"\n", "en")
+            .with_locale("de"),
+    )?;
+
+    let report = audit_catalogs(&[&source, &target], &CatalogAuditOptions::new("en"))?;
+    assert!(report.has_errors()); // catches the missing `{name}` placeholder
+    Ok(())
+}
+```
+
+### Choose your entry point
+
+| Workflow | Entry point |
+|---|---|
+| Fast PO parsing & serialization | `parse_po`, `parse_po_borrowed`, `parse_po_bytes`, `stringify_po` |
+| Lean Gettext-style merge | `merge_catalog` |
+| Full catalog update (PO or FCL2, ICU, placeholders, obsolete dates) | `update_catalog`, `update_catalog_file` |
+| N-way overlays & `msgcat`-style set selection | `combine_catalogs`, `combine_catalog_files` |
+| Deletion-aware 3-way Git/VCS merge | `merge_catalogs_three_way` |
+| Explicit ICU-native PO ↔ FCL2 conversion | `convert_catalog`, `convert_catalog_file` |
+| Release QA, coverage & translator handoff review | `audit_catalogs`, `measure_catalog_coverage`, `review_catalogs` |
+| ICU analysis, compatibility & formatter checks | `analyze_icu`, `compare_icu_messages`, `validate_icu_formatter_support` |
+| Runtime artifacts, provenance & pseudo-locale QA | `compile_catalog_artifact`, `compile_catalog_artifact_report`, `pseudolocalize_compiled_catalog_artifact` |
 
 Coverage, audit, and review inputs should be parsed with
 `parse_catalog_for_review`. It returns a normalized catalog that retains only
@@ -75,7 +113,9 @@ not count as translated. The ordinary `parse_catalog` path continues to skip
 opaque flags and translator comments for high-throughput consumers that do not
 request report state.
 
-Beyond the basics, Ferrocat exposes byte-oriented and allocation-light borrowed parsers for hot paths, ICU analysis and source/translation compatibility checks (`analyze_icu`, `compare_icu_messages`, `validate_icu_formatter_support`), policy-aware apostrophe canonicalization and compiled-key derivation, ICU-aware pseudolocalization, semantic metadata normalization around `msgid + msgctxt`, and AI-translation metadata that high-level writers clear automatically once a human edits the text. ICU scope is MessageFormat v1; MessageFormat 2 is tracked as a future standard but is not a near-term target.
+ICU scope is MessageFormat v1; MessageFormat 2 is tracked as a future standard but is not a near-term target.
+
+[pofile-ts](https://github.com/sebastian-software/pofile-ts) is Ferrocat's TypeScript predecessor. It is retained as an archived reference and benchmark baseline; further development is focused on Ferrocat.
 
 ## What Ferrocat Gives You
 

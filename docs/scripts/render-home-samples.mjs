@@ -98,9 +98,12 @@ function scenario(source, group, implementation) {
   const stats = entry.statistics;
   // Command-line tools are measured with their process start subtracted.
   const throughput = stats.median_adjusted_mib_per_sec ?? stats.median_mib_per_sec;
+  const elapsedNs = stats.median_adjusted_elapsed_ns ?? stats.median_elapsed_ns;
+  const medianMs = elapsedNs / entry.iterations_per_sample / 1_000_000;
   const adjusted = typeof stats.median_adjusted_mib_per_sec === "number";
-  return { tool: entry.tool_version, throughput, adjusted };
+  return { tool: entry.tool_version, throughput, medianMs, adjusted };
 }
+const borrowedParse = scenario("official", tasks[0].group, "ferrocat-borrowed");
 const speed = {
   measured: {
     date: reports.official.generated_at.slice(0, 10),
@@ -109,20 +112,29 @@ const speed = {
     ferrocat: scenario("official", tasks[0].group, "ferrocat").tool.replace("ferrocat@", ""),
     messages: 10_000,
   },
-  tasks: tasks.map((task) => ({
-    id: task.id,
-    rows: task.comparators.map((comparator) => {
-      const own = scenario(comparator.report, task.group, task.ferrocat.implementation);
-      const other = scenario(comparator.report, task.group, comparator.implementation);
-      return {
-        id: comparator.implementation,
-        label: comparator.label,
-        tool: other.tool,
-        adjusted: other.adjusted,
-        ratio: Number((own.throughput / other.throughput).toFixed(2)),
-      };
-    }),
-  })),
+  borrowedParse: {
+    mibPerSec: Math.round(borrowedParse.throughput),
+    ms: Number(borrowedParse.medianMs.toFixed(1)),
+  },
+  tasks: tasks.map((task) => {
+    const baseline = scenario(task.ferrocat.report, task.group, task.ferrocat.implementation);
+    return {
+      id: task.id,
+      ferrocatMibPerSec: Math.round(baseline.throughput),
+      ferrocatMs: Number(baseline.medianMs.toFixed(1)),
+      rows: task.comparators.map((comparator) => {
+        const own = scenario(comparator.report, task.group, task.ferrocat.implementation);
+        const other = scenario(comparator.report, task.group, comparator.implementation);
+        return {
+          id: comparator.implementation,
+          label: comparator.label,
+          tool: other.tool,
+          adjusted: other.adjusted,
+          ratio: Number((own.throughput / other.throughput).toFixed(2)),
+        };
+      }),
+    };
+  }),
 };
 
 const samples = {
