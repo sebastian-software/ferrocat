@@ -161,9 +161,12 @@
       "ferrocat": "4.0.0",
       "messages": 10000
     },
+    "borrowedParse": { "mibPerSec": 1218, "ms": 1.5 },
     "tasks": [
       {
         "id": "parse",
+        "ferrocatMibPerSec": 797,
+        "ferrocatMs": 2.3,
         "rows": [
           {
             "id": "gettext-parser",
@@ -190,6 +193,8 @@
       },
       {
         "id": "merge",
+        "ferrocatMibPerSec": 410,
+        "ferrocatMs": 4.9,
         "rows": [
           {
             "id": "msgmerge",

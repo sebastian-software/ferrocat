@@ -7,7 +7,9 @@
 
 Public umbrella crate for the `ferrocat` workspace.
 
-Ferrocat is a Rust-native translation catalog engine. It gives applications and host-language adapters one place to parse, update, audit, validate, and compile translation catalogs into runtime-ready data.
+Documentation, interactive examples, and benchmarks: **[ferrocat.dev](https://ferrocat.dev)**.
+
+Ferrocat is a Rust-native translation catalog engine. It gives applications and host-language adapters one place to parse, update, review, audit, validate, and compile Gettext PO, ICU MessageFormat, and FCL catalogs into runtime-ready payloads — at 1218 MiB/s borrowed PO parsing and 410 MiB/s plain catalog updates on the reference 10k-message benchmark.
 
 Add it with:
 
@@ -15,7 +17,33 @@ Add it with:
 cargo add ferrocat
 ```
 
-It re-exports the stable Rust API from `ferrocat-po` and `ferrocat-icu`.
+It re-exports the stable Rust API from `ferrocat-po` and `ferrocat-icu` under the namespaced modules `ferrocat::po`, `ferrocat::catalog`, `ferrocat::icu`, and `ferrocat::collation` (plus top-level re-exports).
+
+## Quick start
+
+```rust
+use ferrocat::catalog::{
+    CatalogAuditOptions, ParseCatalogOptions, audit_catalogs, parse_catalog_for_review,
+};
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let source = parse_catalog_for_review(
+        ParseCatalogOptions::new(
+            "msgid \"Hello {name}\"\nmsgstr \"Hello {name}\"\n",
+            "en",
+        )
+        .with_locale("en"),
+    )?;
+    let target = parse_catalog_for_review(
+        ParseCatalogOptions::new("msgid \"Hello {name}\"\nmsgstr \"Hallo\"\n", "en")
+            .with_locale("de"),
+    )?;
+
+    let report = audit_catalogs(&[&source, &target], &CatalogAuditOptions::new("en"))?;
+    assert!(report.has_errors()); // missing `{name}` placeholder in German translation
+    Ok(())
+}
+```
 
 ## Feature flags
 
@@ -24,6 +52,8 @@ It re-exports the stable Rust API from `ferrocat-po` and `ferrocat-icu`.
 
 - `catalog`: high-level catalog parse, update, combine, conversion, audit,
   metadata, FCL, plural, and runtime compile APIs
+- `collation`: compact CLDR root comparison keys through `ferrocat::collation`
+  without catalog-layer dependencies (`catalog` also enables it)
 - `serde`: serde support in the re-exported `ferrocat-po` and `ferrocat-icu`
   types
 - `compile`, `mt`, and `plurals`: reserved subsystem aliases that currently
@@ -56,6 +86,7 @@ See the repository's [FCL format specification](../../docs/fcl-format.md) for th
 
 Repository, docs, and contribution guidelines:
 
+- <https://ferrocat.dev>
 - <https://github.com/sebastian-software/ferrocat>
 - <https://docs.rs/ferrocat>
 

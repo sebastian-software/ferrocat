@@ -448,10 +448,11 @@ pub struct PoItem {
     /// Raw gettext flags such as `fuzzy`.
     ///
     /// The low-level PO parser and serializer preserve this field for faithful
-    /// PO round trips. Since Ferrocat 2.0, the high-level catalog layer drops
-    /// gettext flags, including `fuzzy`, when parsing or writing catalog data;
-    /// fuzzy/discard decisions are modeled by catalog-layer behavior instead
-    /// of being carried through this raw PO field.
+    /// PO round trips. High-level catalog writers (`update_catalog`,
+    /// `convert_catalog`, `combine_catalogs`, and `merge_catalogs_three_way`)
+    /// preserve opaque flags, and `parse_catalog_for_review` retains `fuzzy`
+    /// review state for coverage, audit, and review workflows, while plain
+    /// `parse_catalog` skips opaque flags for throughput.
     pub flags: PoVec<String>,
     /// Raw metadata lines that do not fit the dedicated fields.
     pub metadata: PoVec<(String, String)>,

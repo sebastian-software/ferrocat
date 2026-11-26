@@ -15,6 +15,13 @@ import { SpeedComparison } from "./speed-comparison";
 /* The homepage's engine chapters: review, runtime, speed, conformance and fit. */
 
 const { conformance, speed } = samples;
+function requireSpeedTask(id: "merge" | "parse") {
+  const found = speed.tasks.find((entry) => entry.id === id);
+  if (!found) throw new Error(`The speed data has no ${id} task.`);
+  return found;
+}
+const parseTask = requireSpeedTask("parse");
+const mergeTask = requireSpeedTask("merge");
 const capitalized = (text: string) => `${text.charAt(0).toUpperCase()}${text.slice(1)}`;
 const measuredOn = new Date(`${speed.measured.date}T00:00:00Z`).toLocaleDateString("en-US", {
   year: "numeric",
@@ -133,8 +140,14 @@ export function Speed() {
       </MonoPassage>
       <p>
         Ferrocat scans the bytes of a catalog directly, and its update moves messages from the old
-        catalog into the new one instead of copying them. Switch the chart between the two everyday
-        jobs.
+        catalog into the new one instead of copying them. On the reference{" "}
+        {speed.measured.messages.toLocaleString("en-US")}-message catalog, the owned PO parser runs
+        at {parseTask.ferrocatMibPerSec.toLocaleString("en-US")} MiB/s (
+        {parseTask.ferrocatMs.toFixed(1)} ms) — up to{" "}
+        {speed.borrowedParse.mibPerSec.toLocaleString("en-US")} MiB/s (
+        {speed.borrowedParse.ms.toFixed(1)} ms) with the borrowed parser — and plain merges run at{" "}
+        {mergeTask.ferrocatMibPerSec.toLocaleString("en-US")} MiB/s (
+        {mergeTask.ferrocatMs.toFixed(1)} ms). Switch the chart between the two everyday jobs.
       </p>
       <MonoWide>
         <SpeedComparison

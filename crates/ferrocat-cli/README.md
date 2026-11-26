@@ -1,9 +1,9 @@
 # ferrocat-cli
 
-Command-line interface for Ferrocat catalog workflows.
+Command-line interface for Ferrocat catalog workflows. Documentation: **[ferrocat.dev](https://ferrocat.dev)**.
 
 The first supported workflow is `ferrocat audit`, a CI-oriented release gate
-for source and target catalogs:
+for source and target PO or FCL catalogs:
 
 ```bash
 ferrocat audit \
@@ -12,6 +12,8 @@ ferrocat audit \
   --target de=locales/de.po \
   --format text
 ```
+
+Pass `--storage fcl` to audit FCL catalogs instead of PO, and repeat `--target` or `--locale` to check multiple target languages.
 
 `ferrocat-cli` releases include a prebuilt `x86_64-unknown-linux-musl` archive
 named `ferrocat-<version>-x86_64-unknown-linux-musl.tar.gz`. The release
