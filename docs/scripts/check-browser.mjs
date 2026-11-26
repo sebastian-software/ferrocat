@@ -209,9 +209,9 @@ async function verifyBenchmarks(page, origin) {
   await page.goto(new URL("/performance/results/", origin).href, { waitUntil: "load" });
   const choice = page.getByRole("combobox", { name: "Benchmark task", exact: true });
   for (const [id, expected] of [
-    ["parse", "725 MiB/s"],
-    ["merge", "291 MiB/s"],
-    ["update", "150 MiB/s"],
+    ["parse", "1218 MiB/s"],
+    ["merge", "410 MiB/s"],
+    ["update", "204 MiB/s"],
   ]) {
     await choice.selectOption(id);
     await page.locator(".mono-bar-figure").getByText(expected, { exact: true }).waitFor();

@@ -97,8 +97,7 @@ function Conditions() {
       <h3>How this was measured</h3>
       <p>
         Recorded on {measuredOn} on an {speed.measured.machine}, with Ferrocat{" "}
-        {speed.measured.ferrocat}: the latest run in the repository. The current release has not
-        been measured with this profile yet.
+        {speed.measured.ferrocat} (revision <code>{speed.measured.revision.slice(0, 7)}</code>).
       </p>
       <p>
         One German catalog of {speed.measured.messages.toLocaleString("en-US")} messages. Each

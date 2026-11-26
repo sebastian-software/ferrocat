@@ -16,12 +16,17 @@ type TaskId = "merge" | "parse";
 
 /** The task, how the chart scales it, and the language each tool is written in. */
 const TASKS: Record<TaskId, { label: string; phrase: string; scale: number; ticks: number[] }> = {
-  parse: { label: "Read a catalog", phrase: "reading a catalog", scale: 25, ticks: [1, 10, 20] },
+  parse: {
+    label: "Read a catalog",
+    phrase: "reading a catalog",
+    scale: 40,
+    ticks: [1, 10, 20, 30, 40],
+  },
   merge: {
     label: "Add new strings",
     phrase: "adding new strings to a catalog",
-    scale: 40,
-    ticks: [1, 10, 20, 30, 40],
+    scale: 90,
+    ticks: [1, 30, 60, 90],
   },
 };
 const LANGUAGES: Record<string, string> = {

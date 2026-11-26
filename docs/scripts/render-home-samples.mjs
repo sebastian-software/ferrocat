@@ -64,8 +64,8 @@ assert.equal(conformance.failed, 0, "The conformance harness reports failing cas
 // The speed comparison: median throughput from the committed reports, turned
 // into time relative to Ferrocat within the same report.
 const reports = {
-  official: await readJson("../../benchmark/results/gettext-official-v1-c3caa27.json"),
-  workflows: await readJson("../../benchmark/results/gettext-workflows-ecosystem-v1-c3caa27.json"),
+  official: await readJson("../../benchmark/results/gettext-official-v1-1aee601.json"),
+  workflows: await readJson("../../benchmark/results/gettext-workflows-ecosystem-v1-1aee601.json"),
 };
 const tasks = [
   {

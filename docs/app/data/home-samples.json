@@ -155,10 +155,10 @@
   },
   "speed": {
     "measured": {
-      "date": "2026-07-30",
+      "date": "2026-11-26",
       "machine": "Apple M1 Ultra (64 GB RAM, macOS arm64)",
-      "revision": "c3caa274664a992410d654fc0ac072c042af9e6d",
-      "ferrocat": "2.2.0",
+      "revision": "1aee601be2cff9ef59a1fb71d4dbff0e7d45c48e",
+      "ferrocat": "4.0.0",
       "messages": 10000
     },
     "tasks": [
@@ -168,23 +168,23 @@
           {
             "id": "gettext-parser",
             "label": "gettext-parser",
-            "tool": "gettext-parser@9.1.1",
+            "tool": "gettext-parser@10.0.0",
             "adjusted": false,
-            "ratio": 22.09
+            "ratio": 32.42
           },
           {
             "id": "php-gettext",
             "label": "gettext/gettext",
             "tool": "gettext/gettext@5.7.3",
             "adjusted": false,
-            "ratio": 10
+            "ratio": 14.17
           },
           {
             "id": "polib",
             "label": "polib",
             "tool": "polib@1.2.0",
             "adjusted": false,
-            "ratio": 22.28
+            "ratio": 36.49
           }
         ]
       },
@@ -196,21 +196,21 @@
             "label": "GNU msgmerge",
             "tool": "msgmerge (GNU gettext-tools) 1.0",
             "adjusted": true,
-            "ratio": 60.55
+            "ratio": 86.13
           },
           {
             "id": "polib",
             "label": "polib",
             "tool": "polib@1.2.0",
             "adjusted": false,
-            "ratio": 34.58
+            "ratio": 56.77
           },
           {
             "id": "php-gettext",
             "label": "gettext/gettext",
             "tool": "gettext/gettext@5.7.3",
             "adjusted": false,
-            "ratio": 16.73
+            "ratio": 24.38
           }
         ]
       }
