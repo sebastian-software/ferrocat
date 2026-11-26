@@ -150,6 +150,7 @@ impl<'a> BorrowedMsgStr<'a> {
 
     /// Returns the number of translation values present, mirroring
     /// [`MsgStr::len`].
+    #[cfg(feature = "catalog")]
     pub(crate) fn len(&self) -> usize {
         match self {
             Self::None => 0,
@@ -160,6 +161,7 @@ impl<'a> BorrowedMsgStr<'a> {
 
     /// Consumes the payload and yields its translation values in slot order,
     /// mirroring [`MsgStr::iter`] without re-allocating the values.
+    #[cfg(feature = "catalog")]
     pub(crate) fn into_values(self) -> std::vec::IntoIter<Cow<'a, str>> {
         match self {
             Self::None => Vec::new().into_iter(),

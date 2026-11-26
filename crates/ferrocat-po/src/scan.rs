@@ -1,7 +1,9 @@
 use crate::{ParseError, ParsePosition};
 
 mod backend {
-    use memchr::{memchr, memchr2, memchr3, memrchr};
+    #[cfg(any(feature = "catalog", test))]
+    use memchr::memchr3;
+    use memchr::{memchr, memchr2, memrchr};
 
     #[inline]
     pub fn find_byte(byte: u8, haystack: &[u8]) -> Option<usize> {
@@ -23,6 +25,7 @@ mod backend {
         find_escapable_byte_impl(haystack)
     }
 
+    #[cfg(any(feature = "catalog", test))]
     #[inline]
     pub fn find_fcl_escapable_byte(haystack: &[u8]) -> Option<usize> {
         // FCL2 escapes CR as well as backslash, tab and LF.
@@ -343,6 +346,7 @@ pub fn find_escapable_byte(haystack: &[u8]) -> Option<usize> {
     backend::find_escapable_byte(haystack)
 }
 
+#[cfg(any(feature = "catalog", test))]
 #[inline]
 pub fn find_fcl_escapable_byte(haystack: &[u8]) -> Option<usize> {
     backend::find_fcl_escapable_byte(haystack)
