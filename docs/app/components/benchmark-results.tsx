@@ -8,9 +8,9 @@ const comparisons = [
     id: "parse",
     label: "Parse PO",
     rows: [
-      { name: "Ferrocat · borrowed Rust parser", rate: 725, self: true },
-      { name: "pofile-ts · Node.js", rate: 149 },
-      { name: "gettext/gettext · PHP", rate: 53 },
+      { name: "Ferrocat · borrowed Rust parser", rate: 1218, self: true },
+      { name: "pofile-ts · Node.js", rate: 155 },
+      { name: "gettext/gettext · PHP", rate: 56 },
       { name: "polib · Python", rate: 22 },
     ],
   },
@@ -18,10 +18,10 @@ const comparisons = [
     id: "merge",
     label: "Plain merge",
     rows: [
-      { name: "Ferrocat · plain update", rate: 291, self: true },
+      { name: "Ferrocat · plain update", rate: 410, self: true },
       { name: "pofile-ts · Node.js", rate: 43 },
-      { name: "gettext/gettext · PHP", rate: 16 },
-      { name: "polib · Python", rate: 8.1 },
+      { name: "gettext/gettext · PHP", rate: 17 },
+      { name: "polib · Python", rate: 7.2 },
       { name: "GNU msgmerge · adjusted throughput", rate: 4.8 },
     ],
   },
@@ -29,11 +29,11 @@ const comparisons = [
     id: "update",
     label: "Full catalog update",
     rows: [
-      { name: "Ferrocat · ICU checks and placeholder tracking", rate: 150, self: true },
-      { name: "pofile-ts · Node.js", rate: 42 },
-      { name: "Babel · Python Catalog.update", rate: 8.9 },
-      { name: "polib · Python", rate: 8.2 },
-      { name: "GNU msgmerge · adjusted throughput", rate: 4.8 },
+      { name: "Ferrocat · ICU checks and placeholder tracking", rate: 204, self: true },
+      { name: "pofile-ts · Node.js", rate: 43 },
+      { name: "Babel · Python Catalog.update", rate: 8.1 },
+      { name: "polib · Python", rate: 7.2 },
+      { name: "GNU msgmerge · adjusted throughput", rate: 4.7 },
     ],
   },
 ];
@@ -61,9 +61,9 @@ export function BenchmarkResults() {
           highlight: "self" in row && row.self,
         }))}
       >
-        Historical Ferrocat 2.2.0 results on an Apple M1 Ultra. Different tools may perform
-        different validation and preservation work; read the task notes before treating throughput
-        as equivalent work.
+        Ferrocat 4.0.0 results on an Apple M1 Ultra. Different tools may perform different
+        validation and preservation work; read the task notes before treating throughput as
+        equivalent work.
       </MonoBars>
     </>
   );
