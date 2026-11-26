@@ -10,8 +10,8 @@ use std::path::{Path, PathBuf};
 
 use rustc_hash::{FxHashMap, FxHasher};
 
-use crate::SerializeOptions;
 use crate::diagnostic_codes;
+use crate::{PoVec, SerializeOptions};
 
 use super::catalog::{
     CanonicalMessage, CanonicalTranslation, Catalog, apply_header_defaults, sort_messages,
@@ -32,7 +32,7 @@ use super::{
 struct CombineEntry {
     message: CanonicalMessage,
     definitions: usize,
-    label_indexes: Vec<usize>,
+    label_indexes: PoVec<usize>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -192,12 +192,41 @@ impl CombineState {
         conflict_strategy: CatalogConflictStrategy,
     ) -> Result<(), ApiError> {
         let hash = combine_identity_hash(&message.msgid, message.msgctxt.as_deref());
-        let Some(existing_index) = self.message_index(hash, &message) else {
-            self.insert_message_index(hash);
+        let entry_index = self.entries.len();
+        let existing_index = match self.index.entry(hash) {
+            std::collections::hash_map::Entry::Vacant(slot) => {
+                slot.insert(CombineIndexSlot::One(entry_index));
+                None
+            }
+            std::collections::hash_map::Entry::Occupied(mut slot) => match slot.get_mut() {
+                CombineIndexSlot::One(index) => {
+                    let existing = &self.entries[*index].message;
+                    if existing.msgid == message.msgid && existing.msgctxt == message.msgctxt {
+                        Some(*index)
+                    } else {
+                        let first = *index;
+                        *slot.get_mut() = CombineIndexSlot::Many(vec![first, entry_index]);
+                        None
+                    }
+                }
+                CombineIndexSlot::Many(indices) => {
+                    if let Some(&index) = indices.iter().find(|&&index| {
+                        let existing = &self.entries[index].message;
+                        existing.msgid == message.msgid && existing.msgctxt == message.msgctxt
+                    }) {
+                        Some(index)
+                    } else {
+                        indices.push(entry_index);
+                        None
+                    }
+                }
+            },
+        };
+        let Some(existing_index) = existing_index else {
             self.entries.push(CombineEntry {
                 message,
                 definitions: 1,
-                label_indexes: vec![label_index],
+                label_indexes: PoVec::from([label_index]),
             });
             return Ok(());
         };
@@ -213,36 +242,6 @@ impl CombineState {
             &mut self.stats,
             &mut self.diagnostics,
         )
-    }
-
-    fn message_index(&self, hash: u64, message: &CanonicalMessage) -> Option<usize> {
-        match self.index.get(&hash)? {
-            CombineIndexSlot::One(index) => {
-                let existing = &self.entries[*index].message;
-                (existing.msgid == message.msgid && existing.msgctxt == message.msgctxt)
-                    .then_some(*index)
-            }
-            CombineIndexSlot::Many(indices) => indices.iter().copied().find(|&index| {
-                let existing = &self.entries[index].message;
-                existing.msgid == message.msgid && existing.msgctxt == message.msgctxt
-            }),
-        }
-    }
-
-    fn insert_message_index(&mut self, hash: u64) {
-        let entry_index = self.entries.len();
-        match self.index.entry(hash) {
-            std::collections::hash_map::Entry::Vacant(slot) => {
-                slot.insert(CombineIndexSlot::One(entry_index));
-            }
-            std::collections::hash_map::Entry::Occupied(mut slot) => match slot.get_mut() {
-                CombineIndexSlot::One(first) => {
-                    let first = *first;
-                    *slot.get_mut() = CombineIndexSlot::Many(vec![first, entry_index]);
-                }
-                CombineIndexSlot::Many(indices) => indices.push(entry_index),
-            },
-        }
     }
 
     fn finish(mut self, config: CombineConfig<'_>) -> Result<CatalogCombineResult, ApiError> {

@@ -7,6 +7,22 @@ use crate::collation_table::{RANGE_START, ROWS};
 pub(super) const PREFIX_BYTES: usize = 32;
 pub(super) type CollationPrefix = [u8; PREFIX_BYTES];
 
+/// Dense 128-byte ASCII primary-weight lookup derived at compile time from
+/// [`ROWS`] and [`RANGE_START`]. Fits in two cache lines and avoids per-byte
+/// offset subtraction and slice bounds checks on the hot ASCII prefix loop.
+const ASCII_PRIMARY: [u8; 128] = {
+    let mut table = [0_u8; 128];
+    let mut byte = RANGE_START as usize;
+    while byte < 128 {
+        let index = byte - RANGE_START as usize;
+        if index < ROWS.len() {
+            table[byte] = ROWS[index].primary;
+        }
+        byte += 1;
+    }
+    table
+};
+
 /// Packs the first primary weights of `text` into a comparison prefix.
 ///
 /// This is the hot first pass that runs for every message; it keeps the tight
@@ -24,13 +40,6 @@ fn collation_prefix_with_fallback(text: &str, stable: bool) -> CollationPrefix {
     let mut packed: CollationPrefix = [0; PREFIX_BYTES];
     let mut written = 0;
 
-    let mut push = |byte: u8, written: &mut usize| {
-        if *written < PREFIX_BYTES {
-            packed[*written] = byte;
-            *written += 1;
-        }
-    };
-
     // Process leading ASCII bytes directly without pre-scanning the entire string
     // with `is_ascii()`. Combining marks live in U+0300..=U+036F (multi-byte UTF-8)
     // and contribute zero primary weights, so ASCII bytes before the first non-ASCII
@@ -40,6 +49,12 @@ fn collation_prefix_with_fallback(text: &str, stable: bool) -> CollationPrefix {
     while i < bytes.len() && written < PREFIX_BYTES {
         let byte = bytes[i];
         if byte >= 0x80 {
+            let mut push = |value: u8, written: &mut usize| {
+                if *written < PREFIX_BYTES {
+                    packed[*written] = value;
+                    *written += 1;
+                }
+            };
             for character in text[i..].chars() {
                 if written == PREFIX_BYTES {
                     break;
@@ -54,10 +69,18 @@ fn collation_prefix_with_fallback(text: &str, stable: bool) -> CollationPrefix {
             }
             return packed;
         }
-        let index = usize::from(byte).wrapping_sub(RANGE_START as usize);
-        match ROWS.get(index) {
-            Some(row) if row.primary != 0 => push(row.primary, &mut written),
-            _ => push_uncovered_prefix(char::from(byte), &mut push, &mut written, stable),
+        let primary = ASCII_PRIMARY[usize::from(byte)];
+        if primary != 0 {
+            packed[written] = primary;
+            written += 1;
+        } else {
+            let mut push = |value: u8, written: &mut usize| {
+                if *written < PREFIX_BYTES {
+                    packed[*written] = value;
+                    *written += 1;
+                }
+            };
+            push_uncovered_prefix(char::from(byte), &mut push, &mut written, stable);
         }
         i += 1;
     }
@@ -117,10 +140,11 @@ fn collation_prefix_from_with_fallback(text: &str, skip: usize, stable: bool) ->
             }
             return packed;
         }
-        let index = usize::from(byte).wrapping_sub(RANGE_START as usize);
-        match ROWS.get(index) {
-            Some(row) if row.primary != 0 => push(row.primary, &mut position),
-            _ => push_uncovered_prefix(char::from(byte), &mut push, &mut position, stable),
+        let primary = ASCII_PRIMARY[usize::from(byte)];
+        if primary != 0 {
+            push(primary, &mut position);
+        } else {
+            push_uncovered_prefix(char::from(byte), &mut push, &mut position, stable);
         }
         i += 1;
     }

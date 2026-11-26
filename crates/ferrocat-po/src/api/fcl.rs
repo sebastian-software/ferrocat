@@ -128,6 +128,30 @@ fn unescape(value: &str, version: FclVersion) -> Result<Cow<'_, str>, ApiError> 
     }
 }
 
+#[inline]
+fn unescape_maybe(
+    value: &str,
+    version: FclVersion,
+    has_backslash: bool,
+) -> Result<Cow<'_, str>, ApiError> {
+    if !has_backslash {
+        return Ok(Cow::Borrowed(value));
+    }
+    unescape(value, version)
+}
+
+#[inline]
+fn validate_escapes_maybe(
+    value: &str,
+    version: FclVersion,
+    has_backslash: bool,
+) -> Result<(), ApiError> {
+    if !has_backslash {
+        return Ok(());
+    }
+    validate_escapes(value, version)
+}
+
 fn validate_escapes(value: &str, version: FclVersion) -> Result<(), ApiError> {
     let bytes = value.as_bytes();
     let mut start = 0;
@@ -616,18 +640,19 @@ fn parse_entry(
     line: &str,
     opaque_capture: OpaqueCapture,
     version: FclVersion,
+    has_backslash: bool,
 ) -> Result<CanonicalMessage, ApiError> {
     let mut fields = SplitTab::new(line.as_bytes());
-    let msgid = unescape(field(&mut fields, "id")?, version)?.into_owned();
+    let msgid = unescape_maybe(field(&mut fields, "id")?, version, has_backslash)?.into_owned();
     let ctx_raw = field(&mut fields, "ctxt")?;
     let msgctxt = match version {
         FclVersion::V1 => {
-            let context = unescape(ctx_raw, version)?.into_owned();
+            let context = unescape_maybe(ctx_raw, version, has_backslash)?.into_owned();
             (!context.is_empty()).then_some(context)
         }
         FclVersion::V2 if ctx_raw == "n" => None,
         FclVersion::V2 if ctx_raw.starts_with('s') => {
-            Some(unescape(&ctx_raw[1..], version)?.into_owned())
+            Some(unescape_maybe(&ctx_raw[1..], version, has_backslash)?.into_owned())
         }
         FclVersion::V2 => {
             return Err(ApiError::InvalidArguments(
@@ -635,7 +660,7 @@ fn parse_entry(
             ));
         }
     };
-    let value = unescape(field(&mut fields, "target")?, version)?.into_owned();
+    let value = unescape_maybe(field(&mut fields, "target")?, version, has_backslash)?.into_owned();
     let mut origins: PoVec<CatalogOrigin> = PoVec::new();
     let mut comments: Vec<String> = Vec::new();
     let mut placeholders: BTreeMap<String, Vec<String>> = BTreeMap::new();
@@ -659,11 +684,15 @@ fn parse_entry(
         match key {
             b"r" => {
                 validate_tag_order(&mut last_tag_rank, TAG_RANK_REFERENCE, "r")?;
-                origins.push(parse_origin(unescape(raw_value, version)?));
+                origins.push(parse_origin(unescape_maybe(
+                    raw_value,
+                    version,
+                    has_backslash,
+                )?));
             }
             b"c" => {
                 validate_tag_order(&mut last_tag_rank, TAG_RANK_COMMENT, "c")?;
-                let comment = unescape(raw_value, version)?;
+                let comment = unescape_maybe(raw_value, version, has_backslash)?;
                 if let Some((name, val)) = parse_placeholder_comment(&comment) {
                     placeholders
                         .entry(name.to_owned())
@@ -676,29 +705,34 @@ fn parse_entry(
             b"tc" => {
                 validate_tag_order(&mut last_tag_rank, TAG_RANK_TRANSLATOR_COMMENT, "tc")?;
                 if opaque_capture == OpaqueCapture::Keep {
-                    translator_comments.push(unescape(raw_value, version)?.into_owned());
+                    translator_comments
+                        .push(unescape_maybe(raw_value, version, has_backslash)?.into_owned());
                 } else {
-                    validate_escapes(raw_value, version)?;
+                    validate_escapes_maybe(raw_value, version, has_backslash)?;
                 }
             }
             b"f" => {
                 validate_tag_order(&mut last_tag_rank, TAG_RANK_FLAG, "f")?;
                 match opaque_capture {
-                    OpaqueCapture::Keep => flags.push(unescape(raw_value, version)?.into_owned()),
+                    OpaqueCapture::Keep => {
+                        flags.push(unescape_maybe(raw_value, version, has_backslash)?.into_owned());
+                    }
                     OpaqueCapture::ReviewState => {
-                        validate_escapes(raw_value, version)?;
+                        validate_escapes_maybe(raw_value, version, has_backslash)?;
                         if raw_value == "fuzzy" {
                             flags.push("fuzzy".to_owned());
                         }
                     }
-                    OpaqueCapture::Discard => validate_escapes(raw_value, version)?,
+                    OpaqueCapture::Discard => {
+                        validate_escapes_maybe(raw_value, version, has_backslash)?;
+                    }
                 }
             }
             b"o" => {
                 validate_tag_order(&mut last_tag_rank, TAG_RANK_OBSOLETE, "o")?;
                 set_obsolete(
                     &mut obsolete,
-                    Some(unescape(raw_value, version)?.into_owned()),
+                    Some(unescape_maybe(raw_value, version, has_backslash)?.into_owned()),
                 )?;
             }
             b"lock" => {
@@ -708,7 +742,7 @@ fn parse_entry(
                         "duplicate FCL tag `lock`".to_owned(),
                     ));
                 }
-                lock = Some(unescape(raw_value, version)?.into_owned());
+                lock = Some(unescape_maybe(raw_value, version, has_backslash)?.into_owned());
             }
             b"ai" => {
                 validate_tag_order(&mut last_tag_rank, TAG_RANK_AI, "ai")?;
@@ -717,7 +751,7 @@ fn parse_entry(
                         "duplicate FCL tag `ai`".to_owned(),
                     ));
                 }
-                let value = unescape(raw_value, version)?;
+                let value = unescape_maybe(raw_value, version, has_backslash)?;
                 ai = Some(parse_ai_descriptor(&value));
             }
             other => {
@@ -899,6 +933,7 @@ pub(super) fn parse_catalog_to_internal_fcl(
 
     let bytes = content.as_bytes();
     let has_cr = find_byte(b'\r', bytes).is_some();
+    let file_has_backslash = find_byte(b'\\', bytes).is_some();
     let mut lines = FclLines::new(bytes, has_cr).enumerate();
     let header = lines.next().map(|(_, line)| line).ok_or_else(|| {
         ApiError::InvalidArguments(
@@ -934,15 +969,46 @@ pub(super) fn parse_catalog_to_internal_fcl(
                 index + 1
             )));
         }
-        let message =
-            parse_entry(line, opaque_capture, parsed_header.version).map_err(|error| {
-                ApiError::InvalidArguments(format!(
-                    "invalid FCL entry on line {}: {error}",
-                    index + 1
-                ))
-            })?;
-        // Tagless files retain the legacy bytewise order check.
-        if let Some(previous) = messages.last() {
+        let line_has_backslash = file_has_backslash && find_byte(b'\\', line.as_bytes()).is_some();
+        let message = parse_entry(
+            line,
+            opaque_capture,
+            parsed_header.version,
+            line_has_backslash,
+        )
+        .map_err(|error| {
+            ApiError::InvalidArguments(format!("invalid FCL entry on line {}: {error}", index + 1))
+        })?;
+        if check_v2_collated {
+            let prefix = storage_collation_prefix(&message.msgid);
+            if let (Some(prev_prefix), Some(previous)) = (previous_prefix, messages.last()) {
+                match prefix.cmp(&prev_prefix) {
+                    Ordering::Greater => {}
+                    Ordering::Less => {
+                        return Err(ApiError::InvalidArguments(format!(
+                            "FCL entries must follow the declared collated order; line {} is out of order",
+                            index + 1
+                        )));
+                    }
+                    Ordering::Equal => {
+                        if message.msgid == previous.msgid && message.msgctxt == previous.msgctxt {
+                            return Err(ApiError::Conflict(format!(
+                                "duplicate FCL entry for id {:?} and context {:?}",
+                                message.msgid, message.msgctxt
+                            )));
+                        }
+                        if cmp_fcl_collated_on_prefix_tie(&message, previous, &prefix).is_lt() {
+                            return Err(ApiError::InvalidArguments(format!(
+                                "FCL entries must follow the declared collated order; line {} is out of order",
+                                index + 1
+                            )));
+                        }
+                    }
+                }
+            }
+            previous_prefix = Some(prefix);
+        } else if let Some(previous) = messages.last() {
+            // Tagless files retain the legacy bytewise order check.
             let identity_order = (message.msgid.as_str(), message.msgctxt.as_deref())
                 .cmp(&(previous.msgid.as_str(), previous.msgctxt.as_deref()));
             if !legacy_collated && identity_order.is_eq() {
@@ -957,22 +1023,6 @@ pub(super) fn parse_catalog_to_internal_fcl(
                     index + 1
                 )));
             }
-        }
-        if check_v2_collated {
-            let prefix = storage_collation_prefix(&message.msgid);
-            if let (Some(prev_prefix), Some(previous)) = (previous_prefix, messages.last()) {
-                let order = match prefix.cmp(&prev_prefix) {
-                    Ordering::Equal => cmp_fcl_collated_on_prefix_tie(&message, previous, &prefix),
-                    non_eq => non_eq,
-                };
-                if order.is_lt() {
-                    return Err(ApiError::InvalidArguments(format!(
-                        "FCL entries must follow the declared collated order; line {} is out of order",
-                        index + 1
-                    )));
-                }
-            }
-            previous_prefix = Some(prefix);
         }
         messages.push(message);
     }

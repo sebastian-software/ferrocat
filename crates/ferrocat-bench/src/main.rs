@@ -1179,19 +1179,26 @@ fn fixture_fcl_content(fixture: &Fixture) -> Result<(String, Option<&'static str
     ))
 }
 
-/// Renders a parsed catalog as FCL text, reusing the canonical per-message field
-/// renderers so PO and FCL are compared on identical content.
+/// Renders a parsed catalog as canonical FCL2 text, reusing the canonical
+/// per-message field renderers so PO and FCL are compared on identical content.
 pub(crate) fn render_fcl_catalog(parsed: &ParsedCatalog) -> String {
-    let mut out = String::from("%FCL1\tsource=en");
+    let mut out = String::from("%FCL2\tsource=en");
     if let Some(locale) = &parsed.locale {
         out.push_str("\tlocale=");
         fcl_escape_into(&mut out, locale);
     }
-    out.push('\n');
+    out.push_str("\torder=collated\n");
 
-    // FCL is canonically sorted by (id, ctxt); the reader enforces it. Build one
-    // line per message keyed by (id, ctxt), then sort before emitting.
-    let mut entries: Vec<(String, Option<String>, String)> = parsed
+    // FCL2 is canonically sorted by CLDR root collated `(id, ctxt)`; the reader
+    // enforces it. Build one line per message keyed by collated `(id, ctxt)`
+    // with raw identity tie-breaks before emitting.
+    let mut entries: Vec<(
+        ferrocat_po::collation::CollationKey,
+        ferrocat_po::collation::CollationKey,
+        String,
+        Option<String>,
+        String,
+    )> = parsed
         .messages
         .iter()
         .map(|message| {
@@ -1199,7 +1206,13 @@ pub(crate) fn render_fcl_catalog(parsed: &ParsedCatalog) -> String {
             let mut line = String::new();
             fcl_escape_into(&mut line, &id);
             line.push('\t');
-            fcl_escape_into(&mut line, message.msgctxt.as_deref().unwrap_or(""));
+            match message.msgctxt.as_deref() {
+                None => line.push('n'),
+                Some(context) => {
+                    line.push('s');
+                    fcl_escape_into(&mut line, context);
+                }
+            }
             line.push('\t');
             fcl_escape_into(&mut line, &render_canonical_translation(message));
 
@@ -1222,11 +1235,14 @@ pub(crate) fn render_fcl_catalog(parsed: &ParsedCatalog) -> String {
                 line.push_str("\to");
             }
             line.push('\n');
-            (id, message.msgctxt.clone(), line)
+            let id_key = ferrocat_po::collation::collation_key(&id);
+            let ctx_key =
+                ferrocat_po::collation::collation_key(message.msgctxt.as_deref().unwrap_or(""));
+            (id_key, ctx_key, id, message.msgctxt.clone(), line)
         })
         .collect();
-    entries.sort_by(|a, b| (&a.0, &a.1).cmp(&(&b.0, &b.1)));
-    for (_, _, line) in &entries {
+    entries.sort_by(|a, b| (&a.0, &a.1, &a.2, &a.3).cmp(&(&b.0, &b.1, &b.2, &b.3)));
+    for (_, _, _, _, line) in &entries {
         out.push_str(line);
     }
 
@@ -1236,7 +1252,7 @@ pub(crate) fn render_fcl_catalog(parsed: &ParsedCatalog) -> String {
 fn fcl_escape_into(out: &mut String, value: &str) {
     if !value
         .bytes()
-        .any(|byte| matches!(byte, b'\\' | b'\t' | b'\n'))
+        .any(|byte| matches!(byte, b'\\' | b'\t' | b'\n' | b'\r'))
     {
         out.push_str(value);
         return;
@@ -1246,6 +1262,7 @@ fn fcl_escape_into(out: &mut String, value: &str) {
             '\\' => out.push_str("\\\\"),
             '\t' => out.push_str("\\t"),
             '\n' => out.push_str("\\n"),
+            '\r' => out.push_str("\\r"),
             other => out.push(other),
         }
     }
