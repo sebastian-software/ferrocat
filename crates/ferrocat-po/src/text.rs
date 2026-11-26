@@ -178,17 +178,21 @@ pub fn extract_quoted(line: &str) -> Result<String, ParseError> {
 /// point, avoiding the throwaway `Vec` that collecting first would require for
 /// every reference line.
 pub fn for_each_reference_token<'a>(input: &'a str, mut visit: impl FnMut(Cow<'a, str>)) {
+    // Fast path for the overwhelmingly common single-reference line (e.g.
+    // `src/app.rs:42`). A non-empty run of graphic ASCII bytes has no leading or
+    // trailing whitespace (ASCII or Unicode), no split point, and no directional
+    // isolate, so emitting it directly skips Unicode `trim()` and char scanning.
+    if !input.is_empty() && input.bytes().all(|byte| byte.is_ascii_graphic()) {
+        visit(Cow::Borrowed(input));
+        return;
+    }
+
     let trimmed = input.trim();
     if trimmed.is_empty() {
         visit(Cow::Borrowed(""));
         return;
     }
 
-    // Fast path for the overwhelmingly common single-reference line (e.g.
-    // `src/app.rs:42`). A run of graphic ASCII bytes cannot contain a
-    // whitespace split point or a multi-byte directional isolate, so it is one
-    // token by definition. Emitting it directly skips the char-by-char scan and
-    // the `parts` buffer the slow path needs to validate multi-token splits.
     if trimmed.bytes().all(|byte| byte.is_ascii_graphic()) {
         visit(Cow::Borrowed(trimmed));
         return;

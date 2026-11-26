@@ -31,15 +31,12 @@ pub(super) fn export_catalog_content(
         super::CatalogStorageFormat::Po => {
             stringify_catalog_po(catalog, options, locale, diagnostics)
         }
-        super::CatalogStorageFormat::Fcl => {
-            super::fcl::validate_catalog_fcl(catalog)?;
-            Ok(super::fcl::stringify_catalog_fcl(
-                catalog,
-                locale,
-                options.source_locale,
-                &options.render,
-            ))
-        }
+        super::CatalogStorageFormat::Fcl => super::fcl::stringify_catalog_fcl(
+            catalog,
+            locale,
+            options.source_locale,
+            &options.render,
+        ),
     }
 }
 
@@ -180,7 +177,7 @@ fn write_catalog_po_message(
     } else {
         ""
     };
-    write_catalog_po_metadata(out, obsolete_prefix, message, options);
+    write_catalog_po_metadata(out, scratch, obsolete_prefix, message, options);
     if let Some(context) = &message.msgctxt {
         write_keyword(
             out,
@@ -298,6 +295,7 @@ fn write_catalog_po_message(
 
 fn write_catalog_po_metadata(
     out: &mut String,
+    placeholder_scratch: &mut String,
     obsolete_prefix: &str,
     message: &CanonicalMessage,
     options: &UpdateCatalogOptions<'_>,
@@ -312,6 +310,7 @@ fn write_catalog_po_metadata(
     }
     write_placeholder_comments(
         out,
+        placeholder_scratch,
         obsolete_prefix,
         &message.comments,
         &message.placeholders,
@@ -391,12 +390,13 @@ fn write_origin_references(out: &mut String, obsolete_prefix: &str, origins: &[C
 
 fn write_placeholder_comments(
     out: &mut String,
+    candidate: &mut String,
     obsolete_prefix: &str,
     comments: &[String],
     placeholders: &BTreeMap<String, Vec<String>>,
     mode: &PlaceholderCommentMode,
 ) {
-    for_each_placeholder_comment(comments, placeholders, mode, |comment| {
+    for_each_placeholder_comment_with_scratch(comments, placeholders, mode, candidate, |comment| {
         write_prefixed_line(out, obsolete_prefix, "#.", comment);
     });
 }
@@ -464,42 +464,60 @@ fn canonical_translation_ref(translation: &CanonicalTranslation) -> EffectiveTra
     }
 }
 
+#[cfg(test)]
 pub(super) fn for_each_placeholder_comment(
     comments: &[String],
     placeholders: &BTreeMap<String, Vec<String>>,
     mode: &PlaceholderCommentMode,
+    visit: impl FnMut(&str),
+) {
+    let mut candidate = String::new();
+    for_each_placeholder_comment_with_scratch(comments, placeholders, mode, &mut candidate, visit);
+}
+
+pub(super) fn for_each_placeholder_comment_with_scratch(
+    comments: &[String],
+    placeholders: &BTreeMap<String, Vec<String>>,
+    mode: &PlaceholderCommentMode,
+    candidate: &mut String,
     mut visit: impl FnMut(&str),
 ) {
     let limit = match mode {
         PlaceholderCommentMode::Disabled => return,
         PlaceholderCommentMode::Enabled { limit } => *limit,
     };
-
-    // Only numeric placeholder names generate comments. Bailing out first keeps
-    // the common message without generated comments completely allocation-free.
-    if !placeholders.keys().any(|name| is_numeric_placeholder(name)) {
+    if limit == 0 || placeholders.is_empty() {
         return;
     }
 
-    let mut candidate = String::new();
+    // Distinct numeric placeholder names produce disjoint prefixes
+    // (`placeholder {0}: ` vs `placeholder {1}: `), so cross-key duplicates are
+    // impossible and `generated` is only needed when a single key has >1 value.
     let mut generated: Vec<String> = Vec::new();
 
     for (name, values) in placeholders {
         if !is_numeric_placeholder(name) {
             continue;
         }
-        for value in values.iter().take(limit) {
+        let count = values.len().min(limit);
+        if count == 0 {
+            continue;
+        }
+        generated.clear();
+        for (value_index, value) in values.iter().take(count).enumerate() {
             candidate.clear();
-            write_placeholder_comment(&mut candidate, name, value);
+            write_placeholder_comment(candidate, name, value);
             if comments
                 .iter()
                 .chain(generated.iter())
-                .any(|existing| existing == &candidate)
+                .any(|existing| existing == candidate)
             {
                 continue;
             }
-            visit(&candidate);
-            generated.push(candidate.clone());
+            visit(candidate);
+            if value_index + 1 < count {
+                generated.push(candidate.clone());
+            }
         }
     }
 }

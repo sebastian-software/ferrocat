@@ -1310,7 +1310,7 @@ pub(super) fn split_placeholder_comments<'a>(
 ///
 /// Borrows from `comment` so callers can use it as an allocation-free predicate
 /// before deciding whether any placeholder splitting is needed at all.
-fn parse_placeholder_comment(comment: &str) -> Option<(&str, &str)> {
+pub(super) fn parse_placeholder_comment(comment: &str) -> Option<(&str, &str)> {
     let rest = comment.strip_prefix("placeholder {")?;
     let end = rest.find("}: ")?;
     Some((&rest[..end], &rest[end + 3..]))
@@ -1348,16 +1348,25 @@ pub(super) fn parse_origin(reference: Cow<'_, str>) -> CatalogOrigin {
 fn split_origin(reference: &str) -> (&str, Option<&str>) {
     // Anchor first: split on the last `#`, so a `#` earlier in the path stays
     // with the file.
-    let (file, scope) = match reference.rsplit_once('#') {
-        Some((file, scope)) if !scope.is_empty() => (file, Some(scope)),
+    let bytes = reference.as_bytes();
+    let (file, scope) = match crate::scan::find_last_byte(b'#', bytes) {
+        Some(hash_index) if hash_index + 1 < bytes.len() => {
+            (&reference[..hash_index], Some(&reference[hash_index + 1..]))
+        }
         _ => (reference, None),
     };
 
-    if let Some((trimmed, line)) = file.rsplit_once(':')
-        && !line.is_empty()
-        && line.bytes().all(|byte| byte.is_ascii_digit())
-    {
-        return (trimmed, scope);
+    // A legacy `:line` suffix must end with an ASCII digit, so checking the
+    // last byte skips scanning modern file paths (e.g. `.tsx`) entirely.
+    let file_bytes = file.as_bytes();
+    if file_bytes.last().is_some_and(u8::is_ascii_digit) {
+        let mut cursor = file_bytes.len() - 1;
+        while cursor > 0 && file_bytes[cursor - 1].is_ascii_digit() {
+            cursor -= 1;
+        }
+        if cursor > 0 && file_bytes[cursor - 1] == b':' {
+            return (&file[..cursor - 1], scope);
+        }
     }
 
     (file, scope)

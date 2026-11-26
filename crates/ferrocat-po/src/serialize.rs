@@ -1,4 +1,4 @@
-use crate::scan::{find_escapable_byte, has_byte};
+use crate::scan::{find_escapable_byte, find_last_byte, has_byte};
 use crate::text::{escape_string_into, escape_string_into_with_first_escape};
 use crate::{PoFile, PoItem, SerializeOptions};
 
@@ -255,20 +255,22 @@ fn try_write_simple_keyword(
     index: Option<usize>,
     options: &SerializeOptions,
 ) -> bool {
-    let bytes = value.as_bytes();
-    let first_escape = find_escapable_byte(bytes);
-    if let Some(index) = first_escape
-        && (bytes[index] == b'\n' || has_byte(b'\n', &bytes[index + 1..]))
-    {
-        return false;
-    }
-
+    // Check raw length against `fold_length` first: escaping only keeps or
+    // increases length, so strings already past the line budget skip the scan.
     let prefix_len = keyword_prefix_len(keyword, index);
     if options.fold_length > 0
         && value.len()
             > options
                 .fold_length
                 .saturating_sub(obsolete_prefix.len() + prefix_len + 2)
+    {
+        return false;
+    }
+
+    let bytes = value.as_bytes();
+    let first_escape = find_escapable_byte(bytes);
+    if let Some(index) = first_escape
+        && (bytes[index] == b'\n' || has_byte(b'\n', &bytes[index + 1..]))
     {
         return false;
     }
@@ -359,19 +361,25 @@ fn write_complex_keyword(
     } else {
         options.fold_length.saturating_sub(2).max(1)
     };
-    let requires_folding = options.fold_length > 0
-        && parts_with_has_next(text).any(|(part, has_next)| {
-            let escaped_len = escaped_part_len(part, has_next);
-            let limit = if has_multiple_lines {
-                other_line_max
-            } else {
-                first_line_max
-            };
-            escaped_len > limit
-        });
+    // Reaching `write_complex_keyword` without a newline on a non-obsolete line
+    // with `fold_length > prefix_len + 2` means `try_write_simple_keyword`
+    // already proved the escaped single line exceeds `first_line_max`.
     let use_compact = options.compact_multiline
-        && text.split('\n').next().unwrap_or_default() != ""
-        && !requires_folding;
+        && !text.is_empty()
+        && !text.starts_with('\n')
+        && !(options.fold_length > 0
+            && ((!has_multiple_lines
+                && obsolete_prefix.is_empty()
+                && options.fold_length > prefix_len + 2)
+                || parts_with_has_next(text).any(|(part, has_next)| {
+                    let escaped_len = escaped_part_len(part, has_next);
+                    let limit = if has_multiple_lines {
+                        other_line_max
+                    } else {
+                        first_line_max
+                    };
+                    escaped_len > limit
+                })));
     let mut wrote_first_value_line = if use_compact {
         false
     } else {
@@ -484,22 +492,31 @@ fn folded_split_point(input: &str, start: usize, max_len: usize) -> usize {
         return input.len();
     }
 
-    let mut end = start;
-    while end < input.len() {
-        let chunk_end = next_fold_chunk_end(input, end);
-        let next_len = chunk_end - start;
-        if next_len > max_len {
-            break;
+    // Find the rightmost alternating space / non-space run boundary in
+    // `(start, start + max_len]`. Checking `bytes[limit]` vs `bytes[limit - 1]`
+    // resolves exact boundaries in O(1), and otherwise scanning backward from
+    // `limit` only inspects the single overflowing run instead of walking the
+    // entire line from `start`.
+    let bytes = input.as_bytes();
+    let limit = start + max_len;
+    let boundary = if (bytes[limit] == b' ') != (bytes[limit - 1] == b' ') {
+        limit
+    } else if bytes[limit] != b' ' {
+        find_last_byte(b' ', &bytes[start..limit]).map_or(start, |relative| start + relative + 1)
+    } else {
+        let mut cursor = limit - 1;
+        while cursor > start && bytes[cursor - 1] == b' ' {
+            cursor -= 1;
         }
-        end = chunk_end;
+        cursor
+    };
+
+    if boundary > start {
+        return boundary;
     }
 
-    if end > start {
-        return end;
-    }
-
-    let end = clamp_char_boundary(input, start, start + max_len);
-    let trailing_backslashes = input.as_bytes()[start..end]
+    let end = clamp_char_boundary(input, start, limit);
+    let trailing_backslashes = bytes[start..end]
         .iter()
         .rev()
         .take_while(|&&byte| byte == b'\\')
@@ -515,16 +532,6 @@ fn folded_split_point(input: &str, start: usize, max_len: usize) -> usize {
     } else {
         end
     }
-}
-
-fn next_fold_chunk_end(input: &str, start: usize) -> usize {
-    let bytes = input.as_bytes();
-    let is_space = bytes[start] == b' ';
-    let mut end = start + 1;
-    while end < bytes.len() && (bytes[end] == b' ') == is_space {
-        end += 1;
-    }
-    end
 }
 
 fn clamp_char_boundary(input: &str, start: usize, requested_end: usize) -> usize {
@@ -547,7 +554,73 @@ fn clamp_char_boundary(input: &str, start: usize, requested_end: usize) -> usize
 mod tests {
     use crate::{Header, MsgStr, PoFile, PoItem, SerializeOptions, escape_string, parse_po};
 
-    use super::{escaped_string_len, stringify_po};
+    use super::{clamp_char_boundary, escaped_string_len, folded_split_point, stringify_po};
+
+    #[test]
+    fn folded_split_point_matches_forward_chunk_scan_across_edge_cases() {
+        fn reference_split(input: &str, start: usize, max_len: usize) -> usize {
+            if input.len() - start <= max_len {
+                return input.len();
+            }
+            let bytes = input.as_bytes();
+            let mut end = start;
+            while end < bytes.len() {
+                let is_space = bytes[end] == b' ';
+                let mut chunk_end = end + 1;
+                while chunk_end < bytes.len() && (bytes[chunk_end] == b' ') == is_space {
+                    chunk_end += 1;
+                }
+                if chunk_end - start > max_len {
+                    break;
+                }
+                end = chunk_end;
+            }
+            if end > start {
+                return end;
+            }
+            let end = clamp_char_boundary(input, start, start + max_len);
+            let trailing_backslashes = bytes[start..end]
+                .iter()
+                .rev()
+                .take_while(|&&b| b == b'\\')
+                .count();
+            if !trailing_backslashes.is_multiple_of(2) {
+                if end - 1 > start {
+                    end - 1
+                } else {
+                    clamp_char_boundary(input, start, (start + 2).min(input.len()))
+                }
+            } else {
+                end
+            }
+        }
+
+        let cases = [
+            "hello world",
+            "hello   world  again",
+            "   leading spaces",
+            "a   bc",
+            "supercalifragilisticexpialidocious",
+            "escaped\\\"quote\\\\and\\ntext here",
+            "Übermäßige Größenänderung für Käufer",
+            "   ",
+            "\\n\\t\\\\a",
+        ];
+        for input in cases {
+            for start in 0..input.len() {
+                if !input.is_char_boundary(start) {
+                    continue;
+                }
+                for max_len in 1..=20 {
+                    assert_eq!(
+                        folded_split_point(input, start, max_len),
+                        reference_split(input, start, max_len),
+                        "input={input:?} start={start} max_len={max_len}"
+                    );
+                }
+            }
+        }
+    }
 
     #[test]
     fn serializes_comments_headers_and_items() {
