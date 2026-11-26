@@ -3,6 +3,61 @@
 > Version 3.0.0 was published and then yanked; 2.2.0 superseded it without the
 > breaking change, so the 2.2.0 compare links below run backwards from 3.0.0.
 
+## [4.0.0](https://github.com/sebastian-software/ferrocat/compare/ferrocat-v3.6.0...ferrocat-v4.0.0) (2026-11-26)
+
+
+### ⚠ BREAKING CHANGES
+
+* **catalog:** compact CatalogMessage and NormalizedParsedCatalog layouts and reject raw FCL2 CR
+* **po:** remove dead ParseCatalogOptions::strict option
+* FCL writers emit FCL2, the runtime ICU quoting policy can change derived IDs, diagnostic code types are crate-owned, and artifact compilation rejects invalid final ICU by default. Report ICU options now live in the nested compile options.
+
+### Features
+
+* **cli:** migrate audit arguments to clap ([#368](https://github.com/sebastian-software/ferrocat/issues/368)) ([d92aa54](https://github.com/sebastian-software/ferrocat/commit/d92aa5441bf4c957a61dac2fad77948889f24135))
+* establish the Ferrocat 4.0 catalog contracts ([#361](https://github.com/sebastian-software/ferrocat/issues/361)) ([412dcea](https://github.com/sebastian-software/ferrocat/commit/412dcea8ad94ad38d9d6e6fc06254a899c6f93f4))
+* **icu:** derive Copy for IcuPluralKind ([b2b6910](https://github.com/sebastian-software/ferrocat/commit/b2b691073d8388b74ac08884886c52bbbc394502))
+* **po:** add with_locales builders to coverage and review options ([f32f9f7](https://github.com/sebastian-software/ferrocat/commit/f32f9f7865f2d38d57bfc682054d067c6c4b7e4e))
+
+
+### Bug Fixes
+
+* **catalog:** address review findings on plural blocks, full identity hashing, serde, and FCL header CR ([763a638](https://github.com/sebastian-software/ferrocat/commit/763a6384246edfa191441dc90e5e316f7904b3ce))
+* **catalog:** prefer active entries on merge and bound plural cache ([be9057b](https://github.com/sebastian-software/ferrocat/commit/be9057ba18d355bf4bb18ae4a9ee3d1efab8de5f))
+* **catalog:** preserve structured ICU plural translations ([#387](https://github.com/sebastian-software/ferrocat/issues/387)) ([977d998](https://github.com/sebastian-software/ferrocat/commit/977d99821f58a8034b3914399ad940002c6fbef3))
+* **cli:** skip unrelated catalogs in filtered audits ([#364](https://github.com/sebastian-software/ferrocat/issues/364)) ([3b9192b](https://github.com/sebastian-software/ferrocat/commit/3b9192b78b3f5f99bc807ef13dff855aff3d9223))
+* **deps:** require ICU4X 2.4 for catalog plural data ([#386](https://github.com/sebastian-software/ferrocat/issues/386)) ([e9acc7c](https://github.com/sebastian-software/ferrocat/commit/e9acc7cc9a51aababcd418951adb5fb7238582a5))
+* **docs:** address PR [#399](https://github.com/sebastian-software/ferrocat/issues/399) review findings on bench scenario and README wording ([163c4a4](https://github.com/sebastian-software/ferrocat/commit/163c4a4ac40a95326af9e70eefba5a3ab3c6895e))
+* **docs:** generate homepage samples from the workspace ([#392](https://github.com/sebastian-software/ferrocat/issues/392)) ([e4079ea](https://github.com/sebastian-software/ferrocat/commit/e4079ea54eb3780b32a2dfc5fdbd5bcf7f2d5ee8))
+* **icu:** compare repeated ICU variables, formatters, and plurals as sets ([3232ffc](https://github.com/sebastian-software/ferrocat/commit/3232ffcc52bc6ca950e2130bf3d65545c3b5c334))
+* **icu:** preserve quoted pound with optional plural comma ([#389](https://github.com/sebastian-software/ferrocat/issues/389)) ([e09a0fc](https://github.com/sebastian-software/ferrocat/commit/e09a0fccbf9fb13eec2314afc9359e2c997750aa))
+* **parsers:** bound PO plural slots and ICU nesting ([#391](https://github.com/sebastian-software/ferrocat/issues/391)) ([77862d2](https://github.com/sebastian-software/ferrocat/commit/77862d211a65d18b9a29492c9856a235cec04b7e))
+* **po:** align merge BOM/headers and scope charset scan to header ([e72a3fb](https://github.com/sebastian-software/ferrocat/commit/e72a3fbbab1a17569d4820cfdd49d368900ae2b3))
+* **po:** assemble header lines before charset scan ([7791600](https://github.com/sebastian-software/ferrocat/commit/7791600dfcaa69681f7ec5e19839d4be611c5299))
+* **po:** harden PO folding and multiline serialization ([e0bf0cb](https://github.com/sebastian-software/ferrocat/commit/e0bf0cb7a6d0f8596d804303beff243d000ef610))
+* **po:** preserve declared plural slots on update ([#383](https://github.com/sebastian-software/ferrocat/issues/383)) ([c54cf6e](https://github.com/sebastian-software/ferrocat/commit/c54cf6e833bed1321f379d1ac0a970c799d95f1a))
+* **po:** preserve gettext plural slots with ICU4X 2.4 ([#375](https://github.com/sebastian-software/ferrocat/issues/375)) ([60fd99f](https://github.com/sebastian-software/ferrocat/commit/60fd99f3f58c7e39eaead741351edef6dc3dda25))
+* **po:** preserve plural slots across catalog operations ([#385](https://github.com/sebastian-software/ferrocat/issues/385)) ([23e2709](https://github.com/sebastian-software/ferrocat/commit/23e270999c1e4b47f31ad38d0d04a35376377c32))
+* **po:** reject empty FCL message IDs during PO conversion ([#388](https://github.com/sebastian-software/ferrocat/issues/388)) ([0d588aa](https://github.com/sebastian-software/ferrocat/commit/0d588aadfb4b6aafc90f5da270dad411fe0c31d5))
+* **po:** reject unrepresentable plural translations ([#390](https://github.com/sebastian-software/ferrocat/issues/390)) ([6e4df02](https://github.com/sebastian-software/ferrocat/commit/6e4df0261b6d84a2f9ed93ccc74ccef8f9404423))
+
+
+### Performance Improvements
+
+* **catalog:** compact CatalogMessage and NormalizedParsedCatalog layouts and reject raw FCL2 CR ([23742cb](https://github.com/sebastian-software/ferrocat/commit/23742cb8b5e5ad159347d45fff88321776586541))
+* **catalog:** reduce allocations in lookup indices, hashing, audit, and compile paths ([355bf8c](https://github.com/sebastian-software/ferrocat/commit/355bf8cdd88360243a8447bbc6a0d4309e0ed1cb))
+* **fcl:** optimize FCL2 order checks, collation sorting, and serialization ([fcad3f6](https://github.com/sebastian-software/ferrocat/commit/fcad3f64c3e7efffea0f62cdc543d62224d1a662))
+* **icu:** add zero-alloc validation and streamline parsing and variable extraction ([8d6d08e](https://github.com/sebastian-software/ferrocat/commit/8d6d08e88f9e9862953444130d0dd75f00333750))
+* **po:** accelerate quoted scanning, validation, and SIMD escaping ([0e47e64](https://github.com/sebastian-software/ferrocat/commit/0e47e641eb05c4c5c06240d442f17d88aad0f7c7))
+* **po:** address review findings on combine reserve, FCL plural cache, and ICU tests ([3685601](https://github.com/sebastian-software/ferrocat/commit/36856014661acdb7bf89e7842e65f9a08488a543))
+* **po:** eliminate hot-path memcmp, realloc, folding, and FCL parse overhead ([#397](https://github.com/sebastian-software/ferrocat/issues/397)) ([1aee601](https://github.com/sebastian-software/ferrocat/commit/1aee601be2cff9ef59a1fb71d4dbff0e7d45c48e))
+* **po:** streamline FCL escaping, ASCII collation prefix, and combine indexing ([1bd168f](https://github.com/sebastian-software/ferrocat/commit/1bd168f32b67db2e58ee6e17a586aca25382cd4b))
+
+
+### Code Refactoring
+
+* **po:** remove dead ParseCatalogOptions::strict option ([4813848](https://github.com/sebastian-software/ferrocat/commit/4813848c60cf8aab553c4bc7d98541e8c5a3342a))
+
 ## [3.6.0](https://github.com/sebastian-software/ferrocat/compare/ferrocat-v3.5.1...ferrocat-v3.6.0) (2026-11-10)
 
 

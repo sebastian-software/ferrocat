@@ -184,7 +184,7 @@ version = "4.0.0"
 
 [[package]]
 name = "ferrocat-homepage-samples"
-version = "0.0.0"
+version = "4.0.0"
 dependencies = [
  "ferrocat",
  "serde_json",
